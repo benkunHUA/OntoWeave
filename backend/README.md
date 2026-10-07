@@ -71,12 +71,32 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 |---|---|---|
 | GET | `/health` | 健康检查 |
 | POST | `/api/v1/object-types` | 新建对象类型（草案状态） |
+| GET | `/api/v1/object-types` | 对象类型列表（分页） |
 | POST | `/api/v1/object-types/{id}/confirm` | 草案 → 已确认 |
 | POST | `/api/v1/graphs` | 新建图 |
 | POST | `/api/v1/graphs/{id}/objects` | 把对象加入图 |
 | POST | `/api/v1/graphs/{id}/relations` | 把关系加入图（两端必须已在图内） |
+| POST | `/api/v1/conversations` | 新建会话（同时建出对应的图） |
+| GET | `/api/v1/conversations` | 会话列表（分页） |
+| GET | `/api/v1/conversations/{id}` | 会话详情 |
+| POST | `/api/v1/graphs/{id}/changesets` | 新建改动集 |
+| GET | `/api/v1/graphs/{id}/changesets` | 改动集列表 |
+| GET | `/api/v1/changesets/{id}` | 改动集详情（含操作明细） |
+| POST | `/api/v1/changesets/{id}/ops` | 往改动集里记一条操作 |
+| POST | `/api/v1/changesets/{id}/confirm` | 确认：草案 → 已确认，标记删除的真删 |
+| POST | `/api/v1/changesets/{id}/reject` | 撤销：删掉本次新建的元素、还原改动 |
+| GET | `/api/v1/graphs/{id}/view-state` | 读当前用户的视图状态 |
+| PUT | `/api/v1/graphs/{id}/view-state` | 覆盖写入视图状态 |
 
 每个响应都带 `X-Request-ID`；请求里带了就透传，没带就生成一个，并出现在日志里。
+
+### 改动集的语义
+
+- `create`：元素在草稿阶段就已入库（`status='draft'`），确认时翻成 `confirmed`，撤销时删除。
+- `update`：`payload.before` 里带上改动前的字段快照，撤销时按它还原。
+- `delete`：草稿阶段**只登记不真删**（界面上表现为幽灵态），确认时才真删，撤销则无事发生。
+
+确认前会先对所有操作做一遍全量校验，避免改到一半失败留下半生不熟的状态。
 
 ## 数据库连接
 
