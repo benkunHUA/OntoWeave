@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     chat_model: str = "gpt-4o-mini"
     chat_temperature: float = 0.0
     chat_timeout_seconds: float = 60.0
+    # deepseek-flash 是推理模型，token 给小了会只出推理、正文为空。
+    chat_max_tokens: int = 4096
+    # 留空表示不传，交给服务端默认。
+    chat_reasoning_effort: str = ""
 
     # ---- 嵌入模型（相似检索用）。维度必须和 object_type.embedding 的列维度一致。
     embedding_base_url: str = "https://api.openai.com/v1"
