@@ -1,11 +1,12 @@
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
 from app.agent import tools as agent_tools
 from app.config import Settings
 from app.errors import InvariantViolationError
-from app.services import changeset, conversation, embedding
+from app.services import changeset, conversation, embedding, ontology
 
 
 def _context(session, owner):
@@ -74,3 +75,24 @@ def test_build_chat_model_passes_configured_values():
     )
     assert model.model_name == "deepseek-flash"
     assert model.max_tokens == 2048
+
+
+def test_concurrent_tool_calls_do_not_corrupt_the_shared_session(session):
+    """deepagents 会在线程池里并发跑同一轮的多个工具，而它们共用一个 Session。
+    上下文里的锁保证串行执行，N 个属性必须一个不少地建出来。"""
+    owner = uuid.uuid4()
+    ctx = _context(session, owner)
+    by_name = {item.name: item for item in agent_tools.build_model_tools(ctx)}
+    owner_type = by_name["propose_type"].invoke({"name": "订单"})
+
+    def add_property(index: int) -> dict:
+        return by_name["propose_property"].invoke(
+            {"owner_type_id": owner_type["id"], "name": f"字段{index}"}
+        )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(add_property, range(12)))
+
+    assert all("error" not in item for item in results)
+    props = ontology.list_properties(session, uuid.UUID(owner_type["id"]))
+    assert len(props) == 12
