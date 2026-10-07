@@ -249,3 +249,8 @@ def reject_changeset(
     cs.status = REJECTED
     session.flush()
     return cs
+
+
+# 工具层要复用这两样：可还原字段白名单、元素加载器（含归属校验）。
+RESTORABLE_FIELDS = _RESTORABLE_FIELDS
+load_element = _load_element

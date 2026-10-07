@@ -5,9 +5,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError
+from app.errors import InvariantViolationError, NotFoundError
 from app.models import ObjectType, Relation
-from app.services import embedding, graph, ontology
+from app.services import changeset, embedding, graph, ontology
 
 
 def _type_brief(obj: ObjectType) -> dict:
@@ -86,3 +86,183 @@ def get_subgraph(
             for rel in connected
         ],
     }
+
+
+DEFAULT_REUSE_THRESHOLD = 0.98
+
+
+def _candidates(
+    session: Session,
+    *,
+    name: str,
+    embedder: embedding.Embedder,
+    owner_id: uuid.UUID,
+    limit: int = 5,
+) -> list[dict]:
+    return search_ontology(session, query=name, embedder=embedder, owner_id=owner_id, limit=limit)
+
+
+def propose_type(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    name: str,
+    embedder: embedding.Embedder,
+    description: str | None = None,
+    home_graph_id: uuid.UUID | None = None,
+    reuse_threshold: float = DEFAULT_REUSE_THRESHOLD,
+) -> dict:
+    """新建对象类型。护栏：先查近邻——同名或足够像就复用，否则把候选一并返回。"""
+    cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    candidates = _candidates(session, name=name, embedder=embedder, owner_id=owner_id)
+    existing = next((item for item in candidates if item["name"] == name), None) or next(
+        (item for item in candidates if item["similarity"] >= reuse_threshold), None
+    )
+    if existing is not None:
+        return {**existing, "reused": True, "similar": candidates}
+
+    obj = ontology.create_object_type(
+        session,
+        owner_id=owner_id,
+        name=name,
+        description=description,
+        home_graph_id=home_graph_id or cs.graph_id,
+    )
+    embedding.save_embedding(session, object_type_id=obj.id, embedder=embedder)
+    changeset.record_op(
+        session,
+        changeset_id=changeset_id,
+        op="create",
+        target_id=obj.id,
+        payload={"kind": "object_type"},
+    )
+    return {**_type_brief(obj), "reused": False, "similar": candidates}
+
+
+def propose_property(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    owner_type_id: uuid.UUID,
+    name: str,
+    datatype: str = "text",
+    required: bool = False,
+) -> dict:
+    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    changeset.load_element(session, "object_type", owner_type_id, owner_id=owner_id)
+    prop = ontology.create_property(
+        session,
+        owner_type_id=owner_type_id,
+        name=name,
+        datatype=datatype,
+        required=required,
+    )
+    changeset.record_op(
+        session,
+        changeset_id=changeset_id,
+        op="create",
+        target_id=prop.id,
+        payload={"kind": "property"},
+    )
+    return {
+        "id": str(prop.id),
+        "name": prop.name,
+        "datatype": prop.datatype,
+        "required": prop.required,
+        "status": prop.status,
+    }
+
+
+def propose_relation(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    source_type_id: uuid.UUID,
+    target_type_id: uuid.UUID,
+    name: str,
+    direction: str = "forward",
+    home_graph_id: uuid.UUID | None = None,
+) -> dict:
+    cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    rel = ontology.create_relation(
+        session,
+        owner_id=owner_id,
+        source_type_id=source_type_id,
+        target_type_id=target_type_id,
+        name=name,
+        direction=direction,
+        home_graph_id=home_graph_id or cs.graph_id,
+    )
+    changeset.record_op(
+        session,
+        changeset_id=changeset_id,
+        op="create",
+        target_id=rel.id,
+        payload={"kind": "relation"},
+    )
+    return {
+        "id": str(rel.id),
+        "name": rel.name,
+        "source_type_id": str(rel.source_type_id),
+        "target_type_id": str(rel.target_type_id),
+        "status": rel.status,
+    }
+
+
+def update_element(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    element_kind: str,
+    element_id: uuid.UUID,
+    patch: dict,
+    before: dict,
+) -> dict:
+    """改已有元素。before 是改动前的字段快照，撤销时靠它还原，必填。"""
+    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    allowed = changeset.RESTORABLE_FIELDS.get(element_kind)
+    if allowed is None:
+        raise InvariantViolationError(f"unsupported element kind: {element_kind!r}")
+    if not before:
+        raise InvariantViolationError("update requires a 'before' snapshot for undo")
+    unknown = set(patch) - allowed
+    if unknown:
+        raise InvariantViolationError(f"cannot patch fields: {sorted(unknown)}")
+
+    element = changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
+    for field, value in patch.items():
+        setattr(element, field, value)
+    session.flush()
+    changeset.record_op(
+        session,
+        changeset_id=changeset_id,
+        op="update",
+        target_id=element_id,
+        payload={"kind": element_kind, "before": before},
+    )
+    return {"id": str(element_id), "patched": sorted(patch), "before": before}
+
+
+def remove_element(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    element_kind: str,
+    element_id: uuid.UUID,
+) -> dict:
+    """标记删除。草稿阶段不真删，确认时才删——对应界面上的幽灵态。"""
+    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
+    changeset.record_op(
+        session,
+        changeset_id=changeset_id,
+        op="delete",
+        target_id=element_id,
+        payload={"kind": element_kind},
+    )
+    return {"id": str(element_id), "marked_for_deletion": True}
