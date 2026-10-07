@@ -241,3 +241,6 @@ class ChangesetOp(Base):
     op: Mapped[str] = mapped_column(Text, nullable=False)
     target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

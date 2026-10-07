@@ -146,3 +146,16 @@ def transition_relation(session: Session, relation_id: uuid.UUID, target: str) -
     rel.status = target
     session.flush()
     return rel
+
+
+def transition_property(session: Session, property_id: uuid.UUID, target: str) -> Property:
+    prop = session.get(Property, property_id)
+    if prop is None:
+        raise NotFoundError(f"property {property_id} not found")
+    if target not in ALLOWED_TRANSITIONS.get(prop.status, set()):
+        raise InvalidTransitionError(
+            f"property {property_id} cannot move {prop.status} -> {target}"
+        )
+    prop.status = target
+    session.flush()
+    return prop
