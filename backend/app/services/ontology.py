@@ -46,8 +46,13 @@ def get_object_type(session: Session, object_type_id: uuid.UUID) -> ObjectType:
     return obj
 
 
-def list_object_types(session: Session) -> list[ObjectType]:
-    return list(session.scalars(select(ObjectType).order_by(ObjectType.name)))
+def list_object_types(session: Session, *, limit: int = 50, offset: int = 0) -> list[ObjectType]:
+    """按名称排序分页。加上 id 作次级排序键，保证翻页时顺序稳定。"""
+    return list(
+        session.scalars(
+            select(ObjectType).order_by(ObjectType.name, ObjectType.id).limit(limit).offset(offset)
+        )
+    )
 
 
 def transition_object_type(session: Session, object_type_id: uuid.UUID, target: str) -> ObjectType:

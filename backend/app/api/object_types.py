@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_default_user_id, get_session
@@ -31,3 +31,13 @@ def confirm_object_type(
 ) -> ObjectTypeRead:
     obj = ontology.transition_object_type(session, object_type_id, "confirmed")
     return ObjectTypeRead.model_validate(obj)
+
+
+@router.get("/object-types", response_model=list[ObjectTypeRead])
+def list_object_types(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+) -> list[ObjectTypeRead]:
+    objs = ontology.list_object_types(session, limit=limit, offset=offset)
+    return [ObjectTypeRead.model_validate(obj) for obj in objs]

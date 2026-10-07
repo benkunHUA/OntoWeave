@@ -75,6 +75,7 @@ def remove_object_from_graph(
     session: Session, graph_id: uuid.UUID, object_type_id: uuid.UUID
 ) -> None:
     """把对象移出图时，必须同时清掉引用它的图关系，否则会留下悬空边。"""
+    get_graph(session, graph_id)
     relations = session.scalars(
         select(Relation).where(
             (Relation.source_type_id == object_type_id)

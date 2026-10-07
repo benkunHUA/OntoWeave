@@ -85,3 +85,8 @@ def test_removing_object_clears_its_graph_relations(session):
 
     assert a.id not in graph.list_graph_objects(session, g.id)
     assert graph.list_graph_relations(session, g.id) == []
+
+
+def test_remove_object_from_graph_rejects_unknown_graph(session):
+    with pytest.raises(NotFoundError):
+        graph.remove_object_from_graph(session, uuid.uuid4(), uuid.uuid4())

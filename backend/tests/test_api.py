@@ -85,3 +85,24 @@ def test_default_app_wires_factory_from_settings():
     app = create_app()
     engine = app.state.session_factory.kw["bind"]
     assert engine.url.render_as_string(hide_password=False) == (get_settings().database_url)
+
+
+def test_list_object_types_paginates(client):
+    for name in ("pg-a", "pg-b", "pg-c"):
+        client.post(f"{API}/object-types", json={"name": name})
+
+    all_items = client.get(f"{API}/object-types", params={"limit": 200}).json()
+    assert len(all_items) >= 3
+
+    page1 = client.get(f"{API}/object-types", params={"limit": 2}).json()
+    page2 = client.get(f"{API}/object-types", params={"limit": 2, "offset": 2}).json()
+
+    # 分页结果必须与整体列表的前缀一致，顺序也要稳定。
+    assert page1 == all_items[:2]
+    assert page2 == all_items[2:4]
+
+
+def test_list_object_types_rejects_invalid_paging(client):
+    assert client.get(f"{API}/object-types", params={"limit": 1000}).status_code == 422
+    assert client.get(f"{API}/object-types", params={"limit": 0}).status_code == 422
+    assert client.get(f"{API}/object-types", params={"offset": -1}).status_code == 422
