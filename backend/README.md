@@ -136,6 +136,51 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 `remove_element` 只标记不真删。相似检索走 pgvector，嵌入模型可替换，默认是本地
 确定性实现（`HashingEmbedder`），不需要网络。
 
+## 智能体运行时
+
+`app/agent/` 分四层：
+
+- `llm.py`：模型装配。**`deepseek-flash` 是推理模型，`CHAT_MAX_TOKENS` 给小了会得到
+  「HTTP 200 但正文为空」的响应**（推理把 token 吃光了），默认给到 4096。
+- `tools.py`：把普通的建模函数用闭包绑上运行上下文，包成 LangChain 工具。
+- `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph。
+- `runtime.py`：一次运行的装配，以及「一次对话一个打开的改动集」的生命周期。
+
+接 SSE 的接口挂在会话下——线程 ID 直接复用 `conversation_id`，不另引线程表：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/v1/conversations/{id}/messages` | 发一句，返回 SSE 事件流 |
+| POST | `/api/v1/conversations/{id}/resume` | 回答中断提问，返回 SSE 事件流 |
+
+事件类型：`run.start` / `message.delta` / `tool.start` / `tool.end` / `interrupt` /
+`state.update` / `run.error` / `run.end`。
+
+**`run.end` 带 `paused` 字段。** 中断和完成都以 `run.end` 收尾，前端靠它区分：
+`paused: true` 表示卡在中途等人回答，该调 `/resume`；`false` 表示本轮做完了。
+
+### 踩过的坑
+
+这几条都是实际跑起来才暴露的，不是读文档能看出来的：
+
+- **工具异常会打挂整轮。** deepagents 的 ToolNode 默认把工具异常直接抛出，
+  而我们的领域错误（找不到、状态非法）在设计上是预期内的。所以工具统一返回
+  结构化错误 `{"error": ..., "message": ...}`，让模型自己纠正。
+  注意异常兜底要包住**参数构造**（`uuid.UUID("坏 id")` 也算），不能只包函数调用。
+- **工具会并发跑，而它们共用一个 Session。** deepagents 在同一轮里用线程池并发执行
+  工具调用，SQLAlchemy Session 不是线程安全的。`ToolContext` 上挂了一把每次运行
+  一把的锁来串行化——这样既保住「一次运行一个事务边界」，又不会并发踩 Session。
+- **规划要手动加。** `write_todos`（`TodoListMiddleware`）不在 deepagents 的默认
+  中间件栈里，得自己挂。
+- **`interrupt_on` 和 `ask_user` 都需要 checkpointer。** 没有检查点时审批和提问都
+  不会工作，所以 `build_agent` 在没检查点时会自动关掉审批（测试用）。
+- **`PostgresSaver.from_conn_string` 返回的是上下文管理器**，不是实例；长期存活的
+  进程要自己建连接池，且 conninfo 要用 libpq 格式（去掉 SQLAlchemy 的 `+psycopg`），
+  关闭时记得 `pool.close()`。
+- **安装有个坑。** deepagents 把 `langchain-google-genai` 声明成硬依赖，但代码里
+  从没 import 过它；它拖来的 `google-auth → cryptography` 在部分机器上要从源码
+  编译而失败。目前的处理是跳过它。**升级 deepagents 时要重新验证这条。**
+
 ## 数据库连接
 
 Postgres 只监听本机（`127.0.0.1:5432`），不会暴露到局域网。凭据可用 `.env` 覆盖
