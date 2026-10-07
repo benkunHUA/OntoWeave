@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import json
-from typing import Annotated, Any, TypedDict
+from collections.abc import Sequence
+from typing import Any
 
-from langchain_core.messages import AnyMessage, BaseMessage, SystemMessage, ToolMessage
+from deepagents import CompiledSubAgent, SubAgent, create_deep_agent
+from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.graph import END, START, StateGraph
-from langgraph.graph.message import add_messages
-from langgraph.types import interrupt
 
 SYSTEM_PROMPT = """你是一个企业本体建模助手，负责把业务专家说的话抽象成对象、属性、关系。
 
@@ -17,74 +15,50 @@ SYSTEM_PROMPT = """你是一个企业本体建模助手，负责把业务专家�
 2. 实例一律向上抽象成类型（「张三」→ 客户，「上周」→ 订单的下单时间属性）。
 3. 拿不准就先调 ask_user 问用户，别猜。只在真的无法判断时才问。
 4. 你只往草稿里写，不要试图确认或撤销——那是用户点按钮做的事。
-5. 说话简短，用业务语言，不要暴露内部术语。
+5. 不要读写文件、不要执行命令。你只有建模工具，其它一概不用。
+6. 说话简短，用业务语言，不要暴露内部术语。
 """
 
+# 破坏性操作要人批。日常草稿不在这里拦——它们走改动集整体确认（REST 那套）。
+DEFAULT_INTERRUPTS: dict[str, bool | InterruptOnConfig] = {
+    "remove_element": True,
+    "update_element": True,
+}
 
-class AgentState(TypedDict):
-    messages: Annotated[list[AnyMessage], add_messages]
-    iterations: int
 
-
-def build_graph(
+def build_agent(
     model: Any,
     tools: list[BaseTool],
     *,
     checkpointer: BaseCheckpointSaver | None = None,
-    max_iterations: int = 12,
+    system_prompt: str = SYSTEM_PROMPT,
+    subagents: Sequence[SubAgent | CompiledSubAgent] | None = None,
+    interrupt_on: dict[str, bool | InterruptOnConfig] | None = None,
+    include_planning: bool = True,
+    **kwargs: Any,
 ):
-    """装配 agent ↔ tools 循环；ask_user 由 tools 节点拦截成中断。"""
-    bound = model.bind_tools(tools)
-    by_name = {item.name: item for item in tools}
+    """用 deepagents 装配智能体。
 
-    def agent_node(state: AgentState) -> dict:
-        history = list(state["messages"])
-        if not history or not isinstance(history[0], SystemMessage):
-            history = [SystemMessage(SYSTEM_PROMPT), *history]
-        response = bound.invoke(history)
-        return {"messages": [response], "iterations": state.get("iterations", 0) + 1}
+    不自己拼 StateGraph：deepagents 已经把 agent↔tools 循环、工具调用修补、
+    消息摘要、子智能体调度都做好了，手搓只会更差。
 
-    def tools_node(state: AgentState) -> dict:
-        last: BaseMessage = state["messages"][-1]
-        outputs: list[BaseMessage] = []
-        for call in getattr(last, "tool_calls", None) or []:
-            if call["name"] == "ask_user":
-                answer = interrupt(
-                    {
-                        "question": call["args"].get("question", ""),
-                        "options": call["args"].get("options") or [],
-                    }
-                )
-                outputs.append(
-                    ToolMessage(
-                        content=json.dumps({"answer": answer}, ensure_ascii=False),
-                        tool_call_id=call["id"],
-                    )
-                )
-                continue
-            try:
-                result = by_name[call["name"]].invoke(call["args"])
-                content = json.dumps(result, ensure_ascii=False, default=str)
-            except Exception as exc:  # 工具报错回给模型，让它自己纠正
-                content = json.dumps(
-                    {"error": type(exc).__name__, "message": str(exc)}, ensure_ascii=False
-                )
-            outputs.append(ToolMessage(content=content, tool_call_id=call["id"]))
-        return {"messages": outputs}
+    interrupt_on 需要 checkpointer 才能用，所以没给检查点时自动关掉审批，
+    避免装配期就报错。
+    """
+    middleware = [TodoListMiddleware()] if include_planning else []
+    if interrupt_on is None:
+        interrupt_on = DEFAULT_INTERRUPTS if checkpointer is not None else None
 
-    def route(state: AgentState) -> str:
-        if state.get("iterations", 0) >= max_iterations:
-            return END
-        last = state["messages"][-1]
-        return "tools" if getattr(last, "tool_calls", None) else END
-
-    builder = StateGraph(AgentState)
-    builder.add_node("agent", agent_node)
-    builder.add_node("tools", tools_node)
-    builder.add_edge(START, "agent")
-    builder.add_conditional_edges("agent", route, {"tools": "tools", END: END})
-    builder.add_edge("tools", "agent")
-    return builder.compile(checkpointer=checkpointer)
+    return create_deep_agent(
+        model=model,
+        tools=tools,
+        system_prompt=system_prompt,
+        middleware=middleware,
+        subagents=subagents or None,
+        interrupt_on=interrupt_on,
+        checkpointer=checkpointer,
+        **kwargs,
+    )
 
 
 def build_checkpointer(database_url: str) -> BaseCheckpointSaver:

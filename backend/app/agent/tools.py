@@ -1,13 +1,31 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 from sqlalchemy.orm import Session
 
 from app.agent import ontology_tools
 from app.services import embedding
+
+
+def _capture(call: Callable[[], Any]) -> Any:
+    """执行工具并把异常转成结构化错误。
+
+    deepagents 的 ToolNode 默认会把工具异常直接抛出去，整轮 run 就死了。
+    而我们的领域错误（找不到、状态非法）在设计上是预期内的——模型拿过期 id
+    来查是常事。所以这里统一兜住，让模型看到错误后自己纠正。
+
+    参数是一个无参可调用而不是 (fn, *args)：这样连**构造参数**时的异常
+    （比如 uuid.UUID("不是 uuid")）也一并兜住，不然模型编个坏 id 就能掀翻整轮。
+    """
+    try:
+        return call()
+    except Exception as exc:
+        return {"error": type(exc).__name__, "message": str(exc)}
 
 
 @dataclass(frozen=True)
@@ -25,41 +43,49 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
     """把建模工具绑上运行上下文，包成模型可调用的工具。"""
 
     @tool("search_ontology")
-    def search_ontology(query: str, limit: int = 10) -> list[dict]:
+    def search_ontology(query: str, limit: int = 10) -> list[dict] | dict:
         """按语义检索已有对象类型。新建类型之前必须先调用，避免造重复。"""
-        return ontology_tools.search_ontology(
-            ctx.session,
-            query=query,
-            embedder=ctx.embedder,
-            owner_id=ctx.owner_id,
-            limit=limit,
+        return _capture(
+            lambda: ontology_tools.search_ontology(
+                ctx.session,
+                query=query,
+                embedder=ctx.embedder,
+                owner_id=ctx.owner_id,
+                limit=limit,
+            )
         )
 
     @tool("list_types")
-    def list_types(limit: int = 50) -> list[dict]:
+    def list_types(limit: int = 50) -> list[dict] | dict:
         """列出现有对象类型。"""
-        return ontology_tools.list_types(ctx.session, owner_id=ctx.owner_id, limit=limit)
+        return _capture(
+            lambda: ontology_tools.list_types(ctx.session, owner_id=ctx.owner_id, limit=limit)
+        )
 
     @tool("get_subgraph")
     def get_subgraph(object_type_id: str) -> dict:
         """从给定对象类型出发走一跳，返回它周围的节点与关系。"""
-        return ontology_tools.get_subgraph(
-            ctx.session,
-            graph_id=ctx.graph_id,
-            object_type_id=uuid.UUID(object_type_id),
-            owner_id=ctx.owner_id,
+        return _capture(
+            lambda: ontology_tools.get_subgraph(
+                ctx.session,
+                graph_id=ctx.graph_id,
+                object_type_id=uuid.UUID(object_type_id),
+                owner_id=ctx.owner_id,
+            )
         )
 
     @tool("propose_type")
     def propose_type(name: str, description: str | None = None) -> dict:
         """把新的对象类型加进草稿。内部先查重，同名或足够像就复用已有的。"""
-        return ontology_tools.propose_type(
-            ctx.session,
-            changeset_id=ctx.changeset_id,
-            owner_id=ctx.owner_id,
-            name=name,
-            description=description,
-            embedder=ctx.embedder,
+        return _capture(
+            lambda: ontology_tools.propose_type(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                name=name,
+                description=description,
+                embedder=ctx.embedder,
+            )
         )
 
     @tool("propose_property")
@@ -67,14 +93,16 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         owner_type_id: str, name: str, datatype: str = "text", required: bool = False
     ) -> dict:
         """给对象类型加属性。owner_type_id 必须来自 search_ontology 或 list_types。"""
-        return ontology_tools.propose_property(
-            ctx.session,
-            changeset_id=ctx.changeset_id,
-            owner_id=ctx.owner_id,
-            owner_type_id=uuid.UUID(owner_type_id),
-            name=name,
-            datatype=datatype,
-            required=required,
+        return _capture(
+            lambda: ontology_tools.propose_property(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                owner_type_id=uuid.UUID(owner_type_id),
+                name=name,
+                datatype=datatype,
+                required=required,
+            )
         )
 
     @tool("propose_relation")
@@ -82,38 +110,44 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         source_type_id: str, target_type_id: str, name: str, direction: str = "forward"
     ) -> dict:
         """加一条关系，两端必须都已存在。"""
-        return ontology_tools.propose_relation(
-            ctx.session,
-            changeset_id=ctx.changeset_id,
-            owner_id=ctx.owner_id,
-            source_type_id=uuid.UUID(source_type_id),
-            target_type_id=uuid.UUID(target_type_id),
-            name=name,
-            direction=direction,
+        return _capture(
+            lambda: ontology_tools.propose_relation(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                source_type_id=uuid.UUID(source_type_id),
+                target_type_id=uuid.UUID(target_type_id),
+                name=name,
+                direction=direction,
+            )
         )
 
     @tool("update_element")
     def update_element(element_kind: str, element_id: str, patch: dict, before: dict) -> dict:
         """改已有元素。before 是改动前的字段快照，撤销时靠它还原，必须原样带上。"""
-        return ontology_tools.update_element(
-            ctx.session,
-            changeset_id=ctx.changeset_id,
-            owner_id=ctx.owner_id,
-            element_kind=element_kind,
-            element_id=uuid.UUID(element_id),
-            patch=patch,
-            before=before,
+        return _capture(
+            lambda: ontology_tools.update_element(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                element_kind=element_kind,
+                element_id=uuid.UUID(element_id),
+                patch=patch,
+                before=before,
+            )
         )
 
     @tool("remove_element")
     def remove_element(element_kind: str, element_id: str) -> dict:
         """标记删除。草稿阶段不真删，用户确认时才删。"""
-        return ontology_tools.remove_element(
-            ctx.session,
-            changeset_id=ctx.changeset_id,
-            owner_id=ctx.owner_id,
-            element_kind=element_kind,
-            element_id=uuid.UUID(element_id),
+        return _capture(
+            lambda: ontology_tools.remove_element(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                element_kind=element_kind,
+                element_id=uuid.UUID(element_id),
+            )
         )
 
     @tool("ask_user")
@@ -122,7 +156,11 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
         只在真的无法判断时才用：同名不同义、一个词可能是对象也可能是属性、关系方向不确定。
         """
-        return ""  # 实际由 tools 节点拦截成中断，见 graph.py
+        # 由 LangGraph 的 interrupt 在工具内部暂停，见下方 build_ask_user 的说明
+        from langgraph.types import interrupt
+
+        answer = interrupt({"question": question, "options": options or []})
+        return str(answer)
 
     return [
         search_ontology,
