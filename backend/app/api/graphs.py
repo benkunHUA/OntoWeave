@@ -29,7 +29,9 @@ def add_object(
     payload: ObjectMembership,
     session: Session = Depends(get_session),
 ) -> Response:
-    graph.add_object_to_graph(session, graph_id, payload.object_type_id)
+    graph.add_object_to_graph(
+        session, graph_id, payload.object_type_id, owner_id=get_current_user_id()
+    )
     return Response(status_code=204)
 
 
@@ -39,5 +41,7 @@ def add_relation(
     payload: RelationMembership,
     session: Session = Depends(get_session),
 ) -> Response:
-    graph.add_relation_to_graph(session, graph_id, payload.relation_id)
+    graph.add_relation_to_graph(
+        session, graph_id, payload.relation_id, owner_id=get_current_user_id()
+    )
     return Response(status_code=204)

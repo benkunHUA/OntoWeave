@@ -9,8 +9,13 @@ from app.services import graph
 
 
 def get_view_state(
-    session: Session, *, graph_id: uuid.UUID, user_id: uuid.UUID
+    session: Session,
+    *,
+    graph_id: uuid.UUID,
+    user_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
 ) -> ViewState | None:
+    graph.get_graph(session, graph_id, owner_id=owner_id)
     return session.get(ViewState, (graph_id, user_id))
 
 
@@ -21,9 +26,10 @@ def upsert_view_state(
     user_id: uuid.UUID,
     name: str | None,
     spec: dict,
+    owner_id: uuid.UUID | None = None,
 ) -> ViewState:
     """视图状态是整体读写的 JSONB，用覆盖语义最简单也最不容易写错。"""
-    graph.get_graph(session, graph_id)
+    graph.get_graph(session, graph_id, owner_id=owner_id)
     vs = session.get(ViewState, (graph_id, user_id))
     if vs is None:
         vs = ViewState(graph_id=graph_id, user_id=user_id, name=name, spec=spec)

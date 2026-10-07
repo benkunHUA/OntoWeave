@@ -16,15 +16,22 @@ def create_graph(session: Session, *, owner_id: uuid.UUID, name: str | None = No
     return g
 
 
-def get_graph(session: Session, graph_id: uuid.UUID) -> Graph:
+def get_graph(session: Session, graph_id: uuid.UUID, *, owner_id: uuid.UUID | None = None) -> Graph:
+    """owner_id 给了就顺带校验归属；不匹配时同样报 not found，不泄露资源是否存在。"""
     g = session.get(Graph, graph_id)
-    if g is None:
+    if g is None or (owner_id is not None and g.owner_id != owner_id):
         raise NotFoundError(f"graph {graph_id} not found")
     return g
 
 
-def add_object_to_graph(session: Session, graph_id: uuid.UUID, object_type_id: uuid.UUID) -> None:
-    get_graph(session, graph_id)
+def add_object_to_graph(
+    session: Session,
+    graph_id: uuid.UUID,
+    object_type_id: uuid.UUID,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    get_graph(session, graph_id, owner_id=owner_id)
     if session.get(ObjectType, object_type_id) is None:
         raise NotFoundError(f"object type {object_type_id} not found")
     if session.get(GraphObject, (graph_id, object_type_id)) is not None:
@@ -42,8 +49,14 @@ def list_graph_objects(session: Session, graph_id: uuid.UUID) -> list[uuid.UUID]
     return list(rows)
 
 
-def add_relation_to_graph(session: Session, graph_id: uuid.UUID, relation_id: uuid.UUID) -> None:
-    get_graph(session, graph_id)
+def add_relation_to_graph(
+    session: Session,
+    graph_id: uuid.UUID,
+    relation_id: uuid.UUID,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    get_graph(session, graph_id, owner_id=owner_id)
     rel = session.get(Relation, relation_id)
     if rel is None:
         raise NotFoundError(f"relation {relation_id} not found")

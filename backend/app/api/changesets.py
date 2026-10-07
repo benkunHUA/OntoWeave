@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.deps import get_session
+from app.deps import get_current_user_id, get_session
 from app.schemas.changeset import (
     ChangesetDetail,
     ChangesetOpCreate,
@@ -19,7 +19,7 @@ router = APIRouter(tags=["changesets"])
 
 @router.post("/graphs/{graph_id}/changesets", response_model=ChangesetRead, status_code=201)
 def create_changeset(graph_id: uuid.UUID, session: Session = Depends(get_session)) -> ChangesetRead:
-    cs = changeset.create_changeset(session, graph_id=graph_id)
+    cs = changeset.create_changeset(session, graph_id=graph_id, owner_id=get_current_user_id())
     return ChangesetRead.model_validate(cs)
 
 
@@ -30,7 +30,13 @@ def list_changesets(
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ) -> list[ChangesetRead]:
-    items = changeset.list_changesets(session, graph_id=graph_id, limit=limit, offset=offset)
+    items = changeset.list_changesets(
+        session,
+        graph_id=graph_id,
+        owner_id=get_current_user_id(),
+        limit=limit,
+        offset=offset,
+    )
     return [ChangesetRead.model_validate(item) for item in items]
 
 
@@ -38,7 +44,7 @@ def list_changesets(
 def get_changeset(
     changeset_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ChangesetDetail:
-    cs = changeset.get_changeset(session, changeset_id)
+    cs = changeset.get_changeset(session, changeset_id, owner_id=get_current_user_id())
     ops = [ChangesetOpRead.model_validate(op) for op in changeset.list_ops(session, cs.id)]
     return ChangesetDetail(id=cs.id, graph_id=cs.graph_id, status=cs.status, ops=ops)
 
@@ -55,6 +61,7 @@ def record_op(
         op=payload.op,
         target_id=payload.target_id,
         payload=payload.payload,
+        owner_id=get_current_user_id(),
     )
     return ChangesetOpRead.model_validate(op)
 
@@ -63,11 +70,15 @@ def record_op(
 def confirm_changeset(
     changeset_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ChangesetRead:
-    return ChangesetRead.model_validate(changeset.confirm_changeset(session, changeset_id))
+    return ChangesetRead.model_validate(
+        changeset.confirm_changeset(session, changeset_id, owner_id=get_current_user_id())
+    )
 
 
 @router.post("/changesets/{changeset_id}/reject", response_model=ChangesetRead)
 def reject_changeset(
     changeset_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ChangesetRead:
-    return ChangesetRead.model_validate(changeset.reject_changeset(session, changeset_id))
+    return ChangesetRead.model_validate(
+        changeset.reject_changeset(session, changeset_id, owner_id=get_current_user_id())
+    )

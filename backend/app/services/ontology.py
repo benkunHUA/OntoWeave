@@ -46,17 +46,32 @@ def get_object_type(session: Session, object_type_id: uuid.UUID) -> ObjectType:
     return obj
 
 
-def list_object_types(session: Session, *, limit: int = 50, offset: int = 0) -> list[ObjectType]:
+def list_object_types(
+    session: Session,
+    *,
+    owner_id: uuid.UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ObjectType]:
     """按名称排序分页。加上 id 作次级排序键，保证翻页时顺序稳定。"""
+    stmt = select(ObjectType)
+    if owner_id is not None:
+        stmt = stmt.where(ObjectType.owner_id == owner_id)
     return list(
-        session.scalars(
-            select(ObjectType).order_by(ObjectType.name, ObjectType.id).limit(limit).offset(offset)
-        )
+        session.scalars(stmt.order_by(ObjectType.name, ObjectType.id).limit(limit).offset(offset))
     )
 
 
-def transition_object_type(session: Session, object_type_id: uuid.UUID, target: str) -> ObjectType:
+def transition_object_type(
+    session: Session,
+    object_type_id: uuid.UUID,
+    target: str,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> ObjectType:
     obj = get_object_type(session, object_type_id)
+    if owner_id is not None and obj.owner_id != owner_id:
+        raise NotFoundError(f"object type {object_type_id} not found")
     if target not in ALLOWED_TRANSITIONS.get(obj.status, set()):
         raise InvalidTransitionError(
             f"object type {object_type_id} cannot move {obj.status} -> {target}"
@@ -139,8 +154,16 @@ def get_relation(session: Session, relation_id: uuid.UUID) -> Relation:
     return rel
 
 
-def transition_relation(session: Session, relation_id: uuid.UUID, target: str) -> Relation:
+def transition_relation(
+    session: Session,
+    relation_id: uuid.UUID,
+    target: str,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> Relation:
     rel = get_relation(session, relation_id)
+    if owner_id is not None and rel.owner_id != owner_id:
+        raise NotFoundError(f"relation {relation_id} not found")
     if target not in ALLOWED_TRANSITIONS.get(rel.status, set()):
         raise InvalidTransitionError(f"relation {relation_id} cannot move {rel.status} -> {target}")
     rel.status = target
@@ -148,10 +171,20 @@ def transition_relation(session: Session, relation_id: uuid.UUID, target: str) -
     return rel
 
 
-def transition_property(session: Session, property_id: uuid.UUID, target: str) -> Property:
+def transition_property(
+    session: Session,
+    property_id: uuid.UUID,
+    target: str,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> Property:
     prop = session.get(Property, property_id)
     if prop is None:
         raise NotFoundError(f"property {property_id} not found")
+    if owner_id is not None:
+        owner_type = get_object_type(session, prop.owner_type_id)
+        if owner_type.owner_id != owner_id:
+            raise NotFoundError(f"property {property_id} not found")
     if target not in ALLOWED_TRANSITIONS.get(prop.status, set()):
         raise InvalidTransitionError(
             f"property {property_id} cannot move {prop.status} -> {target}"

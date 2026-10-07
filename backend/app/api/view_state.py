@@ -14,7 +14,12 @@ router = APIRouter(tags=["view-state"])
 
 @router.get("/graphs/{graph_id}/view-state", response_model=ViewStateRead)
 def get_view_state(graph_id: uuid.UUID, session: Session = Depends(get_session)) -> ViewStateRead:
-    vs = view_state.get_view_state(session, graph_id=graph_id, user_id=get_current_user_id())
+    vs = view_state.get_view_state(
+        session,
+        graph_id=graph_id,
+        user_id=get_current_user_id(),
+        owner_id=get_current_user_id(),
+    )
     if vs is None:
         return ViewStateRead(graph_id=graph_id, name=None, spec={})
     return ViewStateRead(graph_id=vs.graph_id, name=vs.name, spec=vs.spec)
@@ -32,5 +37,6 @@ def put_view_state(
         user_id=get_current_user_id(),
         name=payload.name,
         spec=payload.spec,
+        owner_id=get_current_user_id(),
     )
     return ViewStateRead(graph_id=vs.graph_id, name=vs.name, spec=vs.spec)

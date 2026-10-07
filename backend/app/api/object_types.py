@@ -29,7 +29,9 @@ def create_object_type(
 def confirm_object_type(
     object_type_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ObjectTypeRead:
-    obj = ontology.transition_object_type(session, object_type_id, "confirmed")
+    obj = ontology.transition_object_type(
+        session, object_type_id, "confirmed", owner_id=get_current_user_id()
+    )
     return ObjectTypeRead.model_validate(obj)
 
 
@@ -39,5 +41,7 @@ def list_object_types(
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ) -> list[ObjectTypeRead]:
-    objs = ontology.list_object_types(session, limit=limit, offset=offset)
+    objs = ontology.list_object_types(
+        session, owner_id=get_current_user_id(), limit=limit, offset=offset
+    )
     return [ObjectTypeRead.model_validate(obj) for obj in objs]

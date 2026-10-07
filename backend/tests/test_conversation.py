@@ -50,3 +50,18 @@ def test_conversation_api_roundtrip(client):
 
     listed = client.get(f"{API}/conversations", params={"limit": 50}).json()
     assert any(item["id"] == body["id"] for item in listed)
+
+
+def test_list_conversations_only_returns_own(session):
+    mine = uuid.uuid4()
+    conversation.create_conversation(session, owner_id=mine, title="mine")
+    conversation.create_conversation(session, owner_id=uuid.uuid4(), title="other")
+
+    titles = [c.title for c in conversation.list_conversations(session, owner_id=mine)]
+    assert titles == ["mine"]
+
+
+def test_get_conversation_hides_other_owner(session):
+    conv = conversation.create_conversation(session, owner_id=uuid.uuid4(), title="other")
+    with pytest.raises(NotFoundError):
+        conversation.get_conversation(session, conv.id, owner_id=uuid.uuid4())

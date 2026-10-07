@@ -21,18 +21,28 @@ def create_conversation(
     return conv
 
 
-def get_conversation(session: Session, conversation_id: uuid.UUID) -> Conversation:
+def get_conversation(
+    session: Session, conversation_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
+) -> Conversation:
     conv = session.get(Conversation, conversation_id)
-    if conv is None:
+    if conv is None or (owner_id is not None and conv.owner_id != owner_id):
         raise NotFoundError(f"conversation {conversation_id} not found")
     return conv
 
 
-def list_conversations(session: Session, *, limit: int = 50, offset: int = 0) -> list[Conversation]:
+def list_conversations(
+    session: Session,
+    *,
+    owner_id: uuid.UUID | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Conversation]:
+    stmt = select(Conversation)
+    if owner_id is not None:
+        stmt = stmt.where(Conversation.owner_id == owner_id)
     return list(
         session.scalars(
-            select(Conversation)
-            .order_by(Conversation.created_at.desc(), Conversation.id)
+            stmt.order_by(Conversation.created_at.desc(), Conversation.id)
             .limit(limit)
             .offset(offset)
         )

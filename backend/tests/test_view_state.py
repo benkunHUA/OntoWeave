@@ -73,3 +73,15 @@ def test_view_state_api_roundtrip(client):
 
     fetched = client.get(f"{API}/graphs/{graph_id}/view-state")
     assert fetched.json()["spec"] == {"layout": {"kind": "domain-grouped"}}
+
+
+def test_get_view_state_rejects_unknown_graph(session):
+    with pytest.raises(NotFoundError):
+        view_state.get_view_state(session, graph_id=uuid.uuid4(), user_id=uuid.uuid4())
+
+
+def test_api_get_view_state_returns_404_for_unknown_graph(client):
+    """GET 和 PUT 对同一个不存在的图必须给出一致的结果。"""
+    missing = uuid.uuid4()
+    assert client.get(f"{API}/graphs/{missing}/view-state").status_code == 404
+    assert client.put(f"{API}/graphs/{missing}/view-state", json={"spec": {}}).status_code == 404

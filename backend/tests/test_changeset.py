@@ -4,7 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.errors import InvalidTransitionError, NotFoundError
+from app.config import get_settings
+from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
 from app.main import create_app
 from app.services import changeset, conversation, ontology
 
@@ -16,8 +17,16 @@ def api_client(session_factory: sessionmaker[Session]) -> TestClient:
     return TestClient(create_app(session_factory=session_factory))
 
 
+def _default_user() -> uuid.UUID:
+    """接口层全部按默认用户过滤，测试数据也要挂在这个用户下。"""
+    return uuid.UUID(get_settings().default_user_id)
+
+
 def _graph_id(session) -> uuid.UUID:
-    return conversation.create_conversation(session, owner_id=uuid.uuid4(), title="测试").graph_id
+    """接口层按默认用户过滤，这里也用默认用户建图，保证接口看得见。"""
+    return conversation.create_conversation(
+        session, owner_id=_default_user(), title="测试"
+    ).graph_id
 
 
 def test_create_changeset_is_open(session):
@@ -163,7 +172,7 @@ def test_confirm_rejects_dangling_target(session):
 
 def test_changeset_api_confirm_flow(api_client, session):
     graph_id = _graph_id(session)
-    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    obj = ontology.create_object_type(session, owner_id=_default_user(), name="客户")
     session.commit()
 
     cs = api_client.post(f"{API}/graphs/{graph_id}/changesets")
@@ -191,7 +200,7 @@ def test_changeset_api_confirm_flow(api_client, session):
 
 def test_changeset_api_reject_flow(api_client, session):
     graph_id = _graph_id(session)
-    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="临时")
+    obj = ontology.create_object_type(session, owner_id=_default_user(), name="临时")
     session.commit()
 
     cid = api_client.post(f"{API}/graphs/{graph_id}/changesets").json()["id"]
@@ -218,3 +227,98 @@ def test_recording_into_closed_changeset_returns_409(api_client):
     resp = api_client.post(f"{API}/changesets/{cid}/ops", json={"op": "create"})
     assert resp.status_code == 409
     assert resp.json()["error"] == "invalid_transition"
+
+
+def test_record_op_rejects_unknown_op(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(
+            session,
+            changeset_id=cs.id,
+            op="createe",
+            target_id=obj.id,
+            payload={"kind": "object_type"},
+        )
+
+
+def test_record_op_requires_target_and_kind(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(session, changeset_id=cs.id, op="create")
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(session, changeset_id=cs.id, op="create", target_id=uuid.uuid4())
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(
+            session,
+            changeset_id=cs.id,
+            op="create",
+            target_id=uuid.uuid4(),
+            payload={"kind": "not_a_kind"},
+        )
+
+
+def test_reject_cannot_restore_field_outside_whitelist(session):
+    """before 里的键名是调用方可控的，不能拿它直接写属性。"""
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    # record_op 阶段就该挡住
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(
+            session,
+            changeset_id=cs.id,
+            op="update",
+            target_id=obj.id,
+            payload={"kind": "object_type", "before": {"status": "approved"}},
+        )
+
+
+def test_reject_still_refuses_tampered_op(session):
+    """就算绕过 record_op 直接塞进数据库，reject 也要拒绝。"""
+    from app.models import ChangesetOp
+
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    session.add(
+        ChangesetOp(
+            changeset_id=cs.id,
+            op="update",
+            target_id=obj.id,
+            payload={"kind": "object_type", "before": {"status": "approved"}},
+        )
+    )
+    session.flush()
+
+    with pytest.raises(InvariantViolationError):
+        changeset.reject_changeset(session, cs.id)
+
+    assert ontology.get_object_type(session, obj.id).status == "draft"
+    assert changeset.get_changeset(session, cs.id).status == "open"
+
+
+def test_confirm_refuses_element_not_in_draft(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    ontology.transition_object_type(session, obj.id, "confirmed")
+    changeset.record_op(
+        session,
+        changeset_id=cs.id,
+        op="create",
+        target_id=obj.id,
+        payload={"kind": "object_type"},
+    )
+
+    with pytest.raises(InvalidTransitionError):
+        changeset.confirm_changeset(session, cs.id)
+    # 校验不通过时不应该改动任何东西
+    assert changeset.get_changeset(session, cs.id).status == "open"
+
+
+def test_changeset_is_scoped_to_graph_owner(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="mine")
+    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
+
+    assert changeset.get_changeset(session, cs.id, owner_id=owner).id == cs.id
+    with pytest.raises(NotFoundError):
+        changeset.get_changeset(session, cs.id, owner_id=uuid.uuid4())

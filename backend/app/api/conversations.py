@@ -28,7 +28,9 @@ def list_conversations(
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ) -> list[ConversationRead]:
-    items = conversation.list_conversations(session, limit=limit, offset=offset)
+    items = conversation.list_conversations(
+        session, owner_id=get_current_user_id(), limit=limit, offset=offset
+    )
     return [ConversationRead.model_validate(item) for item in items]
 
 
@@ -36,5 +38,5 @@ def list_conversations(
 def get_conversation(
     conversation_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ConversationRead:
-    conv = conversation.get_conversation(session, conversation_id)
+    conv = conversation.get_conversation(session, conversation_id, owner_id=get_current_user_id())
     return ConversationRead.model_validate(conv)
