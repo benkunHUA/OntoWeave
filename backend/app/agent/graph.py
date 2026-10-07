@@ -61,11 +61,14 @@ def build_agent(
     )
 
 
-def build_checkpointer(database_url: str) -> BaseCheckpointSaver:
+def build_checkpointer(database_url: str):
     """用同一个 Postgres 存检查点，中断后能原样续跑。
 
     注意 from_conn_string 返回的是上下文管理器，用在长期存活的进程里要自己建连接池；
     而且 conninfo 要 libpq 格式，得把 SQLAlchemy 的驱动后缀去掉。
+
+    返回 (saver, pool)：连接池必须由调用方在应用关闭时关掉，否则进程退出前
+    会漏一串 ResourceWarning。
     """
     from langgraph.checkpoint.postgres import PostgresSaver
     from psycopg.rows import dict_row
@@ -82,4 +85,4 @@ def build_checkpointer(database_url: str) -> BaseCheckpointSaver:
     # 运行时行为已验证正确，这里做一次定向豁免。
     saver = PostgresSaver(pool)  # type: ignore[arg-type]
     saver.setup()
-    return saver
+    return saver, pool

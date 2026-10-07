@@ -47,7 +47,9 @@ def _checkpointer(request: Request, settings):
     if state.checkpointer is None and state.enable_agent_checkpoints:
         from app.agent import graph as agent_graph
 
-        state.checkpointer = agent_graph.build_checkpointer(settings.database_url)
+        state.checkpointer, state.checkpointer_pool = agent_graph.build_checkpointer(
+            settings.database_url
+        )
     return state.checkpointer
 
 

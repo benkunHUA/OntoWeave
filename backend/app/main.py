@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -30,10 +31,20 @@ def _create_app(
 
     configure_logging()
 
-    app = FastAPI(title="OntoWeave", version="0.1.0")
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        yield
+        # 检查点的连接池是懒建的，关的时候也要顺手关掉，不然进程退出会漏连接。
+        pool = application.state.checkpointer_pool
+        if pool is not None:
+            pool.close()
+            application.state.checkpointer_pool = None
+
+    app = FastAPI(title="OntoWeave", version="0.1.0", lifespan=lifespan)
     app.state.session_factory = session_factory
     # 检查点懒建：第一次真的跑智能体时才连库，避免导入期就建立连接。
     app.state.checkpointer = None
+    app.state.checkpointer_pool = None
     app.state.enable_agent_checkpoints = enable_agent_checkpoints
     app.add_middleware(RequestContextMiddleware)
     app.include_router(api_router)
