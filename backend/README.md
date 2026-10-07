@@ -98,6 +98,21 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 确认前会先对所有操作做一遍全量校验，避免改到一半失败留下半生不熟的状态。
 
+## 智能体工具层
+
+工具是普通 Python 函数，位于 `app/agent/`，不依赖大模型，可以直接单测：
+
+- `ontology_tools.py`：主智能体的建模工具。读工具 `search_ontology` / `list_types` /
+  `get_subgraph`；写工具 `propose_type` / `propose_property` / `propose_relation` /
+  `update_element` / `remove_element`。
+- `view_tools.py`：绘图子智能体的视图工具，全部是对视图规格的纯函数操作，不碰本体。
+- `schemas.py`：工具清单元数据，用它导出 tool schema。
+
+护栏都放在工具内部，不靠调用方自觉：`propose_type` 先查近邻，同名或足够像就复用
+已有的类型；`update_element` 强制要求 `before` 快照，且只允许白名单字段；
+`remove_element` 只标记不真删。相似检索走 pgvector，嵌入模型可替换，默认是本地
+确定性实现（`HashingEmbedder`），不需要网络。
+
 ## 数据库连接
 
 Postgres 只监听本机（`127.0.0.1:5432`），不会暴露到局域网。凭据可用 `.env` 覆盖
