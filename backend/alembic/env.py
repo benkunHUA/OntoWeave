@@ -10,7 +10,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# 调用方可以通过 config.attributes["sqlalchemy_url"] 指定目标库（测试夹具就这么用），
+# 没指定才回落到应用配置。
+config.set_main_option(
+    "sqlalchemy.url",
+    config.attributes.get("sqlalchemy_url") or get_settings().database_url,
+)
 target_metadata = Base.metadata
 
 

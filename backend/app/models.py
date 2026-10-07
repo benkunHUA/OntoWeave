@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -108,8 +108,12 @@ class Property(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    datatype: Mapped[str] = mapped_column(Text, nullable=False, default="text")
-    required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    datatype: Mapped[str] = mapped_column(
+        Text, nullable=False, default="text", server_default="text"
+    )
+    required: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     status: Mapped[str] = mapped_column(
         Text, nullable=False, default="draft", server_default="draft"
     )
@@ -139,7 +143,9 @@ class Relation(Base):
         nullable=False,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    direction: Mapped[str] = mapped_column(Text, nullable=False, default="forward")
+    direction: Mapped[str] = mapped_column(
+        Text, nullable=False, default="forward", server_default="forward"
+    )
     status: Mapped[str] = mapped_column(
         Text, nullable=False, default="draft", server_default="draft"
     )

@@ -22,7 +22,17 @@ source .venv/bin/activate
 python -m pytest -v
 ```
 
-测试连 `TEST_DATABASE_URL`（默认就是本地的 `ontoweave` 库），每次会话自建自删 schema，不动生产数据。
+测试连 `TEST_DATABASE_URL`（默认是本地的 `ontoweave_test`），每次会话重建该库的 schema。
+
+**保护机制：** 库名不以 `_test` 结尾时，pytest 会直接拒绝启动，避免误清开发库。
+测试库由 `scripts/init-test-db.sql` 在数据卷首次初始化时创建；已有数据卷需要手工
+`docker compose exec db psql -U ontoweave -d postgres -c "CREATE DATABASE ontoweave_test OWNER ontoweave;"`
+或 `docker compose down -v` 后重建。
+
+## 数据库连接
+
+Postgres 只监听本机（`127.0.0.1:5432`），不会暴露到局域网。凭据可用 `.env` 覆盖
+`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`。
 
 ## 目录
 

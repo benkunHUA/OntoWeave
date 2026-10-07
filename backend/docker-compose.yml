@@ -2,13 +2,14 @@ services:
   db:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: ontoweave
-      POSTGRES_PASSWORD: ontoweave
-      POSTGRES_DB: ontoweave
+      POSTGRES_USER: ${POSTGRES_USER:-ontoweave}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ontoweave}
+      POSTGRES_DB: ${POSTGRES_DB:-ontoweave}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - ontoweave_db:/var/lib/postgresql/data
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ontoweave"]
       interval: 5s
