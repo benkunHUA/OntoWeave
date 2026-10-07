@@ -49,3 +49,46 @@ def test_list_object_types(session):
     ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
     names = {o.name for o in ontology.list_object_types(session)}
     assert {"客户", "订单"} <= names
+
+
+def test_create_property_requires_existing_owner(session):
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    prop = ontology.create_property(
+        session, owner_type_id=obj.id, name="数量", datatype="int", required=True
+    )
+    assert prop.name == "数量"
+    assert prop.required is True
+    assert prop.status == "draft"
+
+
+def test_create_property_rejects_unknown_owner(session):
+    with pytest.raises(NotFoundError):
+        ontology.create_property(
+            session, owner_type_id=uuid.uuid4(), name="数量", datatype="int"
+        )
+
+
+def test_create_relation_requires_both_endpoints(session):
+    customer = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    order = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    rel = ontology.create_relation(
+        session,
+        owner_id=uuid.uuid4(),
+        source_type_id=customer.id,
+        target_type_id=order.id,
+        name="下订单",
+    )
+    assert rel.status == "draft"
+    assert rel.direction == "forward"
+
+
+def test_create_relation_rejects_missing_endpoint(session):
+    customer = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    with pytest.raises(NotFoundError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=uuid.uuid4(),
+            name="下订单",
+        )
