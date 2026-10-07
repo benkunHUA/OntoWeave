@@ -6,9 +6,11 @@ import uuid
 from collections.abc import Sequence
 from typing import Protocol
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import EMBEDDING_DIM, ObjectType
 
@@ -57,6 +59,70 @@ class HashingEmbedder:
         if norm == 0.0:
             return vector
         return [value / norm for value in vector]
+
+
+class ApiEmbedder:
+    """OpenAI 兼容的 /embeddings 客户端。
+
+    私有化环境把 base_url 指向自建网关即可，不需要改代码。
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        api_key: str,
+        model: str,
+        dim: int = EMBEDDING_DIM,
+        timeout: float = 30.0,
+        send_dimensions: bool = True,
+        client: httpx.Client | None = None,
+    ) -> None:
+        if not api_key:
+            raise InvariantViolationError("embedding api key is not configured")
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.model = model
+        self.dim = dim
+        self.timeout = timeout
+        self.send_dimensions = send_dimensions
+        self._client = client
+
+    def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        payload: dict = {"model": self.model, "input": list(texts)}
+        if self.send_dimensions:
+            payload["dimensions"] = self.dim
+        client = self._client or httpx
+        response = client.post(
+            f"{self.base_url}/embeddings",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json=payload,
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        rows = sorted(response.json()["data"], key=lambda row: row["index"])
+        vectors = [row["embedding"] for row in rows]
+        for vector in vectors:
+            if len(vector) != self.dim:
+                raise InvariantViolationError(
+                    f"embedding model returned {len(vector)} dimensions, expected "
+                    f"{self.dim}; change EMBEDDING_MODEL or migrate the column"
+                )
+        return vectors
+
+
+def build_embedder(settings: Settings) -> Embedder:
+    """配了 key 就走真实模型，没配就回落到本地确定性实现，方便开发与测试。"""
+    if settings.embedding_configured:
+        return ApiEmbedder(
+            base_url=settings.embedding_base_url,
+            api_key=settings.embedding_api_key,
+            model=settings.embedding_model,
+            dim=settings.embedding_dim,
+            timeout=settings.embedding_timeout_seconds,
+            send_dimensions=settings.embedding_send_dimensions,
+        )
+    return HashingEmbedder(dim=settings.embedding_dim)
 
 
 def cosine(left: Sequence[float], right: Sequence[float]) -> float:

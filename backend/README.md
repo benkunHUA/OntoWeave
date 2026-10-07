@@ -24,6 +24,29 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 18000
 ```
 
+## 配置
+
+复制 `.env.example` 成 `.env`（已在 `.gitignore` 里，不会进版本库），把 key 填进去：
+
+```bash
+cp .env.example .env
+```
+
+三组配置：
+
+| 组 | 变量 | 说明 |
+|---|---|---|
+| 数据库 | `DATABASE_URL` / `POSTGRES_*` | 本地默认值可直接用 |
+| 对话模型 | `CHAT_BASE_URL` / `CHAT_API_KEY` / `CHAT_MODEL` | 智能体用；OpenAI 兼容接口，私有化环境换成自建网关 |
+| 嵌入模型 | `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | 相似检索用 |
+
+两个坑先说清楚：
+
+- **`EMBEDDING_DIM` 必须和数据库里 `object_type.embedding` 列的维度一致（当前 1536）。** 换成原生维度不是 1536 的模型时，要么打开 `EMBEDDING_SEND_DIMENSIONS` 让服务端按 1536 输出，要么改列维度并生成一次迁移。
+- **没有配 `EMBEDDING_API_KEY` 时，服务会回落到本地的 `HashingEmbedder`**（词面相似度，不需要网络）。开发够用，但语义质量远不如真实模型，上生产前记得配上。
+
+`CHAT_API_KEY` 目前还没有消费方——智能体编排才会用到它。先填上不影响现有功能。
+
 ## 跑测试
 
 ```bash

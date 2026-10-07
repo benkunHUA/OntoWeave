@@ -1,7 +1,10 @@
+import json
 import uuid
 
+import httpx
 import pytest
 
+from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
 from app.services import embedding, ontology
 
@@ -81,3 +84,61 @@ def test_embedder_dimension_mismatch_is_reported_clearly(session):
         embedding.search_object_types(
             session, query="客户", embedder=embedding.HashingEmbedder(dim=256)
         )
+
+
+def _mock_client(handler) -> httpx.Client:
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_api_embedder_calls_openai_compatible_endpoint():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["auth"] = request.headers["authorization"]
+        captured["body"] = json.loads(request.read())
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.5] * 4}]})
+
+    embedder = embedding.ApiEmbedder(
+        base_url="http://gateway.local/v1/",
+        api_key="secret",
+        model="my-embed",
+        dim=4,
+        client=_mock_client(handler),
+    )
+    assert embedder.embed(["客户"]) == [[0.5] * 4]
+    assert captured["url"] == "http://gateway.local/v1/embeddings"
+    assert captured["auth"] == "Bearer secret"
+    assert captured["body"] == {
+        "model": "my-embed",
+        "input": ["客户"],
+        "dimensions": 4,
+    }
+
+
+def test_api_embedder_reports_response_dimension_mismatch():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.1] * 3}]})
+
+    embedder = embedding.ApiEmbedder(
+        base_url="http://x/v1", api_key="k", model="m", dim=4, client=_mock_client(handler)
+    )
+    with pytest.raises(InvariantViolationError):
+        embedder.embed(["客户"])
+
+
+def test_api_embedder_requires_api_key():
+    with pytest.raises(InvariantViolationError):
+        embedding.ApiEmbedder(base_url="http://x/v1", api_key="", model="m", dim=4)
+
+
+def test_build_embedder_switches_on_configuration():
+    unconfigured = embedding.build_embedder(Settings(embedding_api_key=""))
+    assert isinstance(unconfigured, embedding.HashingEmbedder)
+
+    configured = embedding.build_embedder(
+        Settings(embedding_api_key="k", embedding_model="m", embedding_dim=4)
+    )
+    assert isinstance(configured, embedding.ApiEmbedder)
+    assert configured.model == "m"
+    assert configured.dim == 4
