@@ -1,19 +1,22 @@
 from collections.abc import Iterator
 
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.db import build_engine, build_session_factory
-
-_settings = get_settings()
-_engine = build_engine(_settings.database_url)
-_session_factory = build_session_factory(_engine)
 
 
-def get_session() -> Iterator[Session]:
-    with _session_factory() as session:
-        yield session
+def get_session(request: Request) -> Iterator[Session]:
+    """单元事务：整个请求成功才提交，抛异常就回滚。事务边界在这一处定义。"""
+    factory = request.app.state.session_factory
+    with factory() as session:
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
 
 
 def get_default_user_id() -> str:
-    return _settings.default_user_id
+    return get_settings().default_user_id

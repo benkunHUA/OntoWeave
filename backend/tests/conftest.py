@@ -5,7 +5,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -43,17 +43,35 @@ def engine(alembic_config: Config) -> Engine:
 
 
 @pytest.fixture
-def session(engine: Engine) -> Session:
-    """每个测试跑在一条会被回滚的外层事务里，互不污染。"""
-    connection = engine.connect()
-    transaction = connection.begin()
-    factory = sessionmaker(
-        bind=connection, autoflush=False, expire_on_commit=False, class_=Session
+def connection(engine: Engine) -> Connection:
+    """每个测试一条会被回滚的外层连接，测试之间互不污染。"""
+    conn = engine.connect()
+    transaction = conn.begin()
+    try:
+        yield conn
+    finally:
+        transaction.rollback()
+        conn.close()
+
+
+@pytest.fixture
+def session_factory(connection: Connection) -> sessionmaker[Session]:
+    """绑在测试连接上的 session 工厂，可以原样交给 create_app()。"""
+    return sessionmaker(
+        bind=connection,
+        autoflush=False,
+        expire_on_commit=False,
+        class_=Session,
+        # 让 session 的 commit 只释放 SAVEPOINT，外层事务仍由 fixture 回滚，
+        # 这样 app 里真实的提交行为也能被测到，同时不污染库。
+        join_transaction_mode="create_savepoint",
     )
-    sess = factory()
+
+
+@pytest.fixture
+def session(session_factory: sessionmaker[Session]) -> Session:
+    sess = session_factory()
     try:
         yield sess
     finally:
         sess.close()
-        transaction.rollback()
-        connection.close()

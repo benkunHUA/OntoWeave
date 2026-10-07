@@ -104,8 +104,19 @@ def create_relation(
     direction: str = "forward",
     home_graph_id: uuid.UUID | None = None,
 ) -> Relation:
+    """幂等：同一对类型之间同名同向的关系只建一条，重复调用返回已有的那条。"""
     get_object_type(session, source_type_id)
     get_object_type(session, target_type_id)
+    existing = session.scalar(
+        select(Relation).where(
+            Relation.source_type_id == source_type_id,
+            Relation.target_type_id == target_type_id,
+            Relation.name == name,
+            Relation.direction == direction,
+        )
+    )
+    if existing is not None:
+        return existing
     rel = Relation(
         owner_id=owner_id,
         source_type_id=source_type_id,

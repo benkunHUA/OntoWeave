@@ -29,7 +29,6 @@ def create_object_type(
         name=payload.name,
         description=payload.description,
     )
-    session.commit()
     return ObjectTypeRead.model_validate(obj)
 
 
@@ -38,7 +37,6 @@ def confirm_object_type(
     object_type_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ObjectTypeRead:
     obj = ontology.transition_object_type(session, object_type_id, "confirmed")
-    session.commit()
     return ObjectTypeRead.model_validate(obj)
 
 
@@ -49,7 +47,6 @@ def create_graph(
     g = graph.create_graph(
         session, owner_id=uuid.UUID(get_default_user_id()), name=payload.name
     )
-    session.commit()
     return GraphRead.model_validate(g)
 
 
@@ -60,7 +57,6 @@ def add_object(
     session: Session = Depends(get_session),
 ) -> Response:
     graph.add_object_to_graph(session, graph_id, payload.object_type_id)
-    session.commit()
     return Response(status_code=204)
 
 
@@ -71,5 +67,4 @@ def add_relation(
     session: Session = Depends(get_session),
 ) -> Response:
     graph.add_relation_to_graph(session, graph_id, payload.relation_id)
-    session.commit()
     return Response(status_code=204)

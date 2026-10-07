@@ -3,7 +3,16 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -125,6 +134,15 @@ class Relation(Base):
         CheckConstraint(
             "status IN ('draft', 'confirmed', 'approved')",
             name="ck_relation_status",
+        ),
+        # 同一对类型之间、同名同向的关系只保留一条。自反关系（公司—控股→公司）
+        # 是合法的，所以这里不做 source != target 限制。
+        UniqueConstraint(
+            "source_type_id",
+            "target_type_id",
+            "name",
+            "direction",
+            name="uq_relation_shape",
         ),
     )
 
