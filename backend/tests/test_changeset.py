@@ -1,9 +1,19 @@
 import uuid
 
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.errors import InvalidTransitionError, NotFoundError
+from app.main import create_app
 from app.services import changeset, conversation, ontology
+
+API = "/api/v1"
+
+
+@pytest.fixture
+def api_client(session_factory: sessionmaker[Session]) -> TestClient:
+    return TestClient(create_app(session_factory=session_factory))
 
 
 def _graph_id(session) -> uuid.UUID:
@@ -149,3 +159,62 @@ def test_confirm_rejects_dangling_target(session):
     )
     with pytest.raises(NotFoundError):
         changeset.confirm_changeset(session, cs.id)
+
+
+def test_changeset_api_confirm_flow(api_client, session):
+    graph_id = _graph_id(session)
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    session.commit()
+
+    cs = api_client.post(f"{API}/graphs/{graph_id}/changesets")
+    assert cs.status_code == 201
+    cid = cs.json()["id"]
+
+    recorded = api_client.post(
+        f"{API}/changesets/{cid}/ops",
+        json={
+            "op": "create",
+            "target_id": str(obj.id),
+            "payload": {"kind": "object_type"},
+        },
+    )
+    assert recorded.status_code == 201
+
+    detail = api_client.get(f"{API}/changesets/{cid}")
+    assert detail.status_code == 200
+    assert len(detail.json()["ops"]) == 1
+
+    confirmed = api_client.post(f"{API}/changesets/{cid}/confirm")
+    assert confirmed.status_code == 200
+    assert confirmed.json()["status"] == "confirmed"
+
+
+def test_changeset_api_reject_flow(api_client, session):
+    graph_id = _graph_id(session)
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="临时")
+    session.commit()
+
+    cid = api_client.post(f"{API}/graphs/{graph_id}/changesets").json()["id"]
+    api_client.post(
+        f"{API}/changesets/{cid}/ops",
+        json={
+            "op": "create",
+            "target_id": str(obj.id),
+            "payload": {"kind": "object_type"},
+        },
+    )
+    rejected = api_client.post(f"{API}/changesets/{cid}/reject")
+    assert rejected.status_code == 200
+    assert rejected.json()["status"] == "rejected"
+
+
+def test_recording_into_closed_changeset_returns_409(api_client):
+    graph_id = api_client.post(f"{API}/conversations", json={"title": "接口测试"}).json()[
+        "graph_id"
+    ]
+    cid = api_client.post(f"{API}/graphs/{graph_id}/changesets").json()["id"]
+    api_client.post(f"{API}/changesets/{cid}/confirm")
+
+    resp = api_client.post(f"{API}/changesets/{cid}/ops", json={"op": "create"})
+    assert resp.status_code == 409
+    assert resp.json()["error"] == "invalid_transition"
