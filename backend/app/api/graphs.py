@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.deps import get_default_user_id, get_session
+from app.deps import get_current_user_id, get_session
 from app.schemas.graph import (
     GraphCreate,
     GraphRead,
@@ -19,7 +19,7 @@ router = APIRouter(tags=["graphs"])
 
 @router.post("/graphs", response_model=GraphRead, status_code=201)
 def create_graph(payload: GraphCreate, session: Session = Depends(get_session)) -> GraphRead:
-    g = graph.create_graph(session, owner_id=uuid.UUID(get_default_user_id()), name=payload.name)
+    g = graph.create_graph(session, owner_id=get_current_user_id(), name=payload.name)
     return GraphRead.model_validate(g)
 
 

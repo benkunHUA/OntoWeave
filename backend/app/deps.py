@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Iterator
 
 from fastapi import Request
@@ -18,5 +19,6 @@ def get_session(request: Request) -> Iterator[Session]:
             raise
 
 
-def get_default_user_id() -> str:
-    return get_settings().default_user_id
+def get_current_user_id() -> uuid.UUID:
+    """一期没有用户系统，统一返回配置里的默认用户。"""
+    return uuid.UUID(get_settings().default_user_id)

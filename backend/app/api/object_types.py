@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.deps import get_default_user_id, get_session
+from app.deps import get_current_user_id, get_session
 from app.schemas.ontology import ObjectTypeCreate, ObjectTypeRead
 from app.services import ontology
 
@@ -18,7 +18,7 @@ def create_object_type(
 ) -> ObjectTypeRead:
     obj = ontology.create_object_type(
         session,
-        owner_id=uuid.UUID(get_default_user_id()),
+        owner_id=get_current_user_id(),
         name=payload.name,
         description=payload.description,
     )
