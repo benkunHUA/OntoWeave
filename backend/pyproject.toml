@@ -9,7 +9,17 @@ dependencies = [
     "psycopg[binary]==3.2.3",
     "alembic==1.14.0",
     "pydantic-settings==2.7.0",
+    "pgvector==0.5.0",
 ]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+# 只打包应用代码；alembic 迁移不是包，tests 不进发行物。
+include = ["app*"]
+exclude = ["tests*", "alembic*"]
 
 [project.optional-dependencies]
 dev = [

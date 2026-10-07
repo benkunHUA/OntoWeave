@@ -3,11 +3,13 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Text,
     UniqueConstraint,
     func,
@@ -15,6 +17,9 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+# 嵌入维度写死在 DDL 里，换嵌入模型需要一次迁移。
+EMBEDDING_DIM = 1536
 
 
 class Base(DeclarativeBase):
@@ -68,6 +73,12 @@ class ObjectType(Base):
             "status IN ('draft', 'confirmed', 'approved')",
             name="ck_object_type_status",
         ),
+        Index(
+            "ix_object_type_embedding_hnsw",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -80,6 +91,7 @@ class ObjectType(Base):
     home_graph_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("graph.id", ondelete="SET NULL")
     )
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
