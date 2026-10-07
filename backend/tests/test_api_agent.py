@@ -6,8 +6,6 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, ToolMessage
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.main import create_app
-
 
 class StubAgent:
     """假的编译产物：只按约定吐 update chunk，用来单独验证 SSE 这层的管道。"""
@@ -41,7 +39,10 @@ def _events(text: str) -> list[dict]:
 @pytest.fixture
 def client(session_factory: sessionmaker[Session], monkeypatch) -> TestClient:
     monkeypatch.setattr("app.agent.runtime.build_agent_for_run", lambda *a, **k: StubAgent())
-    return TestClient(create_app(session_factory=session_factory))
+    # 关掉检查点：这几个用例验证的是 SSE 管道，不需要连库建检查点。
+    from app.main import _create_app
+
+    return TestClient(_create_app(session_factory, enable_agent_checkpoints=False))
 
 
 def test_message_endpoint_streams_events(client):

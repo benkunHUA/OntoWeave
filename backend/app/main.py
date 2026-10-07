@@ -19,6 +19,12 @@ logger = logging.getLogger("app")
 
 def create_app(session_factory: SessionFactory | None = None) -> FastAPI:
     """装配应用。session_factory 可注入，测试与生产用同一套装配路径。"""
+    return _create_app(session_factory, enable_agent_checkpoints=True)
+
+
+def _create_app(
+    session_factory: SessionFactory | None, *, enable_agent_checkpoints: bool
+) -> FastAPI:
     if session_factory is None:
         session_factory = build_session_factory(build_engine(get_settings().database_url))
 
@@ -26,6 +32,9 @@ def create_app(session_factory: SessionFactory | None = None) -> FastAPI:
 
     app = FastAPI(title="OntoWeave", version="0.1.0")
     app.state.session_factory = session_factory
+    # 检查点懒建：第一次真的跑智能体时才连库，避免导入期就建立连接。
+    app.state.checkpointer = None
+    app.state.enable_agent_checkpoints = enable_agent_checkpoints
     app.add_middleware(RequestContextMiddleware)
     app.include_router(api_router)
 

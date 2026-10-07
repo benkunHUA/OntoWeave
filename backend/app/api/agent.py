@@ -33,12 +33,22 @@ def _stream(request: Request, conversation_id: uuid.UUID, **kwargs) -> Streaming
             settings,
             get_current_user_id(),
             conversation_id=conversation_id,
-            checkpointer=getattr(request.app.state, "checkpointer", None),
+            checkpointer=_checkpointer(request, settings),
             **kwargs,
         ),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
     )
+
+
+def _checkpointer(request: Request, settings):
+    """懒建并缓存检查点。没有它，interrupt_on 和 ask_user 都无法工作。"""
+    state = request.app.state
+    if state.checkpointer is None and state.enable_agent_checkpoints:
+        from app.agent import graph as agent_graph
+
+        state.checkpointer = agent_graph.build_checkpointer(settings.database_url)
+    return state.checkpointer
 
 
 @router.post("/conversations/{conversation_id}/messages")
