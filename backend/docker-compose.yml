@@ -16,5 +16,16 @@ services:
       timeout: 3s
       retries: 10
 
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ontoweave}:${POSTGRES_PASSWORD:-ontoweave}@db:5432/${POSTGRES_DB:-ontoweave}
+    ports:
+      # 宿主机 8000 可能被别的项目占用，这里映射到 18000。
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   ontoweave_db:

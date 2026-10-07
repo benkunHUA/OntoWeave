@@ -2,55 +2,83 @@
 
 会话驱动的企业本体建模工具后端。当前进度：本体数据层（对象类型 / 属性 / 关系 / 图成员 / 状态机）。
 
-## 本地起服务
+## 用容器跑整套
+
+```bash
+docker compose up -d --build
+curl http://127.0.0.1:18000/health
+```
+
+应用容器启动时会先跑 `alembic upgrade head`，再起 uvicorn。接口文档在
+http://127.0.0.1:18000/docs。
+
+> 宿主机 8000 常被别的项目占用，所以这里映射到 **18000**。
+
+## 本地开发
 
 ```bash
 docker compose up -d db
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 18000
 ```
-
-打开 http://127.0.0.1:8000/docs 看接口文档。
 
 ## 跑测试
 
 ```bash
 docker compose up -d db
 source .venv/bin/activate
-python -m pytest -v
+pytest -v
 ```
 
-测试连 `TEST_DATABASE_URL`（默认是本地的 `ontoweave_test`），每次会话重建该库的 schema。
+测试连 `TEST_DATABASE_URL`（默认本地的 `ontoweave_test`），每次会话重建该库的 schema。
 
-**保护机制：** 库名不以 `_test` 结尾时，pytest 会直接拒绝启动，避免误清开发库。
-测试库由 `scripts/init-test-db.sql` 在数据卷首次初始化时创建；已有数据卷需要手工
+**保护机制：** 库名不以 `_test` 结尾时，pytest 直接拒绝启动，避免误清开发库。测试库由
+`scripts/init-test-db.sql` 在数据卷首次初始化时创建；已有数据卷需要手工
 `docker compose exec db psql -U ontoweave -d postgres -c "CREATE DATABASE ontoweave_test OWNER ontoweave;"`
 或 `docker compose down -v` 后重建。
 
-## 数据库连接
+## 静态检查
 
-Postgres 只监听本机（`127.0.0.1:5432`），不会暴露到局域网。凭据可用 `.env` 覆盖
-`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`。
+```bash
+ruff check .
+ruff format --check .
+mypy app
+```
+
+CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依次跑 lint、格式检查、
+类型检查和测试。依赖用 `uv.lock` 锁定。
 
 ## 目录
 
 | 路径 | 作用 |
 |---|---|
 | `app/models.py` | SQLAlchemy 模型（本体、图、视图、改动集） |
+| `app/schemas/` | 按领域拆分的 Pydantic 出入参 |
 | `app/services/ontology.py` | 对象类型 / 属性 / 关系的领域逻辑与状态机 |
 | `app/services/graph.py` | 图的成员管理与关系端点完整性约束 |
-| `app/api/routes.py` | REST 路由 |
+| `app/api/` | 按领域拆分的路由，统一挂在 `/api/v1` 下 |
+| `app/deps.py` | 依赖注入；事务边界在这里（成功提交、异常回滚） |
+| `app/middleware.py` | 请求 ID 与访问日志 |
 | `alembic/versions/` | 数据库迁移 |
 
-## 已实现的接口
+## 接口
+
+业务接口都在 `/api/v1` 下；`/health` 不版本化，方便探活。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/health` | 健康检查 |
-| POST | `/object-types` | 新建对象类型（草案状态） |
-| POST | `/object-types/{id}/confirm` | 草案 → 已确认 |
-| POST | `/graphs` | 新建图 |
-| POST | `/graphs/{id}/objects` | 把对象加入图 |
-| POST | `/graphs/{id}/relations` | 把关系加入图（两端必须已在图内） |
+| POST | `/api/v1/object-types` | 新建对象类型（草案状态） |
+| POST | `/api/v1/object-types/{id}/confirm` | 草案 → 已确认 |
+| POST | `/api/v1/graphs` | 新建图 |
+| POST | `/api/v1/graphs/{id}/objects` | 把对象加入图 |
+| POST | `/api/v1/graphs/{id}/relations` | 把关系加入图（两端必须已在图内） |
+
+每个响应都带 `X-Request-ID`；请求里带了就透传，没带就生成一个，并出现在日志里。
+
+## 数据库连接
+
+Postgres 只监听本机（`127.0.0.1:5432`），不会暴露到局域网。凭据可用 `.env` 覆盖
+`POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB`。

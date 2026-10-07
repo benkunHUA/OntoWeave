@@ -12,8 +12,34 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==8.3.4", "httpx==0.28.1"]
+dev = [
+    "pytest==8.3.4",
+    "httpx==0.28.1",
+    "ruff==0.16.10",
+    "mypy==2.4.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的依赖注入就是写在参数默认值里的，这是官方写法。
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
+
+[tool.ruff.lint.per-file-ignores]
+# Alembic 自动生成的迁移不手工排版。
+"alembic/versions/*.py" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_ignores = true

@@ -9,9 +9,7 @@ from app.errors import InvariantViolationError, NotFoundError
 from app.models import Graph, GraphObject, GraphRelation, ObjectType, Relation
 
 
-def create_graph(
-    session: Session, *, owner_id: uuid.UUID, name: str | None = None
-) -> Graph:
+def create_graph(session: Session, *, owner_id: uuid.UUID, name: str | None = None) -> Graph:
     g = Graph(owner_id=owner_id, name=name)
     session.add(g)
     session.flush()
@@ -25,9 +23,7 @@ def get_graph(session: Session, graph_id: uuid.UUID) -> Graph:
     return g
 
 
-def add_object_to_graph(
-    session: Session, graph_id: uuid.UUID, object_type_id: uuid.UUID
-) -> None:
+def add_object_to_graph(session: Session, graph_id: uuid.UUID, object_type_id: uuid.UUID) -> None:
     get_graph(session, graph_id)
     if session.get(ObjectType, object_type_id) is None:
         raise NotFoundError(f"object type {object_type_id} not found")
@@ -46,9 +42,7 @@ def list_graph_objects(session: Session, graph_id: uuid.UUID) -> list[uuid.UUID]
     return list(rows)
 
 
-def add_relation_to_graph(
-    session: Session, graph_id: uuid.UUID, relation_id: uuid.UUID
-) -> None:
+def add_relation_to_graph(session: Session, graph_id: uuid.UUID, relation_id: uuid.UUID) -> None:
     get_graph(session, graph_id)
     rel = session.get(Relation, relation_id)
     if rel is None:

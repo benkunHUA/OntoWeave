@@ -50,9 +50,7 @@ def list_object_types(session: Session) -> list[ObjectType]:
     return list(session.scalars(select(ObjectType).order_by(ObjectType.name)))
 
 
-def transition_object_type(
-    session: Session, object_type_id: uuid.UUID, target: str
-) -> ObjectType:
+def transition_object_type(session: Session, object_type_id: uuid.UUID, target: str) -> ObjectType:
     obj = get_object_type(session, object_type_id)
     if target not in ALLOWED_TRANSITIONS.get(obj.status, set()):
         raise InvalidTransitionError(
@@ -87,9 +85,7 @@ def create_property(
 def list_properties(session: Session, owner_type_id: uuid.UUID) -> list[Property]:
     return list(
         session.scalars(
-            select(Property)
-            .where(Property.owner_type_id == owner_type_id)
-            .order_by(Property.name)
+            select(Property).where(Property.owner_type_id == owner_type_id).order_by(Property.name)
         )
     )
 
@@ -138,14 +134,10 @@ def get_relation(session: Session, relation_id: uuid.UUID) -> Relation:
     return rel
 
 
-def transition_relation(
-    session: Session, relation_id: uuid.UUID, target: str
-) -> Relation:
+def transition_relation(session: Session, relation_id: uuid.UUID, target: str) -> Relation:
     rel = get_relation(session, relation_id)
     if target not in ALLOWED_TRANSITIONS.get(rel.status, set()):
-        raise InvalidTransitionError(
-            f"relation {relation_id} cannot move {rel.status} -> {target}"
-        )
+        raise InvalidTransitionError(f"relation {relation_id} cannot move {rel.status} -> {target}")
     rel.status = target
     session.flush()
     return rel

@@ -1,6 +1,7 @@
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine
+
+from alembic import command
 
 
 def test_migrations_match_models(engine: Engine, alembic_config: Config) -> None:

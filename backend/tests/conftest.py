@@ -2,11 +2,12 @@ import os
 from pathlib import Path
 
 import pytest
-from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.orm import Session, sessionmaker
+
+from alembic import command
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 

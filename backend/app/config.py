@@ -9,9 +9,7 @@ DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = (
-        "postgresql+psycopg://ontoweave:ontoweave@localhost:5432/ontoweave"
-    )
+    database_url: str = "postgresql+psycopg://ontoweave:ontoweave@localhost:5432/ontoweave"
     default_user_id: str = DEFAULT_USER_ID
 
 

@@ -76,9 +76,7 @@ def test_non_null_columns_have_db_level_defaults(session):
         {"owner": customer.id, "src": customer.id, "dst": order.id},
     )
 
-    datatype, required = session.execute(
-        text("select datatype, required from property")
-    ).one()
+    datatype, required = session.execute(text("select datatype, required from property")).one()
     (direction,) = session.execute(text("select direction from relation")).one()
 
     assert datatype == "text"

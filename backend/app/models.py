@@ -16,8 +16,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-STATUS_VALUES = ("draft", "confirmed", "approved")
-
 
 class Base(DeclarativeBase):
     pass
@@ -26,10 +24,8 @@ class Base(DeclarativeBase):
 class Graph(Base):
     __tablename__ = "graph"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -45,10 +41,8 @@ class Graph(Base):
 class Conversation(Base):
     __tablename__ = "conversation"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     graph_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("graph.id", ondelete="CASCADE"),
@@ -76,10 +70,8 @@ class ObjectType(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(
@@ -108,9 +100,7 @@ class Property(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_type_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("object_type.id", ondelete="CASCADE"),
@@ -146,9 +136,7 @@ class Relation(Base):
         ),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     source_type_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -159,6 +147,7 @@ class Relation(Base):
         UUID(as_uuid=True),
         ForeignKey("object_type.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     direction: Mapped[str] = mapped_column(
@@ -182,6 +171,7 @@ class GraphObject(Base):
         UUID(as_uuid=True),
         ForeignKey("object_type.id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     )
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -198,6 +188,7 @@ class GraphRelation(Base):
         UUID(as_uuid=True),
         ForeignKey("relation.id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     )
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -224,15 +215,14 @@ class ViewState(Base):
 class Changeset(Base):
     __tablename__ = "changeset"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     graph_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("graph.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("graph.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    status: Mapped[str] = mapped_column(
-        Text, nullable=False, default="open", server_default="open"
-    )
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="open", server_default="open")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -241,13 +231,12 @@ class Changeset(Base):
 class ChangesetOp(Base):
     __tablename__ = "changeset_op"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     changeset_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("changeset.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     op: Mapped[str] = mapped_column(Text, nullable=False)
     target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

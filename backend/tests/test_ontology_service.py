@@ -65,9 +65,7 @@ def test_create_property_requires_existing_owner(session):
 
 def test_create_property_rejects_unknown_owner(session):
     with pytest.raises(NotFoundError):
-        ontology.create_property(
-            session, owner_type_id=uuid.uuid4(), name="数量", datatype="int"
-        )
+        ontology.create_property(session, owner_type_id=uuid.uuid4(), name="数量", datatype="int")
 
 
 def test_create_relation_requires_both_endpoints(session):
