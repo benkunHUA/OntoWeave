@@ -91,9 +91,11 @@ def stream_run(
             if resume is not None
             else {"messages": [HumanMessage(text or "")]}
         )
+        paused = False
         for chunk in agent.stream(payload, config=config, stream_mode="updates"):
             for node, update in chunk.items():
                 if node == "__interrupt__":
+                    paused = True
                     for item in update if isinstance(update, (list, tuple)) else [update]:
                         yield _sse({"type": "interrupt", **(getattr(item, "value", None) or {})})
                     continue
@@ -113,7 +115,9 @@ def stream_run(
             for op in changeset.list_ops(session, run.changeset_id)
         ]
         yield _sse({"type": "state.update", "changesetId": str(run.changeset_id), "ops": ops})
-        yield _sse({"type": "run.end"})
+        # paused 必须显式给出来：否则前端分不清「本轮做完」和「卡在中途等人回答」，
+        # 两个都是 run.end，却要走向完全不同的交互。
+        yield _sse({"type": "run.end", "paused": paused})
     except Exception as exc:
         session.rollback()
         yield _sse({"type": "run.error", "message": f"{type(exc).__name__}: {exc}"})

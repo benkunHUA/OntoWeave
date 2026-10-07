@@ -64,6 +64,7 @@ def test_message_endpoint_streams_events(client):
     assert "message.delta" in kinds
     assert "state.update" in kinds
     assert kinds[-1] == "run.end"
+    assert events[-1]["paused"] is False
 
     tool_start = next(event for event in events if event["type"] == "tool.start")
     assert tool_start["name"] == "list_types"
@@ -82,6 +83,31 @@ def test_resume_endpoint_streams_events(client):
     kinds = [event["type"] for event in _events(body)]
     assert kinds[0] == "run.start"
     assert kinds[-1] == "run.end"
+
+
+def test_interrupt_is_reported_as_paused(client, monkeypatch):
+    """中断和完成都是 run.end，前端靠 paused 区分，不能含糊。"""
+
+    class InterruptingAgent:
+        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+            from langgraph.types import Interrupt
+
+            yield {"__interrupt__": (Interrupt(value={"question": "客户还是供应商？"}),)}
+
+    monkeypatch.setattr(
+        "app.agent.runtime.build_agent_for_run", lambda *a, **k: InterruptingAgent()
+    )
+    conv = client.post("/api/v1/conversations", json={"title": "中断"}).json()
+    with client.stream(
+        "POST",
+        f"/api/v1/conversations/{conv['id']}/messages",
+        json={"text": "张三下了个订单"},
+    ) as response:
+        body = "".join(response.iter_text())
+
+    events = _events(body)
+    assert next(e for e in events if e["type"] == "interrupt")["question"] == "客户还是供应商？"
+    assert events[-1] == {"type": "run.end", "paused": True}
 
 
 def test_message_endpoint_rejects_unknown_conversation(client):
