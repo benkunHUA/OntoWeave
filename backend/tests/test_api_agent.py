@@ -189,6 +189,77 @@ def test_ask_user_options_become_resume_payloads(client, monkeypatch):
     ]
 
 
+def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
+    """ask_user 是在工具内部挂起的，续跑拿到 ToolMessage 后必须把上一轮那块收口。
+
+    否则前端一直显示成"还在等你回答"，刷新也救不回来。
+    """
+    from langgraph.types import Interrupt
+
+    call_id = "call_ask_1"
+    asked = {"question": "客户还是供应商？", "options": ["客户", "供应商"]}
+
+    class InterruptingAgent:
+        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+            yield {
+                "model": {
+                    "messages": [
+                        AIMessage(
+                            content="",
+                            tool_calls=[
+                                {
+                                    "name": "ask_user",
+                                    "args": asked,
+                                    "id": call_id,
+                                    "type": "tool_call",
+                                }
+                            ],
+                        )
+                    ]
+                }
+            }
+            yield {"__interrupt__": (Interrupt(value=asked),)}
+
+    class ResumingAgent:
+        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+            yield {"tools": {"messages": [ToolMessage(content="客户", tool_call_id=call_id)]}}
+            yield {"model": {"messages": [AIMessage(content="行，按客户来。")]}}
+
+    agents = iter([InterruptingAgent(), ResumingAgent()])
+    monkeypatch.setattr("app.agent.runtime.build_agent_for_run", lambda *a, **k: next(agents))
+
+    conv = client.post("/api/v1/conversations", json={"title": "挂起收口"}).json()
+    with client.stream(
+        "POST",
+        f"/api/v1/conversations/{conv['id']}/messages",
+        json={"text": "张三下了个订单"},
+    ) as response:
+        body = "".join(response.iter_text())
+    assert _events(body)[-1]["paused"] is True
+
+    history = client.get(f"/api/v1/conversations/{conv['id']}/messages").json()
+    hung = next(block for block in history[-1]["blocks"] if block["kind"] == "tool")
+    assert hung["callId"] == call_id
+    assert hung["status"] == "running"
+
+    with client.stream(
+        "POST",
+        f"/api/v1/conversations/{conv['id']}/resume",
+        json={"answer": "客户"},
+    ) as response:
+        body = "".join(response.iter_text())
+    assert _events(body)[-1]["type"] == "run.end"
+
+    resolved = next(
+        block
+        for message in client.get(f"/api/v1/conversations/{conv['id']}/messages").json()
+        for block in message["blocks"] or []
+        if block["kind"] == "tool" and block["callId"] == call_id
+    )
+    assert resolved["status"] == "ok"
+    assert resolved["result"] == "客户"
+
+
 def test_tool_approval_interrupt_maps_to_decisions():
     from app.agent.runtime import _normalize_interrupt
 

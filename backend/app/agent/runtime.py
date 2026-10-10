@@ -206,6 +206,8 @@ class _TurnBuilder:
         self.blocks: list[dict] = []
         self._open: dict | None = None
         self._tools: dict[str, dict] = {}
+        # 中断挂起的调用要到下一轮才有 ToolMessage，本轮找不到起始块，先攒着。
+        self.orphan_tools: dict[str, dict] = {}
 
     def _close_open(self) -> list[dict]:
         if self._open is None:
@@ -277,7 +279,14 @@ class _TurnBuilder:
         truncated = len(result) > TOOL_RESULT_LIMIT
         stored = result[:TOOL_RESULT_LIMIT]
         block = self._tools.get(call_id)
-        if block is not None:
+        if block is None:
+            # 中断那轮只起了块、没等到结果；这一轮才拿到 ToolMessage。
+            self.orphan_tools[call_id] = {
+                "status": status,
+                "result": stored,
+                "durationMs": duration_ms or None,
+            }
+        else:
             block.update(
                 status=status,
                 result=stored,
@@ -454,6 +463,16 @@ def stream_run(
                 role="assistant",
                 content=assistant_text,
                 blocks=turn.blocks or None,
+            )
+        # 中断期间挂起的工具块活在上一轮的消息里，拿到结果后回填，别让它一直转圈。
+        for call_id, resolution in turn.orphan_tools.items():
+            conversation.resolve_tool_block(
+                session,
+                conversation_id=conversation_id,
+                call_id=call_id,
+                status=resolution["status"],
+                result=resolution["result"],
+                duration_ms=resolution["durationMs"],
             )
         session.commit()
         ops = [
