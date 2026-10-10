@@ -24,18 +24,17 @@ def upsert_view_state(
     *,
     graph_id: uuid.UUID,
     user_id: uuid.UUID,
-    name: str | None,
     spec: dict,
     owner_id: uuid.UUID | None = None,
 ) -> ViewState:
-    """视图状态是整体读写的 JSONB，用覆盖语义最简单也最不容易写错。"""
-    graph.get_graph(session, graph_id, owner_id=owner_id)
+    """视图状态是整体读写的 JSONB，名称始终镜像图名称。"""
+    graph_row = graph.get_graph(session, graph_id, owner_id=owner_id)
     vs = session.get(ViewState, (graph_id, user_id))
     if vs is None:
-        vs = ViewState(graph_id=graph_id, user_id=user_id, name=name, spec=spec)
+        vs = ViewState(graph_id=graph_id, user_id=user_id, name=graph_row.name, spec=spec)
         session.add(vs)
     else:
-        vs.name = name
+        vs.name = graph_row.name
         vs.spec = spec
     session.flush()
     return vs

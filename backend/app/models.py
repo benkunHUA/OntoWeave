@@ -66,6 +66,42 @@ class Conversation(Base):
     )
 
 
+class ConversationMessage(Base):
+    __tablename__ = "conversation_message"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('user', 'assistant')",
+            name="ck_conversation_message_role",
+        ),
+        CheckConstraint(
+            "kind IN ('message', 'error')",
+            name="ck_conversation_message_kind",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversation.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(
+        Text, nullable=False, default="message", server_default="message"
+    )
+    # 助手回合的有序内容块（思考 / 正文 / 工具调用），刷新后照样能还原。
+    # content 仍保留纯文本，供检索和旧逻辑使用。
+    blocks: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        # clock_timestamp() 比 now() 更适合消息排序：同一事务里的连续写入也有顺序。
+        DateTime(timezone=True),
+        server_default=func.clock_timestamp(),
+        nullable=False,
+    )
+
+
 class ObjectType(Base):
     __tablename__ = "object_type"
     __table_args__ = (

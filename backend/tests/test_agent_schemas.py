@@ -16,16 +16,21 @@ def test_ontology_tool_names_are_stable():
 
 def test_view_tool_names_are_stable():
     assert [tool.name for tool in schemas.VIEW_TOOLS] == [
+        "get_view_state",
+        "get_ontology_slice",
         "set_layout",
+        "focus",
+        "fit_view",
+        "reset_view",
         "highlight",
         "dim",
         "group",
         "collapse",
         "expand",
         "filter_view",
-        "focus",
-        "reset_view",
         "annotate",
+        "save_view",
+        "load_view",
     ]
 
 

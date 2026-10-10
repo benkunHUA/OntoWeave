@@ -90,3 +90,35 @@ def test_removing_object_clears_its_graph_relations(session):
 def test_remove_object_from_graph_rejects_unknown_graph(session):
     with pytest.raises(NotFoundError):
         graph.remove_object_from_graph(session, uuid.uuid4(), uuid.uuid4())
+
+
+def test_graph_snapshot_returns_nodes_properties_and_relations(session):
+    owner = uuid.uuid4()
+    g = graph.create_graph(session, owner_id=owner, name="销售域")
+    customer = ontology.create_object_type(session, owner_id=owner, name="客户")
+    order = ontology.create_object_type(session, owner_id=owner, name="订单")
+    ontology.create_property(session, owner_type_id=order.id, name="金额", datatype="decimal")
+    relation = ontology.create_relation(
+        session,
+        owner_id=owner,
+        source_type_id=customer.id,
+        target_type_id=order.id,
+        name="下订单",
+    )
+    for item in (customer, order):
+        graph.add_object_to_graph(session, g.id, item.id, owner_id=owner)
+    graph.add_relation_to_graph(session, g.id, relation.id, owner_id=owner)
+
+    snapshot = graph.get_graph_snapshot(session, g.id, owner_id=owner)
+
+    assert snapshot.graph.id == g.id
+    assert {node.name for node in snapshot.nodes} == {"客户", "订单"}
+    assert [relation.name for relation in snapshot.relations] == ["下订单"]
+    order_node = next(node for node in snapshot.nodes if node.name == "订单")
+    assert [prop.name for prop in snapshot.properties[order_node.id]] == ["金额"]
+
+
+def test_graph_snapshot_is_scoped_to_owner(session):
+    g = graph.create_graph(session, owner_id=uuid.uuid4(), name="私有")
+    with pytest.raises(NotFoundError):
+        graph.get_graph_snapshot(session, g.id, owner_id=uuid.uuid4())

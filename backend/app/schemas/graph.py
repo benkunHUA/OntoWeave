@@ -22,3 +22,40 @@ class ObjectMembership(BaseModel):
 
 class RelationMembership(BaseModel):
     relation_id: uuid.UUID
+
+
+class GraphPropertyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    datatype: str
+    required: bool
+    status: str
+
+
+class GraphNodeRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None
+    status: str
+    properties: list[GraphPropertyRead]
+
+
+class GraphRelationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    source_type_id: uuid.UUID
+    target_type_id: uuid.UUID
+    direction: str
+    status: str
+
+
+class GraphSnapshotRead(BaseModel):
+    graph: GraphRead
+    nodes: list[GraphNodeRead]
+    relations: list[GraphRelationRead]

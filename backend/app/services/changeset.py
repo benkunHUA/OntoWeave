@@ -55,6 +55,27 @@ def get_changeset(
     return cs
 
 
+def _lock_changeset(
+    session: Session, changeset_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
+) -> Changeset:
+    """拿改动集行锁。
+
+    record / confirm / reject 都从这里进入，保证「检查状态再写」是原子的。
+    第二个并发请求会等锁，拿到锁后再看到最新状态，而不是基于旧快照继续写。
+    """
+    cs = session.scalar(
+        select(Changeset)
+        .where(Changeset.id == changeset_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if cs is None:
+        raise NotFoundError(f"changeset {changeset_id} not found")
+    if owner_id is not None:
+        graph.get_graph(session, cs.graph_id, owner_id=owner_id)
+    return cs
+
+
 def list_changesets(
     session: Session,
     *,
@@ -94,12 +115,14 @@ def record_op(
     payload: dict | None = None,
     owner_id: uuid.UUID | None = None,
 ) -> ChangesetOp:
-    cs = get_changeset(session, changeset_id, owner_id=owner_id)
+    cs = _lock_changeset(session, changeset_id, owner_id=owner_id)
     if cs.status != OPEN:
         raise InvalidTransitionError(
             f"changeset {changeset_id} is {cs.status}, cannot record new ops"
         )
     _validate_op(op, target_id, payload or {})
+    if op == OP_UPDATE:
+        _apply_update_payload(session, target_id, payload or {}, owner_id=owner_id)
     row = ChangesetOp(
         changeset_id=changeset_id,
         op=op,
@@ -109,6 +132,96 @@ def record_op(
     session.add(row)
     session.flush()
     return row
+
+
+def record_update(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    element_kind: str,
+    element_id: uuid.UUID,
+    patch: dict,
+    owner_id: uuid.UUID | None = None,
+) -> ChangesetOp:
+    """记录字段更新：调用方只给 patch，服务层负责采集 before 并应用 after。"""
+    allowed = _RESTORABLE_FIELDS.get(element_kind)
+    if allowed is None:
+        raise InvariantViolationError(f"unsupported element kind: {element_kind!r}")
+    if not patch:
+        raise InvariantViolationError("update requires at least one patched field")
+    unknown = set(patch) - allowed
+    if unknown:
+        raise InvariantViolationError(f"cannot patch fields: {sorted(unknown)}")
+
+    cs = _lock_changeset(session, changeset_id, owner_id=owner_id)
+    if cs.status != OPEN:
+        raise InvalidTransitionError(
+            f"changeset {changeset_id} is {cs.status}, cannot record new ops"
+        )
+    element = _load_element(session, element_kind, element_id, owner_id=owner_id)
+    before = {field: getattr(element, field) for field in patch}
+    payload = {
+        "kind": element_kind,
+        "before": before,
+        "after": dict(patch),
+    }
+    _validate_op(OP_UPDATE, element_id, payload)
+    _apply_update_payload(session, element_id, payload, owner_id=owner_id)
+    return _append_op(
+        session,
+        changeset_id=changeset_id,
+        op=OP_UPDATE,
+        target_id=element_id,
+        payload=payload,
+    )
+
+
+def _append_op(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    op: str,
+    target_id: uuid.UUID | None,
+    payload: dict,
+) -> ChangesetOp:
+    row = ChangesetOp(
+        changeset_id=changeset_id,
+        op=op,
+        target_id=target_id,
+        payload=payload,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def _apply_update_payload(
+    session: Session,
+    element_id: uuid.UUID | None,
+    payload: dict,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    if element_id is None:
+        raise InvariantViolationError("update requires a target id")
+    kind = payload["kind"]
+    before = payload["before"]
+    after = payload["after"]
+    element = _load_element(session, kind, element_id, owner_id=owner_id)
+
+    stale = {
+        field: {"expected": expected, "actual": getattr(element, field)}
+        for field, expected in before.items()
+        if getattr(element, field) != expected
+    }
+    if stale:
+        raise InvariantViolationError(
+            f"{kind} {element_id} changed after the update snapshot was taken: {stale}"
+        )
+
+    for field, value in after.items():
+        setattr(element, field, value)
+    session.flush()
 
 
 def _validate_op(op: str, target_id: uuid.UUID | None, payload: dict) -> None:
@@ -123,11 +236,21 @@ def _validate_op(op: str, target_id: uuid.UUID | None, payload: dict) -> None:
             f"changeset op {op!r} requires a known target kind, got {kind!r}"
         )
     if op == OP_UPDATE:
-        for field in payload.get("before", {}):
-            if field not in _RESTORABLE_FIELDS[kind]:
-                raise InvariantViolationError(
-                    f"changeset op cannot restore field {field!r} on {kind}"
-                )
+        before = payload.get("before")
+        after = payload.get("after")
+        if not isinstance(before, dict) or not before:
+            raise InvariantViolationError("update requires a non-empty 'before' snapshot")
+        if not isinstance(after, dict) or not after:
+            raise InvariantViolationError("update requires a non-empty 'after' snapshot")
+        if set(before) != set(after):
+            raise InvariantViolationError(
+                "update 'before' and 'after' snapshots must contain the same fields"
+            )
+        unknown = set(before) - _RESTORABLE_FIELDS[kind]
+        if unknown:
+            raise InvariantViolationError(
+                f"changeset op cannot restore fields {sorted(unknown)} on {kind}"
+            )
 
 
 def _op_kind(op: ChangesetOp) -> str:
@@ -195,7 +318,7 @@ def confirm_changeset(
     先把每条操作校验干净——种类合法、目标存在、状态允许流转——再落动作，
     这样动作阶段不会因为合法性问题中途失败。
     """
-    cs = get_changeset(session, changeset_id, owner_id=owner_id)
+    cs = _lock_changeset(session, changeset_id, owner_id=owner_id)
     if cs.status != OPEN:
         raise InvalidTransitionError(f"changeset {changeset_id} is already {cs.status}")
 
@@ -214,7 +337,10 @@ def confirm_changeset(
         if op.op == OP_CREATE:
             _promote(session, _op_kind(op), _op_target(op), owner_id=owner_id)
         elif op.op == OP_UPDATE:
-            pass  # 值在草稿阶段已经写好，确认时无需再动
+            kind = _op_kind(op)
+            element = _load_element(session, kind, _op_target(op), owner_id=owner_id)
+            for field, value in op.payload["after"].items():
+                setattr(element, field, value)
         elif op.op == OP_DELETE:
             session.delete(_load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id))
 
@@ -227,7 +353,7 @@ def reject_changeset(
     session: Session, changeset_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
 ) -> Changeset:
     """撤销：删掉本次新建的元素、把改过的还原；标记删除的本来就没删，无事发生。"""
-    cs = get_changeset(session, changeset_id, owner_id=owner_id)
+    cs = _lock_changeset(session, changeset_id, owner_id=owner_id)
     if cs.status != OPEN:
         raise InvalidTransitionError(f"changeset {changeset_id} is already {cs.status}")
 

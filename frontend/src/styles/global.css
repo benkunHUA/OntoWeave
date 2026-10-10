@@ -1,0 +1,88 @@
+:root {
+  font-family:
+    Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  color: #182230;
+  background: #eef2f6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #182230;
+  --muted: #667085;
+  --line: #d9e0e8;
+  --panel: #ffffff;
+  --panel-soft: #f7f9fc;
+  --blue: #2563eb;
+  --blue-soft: #eaf2ff;
+  --amber: #d97706;
+  --amber-soft: #fff6df;
+  --green: #047857;
+  --green-soft: #e8f7f1;
+  --red: #b42318;
+  --red-soft: #fff0ee;
+  --shadow: 0 10px 28px rgba(31, 45, 61, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: #eef2f6;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
+p,
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: #bdc7d3;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

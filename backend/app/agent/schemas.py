@@ -56,10 +56,31 @@ ONTOLOGY_TOOLS = [
 
 VIEW_TOOLS = [
     ToolSpec(
+        name="get_view_state",
+        description="读取当前视图状态。",
+        parameters={},
+    ),
+    ToolSpec(
+        name="get_ontology_slice",
+        description="读取图里的节点和关系；可指定节点 ID 缩小范围。",
+        parameters={"node_ids": "list[str] | None"},
+    ),
+    ToolSpec(
         name="set_layout",
         description="换布局：层级 / 力导向 / 按域分组 / 网格。",
-        parameters={"kind": "str"},
+        parameters={"kind": "str", "options": "dict | None"},
     ),
+    ToolSpec(
+        name="focus",
+        description="把视野移到若干节点。",
+        parameters={"node_ids": "list[str]"},
+    ),
+    ToolSpec(
+        name="fit_view",
+        description="适应画面；可指定只适应若干节点。",
+        parameters={"node_ids": "list[str] | None"},
+    ),
+    ToolSpec(name="reset_view", description="清空视图设置。", parameters={}),
     ToolSpec(
         name="highlight",
         description="高亮若干节点。",
@@ -91,14 +112,14 @@ VIEW_TOOLS = [
         parameters={"predicate": "dict | None"},
     ),
     ToolSpec(
-        name="focus",
-        description="把视野移到若干节点。",
-        parameters={"node_ids": "list[str]"},
-    ),
-    ToolSpec(name="reset_view", description="清空视图设置。", parameters={}),
-    ToolSpec(
         name="annotate",
         description="给节点加一条标注。",
         parameters={"node_id": "str", "text": "str"},
     ),
+    ToolSpec(
+        name="save_view",
+        description="保存当前视图的布局与呈现设置。",
+        parameters={},
+    ),
+    ToolSpec(name="load_view", description="读取当前保存的视图。", parameters={}),
 ]

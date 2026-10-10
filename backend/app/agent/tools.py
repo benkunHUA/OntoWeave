@@ -6,11 +6,25 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from deepagents import SubAgent
 from langchain_core.tools import BaseTool, tool
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent import ontology_tools
-from app.services import embedding
+from app.agent import ontology_tools, view_tools
+from app.errors import NotFoundError
+from app.models import ObjectType, Relation
+from app.services import embedding, graph, view_state
+
+VIEW_AGENT_PROMPT = """你是 OntoWeave 的绘图子智能体，只决定本体图怎么呈现。
+
+规矩：
+1. 你不改本体。不要创建、修改、删除对象类型、属性或关系。
+2. 你只产出声明式视图规格：布局、高亮、弱化、分组、折叠、过滤、视野、标注。
+3. 改视图前先调 get_view_state；需要节点 ID 时先调 get_ontology_slice，不要编 ID。
+4. 不要产出像素坐标，不负责真实画布布局；前端会根据声明式规格计算。
+5. 说话简短，告诉用户你看图的方式发生了什么变化。
+"""
 
 
 def _capture(ctx: ToolContext, call: Callable[[], Any]) -> Any:
@@ -104,7 +118,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
     def propose_property(
         owner_type_id: str, name: str, datatype: str = "text", required: bool = False
     ) -> dict:
-        """给对象类型加属性。owner_type_id 必须来自 search_ontology 或 list_types。"""
+        """给对象类型加属性。用户明确列出的属性和字段逐项用它，不要改成关系。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_property(
@@ -122,7 +136,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
     def propose_relation(
         source_type_id: str, target_type_id: str, name: str, direction: str = "forward"
     ) -> dict:
-        """加一条关系，两端必须都已存在。"""
+        """加一条关系，只在用户明确要求关系或确认后才能使用；两端必须都已存在。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_relation(
@@ -137,8 +151,8 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         )
 
     @tool("update_element")
-    def update_element(element_kind: str, element_id: str, patch: dict, before: dict) -> dict:
-        """改已有元素。before 是改动前的字段快照，撤销时靠它还原，必须原样带上。"""
+    def update_element(element_kind: str, element_id: str, patch: dict) -> dict:
+        """改已有元素。只提交 patch，服务层会采集快照并保证可撤销。"""
         return _capture(
             ctx,
             lambda: ontology_tools.update_element(
@@ -148,7 +162,6 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 element_kind=element_kind,
                 element_id=uuid.UUID(element_id),
                 patch=patch,
-                before=before,
             ),
         )
 
@@ -189,3 +202,266 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         remove_element,
         ask_user,
     ]
+
+
+def _view_spec(ctx: ToolContext) -> dict:
+    current = view_state.get_view_state(
+        ctx.session,
+        graph_id=ctx.graph_id,
+        user_id=ctx.owner_id,
+        owner_id=ctx.owner_id,
+    )
+    return dict(current.spec) if current is not None else {}
+
+
+def _save_view_spec(ctx: ToolContext, *, spec: dict) -> dict:
+    saved = view_state.upsert_view_state(
+        ctx.session,
+        graph_id=ctx.graph_id,
+        user_id=ctx.owner_id,
+        spec=spec,
+        owner_id=ctx.owner_id,
+    )
+    return {"name": saved.name, "spec": saved.spec}
+
+
+def _apply_view_change(ctx: ToolContext, change: Callable[[dict], dict]) -> dict:
+    current = view_state.get_view_state(
+        ctx.session,
+        graph_id=ctx.graph_id,
+        user_id=ctx.owner_id,
+        owner_id=ctx.owner_id,
+    )
+    spec = dict(current.spec) if current is not None else {}
+    return _save_view_spec(ctx, spec=change(spec))
+
+
+def build_view_tools(ctx: ToolContext) -> list[BaseTool]:
+    """把声明式视图函数包成绘图子智能体可调用的工具。"""
+
+    @tool("get_view_state")
+    def get_view_state_tool() -> dict:
+        """读取当前用户对这张图的视图状态。"""
+        return _capture(
+            ctx,
+            lambda: {
+                "name": (
+                    current.name
+                    if (
+                        current := view_state.get_view_state(
+                            ctx.session,
+                            graph_id=ctx.graph_id,
+                            user_id=ctx.owner_id,
+                            owner_id=ctx.owner_id,
+                        )
+                    )
+                    else None
+                ),
+                "spec": _view_spec(ctx),
+            },
+        )
+
+    @tool("get_ontology_slice")
+    def get_ontology_slice(node_ids: list[str] | None = None) -> dict:
+        """读取图里的节点和关系；传 node_ids 时只返回这些节点及它们之间的边。"""
+
+        def read_slice() -> dict:
+            graph.get_graph(ctx.session, ctx.graph_id, owner_id=ctx.owner_id)
+            present = set(graph.list_graph_objects(ctx.session, ctx.graph_id))
+            requested = {uuid.UUID(node_id) for node_id in (node_ids or [])}
+            missing = requested - present
+            if missing:
+                raise NotFoundError(
+                    "object types are not in this graph: "
+                    + ", ".join(sorted(str(item) for item in missing))
+                )
+            selected = requested or present
+
+            relation_ids = graph.list_graph_relations(ctx.session, ctx.graph_id)
+            relations = (
+                list(ctx.session.scalars(select(Relation).where(Relation.id.in_(relation_ids))))
+                if relation_ids
+                else []
+            )
+            nodes = list(
+                ctx.session.scalars(
+                    select(ObjectType)
+                    .where(ObjectType.id.in_(selected))
+                    .order_by(ObjectType.name, ObjectType.id)
+                )
+            )
+            connected = [
+                relation
+                for relation in relations
+                if relation.source_type_id in selected and relation.target_type_id in selected
+            ]
+            return {
+                "nodes": [
+                    {
+                        "id": str(node.id),
+                        "name": node.name,
+                        "description": node.description,
+                        "status": node.status,
+                    }
+                    for node in nodes
+                ],
+                "relations": [
+                    {
+                        "id": str(relation.id),
+                        "name": relation.name,
+                        "source_type_id": str(relation.source_type_id),
+                        "target_type_id": str(relation.target_type_id),
+                        "direction": relation.direction,
+                        "status": relation.status,
+                    }
+                    for relation in connected
+                ],
+            }
+
+        return _capture(ctx, read_slice)
+
+    @tool("set_layout")
+    def set_layout(kind: str, options: dict | None = None) -> dict:
+        """设置布局：hierarchical / force / domain-grouped / grid。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.set_layout(spec, kind=kind, options=options)
+            ),
+        )
+
+    @tool("focus")
+    def focus(node_ids: list[str]) -> dict:
+        """把视野移到指定节点。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(ctx, lambda spec: view_tools.focus(spec, node_ids=node_ids)),
+        )
+
+    @tool("fit_view")
+    def fit_view(node_ids: list[str] | None = None) -> dict:
+        """适应画面；可指定只适应这些节点。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.fit_view(spec, node_ids=node_ids or [])
+            ),
+        )
+
+    @tool("reset_view")
+    def reset_view() -> dict:
+        """清空视图设置，回到默认呈现。"""
+        return _capture(ctx, lambda: _apply_view_change(ctx, view_tools.reset_view))
+
+    @tool("highlight")
+    def highlight(node_ids: list[str]) -> dict:
+        """高亮指定节点。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.highlight(spec, node_ids=node_ids)
+            ),
+        )
+
+    @tool("dim")
+    def dim(node_ids: list[str]) -> dict:
+        """弱化指定节点。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(ctx, lambda spec: view_tools.dim(spec, node_ids=node_ids)),
+        )
+
+    @tool("group")
+    def group(group_id: str, label: str, node_ids: list[str]) -> dict:
+        """把节点归进一个命名分组。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx,
+                lambda spec: view_tools.group(
+                    spec, group_id=group_id, label=label, node_ids=node_ids
+                ),
+            ),
+        )
+
+    @tool("collapse")
+    def collapse(group_ids: list[str]) -> dict:
+        """折叠分组。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.collapse(spec, group_ids=group_ids)
+            ),
+        )
+
+    @tool("expand")
+    def expand(group_ids: list[str]) -> dict:
+        """展开分组。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.expand(spec, group_ids=group_ids)
+            ),
+        )
+
+    @tool("filter_view")
+    def filter_view(predicate: dict | None = None) -> dict:
+        """按声明式条件过滤显示。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx, lambda spec: view_tools.filter_view(spec, predicate=predicate)
+            ),
+        )
+
+    @tool("annotate")
+    def annotate(node_id: str, text: str) -> dict:
+        """给节点加一条标注。"""
+        return _capture(
+            ctx,
+            lambda: _apply_view_change(
+                ctx,
+                lambda spec: view_tools.annotate(spec, node_id=node_id, text=text),
+            ),
+        )
+
+    @tool("save_view")
+    def save_view() -> dict:
+        """保存当前视图的布局与呈现设置。"""
+        return _capture(ctx, lambda: _save_view_spec(ctx, spec=_view_spec(ctx)))
+
+    @tool("load_view")
+    def load_view() -> dict:
+        """读取当前保存的视图。"""
+        return get_view_state_tool.invoke({})
+
+    return [
+        get_view_state_tool,
+        get_ontology_slice,
+        set_layout,
+        focus,
+        fit_view,
+        reset_view,
+        highlight,
+        dim,
+        group,
+        collapse,
+        expand,
+        filter_view,
+        annotate,
+        save_view,
+        load_view,
+    ]
+
+
+def build_view_subagent(ctx: ToolContext) -> SubAgent:
+    """构造负责「图怎么呈现」的隔离子智能体。"""
+    return {
+        "name": "view_designer",
+        "description": (
+            "负责图的呈现方式：布局、高亮、分组、折叠、过滤、视野、标注和视图命名。"
+            "用户要求「怎么画/怎么看」时交给它；它不会修改本体。"
+        ),
+        "system_prompt": VIEW_AGENT_PROMPT,
+        "tools": build_view_tools(ctx),
+    }

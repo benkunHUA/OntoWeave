@@ -91,6 +91,18 @@ def test_propose_type_creates_draft_and_records_op(session):
     assert [op.op for op in changeset.list_ops(session, cs.id)] == ["create"]
 
 
+def test_propose_type_adds_created_type_to_graph(session):
+    owner = uuid.uuid4()
+    conv, cs = _changeset(session, owner)
+    emb = embedding.HashingEmbedder()
+
+    result = tools.propose_type(
+        session, changeset_id=cs.id, owner_id=owner, name="机场", embedder=emb
+    )
+
+    assert uuid.UUID(result["id"]) in graph.list_graph_objects(session, conv.graph_id)
+
+
 def test_propose_type_reuses_existing_type(session):
     owner = uuid.uuid4()
     _, emb, customer, *_ = _setup(session, owner)
@@ -102,6 +114,16 @@ def test_propose_type_reuses_existing_type(session):
     assert result["id"] == str(customer.id)
     assert result["reused"] is True
     assert changeset.list_ops(session, cs.id) == []
+
+
+def test_propose_type_adds_reused_type_to_the_current_graph(session):
+    owner = uuid.uuid4()
+    _, emb, customer, *_ = _setup(session, owner)
+    current, cs = _changeset(session, owner)
+
+    tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="客户", embedder=emb)
+
+    assert customer.id in graph.list_graph_objects(session, current.graph_id)
 
 
 def test_propose_type_reports_near_duplicates(session):
@@ -136,7 +158,28 @@ def test_propose_relation_requires_existing_endpoints(session):
         )
 
 
-def test_update_element_requires_before_snapshot(session):
+def test_propose_relation_adds_endpoints_and_relation_to_graph(session):
+    owner = uuid.uuid4()
+    conv, cs = _changeset(session, owner)
+    source = ontology.create_object_type(session, owner_id=owner, name="飞机")
+    target = ontology.create_object_type(session, owner_id=owner, name="机场")
+
+    result = tools.propose_relation(
+        session,
+        changeset_id=cs.id,
+        owner_id=owner,
+        source_type_id=source.id,
+        target_type_id=target.id,
+        name="停靠",
+    )
+
+    graph_objects = graph.list_graph_objects(session, conv.graph_id)
+    assert source.id in graph_objects
+    assert target.id in graph_objects
+    assert uuid.UUID(result["id"]) in graph.list_graph_relations(session, conv.graph_id)
+
+
+def test_update_element_requires_a_patch(session):
     owner = uuid.uuid4()
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
@@ -147,8 +190,7 @@ def test_update_element_requires_before_snapshot(session):
             owner_id=owner,
             element_kind="object_type",
             element_id=customer.id,
-            patch={"name": "终端客户"},
-            before={},
+            patch={},
         )
 
 
@@ -164,7 +206,6 @@ def test_update_element_rejects_field_outside_whitelist(session):
             element_kind="object_type",
             element_id=customer.id,
             patch={"status": "approved"},
-            before={"status": "draft"},
         )
 
 
@@ -180,10 +221,13 @@ def test_update_element_applies_and_records_snapshot(session):
         element_kind="object_type",
         element_id=customer.id,
         patch={"name": "终端客户"},
-        before={"name": "客户"},
     )
     assert ontology.get_object_type(session, customer.id).name == "终端客户"
-    assert changeset.list_ops(session, cs.id)[0].payload["before"] == {"name": "客户"}
+    assert changeset.list_ops(session, cs.id)[0].payload == {
+        "kind": "object_type",
+        "before": {"name": "客户"},
+        "after": {"name": "终端客户"},
+    }
 
 
 def test_remove_element_only_marks(session):

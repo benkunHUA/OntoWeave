@@ -45,7 +45,7 @@ cp .env.example .env
 - **`EMBEDDING_DIM` 必须和数据库里 `object_type.embedding` 列的维度一致（当前 1536）。** 换成原生维度不是 1536 的模型时，要么打开 `EMBEDDING_SEND_DIMENSIONS` 让服务端按 1536 输出，要么改列维度并生成一次迁移。
 - **没有配 `EMBEDDING_API_KEY` 时，服务会回落到本地的 `HashingEmbedder`**（词面相似度，不需要网络）。开发够用，但语义质量远不如真实模型，上生产前记得配上。
 
-`CHAT_API_KEY` 目前还没有消费方——智能体编排才会用到它。先填上不影响现有功能。
+`CHAT_API_KEY` 由智能体运行时消费；不配置时普通 REST 功能仍可运行。
 
 ## 跑测试
 
@@ -99,9 +99,12 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | POST | `/api/v1/graphs` | 新建图 |
 | POST | `/api/v1/graphs/{id}/objects` | 把对象加入图 |
 | POST | `/api/v1/graphs/{id}/relations` | 把关系加入图（两端必须已在图内） |
+| GET | `/api/v1/graphs/{id}/snapshot` | 读取画布快照（节点、属性、关系） |
 | POST | `/api/v1/conversations` | 新建会话（同时建出对应的图） |
 | GET | `/api/v1/conversations` | 会话列表（分页） |
 | GET | `/api/v1/conversations/{id}` | 会话详情 |
+| PATCH | `/api/v1/conversations/{id}` | 修改会话名称（同步图名称与视图名称） |
+| GET | `/api/v1/conversations/{id}/messages` | 会话消息历史 |
 | POST | `/api/v1/graphs/{id}/changesets` | 新建改动集 |
 | GET | `/api/v1/graphs/{id}/changesets` | 改动集列表 |
 | GET | `/api/v1/changesets/{id}` | 改动集详情（含操作明细） |
@@ -143,8 +146,13 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 - `llm.py`：模型装配。**`deepseek-flash` 是推理模型，`CHAT_MAX_TOKENS` 给小了会得到
   「HTTP 200 但正文为空」的响应**（推理把 token 吃光了），默认给到 4096。
 - `tools.py`：把普通的建模函数用闭包绑上运行上下文，包成 LangChain 工具。
-- `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph。
+- `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph；
+  同时挂上 `view_designer` 绘图子智能体。
 - `runtime.py`：一次运行的装配，以及「一次对话一个打开的改动集」的生命周期。
+
+绘图子智能体只拥有视图工具：读取图切片和当前视图，修改布局、高亮、分组、折叠、
+过滤、视野与标注，并持久化到 `view_state`。它没有创建或修改本体的工具。
+`view_state.name` 不再独立编辑，始终镜像对应图的名称。
 
 接 SSE 的接口挂在会话下——线程 ID 直接复用 `conversation_id`，不另引线程表：
 
@@ -155,6 +163,9 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 事件类型：`run.start` / `message.delta` / `tool.start` / `tool.end` / `interrupt` /
 `state.update` / `run.error` / `run.end`。
+
+用户发言（包括 `/resume` 的回答）在运行开始时先单独提交；助手正文在回合结束时
+写入 `conversation_message`。模型或工具失败也会留下带 `kind='error'` 的助手消息。
 
 **`run.end` 带 `paused` 字段。** 中断和完成都以 `run.end` 收尾，前端靠它区分：
 `paused: true` 表示卡在中途等人回答，该调 `/resume`；`false` 表示本轮做完了。

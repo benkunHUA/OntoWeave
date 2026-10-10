@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -22,7 +24,10 @@ class MessageIn(BaseModel):
 
 
 class ResumeIn(BaseModel):
-    answer: str
+    # 回传给图的中断响应：ask_user 是字符串，工具审批是 {"decisions": [...]}。
+    answer: Any
+    # 展示并入库的用户消息；不传就按 answer 生成。
+    text: str | None = None
 
 
 def _stream(request: Request, conversation_id: uuid.UUID, **kwargs) -> StreamingResponse:
@@ -73,4 +78,9 @@ def post_resume(
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     runtime.prepare_run(session, conversation_id=conversation_id, owner_id=get_current_user_id())
-    return _stream(request, conversation_id, resume=payload.answer)
+    display = payload.text or (
+        payload.answer
+        if isinstance(payload.answer, str)
+        else json.dumps(payload.answer, ensure_ascii=False)
+    )
+    return _stream(request, conversation_id, text=display, resume=payload.answer)

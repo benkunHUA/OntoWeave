@@ -35,16 +35,14 @@ def test_upsert_creates_then_updates(session):
         session,
         graph_id=graph_id,
         user_id=user_id,
-        name="销售域视图",
         spec={"nodes": {"t_customer": {"x": 120, "y": 340}}},
     )
-    assert created.name == "销售域视图"
+    assert created.name == "测试"
 
     updated = view_state.upsert_view_state(
         session,
         graph_id=graph_id,
         user_id=user_id,
-        name="销售域视图",
         spec={"nodes": {}},
     )
     assert updated.spec == {"nodes": {}}
@@ -52,9 +50,7 @@ def test_upsert_creates_then_updates(session):
 
 def test_upsert_rejects_unknown_graph(session):
     with pytest.raises(NotFoundError):
-        view_state.upsert_view_state(
-            session, graph_id=uuid.uuid4(), user_id=uuid.uuid4(), name=None, spec={}
-        )
+        view_state.upsert_view_state(session, graph_id=uuid.uuid4(), user_id=uuid.uuid4(), spec={})
 
 
 def test_view_state_api_roundtrip(client):
@@ -66,10 +62,10 @@ def test_view_state_api_roundtrip(client):
 
     saved = client.put(
         f"{API}/graphs/{graph_id}/view-state",
-        json={"name": "我的视图", "spec": {"layout": {"kind": "domain-grouped"}}},
+        json={"spec": {"layout": {"kind": "domain-grouped"}}},
     )
     assert saved.status_code == 200
-    assert saved.json()["name"] == "我的视图"
+    assert saved.json()["name"] == "视图测试"
 
     fetched = client.get(f"{API}/graphs/{graph_id}/view-state")
     assert fetched.json()["spec"] == {"layout": {"kind": "domain-grouped"}}

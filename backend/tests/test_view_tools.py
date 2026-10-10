@@ -42,6 +42,7 @@ def test_focus_and_reset_are_local_to_spec():
     node = str(uuid.uuid4())
     spec = tools.focus({}, node_ids=[node])
     assert spec["camera"] == {"focus": [node]}
+    assert tools.fit_view(spec, node_ids=[node])["camera"] == {"fit": [node]}
     assert tools.reset_view(spec) == {}
 
 

@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.errors import InvariantViolationError, NotFoundError
+from app.errors import NotFoundError
 from app.models import ObjectType, Relation
 from app.services import changeset, embedding, graph, ontology
 
@@ -120,6 +120,12 @@ def propose_type(
         (item for item in candidates if item["similarity"] >= reuse_threshold), None
     )
     if existing is not None:
+        graph.add_object_to_graph(
+            session,
+            cs.graph_id,
+            uuid.UUID(existing["id"]),
+            owner_id=owner_id,
+        )
         return {**existing, "reused": True, "similar": candidates}
 
     obj = ontology.create_object_type(
@@ -130,6 +136,7 @@ def propose_type(
         home_graph_id=home_graph_id or cs.graph_id,
     )
     embedding.save_embedding(session, object_type_id=obj.id, embedder=embedder)
+    graph.add_object_to_graph(session, cs.graph_id, obj.id, owner_id=owner_id)
     changeset.record_op(
         session,
         changeset_id=changeset_id,
@@ -187,6 +194,10 @@ def propose_relation(
     home_graph_id: uuid.UUID | None = None,
 ) -> dict:
     cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    changeset.load_element(session, "object_type", source_type_id, owner_id=owner_id)
+    changeset.load_element(session, "object_type", target_type_id, owner_id=owner_id)
+    graph.add_object_to_graph(session, cs.graph_id, source_type_id, owner_id=owner_id)
+    graph.add_object_to_graph(session, cs.graph_id, target_type_id, owner_id=owner_id)
     rel = ontology.create_relation(
         session,
         owner_id=owner_id,
@@ -196,6 +207,7 @@ def propose_relation(
         direction=direction,
         home_graph_id=home_graph_id or cs.graph_id,
     )
+    graph.add_relation_to_graph(session, cs.graph_id, rel.id, owner_id=owner_id)
     changeset.record_op(
         session,
         changeset_id=changeset_id,
@@ -220,31 +232,22 @@ def update_element(
     element_kind: str,
     element_id: uuid.UUID,
     patch: dict,
-    before: dict,
 ) -> dict:
-    """改已有元素。before 是改动前的字段快照，撤销时靠它还原，必填。"""
-    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
-    allowed = changeset.RESTORABLE_FIELDS.get(element_kind)
-    if allowed is None:
-        raise InvariantViolationError(f"unsupported element kind: {element_kind!r}")
-    if not before:
-        raise InvariantViolationError("update requires a 'before' snapshot for undo")
-    unknown = set(patch) - allowed
-    if unknown:
-        raise InvariantViolationError(f"cannot patch fields: {sorted(unknown)}")
-
-    element = changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
-    for field, value in patch.items():
-        setattr(element, field, value)
-    session.flush()
-    changeset.record_op(
+    """改已有元素。服务层采集 before、校验当前值并应用 after。"""
+    op = changeset.record_update(
         session,
         changeset_id=changeset_id,
-        op="update",
-        target_id=element_id,
-        payload={"kind": element_kind, "before": before},
+        element_kind=element_kind,
+        element_id=element_id,
+        patch=patch,
+        owner_id=owner_id,
     )
-    return {"id": str(element_id), "patched": sorted(patch), "before": before}
+    return {
+        "id": str(element_id),
+        "patched": sorted(op.payload["after"]),
+        "before": op.payload["before"],
+        "after": op.payload["after"],
+    }
 
 
 def remove_element(

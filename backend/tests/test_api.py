@@ -70,6 +70,24 @@ def test_object_type_response_has_no_internal_fields(client):
     assert set(body) == {"id", "name", "description", "status"}
 
 
+def test_graph_snapshot_endpoint_returns_canvas_data(client):
+    graph_id = client.post(f"{API}/conversations", json={"title": "快照"}).json()["graph_id"]
+    customer = client.post(f"{API}/object-types", json={"name": "客户"}).json()
+    client.post(
+        f"{API}/graphs/{graph_id}/objects",
+        json={"object_type_id": customer["id"]},
+    )
+
+    snapshot = client.get(f"{API}/graphs/{graph_id}/snapshot")
+
+    assert snapshot.status_code == 200
+    body = snapshot.json()
+    assert body["graph"]["name"] == "快照"
+    assert [node["name"] for node in body["nodes"]] == ["客户"]
+    assert body["nodes"][0]["properties"] == []
+    assert body["relations"] == []
+
+
 def test_response_carries_request_id_header(client):
     resp = client.get("/health")
     assert resp.headers["x-request-id"]

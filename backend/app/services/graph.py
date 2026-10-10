@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
-from app.models import Graph, GraphObject, GraphRelation, ObjectType, Relation
+from app.models import Graph, GraphObject, GraphRelation, ObjectType, Property, Relation
+
+
+@dataclass(frozen=True)
+class GraphSnapshot:
+    graph: Graph
+    nodes: list[ObjectType]
+    relations: list[Relation]
+    properties: dict[uuid.UUID, list[Property]]
 
 
 def create_graph(session: Session, *, owner_id: uuid.UUID, name: str | None = None) -> Graph:
@@ -82,6 +91,54 @@ def list_graph_relations(session: Session, graph_id: uuid.UUID) -> list[uuid.UUI
         .order_by(GraphRelation.added_at, GraphRelation.relation_id)
     )
     return list(rows)
+
+
+def get_graph_snapshot(
+    session: Session, graph_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
+) -> GraphSnapshot:
+    """一次取齐画布需要的本体快照，包含草稿和待删除元素。"""
+    graph = get_graph(session, graph_id, owner_id=owner_id)
+    object_ids = list_graph_objects(session, graph_id)
+    relation_ids = list_graph_relations(session, graph_id)
+
+    nodes = (
+        list(
+            session.scalars(
+                select(ObjectType)
+                .where(ObjectType.id.in_(object_ids))
+                .order_by(ObjectType.name, ObjectType.id)
+            )
+        )
+        if object_ids
+        else []
+    )
+    relations = (
+        list(
+            session.scalars(
+                select(Relation)
+                .where(Relation.id.in_(relation_ids))
+                .order_by(Relation.name, Relation.id)
+            )
+        )
+        if relation_ids
+        else []
+    )
+    properties: dict[uuid.UUID, list[Property]] = {object_id: [] for object_id in object_ids}
+    if object_ids:
+        rows = session.scalars(
+            select(Property)
+            .where(Property.owner_type_id.in_(object_ids))
+            .order_by(Property.owner_type_id, Property.name, Property.id)
+        )
+        for prop in rows:
+            properties.setdefault(prop.owner_type_id, []).append(prop)
+
+    return GraphSnapshot(
+        graph=graph,
+        nodes=nodes,
+        relations=relations,
+        properties=properties,
+    )
 
 
 def remove_object_from_graph(

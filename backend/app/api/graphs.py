@@ -8,13 +8,41 @@ from sqlalchemy.orm import Session
 from app.deps import get_current_user_id, get_session
 from app.schemas.graph import (
     GraphCreate,
+    GraphNodeRead,
+    GraphPropertyRead,
     GraphRead,
+    GraphRelationRead,
+    GraphSnapshotRead,
     ObjectMembership,
     RelationMembership,
 )
 from app.services import graph
 
 router = APIRouter(tags=["graphs"])
+
+
+@router.get("/graphs/{graph_id}/snapshot", response_model=GraphSnapshotRead)
+def get_graph_snapshot(
+    graph_id: uuid.UUID, session: Session = Depends(get_session)
+) -> GraphSnapshotRead:
+    snapshot = graph.get_graph_snapshot(session, graph_id, owner_id=get_current_user_id())
+    return GraphSnapshotRead(
+        graph=GraphRead.model_validate(snapshot.graph),
+        nodes=[
+            GraphNodeRead(
+                id=node.id,
+                name=node.name,
+                description=node.description,
+                status=node.status,
+                properties=[
+                    GraphPropertyRead.model_validate(prop)
+                    for prop in snapshot.properties.get(node.id, [])
+                ],
+            )
+            for node in snapshot.nodes
+        ],
+        relations=[GraphRelationRead.model_validate(relation) for relation in snapshot.relations],
+    )
 
 
 @router.post("/graphs", response_model=GraphRead, status_code=201)

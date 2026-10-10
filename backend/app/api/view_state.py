@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
 from app.schemas.view_state import ViewStateRead, ViewStateWrite
-from app.services import view_state
+from app.services import graph, view_state
 
 router = APIRouter(tags=["view-state"])
 
@@ -21,7 +21,8 @@ def get_view_state(graph_id: uuid.UUID, session: Session = Depends(get_session))
         owner_id=get_current_user_id(),
     )
     if vs is None:
-        return ViewStateRead(graph_id=graph_id, name=None, spec={})
+        graph_row = graph.get_graph(session, graph_id, owner_id=get_current_user_id())
+        return ViewStateRead(graph_id=graph_id, name=graph_row.name, spec={})
     return ViewStateRead(graph_id=vs.graph_id, name=vs.name, spec=vs.spec)
 
 
@@ -35,7 +36,6 @@ def put_view_state(
         session,
         graph_id=graph_id,
         user_id=get_current_user_id(),
-        name=payload.name,
         spec=payload.spec,
         owner_id=get_current_user_id(),
     )

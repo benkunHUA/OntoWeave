@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
-from app.schemas.conversation import ConversationCreate, ConversationRead
+from app.schemas.conversation import (
+    ConversationCreate,
+    ConversationMessageRead,
+    ConversationRead,
+    ConversationUpdate,
+)
 from app.services import conversation
 
 router = APIRouter(tags=["conversations"])
@@ -40,3 +45,36 @@ def get_conversation(
 ) -> ConversationRead:
     conv = conversation.get_conversation(session, conversation_id, owner_id=get_current_user_id())
     return ConversationRead.model_validate(conv)
+
+
+@router.patch("/conversations/{conversation_id}", response_model=ConversationRead)
+def rename_conversation(
+    conversation_id: uuid.UUID,
+    payload: ConversationUpdate,
+    session: Session = Depends(get_session),
+) -> ConversationRead:
+    conv = conversation.rename_conversation(
+        session,
+        conversation_id,
+        title=payload.title,
+        owner_id=get_current_user_id(),
+    )
+    return ConversationRead.model_validate(conv)
+
+
+@router.get(
+    "/conversations/{conversation_id}/messages",
+    response_model=list[ConversationMessageRead],
+)
+def list_messages(
+    conversation_id: uuid.UUID,
+    limit: int = Query(200, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> list[ConversationMessageRead]:
+    messages = conversation.list_messages(
+        session,
+        conversation_id,
+        owner_id=get_current_user_id(),
+        limit=limit,
+    )
+    return [ConversationMessageRead.model_validate(message) for message in messages]

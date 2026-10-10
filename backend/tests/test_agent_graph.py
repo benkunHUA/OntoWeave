@@ -41,6 +41,12 @@ def test_build_agent_without_checkpointer_skips_interrupts(session):
     assert type(agent).__name__ == "CompiledStateGraph"
 
 
+def test_system_prompt_keeps_explicit_property_requests_as_properties():
+    assert "用户明确说" in agent_graph.SYSTEM_PROMPT
+    assert "必须按属性处理" in agent_graph.SYSTEM_PROMPT
+    assert "不要改写成关系" in agent_graph.SYSTEM_PROMPT
+
+
 def test_tool_domain_errors_become_payloads_not_exceptions(session):
     """deepagents 的 ToolNode 不会兜工具异常，异常会打挂整轮 run。
     所以工具必须把领域错误转成结构化返回值。"""

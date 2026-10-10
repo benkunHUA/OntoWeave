@@ -75,6 +75,12 @@ def focus(spec: dict, *, node_ids: Sequence[uuid.UUID | str]) -> dict:
     return result
 
 
+def fit_view(spec: dict, *, node_ids: Sequence[uuid.UUID | str] = ()) -> dict:
+    result = _copy(spec)
+    result["camera"] = {"fit": [str(node_id) for node_id in node_ids]}
+    return result
+
+
 def reset_view(spec: dict) -> dict:
     return {}
 

@@ -1,12 +1,18 @@
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+from time import sleep
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import delete
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
+from app.db import build_session_factory
 from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
 from app.main import create_app
+from app.models import Graph
 from app.services import changeset, conversation, ontology
 
 API = "/api/v1"
@@ -114,20 +120,79 @@ def test_reject_deletes_created_elements(session):
 def test_reject_restores_updated_element(session):
     cs = changeset.create_changeset(session, graph_id=_graph_id(session))
     obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
-    before = {"name": "客户", "description": None}
 
-    obj.name = "终端客户"
-    changeset.record_op(
+    changeset.record_update(
         session,
         changeset_id=cs.id,
-        op="update",
-        target_id=obj.id,
-        payload={"kind": "object_type", "before": before},
+        element_kind="object_type",
+        element_id=obj.id,
+        patch={"name": "终端客户", "description": "重点客户"},
     )
+    assert obj.name == "终端客户"
+    assert obj.description == "重点客户"
 
     changeset.reject_changeset(session, cs.id)
 
+    restored = ontology.get_object_type(session, obj.id)
+    assert restored.name == "客户"
+    assert restored.description is None
+
+
+def test_record_update_collects_before_and_applies_after(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+
+    op = changeset.record_update(
+        session,
+        changeset_id=cs.id,
+        element_kind="object_type",
+        element_id=obj.id,
+        patch={"name": "终端客户"},
+    )
+
+    assert ontology.get_object_type(session, obj.id).name == "终端客户"
+    assert op.payload == {
+        "kind": "object_type",
+        "before": {"name": "客户"},
+        "after": {"name": "终端客户"},
+    }
+
+
+def test_record_update_rejects_stale_before_snapshot(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+
+    with pytest.raises(InvariantViolationError):
+        changeset.record_op(
+            session,
+            changeset_id=cs.id,
+            op="update",
+            target_id=obj.id,
+            payload={
+                "kind": "object_type",
+                "before": {"name": "旧名字"},
+                "after": {"name": "终端客户"},
+            },
+        )
+
     assert ontology.get_object_type(session, obj.id).name == "客户"
+
+
+def test_confirm_reapplies_the_recorded_after_snapshot(session):
+    cs = changeset.create_changeset(session, graph_id=_graph_id(session))
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    changeset.record_update(
+        session,
+        changeset_id=cs.id,
+        element_kind="object_type",
+        element_id=obj.id,
+        patch={"name": "终端客户"},
+    )
+
+    obj.name = "外部误改"
+    changeset.confirm_changeset(session, cs.id)
+
+    assert ontology.get_object_type(session, obj.id).name == "终端客户"
 
 
 def test_confirm_deletes_element_flagged_for_deletion(session):
@@ -322,3 +387,88 @@ def test_changeset_is_scoped_to_graph_owner(session):
     assert changeset.get_changeset(session, cs.id, owner_id=owner).id == cs.id
     with pytest.raises(NotFoundError):
         changeset.get_changeset(session, cs.id, owner_id=uuid.uuid4())
+
+
+def test_concurrent_confirm_only_one_wins(engine):
+    factory = build_session_factory(engine)
+    owner = _default_user()
+    with factory() as setup:
+        conv = conversation.create_conversation(session=setup, owner_id=owner, title="并发确认")
+        cs = changeset.create_changeset(session=setup, graph_id=conv.graph_id, owner_id=owner)
+        setup.commit()
+        graph_id = conv.graph_id
+        changeset_id = cs.id
+
+    started = Event()
+
+    def confirm_in_second_session() -> str:
+        with factory() as session:
+            started.set()
+            try:
+                changeset.confirm_changeset(session, changeset_id, owner_id=owner)
+                session.commit()
+                return "confirmed"
+            except InvalidTransitionError:
+                session.rollback()
+                return "conflict"
+
+    try:
+        with factory() as first:
+            changeset.confirm_changeset(first, changeset_id, owner_id=owner)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(confirm_in_second_session)
+                assert started.wait(timeout=2)
+                sleep(0.2)
+                assert not future.done()
+                first.commit()
+                assert future.result(timeout=5) == "conflict"
+    finally:
+        with factory() as cleanup:
+            cleanup.execute(delete(Graph).where(Graph.id == graph_id))
+            cleanup.commit()
+
+
+def test_record_op_waits_for_the_changeset_lock(engine):
+    factory = build_session_factory(engine)
+    owner = _default_user()
+    with factory() as setup:
+        conv = conversation.create_conversation(session=setup, owner_id=owner, title="并发记录")
+        cs = changeset.create_changeset(session=setup, graph_id=conv.graph_id, owner_id=owner)
+        setup.commit()
+        graph_id = conv.graph_id
+        changeset_id = cs.id
+
+    started = Event()
+
+    def record_in_second_session() -> str:
+        with factory() as session:
+            started.set()
+            try:
+                changeset.record_op(
+                    session,
+                    changeset_id=changeset_id,
+                    op="create",
+                    target_id=uuid.uuid4(),
+                    payload={"kind": "object_type"},
+                    owner_id=owner,
+                )
+                session.commit()
+                return "recorded"
+            except InvalidTransitionError:
+                session.rollback()
+                return "closed"
+
+    try:
+        with factory() as first:
+            changeset.confirm_changeset(first, changeset_id, owner_id=owner)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(record_in_second_session)
+                assert started.wait(timeout=2)
+                sleep(0.2)
+                assert not future.done()
+                first.commit()
+                assert future.result(timeout=5) == "closed"
+    finally:
+        with factory() as cleanup:
+            cleanup.execute(delete(Graph).where(Graph.id == graph_id))
+            cleanup.commit()
