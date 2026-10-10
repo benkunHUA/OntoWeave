@@ -1,26 +1,45 @@
 :root {
+  color-scheme: dark;
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system,
     BlinkMacSystemFont, sans-serif;
-  color: #182230;
-  background: #eef2f6;
+  color: #e8e8e8;
+  background: #1a1a1a;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ink: #182230;
-  --muted: #667085;
-  --line: #d9e0e8;
-  --panel: #ffffff;
-  --panel-soft: #f7f9fc;
-  --blue: #2563eb;
-  --blue-soft: #eaf2ff;
-  --amber: #d97706;
-  --amber-soft: #fff6df;
-  --green: #047857;
-  --green-soft: #e8f7f1;
-  --red: #b42318;
-  --red-soft: #fff0ee;
-  --shadow: 0 10px 28px rgba(31, 45, 61, 0.08);
+
+  /* 暗色基底：画布最深，面板稍亮，控件再亮一层，靠边界而不是阴影分层。 */
+  --bg: #1a1a1a;
+  --canvas: #1a1a1a;
+  --panel: #1f1f1f;
+  --panel-soft: #242424;
+  --raised: #2a2a2a;
+  --raised-hi: #323232;
+  --line: #333333;
+  --line-soft: #2b2b2b;
+
+  --ink: #e8e8e8;
+  --ink-dim: #c8c8c8;
+  --muted: #9c9c9c;
+  --faint: #6f6f6f;
+
+  --blue: #3b7bff;
+  --blue-hi: #5a91ff;
+  --blue-ink: #9dbcff;
+  --blue-soft: rgba(59, 123, 255, 0.16);
+
+  --amber: #e8a33d;
+  --amber-ink: #f0bd6b;
+  --amber-soft: rgba(232, 163, 61, 0.14);
+
+  --green: #3ecf9a;
+  --green-soft: rgba(62, 207, 154, 0.14);
+
+  --red: #ff7070;
+  --red-soft: rgba(255, 112, 112, 0.12);
+
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -37,7 +56,7 @@ body,
 
 body {
   min-height: 100vh;
-  background: #eef2f6;
+  background: var(--bg);
 }
 
 button,
@@ -55,7 +74,7 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.45);
+  outline: 2px solid rgba(59, 123, 255, 0.6);
   outline-offset: 2px;
 }
 
@@ -68,7 +87,7 @@ h3 {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 ::-webkit-scrollbar {
@@ -79,7 +98,12 @@ button:disabled {
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background: #bdc7d3;
+  background: #3d3d3d;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4c4c4c;
   background-clip: padding-box;
 }
 

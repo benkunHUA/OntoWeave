@@ -8,7 +8,7 @@ export const TOOL_LABELS: Record<string, string> = {
   propose_relation: '建立关系',
   update_element: '修改草稿',
   remove_element: '标记删除',
-  ask_user: '等待你的判断',
+  ask_user: '征询你的判断',
   task: '委派视觉整理',
   get_view_state: '读取视图设置',
   get_ontology_slice: '读取画布结构',

@@ -248,7 +248,7 @@ export function buildFlowElements(
         source: relation.source_type_id,
         target: relation.target_type_id,
         label: relation.name,
-        type: 'smoothstep',
+        type: 'default',
         markerEnd: { type: MarkerType.ArrowClosed },
         animated: draft,
         className: [
@@ -258,13 +258,13 @@ export function buildFlowElements(
           .filter(Boolean)
           .join(' '),
         style: {
-          stroke: ghosted ? '#b7bbc4' : draft ? '#d97706' : '#486581',
+          stroke: ghosted ? '#4a4a4a' : draft ? '#e8a33d' : '#4c8dff',
           strokeWidth: ghosted ? 1.5 : 2,
           strokeDasharray: draft ? '7 5' : undefined,
           opacity: ghosted ? 0.35 : 1,
         },
         labelStyle: {
-          fill: '#52606d',
+          fill: '#c8c8c8',
           fontSize: 12,
           fontWeight: 600,
         },

@@ -17,7 +17,7 @@ import {
   Minus,
   Plus,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { buildFlowElements, type OntologyFlowNode } from '../lib/flow'
 import { OntologyNode } from './OntologyNode'
 import type { Changeset, GraphSnapshot, ViewSpec } from '../../../shared/types'
@@ -47,6 +47,7 @@ function CanvasInner({
 }: OntologyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<OntologyFlowNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
+  const [zoom, setZoom] = useState(1)
   const { fitView, zoomIn, zoomOut } = useReactFlow()
 
   useEffect(() => {
@@ -95,57 +96,76 @@ function CanvasInner({
               <option value="hierarchical">层级</option>
               <option value="force">力导向</option>
               <option value="domain-grouped">按域分组</option>
-              <option value="grid">网格</option>
-            </select>
+                <option value="grid">网格</option>
+              </select>
           </label>
-          <button type="button" className="icon-button" aria-label="缩小" onClick={() => zoomOut()}>
-            <Minus size={17} />
-          </button>
-          <button type="button" className="icon-button" aria-label="放大" onClick={() => zoomIn()}>
-            <Plus size={17} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="适应画面"
-            onClick={() => fitView({ padding: 0.2, duration: 260 })}
-          >
-            <Maximize2 size={17} />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="保存视图"
-            onClick={onSaveView}
-          >
-            <Bookmark size={17} />
-          </button>
         </div>
       </header>
 
       <div className="canvas-stage">
         {snapshot?.nodes.length ? (
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onNodeClick={handleNodeClick}
-            onPaneClick={() => onSelectNode(null)}
-            onNodeDragStop={(_, node) => onMoveNode(node.id, node.position.x, node.position.y)}
-            fitView
-            minZoom={0.25}
-            maxZoom={1.8}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={22}
-              size={1}
-              color="#d7dee8"
-            />
-          </ReactFlow>
+          <>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onNodeClick={handleNodeClick}
+              onPaneClick={() => onSelectNode(null)}
+              onNodeDragStop={(_, node) =>
+                onMoveNode(node.id, node.position.x, node.position.y)
+              }
+              onMove={(_, viewport) => setZoom(viewport.zoom)}
+              fitView
+              minZoom={0.25}
+              maxZoom={1.8}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={22}
+                size={1}
+                color="#2c2c2c"
+              />
+            </ReactFlow>
+            <div className="canvas-controls">
+              <button
+                type="button"
+                className="canvas-controls__btn"
+                aria-label="缩小"
+                onClick={() => zoomOut()}
+              >
+                <Minus size={16} />
+              </button>
+              <span className="canvas-controls__zoom">{Math.round(zoom * 100)}%</span>
+              <button
+                type="button"
+                className="canvas-controls__btn"
+                aria-label="放大"
+                onClick={() => zoomIn()}
+              >
+                <Plus size={16} />
+              </button>
+              <span className="canvas-controls__divider" />
+              <button
+                type="button"
+                className="canvas-controls__btn"
+                aria-label="适应画面"
+                onClick={() => fitView({ padding: 0.2, duration: 260 })}
+              >
+                <Maximize2 size={16} />
+              </button>
+              <button
+                type="button"
+                className="canvas-controls__btn"
+                aria-label="保存视图"
+                onClick={onSaveView}
+              >
+                <Bookmark size={16} />
+              </button>
+            </div>
+          </>
         ) : (
           <div className="canvas-empty">
             <span className="canvas-empty__icon">

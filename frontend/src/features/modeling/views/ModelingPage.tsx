@@ -357,12 +357,24 @@ export function ModelingPage() {
             options: event.options ?? [],
             freeText: event.freeText ?? null,
           })
+        } else if (event.type === 'tool.end') {
+          // ask_user / 工具审批是续跑后才拿到结果的，块留在更早的那条消息里，
+          // 不能只扫当前这条，否则上一轮那块会一直显示成还在等。
+          setMessagesByConversation((current) => ({
+            ...current,
+            [targetId]: (current[targetId] ?? []).map((message) =>
+              message.blocks.some(
+                (block) => block.kind === 'tool' && block.callId === event.callId,
+              )
+                ? { ...message, blocks: reduceBlocks(message.blocks, event) }
+                : message,
+            ),
+          }))
         } else if (
           event.type === 'block.start' ||
           event.type === 'block.delta' ||
           event.type === 'block.end' ||
-          event.type === 'tool.start' ||
-          event.type === 'tool.end'
+          event.type === 'tool.start'
         ) {
           replaceBlocks((blocks) => reduceBlocks(blocks, event))
         }
