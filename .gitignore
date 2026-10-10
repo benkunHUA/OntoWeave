@@ -1,0 +1,12 @@
+# macOS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python caches（backend 另有自己的 .gitignore）
+__pycache__/
+*.py[cod]
+
+# 日志
+*.log
