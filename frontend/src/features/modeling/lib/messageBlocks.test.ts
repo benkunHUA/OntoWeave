@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AgentEvent, ConversationMessage, MessageBlock } from '../../../shared/types'
 import {
   blocksFromMessage,
+  isNoticeMessage,
   pendingInterruptFrom,
   reduceBlocks,
   textFromBlocks,
@@ -154,6 +155,28 @@ describe('pendingInterruptFrom', () => {
     ]
     expect(pendingInterruptFrom(history)).toBeNull()
   })
+
+  it('stays pending when a system notice lands after the interrupt', () => {
+    const history = [
+      message('m1', 'assistant', [
+        { id: 'b1', kind: 'interrupt', question: '客户还是供应商？', options: [], freeText: null },
+      ]),
+      message('m2', 'assistant', [{ id: 'n1', kind: 'notice', text: '已撤销本次改动：新增 1。' }]),
+    ]
+    expect(pendingInterruptFrom(history)).toEqual({
+      blockId: 'b1',
+      question: '客户还是供应商？',
+      options: [],
+      freeText: null,
+    })
+  })
+
+  it('ignores a history made only of notices', () => {
+    const history = [
+      message('m1', 'assistant', [{ id: 'n1', kind: 'notice', text: '已确认本次改动。' }]),
+    ]
+    expect(pendingInterruptFrom(history)).toBeNull()
+  })
 })
 
 describe('reduceBlocks interrupt', () => {
@@ -177,7 +200,56 @@ describe('reduceBlocks interrupt', () => {
         question: '要执行吗',
         options: [{ label: '允许', answer: { decisions: [{ type: 'approve' }] } }],
         freeText: { wrap: 'respond' },
+        details: [],
       },
     ])
+  })
+
+  it('carries candidate details through to the block', () => {
+    const blocks = reduceBlocks([], {
+      v: 1,
+      type: 'interrupt',
+      messageId: 'm1',
+      blockId: 'i1',
+      question: '要复用已有的「客户」吗？',
+      options: [
+        { label: '复用这个', answer: '复用这个' },
+        { label: '新建单独的', answer: '新建单独的' },
+      ],
+      freeText: { wrap: 'raw' },
+      details: [
+        { label: '名称', value: '客户' },
+        { label: '状态', value: 'confirmed' },
+      ],
+    })
+    expect(blocks).toEqual([
+      {
+        id: 'i1',
+        kind: 'interrupt',
+        question: '要复用已有的「客户」吗？',
+        options: [
+          { label: '复用这个', answer: '复用这个' },
+          { label: '新建单独的', answer: '新建单独的' },
+        ],
+        freeText: { wrap: 'raw' },
+        details: [
+          { label: '名称', value: '客户' },
+          { label: '状态', value: 'confirmed' },
+        ],
+      },
+    ])
+  })
+})
+
+describe('isNoticeMessage', () => {
+  it('is true only when every block is a system notice', () => {
+    expect(isNoticeMessage([{ id: 'n1', kind: 'notice', text: '已撤销本次改动。' }])).toBe(true)
+    expect(
+      isNoticeMessage([
+        { id: 'n1', kind: 'notice', text: '已撤销本次改动。' },
+        { id: 't1', kind: 'text', text: '还有正文' },
+      ]),
+    ).toBe(false)
+    expect(isNoticeMessage([])).toBe(false)
   })
 })

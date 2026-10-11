@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import '../styles/app.css'
+import '../styles/dialog.css'
 import { HomePage } from '../features/home/views/HomePage'
 
 const ModelingPage = lazy(() =>

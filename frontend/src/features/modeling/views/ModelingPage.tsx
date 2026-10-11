@@ -1,9 +1,6 @@
 import {
-  ChevronLeft,
-  ChevronRight,
   CircleAlert,
   CircleCheck,
-  CircleX,
   LoaderCircle,
   MessageSquarePlus,
   PanelLeftClose,
@@ -12,6 +9,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
   X,
 } from 'lucide-react'
 import {
@@ -20,12 +18,15 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   confirmChangeset,
   createConversation,
+  deleteConversation,
   getChangeset,
   getConversation,
   getGraphSnapshot,
@@ -38,12 +39,21 @@ import {
   saveViewState,
   streamAgentRun,
 } from '../../../shared/api/client'
+import { DeleteConversationDialog } from '../components/dialogs/DeleteConversationDialog'
+import { RenameConversationDialog } from '../components/dialogs/RenameConversationDialog'
+import { ChangesetBar } from '../components/ChangesetBar'
+import { ChatNotice } from '../components/ChatNotice'
+import { InterruptCard } from '../components/InterruptCard'
 import { OntologyCanvas } from '../components/OntologyCanvas'
 import { MarkdownText } from '../components/MarkdownText'
 import { ThinkingBlock } from '../components/ThinkingBlock'
 import { ToolCallBlock } from '../components/ToolCallBlock'
+import { formatOpSummary, hasPendingOntologyChanges } from '../lib/changesetSummary'
+import { DEFAULT_DELETE_SCOPE } from '../lib/deleteScopes'
+import { INTERRUPT_PLACEHOLDER } from '../lib/interruptCopy'
 import {
   blocksFromMessage,
+  isNoticeMessage,
   pendingInterruptFrom,
   reduceBlocks,
   type PendingInterrupt,
@@ -54,6 +64,7 @@ import type {
   Changeset,
   ChatMessage,
   Conversation,
+  DeleteScope,
   GraphSnapshot,
   InterruptOption,
   MessageBlock,
@@ -64,17 +75,32 @@ function messageId() {
   return crypto.randomUUID()
 }
 
-function formatOpSummary(changeset: Changeset | null) {
-  if (!changeset) return []
-  const counts = changeset.ops.reduce<Record<string, number>>((result, op) => {
-    result[op.op] = (result[op.op] ?? 0) + 1
-    return result
-  }, {})
-  return [
-    counts.create ? `新增 ${counts.create}` : null,
-    counts.update ? `修改 ${counts.update}` : null,
-    counts.delete ? `删除 ${counts.delete}` : null,
-  ].filter((item): item is string => Boolean(item))
+const PANE_WIDTHS_STORAGE_KEY = 'ontoweave.pane-widths'
+const DEFAULT_PANE_WIDTHS = { conversations: 268, chat: 400 }
+const PANE_MIN_WIDTHS = { conversations: 200, chat: 320 }
+const PANE_MAX_WIDTHS = { conversations: 460, chat: 760 }
+type PaneKey = keyof typeof DEFAULT_PANE_WIDTHS
+type PaneWidths = typeof DEFAULT_PANE_WIDTHS
+
+function clampPaneWidth(key: PaneKey, value: number) {
+  return Math.min(Math.max(value, PANE_MIN_WIDTHS[key]), PANE_MAX_WIDTHS[key])
+}
+
+function readPaneWidths(): PaneWidths {
+  try {
+    const raw = window.localStorage.getItem(PANE_WIDTHS_STORAGE_KEY)
+    if (!raw) return DEFAULT_PANE_WIDTHS
+    const parsed = JSON.parse(raw) as Partial<Record<PaneKey, number>>
+    return {
+      conversations: clampPaneWidth(
+        'conversations',
+        Number(parsed.conversations) || DEFAULT_PANE_WIDTHS.conversations,
+      ),
+      chat: clampPaneWidth('chat', Number(parsed.chat) || DEFAULT_PANE_WIDTHS.chat),
+    }
+  } catch {
+    return DEFAULT_PANE_WIDTHS
+  }
 }
 
 export function ModelingPage() {
@@ -93,6 +119,11 @@ export function ModelingPage() {
   const [interrupt, setInterrupt] = useState<PendingInterrupt | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [paneWidths, setPaneWidths] = useState<PaneWidths>(readPaneWidths)
+  const [draggingPane, setDraggingPane] = useState<PaneKey | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Conversation | null>(null)
+  const [deleteMode, setDeleteMode] = useState<DeleteScope>(DEFAULT_DELETE_SCOPE)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [draftConversationTitle, setDraftConversationTitle] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
@@ -101,6 +132,7 @@ export function ModelingPage() {
   const abortRef = useRef<AbortController | null>(null)
   const saveTimerRef = useRef<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const resizeRef = useRef<{ key: PaneKey; startX: number; startWidth: number } | null>(null)
 
   const messages = useMemo(
     () =>
@@ -198,6 +230,36 @@ export function ModelingPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, interrupt])
 
+  useEffect(() => {
+    if (!draggingPane) return
+    function handlePointerMove(event: PointerEvent) {
+      const drag = resizeRef.current
+      if (!drag) return
+      const delta = event.clientX - drag.startX
+      setPaneWidths((current) => ({
+        ...current,
+        [drag.key]: clampPaneWidth(drag.key, drag.startWidth + delta),
+      }))
+    }
+    function handlePointerUp() {
+      setDraggingPane(null)
+    }
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+    }
+  }, [draggingPane])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PANE_WIDTHS_STORAGE_KEY, JSON.stringify(paneWidths))
+    } catch {
+      // 隐私模式等场景下 localStorage 不可用，忽略。
+    }
+  }, [paneWidths])
+
   async function startConversation() {
     const conversation = await createConversation('新对话')
     setConversations((current) => [conversation, ...current])
@@ -290,6 +352,12 @@ export function ModelingPage() {
 
   async function handleReject() {
     if (!changeset || !activeConversation) return
+    // 取消还没落库的视图保存：否则撤销把视图翻回去之后，这个 pending 的
+    // PUT 又用旧 spec 把它覆盖回来，高亮就「撤销不掉」了。
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
     try {
       await rejectChangeset(changeset.id)
       await loadWorkspace(activeConversation.id)
@@ -428,6 +496,47 @@ export function ModelingPage() {
     void runAgent(activeConversation.id, { text })
   }
 
+  function startResize(key: PaneKey, event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault()
+    resizeRef.current = { key, startX: event.clientX, startWidth: paneWidths[key] }
+    setDraggingPane(key)
+  }
+
+  function openDeleteDialog(conversation: Conversation) {
+    setDeleteMode(DEFAULT_DELETE_SCOPE)
+    setPendingDelete(conversation)
+  }
+
+  async function confirmDeleteConversation() {
+    const target = pendingDelete
+    if (!target) return
+    setIsDeleting(true)
+    setError(null)
+    try {
+      await deleteConversation(target.id, deleteMode)
+      setConversations((current) => current.filter((item) => item.id !== target.id))
+      setMessagesByConversation((current) => {
+        const next = { ...current }
+        delete next[target.id]
+        return next
+      })
+      setPendingDelete(null)
+      if (activeConversation?.id === target.id) {
+        setActiveConversation(null)
+        setSnapshot(null)
+        setViewSpec({})
+        setChangeset(null)
+        setInterrupt(null)
+        setSelectedNodeId(null)
+        navigate('/')
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '删除失败')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   function answerInterrupt(option: InterruptOption) {
     if (!activeConversation) return
     appendMessage(activeConversation.id, {
@@ -439,7 +548,15 @@ export function ModelingPage() {
   }
 
   return (
-    <main className={`modeling-page ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+    <main
+      className={`modeling-page ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}
+      style={
+        {
+          '--conv-pane-w': `${paneWidths.conversations}px`,
+          '--chat-pane-w': `${paneWidths.chat}px`,
+        } as CSSProperties
+      }
+    >
       <aside className="conversation-pane">
         <header className="conversation-pane__header">
           <div className="brand brand--compact">
@@ -474,22 +591,50 @@ export function ModelingPage() {
 
         <nav className="conversation-list" aria-label="会话列表">
           {conversations.map((conversation) => (
-            <button
-              type="button"
+            <div
               key={conversation.id}
-              className={conversation.id === activeConversation?.id ? 'is-active' : ''}
-              onClick={() => navigate(`/modeling/${conversation.id}`)}
-              title={conversation.title || '未命名对话'}
+              className={`conversation-list__item ${
+                conversation.id === activeConversation?.id ? 'is-active' : ''
+              }`}
             >
-              <span className="conversation-list__dot" />
+              <button
+                type="button"
+                className="conversation-list__open"
+                onClick={() => navigate(`/modeling/${conversation.id}`)}
+                title={conversation.title || '未命名对话'}
+              >
+                <span className="conversation-list__dot" />
+                {!sidebarCollapsed ? (
+                  <span className="conversation-list__title">
+                    {conversation.title || '未命名对话'}
+                  </span>
+                ) : null}
+              </button>
               {!sidebarCollapsed ? (
-                <span>{conversation.title || '未命名对话'}</span>
+                <button
+                  type="button"
+                  className="conversation-list__delete"
+                  aria-label={`删除对话 ${conversation.title || '未命名对话'}`}
+                  title="删除对话"
+                  onClick={() => openDeleteDialog(conversation)}
+                >
+                  <Trash2 size={14} />
+                </button>
               ) : null}
-              {!sidebarCollapsed ? <ChevronRight size={14} /> : null}
-            </button>
+            </div>
           ))}
         </nav>
       </aside>
+
+      <div
+        className={`pane-resizer pane-resizer--conversations ${
+          draggingPane === 'conversations' ? 'is-dragging' : ''
+        }`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="拖拽调整会话栏宽度"
+        onPointerDown={(event) => startResize('conversations', event)}
+      />
 
       <section className="chat-pane">
         <header className="chat-header">
@@ -531,10 +676,13 @@ export function ModelingPage() {
               key={message.id}
               className={`message-bubble message-bubble--${message.role} ${
                 message.kind === 'error' ? 'is-error' : ''
-              }`}
+              } ${isNoticeMessage(message.blocks) ? 'is-notice' : ''}`}
             >
               {message.blocks.length === 0 ? <span className="typing-dot" /> : null}
               {message.blocks.map((block) => {
+                if (block.kind === 'notice') {
+                  return <ChatNotice key={block.id} block={block} />
+                }
                 if (block.kind === 'reasoning') {
                   return (
                     <ThinkingBlock key={block.id} text={block.text} done={Boolean(block.done)} />
@@ -546,34 +694,13 @@ export function ModelingPage() {
                 if (block.kind === 'interrupt') {
                   const pending = interrupt?.blockId === block.id
                   return (
-                    <section
+                    <InterruptCard
                       key={block.id}
-                      className={`interrupt-card ${pending ? 'is-pending' : ''}`}
-                    >
-                      <div className="interrupt-card__question">
-                        <CircleAlert size={15} />
-                        <span>{block.question}</span>
-                      </div>
-                      {block.options.length ? (
-                        <div className="interrupt-options">
-                          {block.options.map((option) => (
-                            <button
-                              type="button"
-                              key={option.label}
-                              onClick={() => answerInterrupt(option)}
-                              disabled={!pending || isRunning}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {pending ? (
-                        <p className="interrupt-card__hint">
-                          {block.freeText ? '也可以直接在下方输入回答' : '请点击上面的选项回答'}
-                        </p>
-                      ) : null}
-                    </section>
+                      block={block}
+                      pending={pending}
+                      disabled={isRunning}
+                      onAnswer={answerInterrupt}
+                    />
                   )
                 }
                 if (message.role === 'user') {
@@ -591,39 +718,13 @@ export function ModelingPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {changeset?.status === 'open' ? (
-          <section className="changeset-bar">
-            <div>
-              <span className="changeset-bar__icon">
-                <Sparkles size={16} />
-              </span>
-              <div>
-                <strong>待确认改动</strong>
-                <span>
-                  {opSummary.length ? opSummary.join(' · ') : '视图已更新'}
-                </span>
-              </div>
-            </div>
-            <div className="changeset-bar__actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleReject()}
-              >
-                <CircleX size={15} />
-                撤销
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void confirmCurrentChanges()}
-                disabled={isConfirming}
-              >
-                {isConfirming ? <LoaderCircle size={15} /> : <CircleCheck size={15} />}
-                {isConfirming ? '确认中' : '确认'}
-              </button>
-            </div>
-          </section>
+        {hasPendingOntologyChanges(changeset) ? (
+          <ChangesetBar
+            summary={opSummary}
+            isConfirming={isConfirming}
+            onReject={() => void handleReject()}
+            onConfirm={() => void confirmCurrentChanges()}
+          />
         ) : null}
 
         <form className="composer" onSubmit={submitMessage}>
@@ -633,8 +734,8 @@ export function ModelingPage() {
             placeholder={
               interrupt
                 ? interrupt.freeText
-                  ? '回答上面的问题'
-                  : '请点击上面的选项回答'
+                  ? INTERRUPT_PLACEHOLDER.freeText
+                  : INTERRUPT_PLACEHOLDER.optionsOnly
                 : '描述业务规则、对象或关系'
             }
             rows={3}
@@ -687,6 +788,16 @@ export function ModelingPage() {
         ) : null}
       </section>
 
+      <div
+        className={`pane-resizer pane-resizer--chat ${
+          draggingPane === 'chat' ? 'is-dragging' : ''
+        }`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="拖拽调整对话栏宽度"
+        onPointerDown={(event) => startResize('chat', event)}
+      />
+
       <section className="graph-pane">
         <OntologyCanvas
           snapshot={snapshot}
@@ -735,64 +846,27 @@ export function ModelingPage() {
         ) : null}
       </section>
 
-      {renameOpen ? (
-        <div className="dialog-backdrop" role="presentation">
-          <section className="view-dialog" role="dialog" aria-modal="true">
-            <header>
-              <div>
-                <span className="view-dialog__icon">
-                  <Pencil size={20} />
-                </span>
-                <div>
-                  <strong>重命名会话</strong>
-                  <span>会话列表和图名称会同步更新</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="icon-button icon-button--quiet"
-                aria-label="关闭"
-                onClick={() => setRenameOpen(false)}
-              >
-                <X size={16} />
-              </button>
-            </header>
-            <label>
-              会话名称
-              <input
-                value={draftConversationTitle}
-                onChange={(event) => setDraftConversationTitle(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    void submitRename()
-                  }
-                }}
-                autoFocus
-              />
-            </label>
-            <footer>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setRenameOpen(false)}
-              >
-                <ChevronLeft size={15} />
-                取消
-              </button>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void submitRename()}
-                disabled={!draftConversationTitle.trim() || isRenaming}
-              >
-                {isRenaming ? <LoaderCircle size={15} /> : <Pencil size={15} />}
-                {isRenaming ? '保存中' : '保存'}
-              </button>
-            </footer>
-          </section>
-        </div>
+      {pendingDelete ? (
+        <DeleteConversationDialog
+          conversationTitle={pendingDelete.title}
+          scope={deleteMode}
+          isDeleting={isDeleting}
+          onScopeChange={setDeleteMode}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void confirmDeleteConversation()}
+        />
       ) : null}
+
+      {renameOpen ? (
+        <RenameConversationDialog
+          title={draftConversationTitle}
+          isRenaming={isRenaming}
+          onTitleChange={setDraftConversationTitle}
+          onCancel={() => setRenameOpen(false)}
+          onSubmit={() => void submitRename()}
+        />
+      ) : null}
+
     </main>
   )
 }

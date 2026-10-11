@@ -32,6 +32,7 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
           question: event.question,
           options: event.options ?? [],
           freeText: event.freeText ?? null,
+          details: event.details ?? [],
         },
       ]
     case 'tool.start':
@@ -87,6 +88,11 @@ export function textFromBlocks(blocks: MessageBlock[]): string {
     .join('')
 }
 
+/** 一条消息是不是纯系统提示（确认 / 撤销的回执）。 */
+export function isNoticeMessage(blocks: MessageBlock[]): boolean {
+  return blocks.length > 0 && blocks.every((block) => block.kind === 'notice')
+}
+
 export interface PendingInterrupt {
   blockId: string
   question: string
@@ -98,14 +104,21 @@ export interface PendingInterrupt {
 export function pendingInterruptFrom(
   history: ConversationMessage[],
 ): PendingInterrupt | null {
-  const last = history[history.length - 1]
-  if (!last || last.role !== 'assistant') return null
-  const tail = blocksFromMessage(last).at(-1)
-  if (!tail || tail.kind !== 'interrupt') return null
-  return {
-    blockId: tail.id,
-    question: tail.question,
-    options: tail.options,
-    freeText: tail.freeText,
+  // 从后往前找最后一条「真实发言」，跳过确认 / 撤销这类系统回执：
+  // 回执是插进对话里的旁白，不代表用户已经回答了中断里的问题。
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index]
+    const blocks = blocksFromMessage(message)
+    if (isNoticeMessage(blocks)) continue
+    if (message.role !== 'assistant') return null
+    const tail = blocks.at(-1)
+    if (!tail || tail.kind !== 'interrupt') return null
+    return {
+      blockId: tail.id,
+      question: tail.question,
+      options: tail.options,
+      freeText: tail.freeText,
+    }
   }
+  return null
 }

@@ -4,6 +4,7 @@ export const TOOL_LABELS: Record<string, string> = {
   list_types: '列出现有类型',
   get_subgraph: '读取相关子图',
   propose_type: '提出对象类型',
+  reuse_type: '复用已有类型',
   propose_property: '补充属性',
   propose_relation: '建立关系',
   update_element: '修改草稿',

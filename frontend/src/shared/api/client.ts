@@ -4,6 +4,7 @@ import type {
   Changeset,
   Conversation,
   ConversationMessage,
+  DeleteScope,
   GraphSnapshot,
   ViewSpec,
   ViewState,
@@ -51,6 +52,16 @@ export function renameConversation(
   return request<Conversation>(`/conversations/${conversationId}`, {
     method: 'PATCH',
     body: JSON.stringify({ title }),
+  })
+}
+
+export function deleteConversation(
+  conversationId: string,
+  scope: DeleteScope = 'graph-only',
+): Promise<void> {
+  const query = scope === 'graph-only' ? '' : `?scope=${scope}`
+  return request<void>(`/conversations/${conversationId}${query}`, {
+    method: 'DELETE',
   })
 }
 

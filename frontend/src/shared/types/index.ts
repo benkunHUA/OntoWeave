@@ -1,5 +1,11 @@
 export type Status = 'draft' | 'confirmed' | 'approved'
 
+/** 删会话 / 删图时，对共享池里对象与关系的处理范围。 */
+export type DeleteScope =
+  | 'graph-only'
+  | 'graph-and-drafts'
+  | 'graph-and-unreferenced'
+
 export interface Conversation {
   id: string
   graph_id: string
@@ -51,10 +57,11 @@ export interface GraphSnapshot {
 
 export interface ChangesetOp {
   id: string
-  op: 'create' | 'update' | 'delete'
+  /** view 是绘图子智能体对视图状态的改动：即时生效，撤销时一并回滚。 */
+  op: 'create' | 'update' | 'delete' | 'view'
   target_id: string | null
   payload: {
-    kind?: 'object_type' | 'property' | 'relation'
+    kind?: 'object_type' | 'property' | 'relation' | 'view'
     before?: Record<string, unknown>
     after?: Record<string, unknown>
     [key: string]: unknown
@@ -99,10 +106,17 @@ export interface InterruptOption {
   answer: unknown
 }
 
+/** 确认卡片里的补充信息，用于展示候选对象的名称/描述/状态等。 */
+export interface InterruptDetail {
+  label: string
+  value: string
+}
+
 /** 助手回合里按时间排列的内容块；思考 / 正文 / 工具调用共用一套渲染。 */
 export type MessageBlock =
   | { id: string; kind: 'text'; text: string; done?: boolean }
   | { id: string; kind: 'reasoning'; text: string; done?: boolean }
+  | { id: string; kind: 'notice'; text: string }
   | {
       id: string
       kind: 'tool'
@@ -120,6 +134,7 @@ export type MessageBlock =
       question: string
       options: InterruptOption[]
       freeText: FreeTextMode
+      details?: InterruptDetail[]
     }
 
 /** POST /messages 或 /resume 的请求体。 */
@@ -156,6 +171,7 @@ export type AgentEvent =
       question: string
       options: InterruptOption[]
       freeText: FreeTextMode
+      details?: InterruptDetail[]
     }
   | {
       v: number

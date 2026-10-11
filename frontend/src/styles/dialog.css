@@ -1,0 +1,180 @@
+/* 弹窗外壳（DialogShell）与内容区样式，配合 features/modeling/components/dialogs/ 使用。 */
+
+/* ===== 对话框 ===== */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.view-dialog {
+  width: min(460px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #282828;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
+}
+
+.view-dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.view-dialog header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-dialog__icon {
+  display: grid;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  line-height: 0;
+  border-radius: 10px;
+  color: var(--blue-ink);
+  background: var(--blue-soft);
+}
+
+.view-dialog__icon svg {
+  display: block;
+}
+
+.view-dialog__icon--danger {
+  color: #ff9a91;
+  background: rgba(209, 69, 59, 0.2);
+}
+
+.view-dialog__body {
+  margin: 0;
+  padding: 18px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.view-dialog__body p {
+  margin: 0;
+}
+
+.view-dialog__choices {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.view-dialog__choices legend {
+  margin-bottom: 8px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.view-dialog label.view-dialog__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  background: #2e2e2e;
+  font-weight: 400;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.view-dialog label.view-dialog__choice:has(input:checked) {
+  border-color: rgba(88, 166, 255, 0.65);
+  background: rgba(88, 166, 255, 0.1);
+}
+
+.view-dialog__choice input[type='radio'] {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  accent-color: #58a6ff;
+}
+
+.view-dialog__choice span {
+  display: grid;
+  gap: 3px;
+}
+
+.view-dialog__choice strong {
+  color: #f0f0f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.view-dialog__choice em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+}
+
+.view-dialog header strong,
+.view-dialog header .view-dialog__subtitle {
+  display: block;
+}
+
+.view-dialog header strong {
+  color: #f0f0f0;
+  font-size: 15px;
+}
+
+.view-dialog header .view-dialog__subtitle {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.view-dialog label {
+  display: grid;
+  gap: 7px;
+  padding: 18px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.view-dialog input {
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid #3a3a3a;
+  border-radius: 9px;
+  color: var(--ink);
+  background: #2e2e2e;
+}
+
+.view-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line-soft);
+  background: #242424;
+}
