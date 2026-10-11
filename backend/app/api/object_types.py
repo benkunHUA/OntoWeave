@@ -5,9 +5,10 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.deps import get_current_user_id, get_session
 from app.schemas.ontology import ObjectTypeCreate, ObjectTypeRead
-from app.services import ontology
+from app.services import embedding, ontology
 
 router = APIRouter(tags=["object-types"])
 
@@ -31,6 +32,12 @@ def confirm_object_type(
 ) -> ObjectTypeRead:
     obj = ontology.transition_object_type(
         session, object_type_id, "confirmed", owner_id=get_current_user_id()
+    )
+    # 确认才补向量，和改动集定稿路径保持一致：草稿不参与检索，确认后的才可被复用。
+    embedding.try_refresh_object_type_embedding(
+        session,
+        object_type_id=obj.id,
+        embedder=embedding.build_embedder(get_settings()),
     )
     return ObjectTypeRead.model_validate(obj)
 

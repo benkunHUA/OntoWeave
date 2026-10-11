@@ -8,8 +8,14 @@ from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
+from app.models import EMBEDDING_DIM
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+# 测试绝不连真实的对话 / 嵌入服务：清掉 key，让运行时回落到本地确定性实现。
+# 必须在任何 get_settings() 之前设置——它带 lru_cache，晚了就固化了。
+os.environ["CHAT_API_KEY"] = ""
+os.environ["EMBEDDING_API_KEY"] = ""
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
@@ -76,3 +82,17 @@ def session(session_factory: sessionmaker[Session]) -> Session:
         yield sess
     finally:
         sess.close()
+
+
+class _FailingEmbedder:
+    """永远算不出向量的嵌入器，用来验证嵌入失败不阻断本体改动。"""
+
+    dim = EMBEDDING_DIM
+
+    def embed(self, texts):  # noqa: ARG002
+        raise RuntimeError("embedding service is down")
+
+
+@pytest.fixture
+def failing_embedder() -> _FailingEmbedder:
+    return _FailingEmbedder()

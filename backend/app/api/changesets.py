@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.deps import get_current_user_id, get_session
+from app.agent import thread
+from app.config import get_settings
+from app.deps import get_agent_checkpointer, get_current_user_id, get_session
 from app.schemas.changeset import (
     ChangesetDetail,
     ChangesetOpCreate,
     ChangesetOpRead,
     ChangesetRead,
 )
-from app.services import changeset
+from app.services import changeset, changeset_review, embedding
 
 router = APIRouter(tags=["changesets"])
 
@@ -66,19 +68,61 @@ def record_op(
     return ChangesetOpRead.model_validate(op)
 
 
+def _thread_notifier(request: Request) -> changeset_review.ThreadNotifier:
+    """把「定稿结果写回模型线程」这条 agent 依赖接到 review 服务上。
+
+    服务层不感知 agent，钩子在这里注入：模型线程不更新，下一轮就会引用已经被
+    撤销的对象和关系（子智能体核对时会发现图里根本没有）。
+    """
+    settings = get_settings()
+    owner_id = get_current_user_id()
+
+    def notify(session: Session, notice: changeset_review.Notice) -> None:
+        thread.record_decision(
+            session,
+            settings,
+            owner_id,
+            conversation_id=notice.conversation_id,
+            graph_id=notice.graph_id,
+            changeset_id=notice.changeset_id,
+            text=notice.text,
+            checkpointer=get_agent_checkpointer(request.app.state, settings),
+        )
+
+    return notify
+
+
+def _request_embedder() -> embedding.Embedder:
+    """定稿时给已确认的对象补向量用的嵌入器；没配 key 就回落到本地实现。"""
+    return embedding.build_embedder(get_settings())
+
+
 @router.post("/changesets/{changeset_id}/confirm", response_model=ChangesetRead)
 def confirm_changeset(
-    changeset_id: uuid.UUID, session: Session = Depends(get_session)
+    changeset_id: uuid.UUID, request: Request, session: Session = Depends(get_session)
 ) -> ChangesetRead:
+    # 走 review 层而不是直接调 changeset 服务：确认/撤销都要在会话里留一条回执。
     return ChangesetRead.model_validate(
-        changeset.confirm_changeset(session, changeset_id, owner_id=get_current_user_id())
+        changeset_review.confirm(
+            session,
+            changeset_id,
+            owner_id=get_current_user_id(),
+            notify=_thread_notifier(request),
+            embedder=_request_embedder(),
+        )
     )
 
 
 @router.post("/changesets/{changeset_id}/reject", response_model=ChangesetRead)
 def reject_changeset(
-    changeset_id: uuid.UUID, session: Session = Depends(get_session)
+    changeset_id: uuid.UUID, request: Request, session: Session = Depends(get_session)
 ) -> ChangesetRead:
     return ChangesetRead.model_validate(
-        changeset.reject_changeset(session, changeset_id, owner_id=get_current_user_id())
+        changeset_review.revert(
+            session,
+            changeset_id,
+            owner_id=get_current_user_id(),
+            notify=_thread_notifier(request),
+            embedder=_request_embedder(),
+        )
     )

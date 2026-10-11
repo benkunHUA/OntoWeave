@@ -32,13 +32,14 @@ uvicorn app.main:app --reload --port 18000
 cp .env.example .env
 ```
 
-三组配置：
+四组配置：
 
 | 组 | 变量 | 说明 |
 |---|---|---|
 | 数据库 | `DATABASE_URL` / `POSTGRES_*` | 本地默认值可直接用 |
 | 对话模型 | `CHAT_BASE_URL` / `CHAT_API_KEY` / `CHAT_MODEL` | 智能体用；OpenAI 兼容接口，私有化环境换成自建网关 |
 | 嵌入模型 | `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | 相似检索用 |
+| 可观测性 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` | 可选；审计追踪用，两个 key 都填才开启 |
 
 两个坑先说清楚：
 
@@ -141,7 +142,7 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 ## 智能体运行时
 
-`app/agent/` 分四层：
+`app/agent/` 分五层：
 
 - `llm.py`：模型装配。**`deepseek-flash` 是推理模型，`CHAT_MAX_TOKENS` 给小了会得到
   「HTTP 200 但正文为空」的响应**（推理把 token 吃光了），默认给到 4096。
@@ -149,6 +150,7 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 - `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph；
   同时挂上 `view_designer` 绘图子智能体。
 - `runtime.py`：一次运行的装配，以及「一次对话一个打开的改动集」的生命周期。
+- `observability.py`：按配置给一轮 run 挂 Langfuse 审计回调（可选，见下）。
 
 绘图子智能体只拥有视图工具：读取图切片和当前视图，修改布局、高亮、分组、折叠、
 过滤、视野与标注，并持久化到 `view_state`。它没有创建或修改本体的工具。
@@ -169,6 +171,22 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 **`run.end` 带 `paused` 字段。** 中断和完成都以 `run.end` 收尾，前端靠它区分：
 `paused: true` 表示卡在中途等人回答，该调 `/resume`；`false` 表示本轮做完了。
+
+### 审计追踪（Langfuse）
+
+可观测性走**开源自托管**的 [Langfuse](https://langfuse.com)，不依赖云服务，契合私有化诉求。
+
+- 装配在 `app/agent/observability.py`：`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
+  两个都填上才启用；留空则整条链路零开销（不 import、不建客户端）。
+- 回调挂在主图一轮 run 的 `config` 上（`runtime.py`）：`conversation_id` 作 session、
+  `owner_id` 作 user，前端一次对话正好对应 Langfuse 一个 session，方便回看。
+- **子智能体内部的模型与工具调用也会被记录。** langgraph 把父 run 的 callbacks 透传给
+  子智能体，deepagents 还会给它打 `ls_agent_type=subagent` 标签——这正是 SSE 里被
+  `_is_streamable` 挡掉、`conversation_message` 也不落库的那部分内部过程。
+- 用云端：填 `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` 即可。自托管：把
+  `LANGFUSE_BASE_URL` 指向本地实例（如 `http://127.0.0.1:3000`）。自托管完整栈较重
+  （web + worker + ClickHouse + Redis + S3），按官方 compose 单独起，本项目只负责把
+  trace 发过去。
 
 ### 踩过的坑
 

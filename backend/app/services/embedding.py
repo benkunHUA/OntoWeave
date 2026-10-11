@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import uuid
 from collections.abc import Sequence
@@ -13,6 +14,9 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import EMBEDDING_DIM, ObjectType
+from app.services import ontology
+
+logger = logging.getLogger(__name__)
 
 
 class Embedder(Protocol):
@@ -142,17 +146,47 @@ def _check_dim(embedder: Embedder) -> None:
         )
 
 
-def save_embedding(
+def _embedding_text(obj: ObjectType) -> str:
+    """检索文本只由名称 + 描述拼成，状态、归属、图都不参与。"""
+    return obj.name if not obj.description else f"{obj.name} {obj.description}"
+
+
+def refresh_object_type_embedding(
     session: Session, *, object_type_id: uuid.UUID, embedder: Embedder
 ) -> ObjectType:
+    """让向量始终跟着确认状态走：确认/批准过的才有向量，草稿一律清空。
+
+    这样 search_object_types 命中的必然已确认，调用方不用再判状态；草稿也不会
+    被检索到、被误复用。改动名称/描述后同样调它，把旧向量刷新掉。
+    """
     _check_dim(embedder)
     obj = session.get(ObjectType, object_type_id)
     if obj is None:
         raise NotFoundError(f"object type {object_type_id} not found")
-    text = obj.name if not obj.description else f"{obj.name} {obj.description}"
-    obj.embedding = embedder.embed([text])[0]
+    if obj.status == ontology.DRAFT:
+        obj.embedding = None
+    else:
+        obj.embedding = embedder.embed([_embedding_text(obj)])[0]
     session.flush()
     return obj
+
+
+def try_refresh_object_type_embedding(
+    session: Session, *, object_type_id: uuid.UUID, embedder: Embedder
+) -> None:
+    """尽力而为版：算向量失败不往上抛，只记日志。
+
+    定稿（确认/撤销）和改名这类路径用。本体改动本身已经生效，不该因为嵌入服务
+    抖动就整笔回滚；代价是这个对象暂时没向量、检索不到，等下次编辑或再次确认时补。
+    """
+    try:
+        refresh_object_type_embedding(session, object_type_id=object_type_id, embedder=embedder)
+    except Exception:
+        logger.warning(
+            "object type %s embedding refresh failed; leaving it unembedded",
+            object_type_id,
+            exc_info=True,
+        )
 
 
 def search_object_types(

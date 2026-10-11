@@ -38,7 +38,8 @@ def test_view_subagent_exposes_only_view_tools(session):
     subagent = agent_tools.build_view_subagent(ctx)
 
     assert subagent["name"] == "view_designer"
-    assert subagent["description"]
+    # 描述里点明它自己读图，免得主 agent 先逐节点 get_subgraph 再转述一份可能过期的清单。
+    assert "get_ontology_slice" in subagent["description"]
     names = [item.name for item in subagent["tools"]]
     assert names == [
         "get_view_state",

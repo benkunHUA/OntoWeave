@@ -6,8 +6,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
-from app.models import Conversation, ConversationMessage, ViewState
-from app.services import graph
+from app.models import Conversation, ConversationMessage, Graph, ViewState
+from app.services import graph, graph_cleanup
 
 
 def create_conversation(
@@ -30,6 +30,16 @@ def get_conversation(
     return conv
 
 
+def find_conversation_by_graph(
+    session: Session, graph_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
+) -> Conversation | None:
+    """一图一会话，按图反查。找不到返回 None，交给调用方决定是不是硬要求。"""
+    stmt = select(Conversation).where(Conversation.graph_id == graph_id)
+    if owner_id is not None:
+        stmt = stmt.where(Conversation.owner_id == owner_id)
+    return session.scalar(stmt)
+
+
 def rename_conversation(
     session: Session,
     conversation_id: uuid.UUID,
@@ -49,6 +59,30 @@ def rename_conversation(
     )
     session.flush()
     return conv
+
+
+def delete_conversation(
+    session: Session,
+    conversation_id: uuid.UUID,
+    *,
+    owner_id: uuid.UUID | None = None,
+    scope: graph_cleanup.DeleteScope = graph_cleanup.DEFAULT_DELETE_SCOPE,
+) -> None:
+    """删会话，连带删掉它一对一的那张图。
+
+    图被删时，图成员（graph_object / graph_relation）、改动集、视图状态随
+    ON DELETE CASCADE 一起清掉；共享池里的对象类型 / 关系只把 home_graph_id
+    置空（ON DELETE SET NULL）。要不要顺手清理这些共享元素由 `scope` 决定，
+    具体口径见 `app.services.graph_cleanup`。
+    """
+    conv = get_conversation(session, conversation_id, owner_id=owner_id)
+    graph_id = conv.graph_id
+    graph_cleanup.purge_graph_elements(session, graph_id=graph_id, owner_id=owner_id, scope=scope)
+    graph_row = session.get(Graph, graph_id)
+    session.delete(conv)
+    if graph_row is not None:
+        session.delete(graph_row)
+    session.flush()
 
 
 def list_conversations(

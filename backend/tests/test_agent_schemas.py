@@ -7,6 +7,7 @@ def test_ontology_tool_names_are_stable():
         "list_types",
         "get_subgraph",
         "propose_type",
+        "reuse_type",
         "propose_property",
         "propose_relation",
         "update_element",

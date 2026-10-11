@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.agent import ontology_tools, view_tools
 from app.errors import NotFoundError
 from app.models import ObjectType, Relation
-from app.services import embedding, graph, view_state
+from app.services import changeset, embedding, graph, view_state
 
 VIEW_AGENT_PROMPT = """你是 OntoWeave 的绘图子智能体，只决定本体图怎么呈现。
 
@@ -67,7 +67,8 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("search_ontology")
     def search_ontology(query: str, limit: int = 10) -> list[dict] | dict:
-        """按语义检索已有对象类型。新建类型之前必须先调用，避免造重复。"""
+        """按语义检索已有对象类型。只返回已确认的类型（草稿没有向量、不在结果里）；
+        新建类型之前必须先调用，避免造重复。"""
         return _capture(
             ctx,
             lambda: ontology_tools.search_ontology(
@@ -101,7 +102,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("propose_type")
     def propose_type(name: str, description: str | None = None) -> dict:
-        """把新的对象类型加进草稿。内部先查重，同名或足够像就复用已有的。"""
+        """新建对象类型并加进草稿。只负责建：先 search_ontology 查重，确认没有可复用的再用它。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_type(
@@ -110,7 +111,19 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 owner_id=ctx.owner_id,
                 name=name,
                 description=description,
-                embedder=ctx.embedder,
+            ),
+        )
+
+    @tool("reuse_type")
+    def reuse_type(object_type_id: str) -> dict:
+        """把已有对象类型并进当前图，不新建。用户确认复用后用它，id 取自 search_ontology。"""
+        return _capture(
+            ctx,
+            lambda: ontology_tools.reuse_type(
+                ctx.session,
+                changeset_id=ctx.changeset_id,
+                owner_id=ctx.owner_id,
+                object_type_id=uuid.UUID(object_type_id),
             ),
         )
 
@@ -152,7 +165,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("update_element")
     def update_element(element_kind: str, element_id: str, patch: dict) -> dict:
-        """改已有元素。只提交 patch，服务层会采集快照并保证可撤销。"""
+        """改已有元素。只提交 patch；改对象类型的名称/描述会自动重算检索用的向量。"""
         return _capture(
             ctx,
             lambda: ontology_tools.update_element(
@@ -162,6 +175,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 element_kind=element_kind,
                 element_id=uuid.UUID(element_id),
                 patch=patch,
+                embedder=ctx.embedder,
             ),
         )
 
@@ -180,15 +194,23 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         )
 
     @tool("ask_user")
-    def ask_user(question: str, options: list[str] | None = None) -> str:
+    def ask_user(
+        question: str,
+        options: list[str] | None = None,
+        details: list[dict] | None = None,
+    ) -> str:
         """拿不准时停下来问用户。这是中断点，用户回答后你会拿到答案继续。
 
         只在真的无法判断时才用：同名不同义、一个词可能是对象也可能是属性、关系方向不确定。
+        details 是给用户看的补充信息，形如 [{"label": "描述", "value": "..."}]；
+        让用户确认复用某个类型时，把它的名称、描述、状态都放进来。
         """
         # 由 LangGraph 的 interrupt 在工具内部暂停，见下方 build_ask_user 的说明
         from langgraph.types import interrupt
 
-        answer = interrupt({"question": question, "options": options or []})
+        answer = interrupt(
+            {"question": question, "options": options or [], "details": details or []}
+        )
         return str(answer)
 
     return [
@@ -196,6 +218,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         list_types,
         get_subgraph,
         propose_type,
+        reuse_type,
         propose_property,
         propose_relation,
         update_element,
@@ -233,7 +256,18 @@ def _apply_view_change(ctx: ToolContext, change: Callable[[dict], dict]) -> dict
         owner_id=ctx.owner_id,
     )
     spec = dict(current.spec) if current is not None else {}
-    return _save_view_spec(ctx, spec=change(spec))
+    updated = change(spec)
+    # 先挂进改动集再落库：改动集若已关闭，这里直接报错，视图也不动。
+    # 反过来先落库后记录，一旦记录失败就会留下「图变了、撤销记录里却没有」的漏网改动。
+    changeset.record_view_change(
+        ctx.session,
+        changeset_id=ctx.changeset_id,
+        user_id=ctx.owner_id,
+        before=spec,
+        after=dict(updated),
+        owner_id=ctx.owner_id,
+    )
+    return _save_view_spec(ctx, spec=updated)
 
 
 def build_view_tools(ctx: ToolContext) -> list[BaseTool]:
@@ -461,6 +495,7 @@ def build_view_subagent(ctx: ToolContext) -> SubAgent:
         "description": (
             "负责图的呈现方式：布局、高亮、分组、折叠、过滤、视野、标注和视图命名。"
             "用户要求「怎么画/怎么看」时交给它；它不会修改本体。"
+            "它自己会调用 get_ontology_slice 读取当前图，无需你先提供节点/关系清单。"
         ),
         "system_prompt": VIEW_AGENT_PROMPT,
         "tools": build_view_tools(ctx),

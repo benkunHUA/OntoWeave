@@ -13,7 +13,9 @@ def _setup(session, owner):
     customer = ontology.create_object_type(session, owner_id=owner, name="客户")
     order = ontology.create_object_type(session, owner_id=owner, name="订单")
     for obj in (customer, order):
-        embedding.save_embedding(session, object_type_id=obj.id, embedder=emb)
+        # 只有确认过的类型才有向量、才会被检索到——和线上一致。
+        ontology.transition_object_type(session, obj.id, "confirmed", owner_id=owner)
+        embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
     rel = ontology.create_relation(
         session,
         owner_id=owner,
@@ -41,7 +43,8 @@ def test_search_ontology_only_returns_own(session):
     mine = ontology.create_object_type(session, owner_id=owner, name="客户")
     outsider = ontology.create_object_type(session, owner_id=other, name="客户")
     for obj in (mine, outsider):
-        embedding.save_embedding(session, object_type_id=obj.id, embedder=emb)
+        ontology.transition_object_type(session, obj.id, "confirmed")
+        embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
     hits = tools.search_ontology(session, query="客户", embedder=emb, owner_id=owner)
     assert [hit["id"] for hit in hits] == [str(mine.id)]
 
@@ -82,65 +85,74 @@ def test_propose_type_creates_draft_and_records_op(session):
     _, emb, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    result = tools.propose_type(
-        session, changeset_id=cs.id, owner_id=owner, name="供应商", embedder=emb
-    )
+    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="供应商")
     obj = ontology.get_object_type(session, uuid.UUID(result["id"]))
     assert obj.status == "draft"
-    assert obj.embedding is not None
+    assert obj.embedding is None
     assert [op.op for op in changeset.list_ops(session, cs.id)] == ["create"]
 
 
 def test_propose_type_adds_created_type_to_graph(session):
     owner = uuid.uuid4()
     conv, cs = _changeset(session, owner)
-    emb = embedding.HashingEmbedder()
 
-    result = tools.propose_type(
-        session, changeset_id=cs.id, owner_id=owner, name="机场", embedder=emb
-    )
+    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="机场")
 
     assert uuid.UUID(result["id"]) in graph.list_graph_objects(session, conv.graph_id)
 
 
-def test_propose_type_reuses_existing_type(session):
-    owner = uuid.uuid4()
-    _, emb, customer, *_ = _setup(session, owner)
-    _, cs = _changeset(session, owner)
-
-    result = tools.propose_type(
-        session, changeset_id=cs.id, owner_id=owner, name="客户", embedder=emb
-    )
-    assert result["id"] == str(customer.id)
-    assert result["reused"] is True
-    assert changeset.list_ops(session, cs.id) == []
-
-
-def test_propose_type_adds_reused_type_to_the_current_graph(session):
-    owner = uuid.uuid4()
-    _, emb, customer, *_ = _setup(session, owner)
-    current, cs = _changeset(session, owner)
-
-    tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="客户", embedder=emb)
-
-    assert customer.id in graph.list_graph_objects(session, current.graph_id)
-
-
-def test_propose_type_reports_near_duplicates(session):
+def test_propose_type_creates_new_draft_even_when_similar_exists(session):
     owner = uuid.uuid4()
     _, emb, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    result = tools.propose_type(
-        session,
-        changeset_id=cs.id,
-        owner_id=owner,
-        name="客户信息",
-        embedder=emb,
-        reuse_threshold=0.999,
+    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="客户信息")
+
+    assert result["name"] == "客户信息"
+    assert "reused" not in result
+    assert [op.op for op in changeset.list_ops(session, cs.id)] == ["create"]
+
+
+def test_reuse_type_adds_existing_type_to_the_current_graph(session):
+    owner = uuid.uuid4()
+    _, _, customer, *_ = _setup(session, owner)
+    current, cs = _changeset(session, owner)
+
+    result = tools.reuse_type(
+        session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id
     )
-    assert result["similar"]
-    assert result["reused"] is False
+
+    assert result["id"] == str(customer.id)
+    assert result["reused"] is True
+    assert customer.id in graph.list_graph_objects(session, current.graph_id)
+
+
+def test_reuse_type_does_not_record_a_changeset_op(session):
+    owner = uuid.uuid4()
+    _, _, customer, *_ = _setup(session, owner)
+    _, cs = _changeset(session, owner)
+
+    tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id)
+
+    assert changeset.list_ops(session, cs.id) == []
+
+
+def test_reuse_type_rejects_draft_type(session):
+    owner = uuid.uuid4()
+    draft = ontology.create_object_type(session, owner_id=owner, name="还没定稿的客户")
+    _, cs = _changeset(session, owner)
+
+    with pytest.raises(InvariantViolationError):
+        tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=draft.id)
+
+
+def test_reuse_type_rejects_another_owners_type(session):
+    owner, other = uuid.uuid4(), uuid.uuid4()
+    outsider = ontology.create_object_type(session, owner_id=other, name="别家的")
+    _, cs = _changeset(session, owner)
+
+    with pytest.raises(NotFoundError):
+        tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=outsider.id)
 
 
 def test_propose_relation_requires_existing_endpoints(session):
@@ -181,7 +193,7 @@ def test_propose_relation_adds_endpoints_and_relation_to_graph(session):
 
 def test_update_element_requires_a_patch(session):
     owner = uuid.uuid4()
-    _, _, customer, *_ = _setup(session, owner)
+    _, emb, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
     with pytest.raises(InvariantViolationError):
         tools.update_element(
@@ -191,12 +203,13 @@ def test_update_element_requires_a_patch(session):
             element_kind="object_type",
             element_id=customer.id,
             patch={},
+            embedder=emb,
         )
 
 
 def test_update_element_rejects_field_outside_whitelist(session):
     owner = uuid.uuid4()
-    _, _, customer, *_ = _setup(session, owner)
+    _, emb, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
     with pytest.raises(InvariantViolationError):
         tools.update_element(
@@ -206,10 +219,54 @@ def test_update_element_rejects_field_outside_whitelist(session):
             element_kind="object_type",
             element_id=customer.id,
             patch={"status": "approved"},
+            embedder=emb,
         )
 
 
 def test_update_element_applies_and_records_snapshot(session):
+    owner = uuid.uuid4()
+    _, emb, customer, *_ = _setup(session, owner)
+    _, cs = _changeset(session, owner)
+
+    tools.update_element(
+        session,
+        changeset_id=cs.id,
+        owner_id=owner,
+        element_kind="object_type",
+        element_id=customer.id,
+        patch={"name": "终端客户"},
+        embedder=emb,
+    )
+    assert ontology.get_object_type(session, customer.id).name == "终端客户"
+    assert changeset.list_ops(session, cs.id)[0].payload == {
+        "kind": "object_type",
+        "before": {"name": "客户"},
+        "after": {"name": "终端客户"},
+    }
+
+
+def test_update_element_reembeds_object_type_on_description_change(session):
+    owner = uuid.uuid4()
+    _, emb, customer, *_ = _setup(session, owner)
+    before = list(ontology.get_object_type(session, customer.id).embedding)
+    _, cs = _changeset(session, owner)
+
+    tools.update_element(
+        session,
+        changeset_id=cs.id,
+        owner_id=owner,
+        element_kind="object_type",
+        element_id=customer.id,
+        patch={"description": "会下订单并把货退回来的终端买家"},
+        embedder=emb,
+    )
+
+    after = ontology.get_object_type(session, customer.id).embedding
+    assert after is not None
+    assert list(after) != before
+
+
+def test_update_element_survives_embedding_failure(session, failing_embedder):
     owner = uuid.uuid4()
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
@@ -221,13 +278,10 @@ def test_update_element_applies_and_records_snapshot(session):
         element_kind="object_type",
         element_id=customer.id,
         patch={"name": "终端客户"},
+        embedder=failing_embedder,
     )
+
     assert ontology.get_object_type(session, customer.id).name == "终端客户"
-    assert changeset.list_ops(session, cs.id)[0].payload == {
-        "kind": "object_type",
-        "before": {"name": "客户"},
-        "after": {"name": "终端客户"},
-    }
 
 
 def test_remove_element_only_marks(session):

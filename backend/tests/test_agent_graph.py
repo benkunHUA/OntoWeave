@@ -47,6 +47,12 @@ def test_system_prompt_keeps_explicit_property_requests_as_properties():
     assert "不要改写成关系" in agent_graph.SYSTEM_PROMPT
 
 
+def test_system_prompt_hands_view_tasks_off_without_pre_reading_the_graph():
+    """视图任务直接交给子智能体，别让主 agent 用 get_subgraph 逐节点把图读一遍。"""
+    assert "直接交给 view_designer" in agent_graph.SYSTEM_PROMPT
+    assert "不要自己先调 get_subgraph" in agent_graph.SYSTEM_PROMPT
+
+
 def test_tool_domain_errors_become_payloads_not_exceptions(session):
     """deepagents 的 ToolNode 不会兜工具异常，异常会打挂整轮 run。
     所以工具必须把领域错误转成结构化返回值。"""

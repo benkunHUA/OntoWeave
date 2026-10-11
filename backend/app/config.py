@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     # ---- 智能体运行时
     agent_max_iterations: int = 12
 
+    # ---- 可观测性（Langfuse 审计追踪，可选）----
+    # 两个 key 都填上才启用；留空则整条链路零开销。字段名即 LANGFUSE_* 环境变量名。
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+    # 区分环境 / 版本，方便在 Langfuse 里过滤。
+    langfuse_environment: str = ""
+    langfuse_release: str = ""
+
     @property
     def chat_configured(self) -> bool:
         return bool(self.chat_api_key)
@@ -44,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def embedding_configured(self) -> bool:
         return bool(self.embedding_api_key)
+
+    @property
+    def langfuse_configured(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
 
 
 @lru_cache

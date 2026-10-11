@@ -29,6 +29,7 @@ def test_binds_expected_tool_names(session):
         "list_types",
         "get_subgraph",
         "propose_type",
+        "reuse_type",
         "propose_property",
         "propose_relation",
         "update_element",

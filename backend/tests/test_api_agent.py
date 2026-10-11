@@ -157,6 +157,7 @@ def test_interrupt_is_reported_as_paused(client, monkeypatch):
             "question": "客户还是供应商？",
             "options": [],
             "freeText": {"wrap": "raw"},
+            "details": [],
         }
     ]
 
@@ -263,7 +264,7 @@ def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
 def test_tool_approval_interrupt_maps_to_decisions():
     from app.agent.runtime import _normalize_interrupt
 
-    question, options, free_text = _normalize_interrupt(
+    question, options, free_text, details = _normalize_interrupt(
         {
             "action_requests": [
                 {"name": "remove_element", "args": {"element_kind": "property", "element_id": "p1"}}
@@ -282,6 +283,34 @@ def test_tool_approval_interrupt_maps_to_decisions():
         {"label": "拒绝", "answer": {"decisions": [{"type": "reject"}]}},
     ]
     assert free_text == {"wrap": "respond"}
+    assert details == []
+
+
+def test_ask_user_interrupt_carries_details():
+    from app.agent.runtime import _normalize_interrupt
+
+    question, options, free_text, details = _normalize_interrupt(
+        {
+            "question": "要复用已有的「客户」吗？",
+            "options": ["复用这个", "新建单独的"],
+            "details": [
+                {"label": "名称", "value": "客户"},
+                {"label": "描述", "value": "下订单、购买产品的一方"},
+                {"label": "空值", "value": "   "},
+                "不是字典",
+            ],
+        }
+    )
+    assert question == "要复用已有的「客户」吗？"
+    assert options == [
+        {"label": "复用这个", "answer": "复用这个"},
+        {"label": "新建单独的", "answer": "新建单独的"},
+    ]
+    assert free_text == {"wrap": "raw"}
+    assert details == [
+        {"label": "名称", "value": "客户"},
+        {"label": "描述", "value": "下订单、购买产品的一方"},
+    ]
 
 
 def test_state_update_includes_the_saved_view_spec(client, monkeypatch):

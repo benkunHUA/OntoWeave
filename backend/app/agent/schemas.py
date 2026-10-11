@@ -14,7 +14,7 @@ class ToolSpec(BaseModel):
 ONTOLOGY_TOOLS = [
     ToolSpec(
         name="search_ontology",
-        description="按语义检索已有对象类型；新建之前必须先调用，避免造重复。",
+        description="按语义检索已有对象类型，只返回已确认的；新建之前必须先调用。",
         parameters={"query": "str", "limit": "int"},
     ),
     ToolSpec(
@@ -29,8 +29,13 @@ ONTOLOGY_TOOLS = [
     ),
     ToolSpec(
         name="propose_type",
-        description="把新的对象类型加进草稿；内部先查重，同名或足够像就复用已有的。",
+        description="新建对象类型并加进草稿；先 search_ontology 查重，确认没有可复用的再用它。",
         parameters={"name": "str", "description": "str | None"},
+    ),
+    ToolSpec(
+        name="reuse_type",
+        description="把已有对象类型并进当前图；用户确认复用后调用，id 取自 search_ontology。",
+        parameters={"object_type_id": "uuid"},
     ),
     ToolSpec(
         name="propose_property",

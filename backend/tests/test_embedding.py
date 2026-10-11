@@ -31,13 +31,25 @@ def test_save_and_search_embeddings(session):
     obj = ontology.create_object_type(session, owner_id=owner, name="客户")
     other = ontology.create_object_type(session, owner_id=owner, name="订单")
     for item in (obj, other):
-        embedding.save_embedding(session, object_type_id=item.id, embedder=emb)
+        ontology.transition_object_type(session, item.id, "confirmed")
+        embedding.refresh_object_type_embedding(session, object_type_id=item.id, embedder=emb)
 
     hits = embedding.search_object_types(
         session, query="客户公司", embedder=emb, owner_id=owner, limit=5
     )
     assert hits[0][0].name == "客户"
     assert hits[0][1] > hits[-1][1]
+
+
+def test_refresh_clears_embedding_while_draft(session):
+    emb = embedding.HashingEmbedder()
+    owner = uuid.uuid4()
+    obj = ontology.create_object_type(session, owner_id=owner, name="客户")
+
+    embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
+
+    assert obj.embedding is None
+    assert embedding.search_object_types(session, query="客户", embedder=emb, owner_id=owner) == []
 
 
 def test_search_skips_rows_without_embedding(session):
@@ -56,7 +68,8 @@ def test_search_filters_by_owner(session):
     mine_obj = ontology.create_object_type(session, owner_id=mine, name="客户")
     other_obj = ontology.create_object_type(session, owner_id=other, name="客户")
     for item in (mine_obj, other_obj):
-        embedding.save_embedding(session, object_type_id=item.id, embedder=emb)
+        ontology.transition_object_type(session, item.id, "confirmed")
+        embedding.refresh_object_type_embedding(session, object_type_id=item.id, embedder=emb)
 
     hits = embedding.search_object_types(
         session, query="客户", embedder=emb, owner_id=mine, limit=5
@@ -64,9 +77,9 @@ def test_search_filters_by_owner(session):
     assert [obj.id for obj, _ in hits] == [mine_obj.id]
 
 
-def test_save_embedding_rejects_unknown_object(session):
+def test_refresh_rejects_unknown_object(session):
     with pytest.raises(NotFoundError):
-        embedding.save_embedding(
+        embedding.refresh_object_type_embedding(
             session,
             object_type_id=uuid.uuid4(),
             embedder=embedding.HashingEmbedder(),
@@ -75,7 +88,7 @@ def test_save_embedding_rejects_unknown_object(session):
 
 def test_embedder_dimension_mismatch_is_reported_clearly(session):
     with pytest.raises(InvariantViolationError):
-        embedding.save_embedding(
+        embedding.refresh_object_type_embedding(
             session,
             object_type_id=uuid.uuid4(),
             embedder=embedding.HashingEmbedder(dim=256),

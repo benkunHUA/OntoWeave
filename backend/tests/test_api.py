@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
-from app.main import create_app
+from app.main import _create_app, create_app
 from app.services import ontology
 
 API = "/api/v1"
@@ -13,8 +13,12 @@ API = "/api/v1"
 
 @pytest.fixture
 def client(session_factory: sessionmaker[Session]) -> TestClient:
-    """不覆盖依赖：app 直接拿到绑在测试连接上的 session 工厂，走真实装配链路。"""
-    return TestClient(create_app(session_factory=session_factory))
+    """不覆盖依赖：app 直接拿到绑在测试连接上的 session 工厂，走真实装配链路。
+
+    关掉检查点：这些用例不跑智能体，开启会让定稿回写去连生产库建检查点。
+    线程回写本身在 test_agent_thread.py 里用 InMemorySaver 单独测。
+    """
+    return TestClient(_create_app(session_factory, enable_agent_checkpoints=False))
 
 
 def test_create_and_confirm_object_type(client):
@@ -124,3 +128,45 @@ def test_list_object_types_rejects_invalid_paging(client):
     assert client.get(f"{API}/object-types", params={"limit": 1000}).status_code == 422
     assert client.get(f"{API}/object-types", params={"limit": 0}).status_code == 422
     assert client.get(f"{API}/object-types", params={"offset": -1}).status_code == 422
+
+
+def test_reject_changeset_leaves_a_notice_in_the_conversation(client):
+    conv = client.post(f"{API}/conversations", json={"title": "撤销回执"}).json()
+    cs = client.post(f"{API}/graphs/{conv['graph_id']}/changesets").json()
+    obj = client.post(f"{API}/object-types", json={"name": "客户"}).json()
+    client.post(
+        f"{API}/changesets/{cs['id']}/ops",
+        json={"op": "create", "target_id": obj["id"], "payload": {"kind": "object_type"}},
+    )
+
+    rejected = client.post(f"{API}/changesets/{cs['id']}/reject")
+    assert rejected.status_code == 200
+
+    history = client.get(f"{API}/conversations/{conv['id']}/messages").json()
+    assert history[-1]["role"] == "assistant"
+    assert history[-1]["content"] == "已撤销本次改动：新增 1。"
+    assert history[-1]["blocks"][0]["kind"] == "notice"
+
+
+def test_reject_writes_the_decision_back_into_the_model_thread(client, monkeypatch):
+    """撤销不只是数据回滚，还要让模型线程知道，否则下一轮会继续引用已删的对象。"""
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        "app.agent.thread.record_decision", lambda *args, **kwargs: captured.append(kwargs)
+    )
+    conv = client.post(f"{API}/conversations", json={"title": "线程回写"}).json()
+    cs = client.post(f"{API}/graphs/{conv['graph_id']}/changesets").json()
+    obj = client.post(f"{API}/object-types", json={"name": "景点"}).json()
+    client.post(
+        f"{API}/changesets/{cs['id']}/ops",
+        json={"op": "create", "target_id": obj["id"], "payload": {"kind": "object_type"}},
+    )
+
+    assert client.post(f"{API}/changesets/{cs['id']}/reject").status_code == 200
+
+    assert captured and captured[0]["conversation_id"] == uuid.UUID(conv["id"])
+    assert captured[0]["changeset_id"] == uuid.UUID(cs["id"])
+    text = captured[0]["text"]
+    assert text.startswith("（系统回执）用户已撤销本次改动，以下内容已回退：")
+    assert "- 新增 对象类型「景点」" in text
+    assert "不要再引用" in text

@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError
+from app.errors import InvariantViolationError, NotFoundError
 from app.models import ObjectType, Relation
 from app.services import changeset, embedding, graph, ontology
 
@@ -88,46 +88,20 @@ def get_subgraph(
     }
 
 
-DEFAULT_REUSE_THRESHOLD = 0.98
-
-
-def _candidates(
-    session: Session,
-    *,
-    name: str,
-    embedder: embedding.Embedder,
-    owner_id: uuid.UUID,
-    limit: int = 5,
-) -> list[dict]:
-    return search_ontology(session, query=name, embedder=embedder, owner_id=owner_id, limit=limit)
-
-
 def propose_type(
     session: Session,
     *,
     changeset_id: uuid.UUID,
     owner_id: uuid.UUID,
     name: str,
-    embedder: embedding.Embedder,
     description: str | None = None,
     home_graph_id: uuid.UUID | None = None,
-    reuse_threshold: float = DEFAULT_REUSE_THRESHOLD,
 ) -> dict:
-    """新建对象类型。护栏：先查近邻——同名或足够像就复用，否则把候选一并返回。"""
-    cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
-    candidates = _candidates(session, name=name, embedder=embedder, owner_id=owner_id)
-    existing = next((item for item in candidates if item["name"] == name), None) or next(
-        (item for item in candidates if item["similarity"] >= reuse_threshold), None
-    )
-    if existing is not None:
-        graph.add_object_to_graph(
-            session,
-            cs.graph_id,
-            uuid.UUID(existing["id"]),
-            owner_id=owner_id,
-        )
-        return {**existing, "reused": True, "similar": candidates}
+    """新建对象类型（草稿）。要不要复用已有类型，由调用方先 search_ontology 再决定。
 
+    草稿不写向量：只有确认后才会在改动集定稿时补上，检索因此只认已确认的类型。
+    """
+    cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
     obj = ontology.create_object_type(
         session,
         owner_id=owner_id,
@@ -135,7 +109,6 @@ def propose_type(
         description=description,
         home_graph_id=home_graph_id or cs.graph_id,
     )
-    embedding.save_embedding(session, object_type_id=obj.id, embedder=embedder)
     graph.add_object_to_graph(session, cs.graph_id, obj.id, owner_id=owner_id)
     changeset.record_op(
         session,
@@ -144,7 +117,31 @@ def propose_type(
         target_id=obj.id,
         payload={"kind": "object_type"},
     )
-    return {**_type_brief(obj), "reused": False, "similar": candidates}
+    return _type_brief(obj)
+
+
+def reuse_type(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    object_type_id: uuid.UUID,
+) -> dict:
+    """把已有对象类型并进当前图。
+
+    只允许复用已确认的类型（confirmed / approved）：draft 还没被用户确认过，
+    把它并入新模型等于带进一件没定稿的东西，所以这里直接拒绝。
+    复用不改本体（没有新建/修改），只是把共享池里的类型挂到这张图上，
+    因此不记录改动集操作——它跟着图成员关系走，不属于本轮待确认的本体改动。
+    """
+    cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    obj = changeset.load_element(session, "object_type", object_type_id, owner_id=owner_id)
+    if obj.status == ontology.DRAFT:
+        raise InvariantViolationError(
+            f"object type {object_type_id} is still a draft and cannot be reused"
+        )
+    graph.add_object_to_graph(session, cs.graph_id, obj.id, owner_id=owner_id)
+    return {**_type_brief(obj), "reused": True}
 
 
 def propose_property(
@@ -232,8 +229,13 @@ def update_element(
     element_kind: str,
     element_id: uuid.UUID,
     patch: dict,
+    embedder: embedding.Embedder,
 ) -> dict:
-    """改已有元素。服务层采集 before、校验当前值并应用 after。"""
+    """改已有元素。服务层采集 before、校验当前值并应用 after。
+
+    对象类型的名称/描述是向量检索的输入，改完要重算 embedding，
+    否则检索到的还是旧语义（相似度、命中结果都会失真）。
+    """
     op = changeset.record_update(
         session,
         changeset_id=changeset_id,
@@ -242,6 +244,10 @@ def update_element(
         patch=patch,
         owner_id=owner_id,
     )
+    if element_kind == "object_type" and {"name", "description"} & set(patch):
+        embedding.try_refresh_object_type_embedding(
+            session, object_type_id=element_id, embedder=embedder
+        )
     return {
         "id": str(element_id),
         "patched": sorted(op.payload["after"]),

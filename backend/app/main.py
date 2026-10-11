@@ -39,6 +39,14 @@ def _create_app(
         if pool is not None:
             pool.close()
             application.state.checkpointer_pool = None
+        # Langfuse 是后台上报，退出前 flush 一次，别丢掉最后几条 trace。
+        if get_settings().langfuse_configured:
+            try:
+                from langfuse import get_client
+
+                get_client().flush()
+            except Exception:  # pragma: no cover - 追踪失败不影响关停
+                logger.warning("langfuse flush on shutdown failed", exc_info=True)
 
     app = FastAPI(title="OntoWeave", version="0.1.0", lifespan=lifespan)
     app.state.session_factory = session_factory

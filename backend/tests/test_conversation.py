@@ -137,3 +137,71 @@ def test_conversation_messages_api_returns_history(client):
     empty = client.get(f"{API}/conversations/{conversation_id}/messages")
     assert empty.status_code == 200
     assert empty.json() == []
+
+
+def test_delete_conversation_removes_graph_and_children(session):
+    from app.models import Changeset
+    from app.services import changeset as changeset_service
+
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="待删")
+    graph_id = conv.graph_id
+    conversation.add_message(session, conversation_id=conv.id, role="user", content="你好")
+    cs = changeset_service.create_changeset(session, graph_id=graph_id, owner_id=owner)
+    cs_id = cs.id
+
+    conversation.delete_conversation(session, conv.id, owner_id=owner)
+    # 级联是数据库做的，ORM 身份映射里还留着对象；过期后按库里的真实状态断言。
+    session.expire_all()
+
+    with pytest.raises(NotFoundError):
+        conversation.get_conversation(session, conv.id)
+    assert session.get(Graph, graph_id) is None
+    assert session.get(Changeset, cs_id) is None
+
+
+def test_delete_conversation_rejects_other_owner(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="别人的")
+    with pytest.raises(NotFoundError):
+        conversation.delete_conversation(session, conv.id, owner_id=uuid.uuid4())
+    # 没被误删
+    assert conversation.get_conversation(session, conv.id) is not None
+
+
+def test_delete_conversation_api_scope_cleans_local_drafts(client, session):
+    from app.config import get_settings
+    from app.models import ObjectType
+    from app.services import ontology
+
+    created = client.post(f"{API}/conversations", json={"title": "接口连草稿删"}).json()
+    owner = uuid.UUID(get_settings().default_user_id)
+    graph_id = uuid.UUID(created["graph_id"])
+    # API 建不出绑定 home_graph_id 的草稿，借 service 造一条贴近真实的数据。
+    draft = ontology.create_object_type(
+        session, owner_id=owner, name="接口草稿", home_graph_id=graph_id
+    )
+    draft_id = draft.id
+    session.flush()
+
+    resp = client.delete(
+        f"{API}/conversations/{created['id']}", params={"scope": "graph-and-drafts"}
+    )
+    assert resp.status_code == 204
+    assert client.get(f"{API}/conversations/{created['id']}").status_code == 404
+
+    session.expire_all()
+    assert session.get(ObjectType, draft_id) is None
+
+
+def test_delete_conversation_api(client):
+    conv = client.post(f"{API}/conversations", json={"title": "删除我"}).json()
+    resp = client.delete(f"{API}/conversations/{conv['id']}")
+    assert resp.status_code == 204
+    assert client.get(f"{API}/conversations/{conv['id']}").status_code == 404
+    remaining = [item["id"] for item in client.get(f"{API}/conversations").json()]
+    assert conv["id"] not in remaining
+
+
+def test_delete_missing_conversation_api_404(client):
+    assert client.delete(f"{API}/conversations/{uuid.uuid4()}").status_code == 404

@@ -18,7 +18,7 @@ from langgraph.types import Command
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.agent import graph as agent_graph
-from app.agent import llm
+from app.agent import llm, observability
 from app.agent.tools import ToolContext, build_model_tools, build_view_subagent
 from app.config import Settings
 from app.services import changeset, conversation, embedding, view_state
@@ -37,6 +37,11 @@ class RunContext:
     conversation_id: uuid.UUID
     graph_id: uuid.UUID
     changeset_id: uuid.UUID
+
+
+def thread_config(conversation_id: uuid.UUID) -> dict:
+    """模型线程的键约定：一条会话一个线程，所有读写都从这里取，别各写各的。"""
+    return {"configurable": {"thread_id": str(conversation_id)}}
 
 
 def prepare_run(session: Session, *, conversation_id: uuid.UUID, owner_id: uuid.UUID) -> RunContext:
@@ -149,14 +154,29 @@ def _is_streamable(metadata: dict | None) -> bool:
     return _SUBGRAPH_SEP not in namespace
 
 
-def _normalize_interrupt(value: dict) -> tuple[str, list[dict], dict | None]:
+def _normalize_details(raw: object) -> list[dict[str, str]]:
+    """给用户看的补充信息：只收 {label, value} 都非空的条目，其余丢掉。"""
+    if not isinstance(raw, list):
+        return []
+    details: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        value = str(item.get("value") or "").strip()
+        if label and value:
+            details.append({"label": label, "value": value})
+    return details
+
+
+def _normalize_interrupt(value: dict) -> tuple[str, list[dict], dict | None, list[dict[str, str]]]:
     """把两种中断折成同一份给前端的形状。
 
     一是 `ask_user` 的提问（question / options），二是工具审批（HumanInTheLoop
     的 action_requests / review_configs）。审批的 resume 必须回填 decisions，
     提问回填一个字符串，所以每个选项直接带上自己的 resume 载荷。
 
-    返回 (问题, 选项, 自由文本回填方式)；自由文本为 None 表示只能点选项。
+    返回 (问题, 选项, 自由文本回填方式, 详情)；自由文本为 None 表示只能点选项。
     """
     question = value.get("question")
     if isinstance(question, str) and question.strip():
@@ -165,7 +185,7 @@ def _normalize_interrupt(value: dict) -> tuple[str, list[dict], dict | None]:
             for item in value.get("options") or []
             if str(item).strip()
         ]
-        return question, asked_options, {"wrap": "raw"}
+        return question, asked_options, {"wrap": "raw"}, _normalize_details(value.get("details"))
 
     requests = value.get("action_requests")
     if isinstance(requests, list) and requests:
@@ -188,10 +208,10 @@ def _normalize_interrupt(value: dict) -> tuple[str, list[dict], dict | None]:
                 {"label": "拒绝", "answer": {"decisions": [{"type": "reject"}] * len(requests)}}
             )
         free_text = {"wrap": "respond"} if "respond" in allowed else None
-        return "要执行以下操作，需要你确认：\n" + "\n".join(lines), options, free_text
+        return "要执行以下操作，需要你确认：\n" + "\n".join(lines), options, free_text, []
 
     # 认不出来的中断也别吞掉，原样带回给前端，至少人能看一眼。
-    return f"需要你确认：{json.dumps(value, ensure_ascii=False)}", [], {"wrap": "raw"}
+    return f"需要你确认：{json.dumps(value, ensure_ascii=False)}", [], {"wrap": "raw"}, []
 
 
 class _TurnBuilder:
@@ -309,7 +329,12 @@ class _TurnBuilder:
         return self._close_open()
 
     def interrupt(
-        self, *, question: str, options: list[dict], free_text: dict | None
+        self,
+        *,
+        question: str,
+        options: list[dict],
+        free_text: dict | None,
+        details: list[dict[str, str]] | None = None,
     ) -> list[dict]:
         """中断也是一块：落库后刷新页面还能原样重建等待回答的状态。"""
         events = self._close_open()
@@ -319,6 +344,7 @@ class _TurnBuilder:
             "question": question,
             "options": options,
             "freeText": free_text,
+            "details": details or [],
         }
         self.blocks.append(block)
         events.append(
@@ -329,6 +355,7 @@ class _TurnBuilder:
                 "question": question,
                 "options": options,
                 "freeText": free_text,
+                "details": details or [],
             }
         )
         return events
@@ -368,7 +395,11 @@ def stream_run(
         # 用户输入先独立提交，后面的模型或工具失败也不能把这句话丢掉。
         session.commit()
         agent = build_agent_for_run(session, settings, run, owner_id, checkpointer=checkpointer)
-        config = {"configurable": {"thread_id": str(conversation_id)}}
+        config: dict = thread_config(conversation_id)
+        # 配了 Langfuse 就把审计回调挂上；langgraph 会把它透传给子智能体。
+        config.update(
+            observability.trace_config(settings, conversation_id=conversation_id, owner_id=owner_id)
+        )
 
         yield _sse(
             {
@@ -411,10 +442,13 @@ def stream_run(
                     paused = True
                     for item in update if isinstance(update, (list, tuple)) else [update]:
                         value = getattr(item, "value", None) or {}
-                        question, options, free_text = _normalize_interrupt(value)
+                        question, options, free_text, details = _normalize_interrupt(value)
                         interrupt_question = question or interrupt_question
                         for event in turn.interrupt(
-                            question=question, options=options, free_text=free_text
+                            question=question,
+                            options=options,
+                            free_text=free_text,
+                            details=details,
                         ):
                             yield _sse(event)
                     continue

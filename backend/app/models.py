@@ -290,5 +290,9 @@ class ChangesetOp(Base):
     target_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        # clock_timestamp() 而不是 now()：撤销要按记录顺序倒着回放改动集操作，
+        # 同一个事务里 now() 恒定，只能再按随机 uuid 排，顺序就散了。
+        DateTime(timezone=True),
+        server_default=func.clock_timestamp(),
+        nullable=False,
     )

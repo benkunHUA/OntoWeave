@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
 from app.models import Changeset, ChangesetOp, ObjectType, Property, Relation
-from app.services import graph, ontology
+from app.services import graph, ontology, view_state
 
 OPEN = "open"
 CONFIRMED = "confirmed"
@@ -16,7 +16,10 @@ REJECTED = "rejected"
 OP_CREATE = "create"
 OP_UPDATE = "update"
 OP_DELETE = "delete"
+# 视图改动不进本体，但同样归改动集管：撤销时要能翻回去。
+OP_VIEW = "view"
 VALID_OPS = {OP_CREATE, OP_UPDATE, OP_DELETE}
+VIEW_KIND = "view"
 
 _ELEMENT_MODELS = {
     "object_type": ObjectType,
@@ -132,6 +135,40 @@ def record_op(
     session.add(row)
     session.flush()
     return row
+
+
+def record_view_change(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    user_id: uuid.UUID,
+    before: dict,
+    after: dict,
+    owner_id: uuid.UUID | None = None,
+) -> ChangesetOp:
+    """记录绘图子智能体对视图状态的改动。
+
+    视图状态本身不进本体，但它同样属于这一轮「待确认的改动」：撤销时要把
+    它翻回改动前的样子，所以这里把前后快照整个存进改动集。
+    """
+    cs = _lock_changeset(session, changeset_id, owner_id=owner_id)
+    if cs.status != OPEN:
+        raise InvalidTransitionError(
+            f"changeset {changeset_id} is {cs.status}, cannot record new ops"
+        )
+    payload = {
+        "kind": VIEW_KIND,
+        "user_id": str(user_id),
+        "before": dict(before),
+        "after": dict(after),
+    }
+    return _append_op(
+        session,
+        changeset_id=changeset_id,
+        op=OP_VIEW,
+        target_id=None,
+        payload=payload,
+    )
 
 
 def record_update(
@@ -310,6 +347,65 @@ def _promote(
         raise InvariantViolationError(f"unsupported changeset op target: {kind!r}")
 
 
+# 删除时的阶段顺序：先子后父。relation / property 对 object_type 都是
+# ON DELETE CASCADE——先删父行的话，数据库会把子行一起带走，ORM 再删一次就是
+# 0 匹配（SAWarning）。按种类分阶段、每阶段 flush 一次，把 DELETE 顺序钉死。
+_DELETE_PHASE_ORDER = ("relation", "property", "object_type")
+
+
+def _delete_elements(
+    session: Session,
+    elements: list[tuple[str, uuid.UUID]],
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    """按「先子后父」删除一批元素，顺序稳定、不重复删被级联带走的行。"""
+    for kind in _DELETE_PHASE_ORDER:
+        pending = [
+            (element_kind, element_id)
+            for element_kind, element_id in elements
+            if element_kind == kind
+        ]
+        for element_kind, element_id in pending:
+            session.delete(_load_element(session, element_kind, element_id, owner_id=owner_id))
+        if pending:
+            session.flush()
+
+
+def _validate_view_op(op: ChangesetOp) -> None:
+    """视图改动没有本体目标：只有一份 before/after 快照和一个归属用户。"""
+    if op.target_id is not None:
+        raise InvariantViolationError(f"view op {op.id} must not carry a target id")
+    if op.payload.get("kind") != VIEW_KIND:
+        raise InvariantViolationError(f"view op {op.id} has the wrong kind")
+    before = op.payload.get("before")
+    after = op.payload.get("after")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        raise InvariantViolationError(f"view op {op.id} needs 'before' and 'after' specs")
+    try:
+        uuid.UUID(str(op.payload.get("user_id")))
+    except (TypeError, ValueError) as exc:
+        raise InvariantViolationError(f"view op {op.id} has an invalid user id") from exc
+
+
+def _restore_view(
+    session: Session,
+    cs: Changeset,
+    op: ChangesetOp,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> None:
+    """把视图状态翻回这条视图改动发生前快照的样子。"""
+    _validate_view_op(op)
+    view_state.upsert_view_state(
+        session,
+        graph_id=cs.graph_id,
+        user_id=uuid.UUID(str(op.payload["user_id"])),
+        spec=dict(op.payload["before"]),
+        owner_id=owner_id,
+    )
+
+
 def confirm_changeset(
     session: Session, changeset_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
 ) -> Changeset:
@@ -324,6 +420,9 @@ def confirm_changeset(
 
     ops = list_ops(session, cs.id)
     for op in ops:
+        if op.op == OP_VIEW:
+            # 视图改动在记录时就已经生效，确认阶段没有本体动作要做。
+            continue
         _validate_op(op.op, op.target_id, op.payload)
         kind = _op_kind(op)
         target_id = _op_target(op)
@@ -333,7 +432,10 @@ def confirm_changeset(
                 f"{kind} {target_id} is {element.status}, cannot be confirmed from here"
             )
 
+    deletions: list[tuple[str, uuid.UUID]] = []
     for op in ops:
+        if op.op == OP_VIEW:
+            continue
         if op.op == OP_CREATE:
             _promote(session, _op_kind(op), _op_target(op), owner_id=owner_id)
         elif op.op == OP_UPDATE:
@@ -342,8 +444,9 @@ def confirm_changeset(
             for field, value in op.payload["after"].items():
                 setattr(element, field, value)
         elif op.op == OP_DELETE:
-            session.delete(_load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id))
+            deletions.append((_op_kind(op), _op_target(op)))
 
+    _delete_elements(session, deletions, owner_id=owner_id)
     cs.status = CONFIRMED
     session.flush()
     return cs
@@ -359,12 +462,18 @@ def reject_changeset(
 
     ops = list_ops(session, cs.id)
     for op in ops:
+        if op.op == OP_VIEW:
+            _validate_view_op(op)
+            continue
         _validate_op(op.op, op.target_id, op.payload)
         _load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id)
 
+    created: list[tuple[str, uuid.UUID]] = []
     for op in reversed(ops):
-        if op.op == OP_CREATE:
-            session.delete(_load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id))
+        if op.op == OP_VIEW:
+            _restore_view(session, cs, op, owner_id=owner_id)
+        elif op.op == OP_CREATE:
+            created.append((_op_kind(op), _op_target(op)))
         elif op.op == OP_UPDATE:
             element = _load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id)
             for field, value in op.payload.get("before", {}).items():
@@ -372,6 +481,7 @@ def reject_changeset(
         elif op.op == OP_DELETE:
             pass  # 草稿阶段没真删
 
+    _delete_elements(session, created, owner_id=owner_id)
     cs.status = REJECTED
     session.flush()
     return cs

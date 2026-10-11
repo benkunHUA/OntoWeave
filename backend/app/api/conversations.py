@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
@@ -12,7 +12,7 @@ from app.schemas.conversation import (
     ConversationRead,
     ConversationUpdate,
 )
-from app.services import conversation
+from app.services import conversation, graph_cleanup
 
 router = APIRouter(tags=["conversations"])
 
@@ -60,6 +60,27 @@ def rename_conversation(
         owner_id=get_current_user_id(),
     )
     return ConversationRead.model_validate(conv)
+
+
+@router.delete("/conversations/{conversation_id}", status_code=204)
+def delete_conversation(
+    conversation_id: uuid.UUID,
+    scope: graph_cleanup.DeleteScope = Query(
+        graph_cleanup.DEFAULT_DELETE_SCOPE,
+        description=(
+            "共享池清理范围：graph-only 只删图；graph-and-drafts 连本图草稿一起删；"
+            "graph-and-unreferenced 连没被其它图引用的元素一起删。"
+        ),
+    ),
+    session: Session = Depends(get_session),
+) -> Response:
+    conversation.delete_conversation(
+        session,
+        conversation_id,
+        owner_id=get_current_user_id(),
+        scope=scope,
+    )
+    return Response(status_code=204)
 
 
 @router.get(

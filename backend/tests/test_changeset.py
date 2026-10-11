@@ -472,3 +472,34 @@ def test_record_op_waits_for_the_changeset_lock(engine):
         with factory() as cleanup:
             cleanup.execute(delete(Graph).where(Graph.id == graph_id))
             cleanup.commit()
+
+
+def test_deleting_a_type_and_its_children_does_not_double_delete(session):
+    """同一次改动里既新建对象类型、又新建它上面的关系和属性，撤销/确认时删一遍就够。
+
+    库里 relation / property 对 object_type 是 ON DELETE CASCADE：先删父行的话
+    子行会被级联带走，ORM 再删一次就是 0 匹配。分阶段「先子后父」就不会。
+    """
+    import warnings
+
+    from sqlalchemy.exc import SAWarning
+
+    owner = uuid.uuid4()
+    cs = changeset.create_changeset(
+        session, graph_id=conversation.create_conversation(session, owner_id=owner).graph_id
+    )
+    spot = ontology.create_object_type(session, owner_id=owner, name="景点")
+    trip = ontology.create_object_type(session, owner_id=owner, name="行程")
+    rel = ontology.create_relation(
+        session, owner_id=owner, source_type_id=trip.id, target_type_id=spot.id, name="包含"
+    )
+    prop = ontology.create_property(session, owner_type_id=spot.id, name="描述")
+    for target, kind in ((spot.id, "object_type"), (rel.id, "relation"), (prop.id, "property")):
+        changeset.record_op(
+            session, changeset_id=cs.id, op="create", target_id=target, payload={"kind": kind}
+        )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SAWarning)
+        changeset.reject_changeset(session, cs.id, owner_id=owner)
+        session.flush()
