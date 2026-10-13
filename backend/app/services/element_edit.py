@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError
 from app.models import Changeset, ChangesetOp, Property
-from app.services import changeset, embedding, ontology
+from app.services import changeset, element_kinds, embedding, ontology
 from app.vocabulary import DEFAULT_DATATYPE
 
 OBJECT_TYPE = "object_type"
@@ -143,11 +143,10 @@ def record_update(
 def _validate_patch(
     session: Session, *, element_kind: str, element_id: uuid.UUID, patch: dict
 ) -> None:
-    """更新前的语义校验：属性类型 / 主键唯一的规则放领域层，别漏在接口后面。"""
-    if element_kind == PROPERTY:
-        ontology.validate_property_patch(session, property_id=element_id, patch=patch)
-    elif element_kind == RELATION:
-        ontology.validate_relation_patch(session, relation_id=element_id, patch=patch)
+    """更新前的语义校验走元素种类注册表，规则在各自领域层，别漏在接口后面。"""
+    entry = element_kinds.REGISTRY.get(element_kind)
+    if entry is not None and entry.validate_patch is not None:
+        entry.validate_patch(session, element_id, patch)
 
 
 def create_property(

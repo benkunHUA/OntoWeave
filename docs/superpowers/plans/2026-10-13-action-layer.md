@@ -45,10 +45,10 @@
 
 **Files:** `services/element_kinds.py`（新）、`services/object_type.py` `property.py` `relation.py`（新）、`services/ontology.py`（改门面）、`services/changeset.py`、`services/element_edit.py`。
 
-- [ ] 把 `ontology.py` 的对象 / 属性 / 关系三块拆成三个模块，`ontology.py` 只转发。
-- [ ] 建 `element_kinds.py`：kind → 模型 / 可还原字段 / owner 解析 / 校验器 / 删除策略。
-- [ ] `changeset.py` 与 `element_edit.py` 改为查注册表，删掉按 kind 的散落分支。
-- [ ] 全量测试通过，行为不变。
+- [x] 把 `ontology.py` 的对象 / 属性 / 关系三块拆成三个模块，`ontology.py` 只转发。
+- [x] 建 `element_kinds.py`：kind → 模型 / 可还原字段 / owner 解析 / 校验器 / 删除策略。
+- [x] `changeset.py` 与 `element_edit.py` 改为查注册表，删掉按 kind 的散落分支。
+- [x] 全量测试通过，行为不变。
 
 ## Phase 2 · 动作定义层（后端）
 

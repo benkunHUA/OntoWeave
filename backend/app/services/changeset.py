@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
-from app.models import Changeset, ChangesetOp, ObjectType, Property, Relation
-from app.services import graph, ontology, view_state
+from app.models import Changeset, ChangesetOp
+from app.services import element_kinds, graph, ontology, view_state
 
 OPEN = "open"
 CONFIRMED = "confirmed"
@@ -20,28 +20,6 @@ OP_DELETE = "delete"
 OP_VIEW = "view"
 VALID_OPS = {OP_CREATE, OP_UPDATE, OP_DELETE}
 VIEW_KIND = "view"
-
-_ELEMENT_MODELS = {
-    "object_type": ObjectType,
-    "relation": Relation,
-    "property": Property,
-}
-
-# 撤销时允许还原的字段白名单。key 是元素种类，值是字段集合。
-# 不在白名单里的键一律拒绝——否则调用方可以通过 payload 把 id、owner_id、
-# status 这类字段写回去，绕过状态机。
-_RESTORABLE_FIELDS = {
-    "object_type": {"name", "description"},
-    "property": {"name", "datatype", "required", "is_array", "is_primary_key", "is_title_key"},
-    "relation": {
-        "name",
-        "direction",
-        "cardinality",
-        "forward_label",
-        "reverse_label",
-        "foreign_key_property_id",
-    },
-}
 
 
 def _json_safe(value: object) -> object:
@@ -230,9 +208,10 @@ def record_update(
     owner_id: uuid.UUID | None = None,
 ) -> ChangesetOp:
     """记录字段更新：调用方只给 patch，服务层负责采集 before 并应用 after。"""
-    allowed = _RESTORABLE_FIELDS.get(element_kind)
-    if allowed is None:
+    entry = element_kinds.REGISTRY.get(element_kind)
+    if entry is None:
         raise InvariantViolationError(f"unsupported element kind: {element_kind!r}")
+    allowed = entry.restorable_fields
     if not patch:
         raise InvariantViolationError("update requires at least one patched field")
     unknown = set(patch) - allowed
@@ -316,7 +295,7 @@ def _validate_op(op: str, target_id: uuid.UUID | None, payload: dict) -> None:
     if target_id is None:
         raise InvariantViolationError(f"changeset op {op!r} requires a target id")
     kind = payload.get("kind")
-    if kind not in _ELEMENT_MODELS:
+    if kind not in element_kinds.REGISTRY:
         raise InvariantViolationError(
             f"changeset op {op!r} requires a known target kind, got {kind!r}"
         )
@@ -331,7 +310,7 @@ def _validate_op(op: str, target_id: uuid.UUID | None, payload: dict) -> None:
             raise InvariantViolationError(
                 "update 'before' and 'after' snapshots must contain the same fields"
             )
-        unknown = set(before) - _RESTORABLE_FIELDS[kind]
+        unknown = set(before) - element_kinds.REGISTRY[kind].restorable_fields
         if unknown:
             raise InvariantViolationError(
                 f"changeset op cannot restore fields {sorted(unknown)} on {kind}"
@@ -352,12 +331,10 @@ def _op_target(op: ChangesetOp) -> uuid.UUID:
 
 
 def _element_owner_id(session: Session, kind: str, element) -> uuid.UUID | None:
-    if hasattr(element, "owner_id"):
-        return element.owner_id
-    if kind == "property":
-        owner_type = session.get(ObjectType, element.owner_type_id)
-        return owner_type.owner_id if owner_type is not None else None
-    return None
+    entry = element_kinds.REGISTRY.get(kind)
+    if entry is None:
+        return None
+    return entry.load_owner_id(session, element)
 
 
 def _load_element(
@@ -367,10 +344,10 @@ def _load_element(
     *,
     owner_id: uuid.UUID | None = None,
 ):
-    model = _ELEMENT_MODELS.get(kind)
-    if model is None:
+    entry = element_kinds.REGISTRY.get(kind)
+    if entry is None:
         raise InvariantViolationError(f"unsupported changeset op target: {kind!r}")
-    element = session.get(model, element_id)
+    element = session.get(entry.model, element_id)
     if element is None:
         raise NotFoundError(f"{kind} {element_id} not found")
     if owner_id is not None and _element_owner_id(session, kind, element) != owner_id:
@@ -385,20 +362,10 @@ def _promote(
     *,
     owner_id: uuid.UUID | None = None,
 ) -> None:
-    if kind == "object_type":
-        ontology.transition_object_type(session, element_id, "confirmed", owner_id=owner_id)
-    elif kind == "relation":
-        ontology.transition_relation(session, element_id, "confirmed", owner_id=owner_id)
-    elif kind == "property":
-        ontology.transition_property(session, element_id, "confirmed", owner_id=owner_id)
-    else:
+    entry = element_kinds.REGISTRY.get(kind)
+    if entry is None:
         raise InvariantViolationError(f"unsupported changeset op target: {kind!r}")
-
-
-# 删除时的阶段顺序：先子后父。relation / property 对 object_type 都是
-# ON DELETE CASCADE——先删父行的话，数据库会把子行一起带走，ORM 再删一次就是
-# 0 匹配（SAWarning）。按种类分阶段、每阶段 flush 一次，把 DELETE 顺序钉死。
-_DELETE_PHASE_ORDER = ("relation", "property", "object_type")
+    entry.promote(session, element_id, owner_id=owner_id)
 
 
 def _delete_elements(
@@ -407,8 +374,14 @@ def _delete_elements(
     *,
     owner_id: uuid.UUID | None = None,
 ) -> None:
-    """按「先子后父」删除一批元素，顺序稳定、不重复删被级联带走的行。"""
-    for kind in _DELETE_PHASE_ORDER:
+    """按「先子后父」删除一批元素，顺序稳定、不重复删被级联带走的行。
+
+    子元素对父元素是 ON DELETE CASCADE——先删父行的话数据库会把子行一起带走，
+    ORM 再删一次就是 0 匹配（SAWarning）。删除顺序由注册表的 delete_phase 决定，
+    每阶段 flush 一次，把 DELETE 顺序钉死。
+    """
+    phases = {kind: element_kinds.REGISTRY[kind].delete_phase for kind, _ in elements}
+    for kind in sorted(phases, key=lambda item: phases[item]):
         pending = [
             (element_kind, element_id)
             for element_kind, element_id in elements
@@ -533,6 +506,5 @@ def reject_changeset(
     return cs
 
 
-# 工具层要复用这两样：可还原字段白名单、元素加载器（含归属校验）。
-RESTORABLE_FIELDS = _RESTORABLE_FIELDS
+# 工具层要复用元素加载器（含归属校验）。
 load_element = _load_element
