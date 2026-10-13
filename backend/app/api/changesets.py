@@ -8,13 +8,18 @@ from sqlalchemy.orm import Session
 from app.agent import thread
 from app.config import get_settings
 from app.deps import get_agent_checkpointer, get_current_user_id, get_session
+from app.models import Changeset
 from app.schemas.changeset import (
     ChangesetDetail,
     ChangesetOpCreate,
     ChangesetOpRead,
     ChangesetRead,
+    CreatePropertyEdit,
+    DeleteEdit,
+    GraphEditsCreate,
+    UpdateEdit,
 )
-from app.services import changeset, changeset_review, embedding
+from app.services import changeset, changeset_review, element_edit, embedding
 
 router = APIRouter(tags=["changesets"])
 
@@ -42,13 +47,72 @@ def list_changesets(
     return [ChangesetRead.model_validate(item) for item in items]
 
 
+def _detail(session: Session, cs: Changeset) -> ChangesetDetail:
+    ops = [ChangesetOpRead.model_validate(op) for op in changeset.list_ops(session, cs.id)]
+    return ChangesetDetail(id=cs.id, graph_id=cs.graph_id, status=cs.status, ops=ops)
+
+
 @router.get("/changesets/{changeset_id}", response_model=ChangesetDetail)
 def get_changeset(
     changeset_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ChangesetDetail:
     cs = changeset.get_changeset(session, changeset_id, owner_id=get_current_user_id())
-    ops = [ChangesetOpRead.model_validate(op) for op in changeset.list_ops(session, cs.id)]
-    return ChangesetDetail(id=cs.id, graph_id=cs.graph_id, status=cs.status, ops=ops)
+    return _detail(session, cs)
+
+
+def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
+    """把请求里的编辑转成服务层的操作对象。接口层只做这层形态转换。"""
+    ops: list[element_edit.EditOp] = []
+    for edit in payload.edits:
+        if isinstance(edit, UpdateEdit):
+            ops.append(
+                element_edit.ElementUpdate(
+                    element_kind=edit.element_kind,
+                    element_id=edit.element_id,
+                    patch=edit.patch,
+                )
+            )
+        elif isinstance(edit, CreatePropertyEdit):
+            ops.append(
+                element_edit.PropertyCreate(
+                    owner_type_id=edit.owner_type_id,
+                    name=edit.name,
+                    datatype=edit.datatype,
+                    required=edit.required,
+                    is_array=edit.is_array,
+                    is_primary_key=edit.is_primary_key,
+                    is_title_key=edit.is_title_key,
+                )
+            )
+        elif isinstance(edit, DeleteEdit):
+            ops.append(
+                element_edit.ElementDelete(
+                    element_kind=edit.element_kind,
+                    element_id=edit.element_id,
+                )
+            )
+    return ops
+
+
+@router.post("/graphs/{graph_id}/edits", response_model=ChangesetDetail)
+def edit_graph_elements(
+    graph_id: uuid.UUID,
+    payload: GraphEditsCreate,
+    session: Session = Depends(get_session),
+) -> ChangesetDetail:
+    """抽屉里的表单保存：把对象/字段的编辑登记进未定稿的改动集。
+
+    支持改名/改类型、新增字段、删除字段。没有改动集就顺手建一个，界面不必
+    先手动开一个改动集。返回改动集详情，前端据此刷新「改动待确认」那一条。
+    """
+    cs = element_edit.apply_edits(
+        session,
+        graph_id=graph_id,
+        ops=_edit_ops(payload),
+        owner_id=get_current_user_id(),
+        embedder=_request_embedder(),
+    )
+    return _detail(session, cs)
 
 
 @router.post("/changesets/{changeset_id}/ops", response_model=ChangesetOpRead, status_code=201)

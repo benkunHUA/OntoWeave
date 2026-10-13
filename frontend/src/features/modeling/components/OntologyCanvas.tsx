@@ -7,6 +7,7 @@ import {
   useNodesState,
   useReactFlow,
   type Edge,
+  type EdgeMouseHandler,
   type NodeMouseHandler,
 } from '@xyflow/react'
 import {
@@ -29,7 +30,9 @@ interface OntologyCanvasProps {
   viewSpec: ViewSpec
   changeset: Changeset | null
   selectedNodeId: string | null
+  selectedRelationId: string | null
   onSelectNode: (nodeId: string | null) => void
+  onSelectRelation: (relationId: string | null) => void
   onLayoutChange: (kind: NonNullable<ViewSpec['layout']>['kind']) => void
   onMoveNode: (nodeId: string, x: number, y: number) => void
   onSaveView: () => void
@@ -40,7 +43,9 @@ function CanvasInner({
   viewSpec,
   changeset,
   selectedNodeId,
+  selectedRelationId,
   onSelectNode,
+  onSelectRelation,
   onLayoutChange,
   onMoveNode,
   onSaveView,
@@ -58,12 +63,35 @@ function CanvasInner({
         selected: node.id === selectedNodeId,
       })),
     )
-    setEdges(elements.edges)
+    setEdges(
+      elements.edges.map((edge) => {
+        if (edge.id !== selectedRelationId) return { ...edge, selected: false }
+        // 选中态加粗提亮，盖过 flow.ts 里的常规描边。
+        return {
+          ...edge,
+          selected: true,
+          style: { ...edge.style, stroke: '#9dc0ff', strokeWidth: 3 },
+        }
+      }),
+    )
     window.setTimeout(() => fitView({ padding: 0.2, duration: 320 }), 0)
-  }, [snapshot, viewSpec, changeset, selectedNodeId, setNodes, setEdges, fitView])
+  }, [
+    snapshot,
+    viewSpec,
+    changeset,
+    selectedNodeId,
+    selectedRelationId,
+    setNodes,
+    setEdges,
+    fitView,
+  ])
 
   const handleNodeClick: NodeMouseHandler<OntologyFlowNode> = (_, node) => {
     onSelectNode(node.id)
+  }
+
+  const handleEdgeClick: EdgeMouseHandler = (_, edge) => {
+    onSelectRelation(edge.id)
   }
 
   const draftCount =
@@ -112,6 +140,7 @@ function CanvasInner({
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onNodeClick={handleNodeClick}
+              onEdgeClick={handleEdgeClick}
               onPaneClick={() => onSelectNode(null)}
               onNodeDragStop={(_, node) =>
                 onMoveNode(node.id, node.position.x, node.position.y)

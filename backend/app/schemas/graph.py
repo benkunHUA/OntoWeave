@@ -31,6 +31,9 @@ class GraphPropertyRead(BaseModel):
     name: str
     datatype: str
     required: bool
+    is_array: bool
+    is_primary_key: bool
+    is_title_key: bool
     status: str
 
 
@@ -52,6 +55,9 @@ class GraphRelationRead(BaseModel):
     source_type_id: uuid.UUID
     target_type_id: uuid.UUID
     direction: str
+    cardinality: str
+    forward_label: str | None
+    reverse_label: str | None
     status: str
 
 

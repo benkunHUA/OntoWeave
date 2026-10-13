@@ -26,6 +26,9 @@ export interface GraphProperty {
   name: string
   datatype: string
   required: boolean
+  is_array: boolean
+  is_primary_key: boolean
+  is_title_key: boolean
   status: Status
 }
 
@@ -43,8 +46,46 @@ export interface GraphRelation {
   source_type_id: string
   target_type_id: string
   direction: string
+  cardinality: string
+  forward_label: string | null
+  reverse_label: string | null
   status: Status
 }
+
+/** 抽屉里能直接编辑的元素类型：对象、字段与关系。 */
+export type EditableElementKind = 'object_type' | 'property' | 'relation'
+
+/** 改已有元素：只带真正变了的字段。 */
+export interface ElementUpdateEdit {
+  op: 'update'
+  element_kind: EditableElementKind
+  element_id: string
+  patch: Record<string, string | null | boolean>
+}
+
+/** 给对象类型新增一个字段。 */
+export interface PropertyCreateEdit {
+  op: 'create_property'
+  owner_type_id: string
+  name: string
+  datatype: string
+  is_array: boolean
+  is_primary_key: boolean
+  is_title_key: boolean
+}
+
+/** 标记删除一个元素（抽屉里只删字段）。 */
+export interface ElementDeleteEdit {
+  op: 'delete'
+  element_kind: EditableElementKind
+  element_id: string
+}
+
+/** 抽屉一次保存里的全部编辑，整批落进同一个改动集。 */
+export type GraphEditOp =
+  | ElementUpdateEdit
+  | PropertyCreateEdit
+  | ElementDeleteEdit
 
 export interface GraphSnapshot {
   graph: {

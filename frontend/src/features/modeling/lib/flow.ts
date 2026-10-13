@@ -1,6 +1,7 @@
 import dagre from '@dagrejs/dagre'
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react'
 import type { Changeset, GraphSnapshot, ViewSpec } from '../../../shared/types'
+import { cardinalityMark, relationEdgeLabel } from './relationDetails'
 
 export interface OntologyNodeData extends Record<string, unknown> {
   label: string
@@ -247,7 +248,7 @@ export function buildFlowElements(
         id: relation.id,
         source: relation.source_type_id,
         target: relation.target_type_id,
-        label: relation.name,
+        label: `${relationEdgeLabel(relation)} · ${cardinalityMark(relation.cardinality)}`,
         type: 'default',
         markerEnd: { type: MarkerType.ArrowClosed },
         animated: draft,

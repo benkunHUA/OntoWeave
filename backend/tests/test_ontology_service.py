@@ -3,7 +3,7 @@ import uuid
 import pytest
 from sqlalchemy import select
 
-from app.errors import InvalidTransitionError, NotFoundError
+from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
 from app.models import Relation
 from app.services import ontology
 
@@ -56,7 +56,7 @@ def test_list_object_types(session):
 def test_create_property_requires_existing_owner(session):
     obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
     prop = ontology.create_property(
-        session, owner_type_id=obj.id, name="数量", datatype="int", required=True
+        session, owner_type_id=obj.id, name="数量", datatype="integer", required=True
     )
     assert prop.name == "数量"
     assert prop.required is True
@@ -65,7 +65,9 @@ def test_create_property_requires_existing_owner(session):
 
 def test_create_property_rejects_unknown_owner(session):
     with pytest.raises(NotFoundError):
-        ontology.create_property(session, owner_type_id=uuid.uuid4(), name="数量", datatype="int")
+        ontology.create_property(
+            session, owner_type_id=uuid.uuid4(), name="数量", datatype="integer"
+        )
 
 
 def test_create_relation_requires_both_endpoints(session):
@@ -176,3 +178,63 @@ def test_relation_cannot_skip_confirmed(session):
 def test_missing_relation_raises(session):
     with pytest.raises(NotFoundError):
         ontology.transition_relation(session, uuid.uuid4(), "confirmed")
+
+
+def test_create_property_rejects_unknown_datatype(session):
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    with pytest.raises(InvariantViolationError):
+        ontology.create_property(session, owner_type_id=obj.id, name="数量", datatype="int")
+
+
+def test_create_property_defaults_and_flags(session):
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    prop = ontology.create_property(
+        session,
+        owner_type_id=obj.id,
+        name="订单号",
+        is_array=False,
+        is_primary_key=True,
+        is_title_key=True,
+    )
+    assert prop.datatype == "text"
+    assert prop.is_primary_key is True
+    assert prop.is_title_key is True
+
+
+def test_object_type_allows_only_one_primary_key(session):
+    obj = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    ontology.create_property(session, owner_type_id=obj.id, name="订单号", is_primary_key=True)
+    with pytest.raises(InvariantViolationError):
+        ontology.create_property(session, owner_type_id=obj.id, name="备选号", is_primary_key=True)
+
+
+def test_create_relation_carries_cardinality_and_labels(session):
+    customer = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    order = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    rel = ontology.create_relation(
+        session,
+        owner_id=uuid.uuid4(),
+        source_type_id=customer.id,
+        target_type_id=order.id,
+        name="下订单",
+        cardinality="one_to_many",
+        forward_label="订单",
+        reverse_label="客户",
+    )
+    assert rel.cardinality == "one_to_many"
+    assert rel.forward_label == "订单"
+    assert rel.reverse_label == "客户"
+
+
+def test_create_relation_rejects_unknown_cardinality(session):
+    customer = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    order = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    with pytest.raises(InvariantViolationError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=order.id,
+            name="下订单",
+            cardinality="lots",
+        )

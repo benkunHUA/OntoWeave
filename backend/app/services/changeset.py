@@ -32,8 +32,8 @@ _ELEMENT_MODELS = {
 # status 这类字段写回去，绕过状态机。
 _RESTORABLE_FIELDS = {
     "object_type": {"name", "description"},
-    "property": {"name", "datatype", "required"},
-    "relation": {"name", "direction"},
+    "property": {"name", "datatype", "required", "is_array", "is_primary_key", "is_title_key"},
+    "relation": {"name", "direction", "cardinality", "forward_label", "reverse_label"},
 }
 
 
@@ -97,6 +97,28 @@ def list_changesets(
             .offset(offset)
         )
     )
+
+
+def get_open_changeset(
+    session: Session, *, graph_id: uuid.UUID, owner_id: uuid.UUID | None = None
+) -> Changeset | None:
+    """图上当前未定稿的改动集。同一时刻最多只该有一个，取最新的那个。"""
+    graph.get_graph(session, graph_id, owner_id=owner_id)
+    return session.scalar(
+        select(Changeset)
+        .where(Changeset.graph_id == graph_id, Changeset.status == OPEN)
+        .order_by(Changeset.created_at.desc(), Changeset.id)
+    )
+
+
+def ensure_open_changeset(
+    session: Session, *, graph_id: uuid.UUID, owner_id: uuid.UUID | None = None
+) -> Changeset:
+    """取未定稿的改动集，没有就新建一个。界面编辑要有地方落，不必先手动建。"""
+    cs = get_open_changeset(session, graph_id=graph_id, owner_id=owner_id)
+    if cs is not None:
+        return cs
+    return create_changeset(session, graph_id=graph_id, owner_id=owner_id)
 
 
 def list_ops(session: Session, changeset_id: uuid.UUID) -> list[ChangesetOp]:

@@ -25,12 +25,15 @@ def test_property_belongs_to_object_type(session):
     session.add(obj)
     session.flush()
 
-    prop = Property(owner_type_id=obj.id, name="数量", datatype="int")
+    prop = Property(owner_type_id=obj.id, name="数量", datatype="integer")
     session.add(prop)
     session.flush()
 
     assert prop.id is not None
     assert prop.required is False
+    assert prop.is_array is False
+    assert prop.is_primary_key is False
+    assert prop.is_title_key is False
     assert prop.status == "draft"
 
 
@@ -52,6 +55,9 @@ def test_relation_connects_two_object_types(session):
     assert rel.id is not None
     assert rel.status == "draft"
     assert rel.direction == "forward"
+    assert rel.cardinality == "many_to_many"
+    assert rel.forward_label is None
+    assert rel.reverse_label is None
 
 
 def test_non_null_columns_have_db_level_defaults(session):

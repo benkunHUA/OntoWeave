@@ -40,12 +40,27 @@ ONTOLOGY_TOOLS = [
     ToolSpec(
         name="propose_property",
         description="给对象类型加属性。",
-        parameters={"owner_type_id": "uuid", "name": "str", "datatype": "str"},
+        parameters={
+            "owner_type_id": "uuid",
+            "name": "str",
+            "datatype": "str",
+            "required": "bool",
+            "is_array": "bool",
+            "is_primary_key": "bool",
+            "is_title_key": "bool",
+        },
     ),
     ToolSpec(
         name="propose_relation",
         description="加一条关系，两端必须都已存在。",
-        parameters={"source_type_id": "uuid", "target_type_id": "uuid", "name": "str"},
+        parameters={
+            "source_type_id": "uuid",
+            "target_type_id": "uuid",
+            "name": "str",
+            "cardinality": "str",
+            "forward_label": "str | None",
+            "reverse_label": "str | None",
+        },
     ),
     ToolSpec(
         name="update_element",

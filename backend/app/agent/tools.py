@@ -15,6 +15,7 @@ from app.agent import ontology_tools, view_tools
 from app.errors import NotFoundError
 from app.models import ObjectType, Relation
 from app.services import changeset, embedding, graph, view_state
+from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
 
 VIEW_AGENT_PROMPT = """你是 OntoWeave 的绘图子智能体，只决定本体图怎么呈现。
 
@@ -129,9 +130,17 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("propose_property")
     def propose_property(
-        owner_type_id: str, name: str, datatype: str = "text", required: bool = False
+        owner_type_id: str,
+        name: str,
+        datatype: str = DEFAULT_DATATYPE,
+        required: bool = False,
+        is_array: bool = False,
+        is_primary_key: bool = False,
+        is_title_key: bool = False,
     ) -> dict:
-        """给对象类型加属性。用户明确列出的属性和字段逐项用它，不要改成关系。"""
+        """给对象类型加属性。datatype 取 text/integer/decimal/boolean/date/timestamp；
+        is_array 表示多值，is_primary_key/is_title_key 各类型至多一个。
+        用户明确列出的属性和字段逐项用它，不要改成关系。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_property(
@@ -142,14 +151,25 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 name=name,
                 datatype=datatype,
                 required=required,
+                is_array=is_array,
+                is_primary_key=is_primary_key,
+                is_title_key=is_title_key,
             ),
         )
 
     @tool("propose_relation")
     def propose_relation(
-        source_type_id: str, target_type_id: str, name: str, direction: str = "forward"
+        source_type_id: str,
+        target_type_id: str,
+        name: str,
+        cardinality: str = DEFAULT_CARDINALITY,
+        forward_label: str | None = None,
+        reverse_label: str | None = None,
+        direction: str = "forward",
     ) -> dict:
-        """加一条关系，只在用户明确要求关系或确认后才能使用；两端必须都已存在。"""
+        """加一条关系，只在用户明确要求关系或确认后才能使用；两端必须都已存在。
+        cardinality 取 one_to_one/one_to_many/many_to_many；
+        forward_label / reverse_label 是源端与目标端各自的可读名（如 客户—下订单→订单）。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_relation(
@@ -160,6 +180,9 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 target_type_id=uuid.UUID(target_type_id),
                 name=name,
                 direction=direction,
+                cardinality=cardinality,
+                forward_label=forward_label,
+                reverse_label=reverse_label,
             ),
         )
 
@@ -346,6 +369,9 @@ def build_view_tools(ctx: ToolContext) -> list[BaseTool]:
                         "source_type_id": str(relation.source_type_id),
                         "target_type_id": str(relation.target_type_id),
                         "direction": relation.direction,
+                        "cardinality": relation.cardinality,
+                        "forward_label": relation.forward_label,
+                        "reverse_label": relation.reverse_label,
                         "status": relation.status,
                     }
                     for relation in connected

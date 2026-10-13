@@ -1,0 +1,276 @@
+/* 详情抽屉（NodeDrawer / RelationDrawer）：贴在图画布右侧的可编辑表单面板。 */
+
+.drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: min(360px, 100%);
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.42);
+  animation: drawer-in 180ms ease;
+}
+
+@keyframes drawer-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.drawer__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.drawer__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  line-height: 0;
+  border-radius: 9px;
+  color: var(--blue-ink);
+  background: var(--blue-soft);
+}
+
+.drawer__heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  /* 不加这句，grid 子项默认 stretch，状态胶囊会被拉成整条。 */
+  justify-items: start;
+}
+
+.drawer__heading strong {
+  overflow: hidden;
+  color: #f0f0f0;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer__form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.drawer__field {
+  display: grid;
+  gap: 7px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drawer__field input,
+.drawer__field textarea,
+.drawer__field select {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #3a3a3a;
+  border-radius: 9px;
+  color: var(--ink);
+  background: #2e2e2e;
+  font-weight: 400;
+  resize: vertical;
+}
+
+/* 关系抽屉：源端 / 目标端的只读展示。 */
+.drawer__endpoints {
+  display: grid;
+  gap: 6px;
+}
+.drawer__endpoint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: #2a2a2a;
+  font-size: 12px;
+}
+.drawer__endpoint span {
+  color: var(--faint);
+}
+.drawer__endpoint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* 左对齐的危险动作（删除关系）：图标按钮，靠 margin-right 把保存那组顶到右侧。 */
+.drawer__danger {
+  margin-right: auto;
+  border-color: rgba(255, 112, 112, 0.35);
+  color: var(--red);
+}
+.drawer__danger:hover {
+  border-color: rgba(255, 112, 112, 0.55);
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.drawer__fields {
+  display: grid;
+  gap: 8px;
+}
+
+.drawer__fields-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drawer__fields h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.drawer__fields h4 em {
+  color: var(--faint);
+  font-style: normal;
+}
+
+.field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-row__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px auto auto;
+  align-items: center;
+  gap: 8px;
+}
+.field-row__flags {
+  display: flex;
+  gap: 6px;
+  padding-left: 2px;
+}
+.field-row__flag {
+  padding: 2px 8px;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  color: var(--faint);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+.field-row__flag.is-on {
+  border-color: rgba(76, 141, 255, 0.5);
+  color: #cfe0ff;
+  background: rgba(76, 141, 255, 0.16);
+}
+
+.field-row__name,
+.field-row__type {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: var(--ink);
+  background: #2e2e2e;
+}
+
+.field-row__name {
+  width: 100%;
+}
+
+.field-row__required {
+  color: var(--amber-ink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.field-row__remove {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--faint);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.field-row__remove:hover {
+  border-color: rgba(255, 112, 112, 0.35);
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.drawer__empty {
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.drawer__error {
+  color: var(--red);
+  font-size: 12px;
+}
+
+.drawer__hint {
+  color: var(--amber-ink);
+  font-size: 12px;
+}
+
+.drawer__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* 按钮不压缩、不折行；一行放不下就整体换行，而不是把文字挤成竖排。 */
+.drawer__footer > * {
+  flex: 0 0 auto;
+}
+
+.drawer__footer .secondary-button,
+.drawer__footer .primary-button {
+  white-space: nowrap;
+}
+
+.drawer__pending {
+  color: var(--faint);
+  font-size: 11px;
+}

@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import ObjectType, Relation
-from app.services import changeset, embedding, graph, ontology
+from app.services import changeset, element_edit, embedding, graph, ontology
+from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
 
 
 def _type_brief(obj: ObjectType) -> dict:
@@ -82,6 +83,7 @@ def get_subgraph(
                 "source_type_id": str(rel.source_type_id),
                 "target_type_id": str(rel.target_type_id),
                 "direction": rel.direction,
+                "cardinality": rel.cardinality,
             }
             for rel in connected
         ],
@@ -151,30 +153,32 @@ def propose_property(
     owner_id: uuid.UUID,
     owner_type_id: uuid.UUID,
     name: str,
-    datatype: str = "text",
+    datatype: str = DEFAULT_DATATYPE,
     required: bool = False,
+    is_array: bool = False,
+    is_primary_key: bool = False,
+    is_title_key: bool = False,
 ) -> dict:
-    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
-    changeset.load_element(session, "object_type", owner_type_id, owner_id=owner_id)
-    prop = ontology.create_property(
+    prop = element_edit.create_property(
         session,
+        changeset_id=changeset_id,
+        owner_id=owner_id,
         owner_type_id=owner_type_id,
         name=name,
         datatype=datatype,
         required=required,
-    )
-    changeset.record_op(
-        session,
-        changeset_id=changeset_id,
-        op="create",
-        target_id=prop.id,
-        payload={"kind": "property"},
+        is_array=is_array,
+        is_primary_key=is_primary_key,
+        is_title_key=is_title_key,
     )
     return {
         "id": str(prop.id),
         "name": prop.name,
         "datatype": prop.datatype,
         "required": prop.required,
+        "is_array": prop.is_array,
+        "is_primary_key": prop.is_primary_key,
+        "is_title_key": prop.is_title_key,
         "status": prop.status,
     }
 
@@ -188,6 +192,9 @@ def propose_relation(
     target_type_id: uuid.UUID,
     name: str,
     direction: str = "forward",
+    cardinality: str = DEFAULT_CARDINALITY,
+    forward_label: str | None = None,
+    reverse_label: str | None = None,
     home_graph_id: uuid.UUID | None = None,
 ) -> dict:
     cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
@@ -202,6 +209,9 @@ def propose_relation(
         target_type_id=target_type_id,
         name=name,
         direction=direction,
+        cardinality=cardinality,
+        forward_label=forward_label,
+        reverse_label=reverse_label,
         home_graph_id=home_graph_id or cs.graph_id,
     )
     graph.add_relation_to_graph(session, cs.graph_id, rel.id, owner_id=owner_id)
@@ -217,6 +227,9 @@ def propose_relation(
         "name": rel.name,
         "source_type_id": str(rel.source_type_id),
         "target_type_id": str(rel.target_type_id),
+        "cardinality": rel.cardinality,
+        "forward_label": rel.forward_label,
+        "reverse_label": rel.reverse_label,
         "status": rel.status,
     }
 
@@ -231,23 +244,18 @@ def update_element(
     patch: dict,
     embedder: embedding.Embedder,
 ) -> dict:
-    """改已有元素。服务层采集 before、校验当前值并应用 after。
-
-    对象类型的名称/描述是向量检索的输入，改完要重算 embedding，
-    否则检索到的还是旧语义（相似度、命中结果都会失真）。
+    """改已有元素。服务层采集 before、校验当前值并应用 after；名称/描述变了顺带
+    刷新检索向量，否则检索到的还是旧语义（相似度、命中结果都会失真）。
     """
-    op = changeset.record_update(
+    op = element_edit.record_update(
         session,
         changeset_id=changeset_id,
         element_kind=element_kind,
         element_id=element_id,
         patch=patch,
         owner_id=owner_id,
+        embedder=embedder,
     )
-    if element_kind == "object_type" and {"name", "description"} & set(patch):
-        embedding.try_refresh_object_type_embedding(
-            session, object_type_id=element_id, embedder=embedder
-        )
     return {
         "id": str(element_id),
         "patched": sorted(op.payload["after"]),
@@ -265,13 +273,11 @@ def remove_element(
     element_id: uuid.UUID,
 ) -> dict:
     """标记删除。草稿阶段不真删，确认时才删——对应界面上的幽灵态。"""
-    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
-    changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
-    changeset.record_op(
+    element_edit.remove_element(
         session,
         changeset_id=changeset_id,
-        op="delete",
-        target_id=element_id,
-        payload={"kind": element_kind},
+        element_kind=element_kind,
+        element_id=element_id,
+        owner_id=owner_id,
     )
     return {"id": str(element_id), "marked_for_deletion": True}

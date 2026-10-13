@@ -27,6 +27,7 @@ import {
   confirmChangeset,
   createConversation,
   deleteConversation,
+  editGraphElements,
   getChangeset,
   getConversation,
   getGraphSnapshot,
@@ -44,13 +45,25 @@ import { RenameConversationDialog } from '../components/dialogs/RenameConversati
 import { ChangesetBar } from '../components/ChangesetBar'
 import { ChatNotice } from '../components/ChatNotice'
 import { InterruptCard } from '../components/InterruptCard'
+import { NodeDrawer, type NodeDrawerSubmit } from '../components/NodeDrawer'
 import { OntologyCanvas } from '../components/OntologyCanvas'
+import { RelationDrawer } from '../components/RelationDrawer'
 import { MarkdownText } from '../components/MarkdownText'
 import { ThinkingBlock } from '../components/ThinkingBlock'
 import { ToolCallBlock } from '../components/ToolCallBlock'
 import { formatOpSummary, hasPendingOntologyChanges } from '../lib/changesetSummary'
 import { DEFAULT_DELETE_SCOPE } from '../lib/deleteScopes'
 import { INTERRUPT_PLACEHOLDER } from '../lib/interruptCopy'
+import {
+  buildElementEdits,
+  pendingPropertyDeleteIds,
+  type NodeDraft,
+} from '../lib/nodeDetails'
+import {
+  buildRelationEdits,
+  deleteRelationEdit,
+  type RelationDraft,
+} from '../lib/relationDetails'
 import {
   blocksFromMessage,
   isNoticeMessage,
@@ -65,6 +78,7 @@ import type {
   ChatMessage,
   Conversation,
   DeleteScope,
+  GraphEditOp,
   GraphSnapshot,
   InterruptOption,
   MessageBlock,
@@ -118,6 +132,7 @@ export function ModelingPage() {
   const [isRunning, setIsRunning] = useState(false)
   const [interrupt, setInterrupt] = useState<PendingInterrupt | null>(null)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [paneWidths, setPaneWidths] = useState<PaneWidths>(readPaneWidths)
   const [draggingPane, setDraggingPane] = useState<PaneKey | null>(null)
@@ -128,6 +143,14 @@ export function ModelingPage() {
   const [draftConversationTitle, setDraftConversationTitle] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [isConfirming, setIsConfirming] = useState(false)
+  const [isSavingNode, setIsSavingNode] = useState(false)
+  const [nodeSaveError, setNodeSaveError] = useState<string | null>(null)
+  // 保存成功后自增，用它当抽屉的 key：重新按服务端最新数据初始化草稿，
+  // 新增字段行因此拿到真实 id，不会被重复提交。
+  const [nodeSavedToken, setNodeSavedToken] = useState(0)
+  const [isSavingRelation, setIsSavingRelation] = useState(false)
+  const [relationSaveError, setRelationSaveError] = useState<string | null>(null)
+  const [relationSavedToken, setRelationSavedToken] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const saveTimerRef = useRef<number | null>(null)
@@ -143,7 +166,19 @@ export function ModelingPage() {
   )
   const selectedNode =
     snapshot?.nodes.find((node) => node.id === selectedNodeId) ?? null
+  const selectedRelation =
+    snapshot?.relations.find((relation) => relation.id === selectedRelationId) ?? null
+  const selectedRelationEndpoints = useMemo(() => {
+    if (!selectedRelation || !snapshot) return null
+    const nameOf = (id: string) =>
+      snapshot.nodes.find((node) => node.id === id)?.name ?? '未知对象'
+    return {
+      source: nameOf(selectedRelation.source_type_id),
+      target: nameOf(selectedRelation.target_type_id),
+    }
+  }, [selectedRelation, snapshot])
   const opSummary = useMemo(() => formatOpSummary(changeset), [changeset])
+  const pendingDeleteIds = useMemo(() => pendingPropertyDeleteIds(changeset), [changeset])
 
   const appendMessage = useCallback((targetId: string, message: ChatMessage) => {
     setMessagesByConversation((current) => ({
@@ -170,40 +205,46 @@ export function ModelingPage() {
     return items
   }, [])
 
-  const loadWorkspace = useCallback(async (targetId: string) => {
-    const conversation = await getConversation(targetId)
-    const [nextSnapshot, nextViewState, changesets, history] = await Promise.all([
-      getGraphSnapshot(conversation.graph_id),
-      getViewState(conversation.graph_id),
-      listChangesets(conversation.graph_id),
-      listConversationMessages(conversation.id),
-    ])
-    const open = changesets.find((item) => item.status === 'open')
-    const detail = open ? await getChangeset(open.id) : null
+  const loadWorkspace = useCallback(
+    async (targetId: string, options: { keepSelection?: boolean } = {}) => {
+      const conversation = await getConversation(targetId)
+      const [nextSnapshot, nextViewState, changesets, history] = await Promise.all([
+        getGraphSnapshot(conversation.graph_id),
+        getViewState(conversation.graph_id),
+        listChangesets(conversation.graph_id),
+        listConversationMessages(conversation.id),
+      ])
+      const open = changesets.find((item) => item.status === 'open')
+      const detail = open ? await getChangeset(open.id) : null
 
-    setActiveConversation(conversation)
-    setConversations((current) =>
-      current.some((item) => item.id === conversation.id)
-        ? current
-        : [conversation, ...current],
-    )
-    setSnapshot(nextSnapshot)
-    setViewSpec(nextViewState.spec ?? {})
-    setChangeset(detail)
-    setSelectedNodeId(null)
-    const restored = history.map((message) => ({
-      id: message.id,
-      role: message.role,
-      blocks: blocksFromMessage(message),
-      kind: message.kind,
-    }))
-    setMessagesByConversation((current) => ({
-      ...current,
-      [conversation.id]: restored,
-    }))
-    // 刷新后从这里重建「等待回答」，用户不用重新问一遍。
-    setInterrupt(pendingInterruptFrom(history))
-  }, [])
+      setActiveConversation(conversation)
+      setConversations((current) =>
+        current.some((item) => item.id === conversation.id)
+          ? current
+          : [conversation, ...current],
+      )
+      setSnapshot(nextSnapshot)
+      setViewSpec(nextViewState.spec ?? {})
+      setChangeset(detail)
+      if (!options.keepSelection) {
+        setSelectedNodeId(null)
+        setSelectedRelationId(null)
+      }
+      const restored = history.map((message) => ({
+        id: message.id,
+        role: message.role,
+        blocks: blocksFromMessage(message),
+        kind: message.kind,
+      }))
+      setMessagesByConversation((current) => ({
+        ...current,
+        [conversation.id]: restored,
+      }))
+      // 刷新后从这里重建「等待回答」，用户不用重新问一遍。
+      setInterrupt(pendingInterruptFrom(history))
+    },
+    [],
+  )
 
   useEffect(() => {
     void (async () => {
@@ -334,6 +375,89 @@ export function ModelingPage() {
     }
     setViewSpec(next)
     persistView(next, 500)
+  }
+
+  function handleSelectNode(nodeId: string | null) {
+    setSelectedNodeId(nodeId)
+    setNodeSaveError(null)
+    // 一次只开一个抽屉：选中对象就收掉关系面板，点空白则两个都关。
+    setSelectedRelationId(null)
+    setRelationSaveError(null)
+  }
+
+  function handleSelectRelation(relationId: string | null) {
+    setSelectedRelationId(relationId)
+    setRelationSaveError(null)
+    setSelectedNodeId(null)
+    setNodeSaveError(null)
+  }
+
+  function closeDrawer() {
+    setSelectedNodeId(null)
+    setNodeSaveError(null)
+  }
+
+  function closeRelationDrawer() {
+    setSelectedRelationId(null)
+    setRelationSaveError(null)
+  }
+
+  /** 两个抽屉共用的落库路径：登记草稿，需要时立刻确认并重取工作区。 */
+  async function submitElementEdits(edits: GraphEditOp[], options: NodeDrawerSubmit) {
+    if (!activeConversation) return
+    const graphId = activeConversation.graph_id
+    const updated = await editGraphElements(graphId, edits)
+    if (options.confirm) {
+      // 抽屉里直接确认：省掉再去左侧确认条点一次。确认会往会话追一条回执，
+      // 所以整块工作区重取一遍，抽屉保持打开、按最新数据重挂。
+      await confirmChangeset(updated.id)
+      await loadWorkspace(activeConversation.id, { keepSelection: true })
+    } else {
+      setChangeset(updated)
+      setSnapshot(await getGraphSnapshot(graphId))
+    }
+  }
+
+  async function saveSelectedNode(draft: NodeDraft, options: NodeDrawerSubmit) {
+    if (!activeConversation || !selectedNode) return
+    const edits = buildElementEdits(selectedNode, draft)
+    if (!edits.length) return
+    setIsSavingNode(true)
+    setNodeSaveError(null)
+    try {
+      await submitElementEdits(edits, options)
+      setNodeSavedToken((token) => token + 1)
+    } catch (reason) {
+      setNodeSaveError(reason instanceof Error ? reason.message : '保存失败')
+    } finally {
+      setIsSavingNode(false)
+    }
+  }
+
+  async function saveSelectedRelation(draft: RelationDraft, options: NodeDrawerSubmit) {
+    if (!activeConversation || !selectedRelation) return
+    const edits = buildRelationEdits(selectedRelation, draft)
+    if (!edits.length) return
+    await runRelationEdits(edits, options)
+  }
+
+  async function deleteSelectedRelation() {
+    if (!activeConversation || !selectedRelation) return
+    // 删除走幽灵态：先标记，用户在确认条上定稿。
+    await runRelationEdits([deleteRelationEdit(selectedRelation.id)], { confirm: false })
+  }
+
+  async function runRelationEdits(edits: GraphEditOp[], options: NodeDrawerSubmit) {
+    setIsSavingRelation(true)
+    setRelationSaveError(null)
+    try {
+      await submitElementEdits(edits, options)
+      setRelationSavedToken((token) => token + 1)
+    } catch (reason) {
+      setRelationSaveError(reason instanceof Error ? reason.message : '保存失败')
+    } finally {
+      setIsSavingRelation(false)
+    }
   }
 
   async function confirmCurrentChanges() {
@@ -528,6 +652,7 @@ export function ModelingPage() {
         setChangeset(null)
         setInterrupt(null)
         setSelectedNodeId(null)
+        setSelectedRelationId(null)
         navigate('/')
       }
     } catch (reason) {
@@ -804,45 +929,36 @@ export function ModelingPage() {
           viewSpec={viewSpec}
           changeset={changeset}
           selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          selectedRelationId={selectedRelationId}
+          onSelectNode={handleSelectNode}
+          onSelectRelation={handleSelectRelation}
           onLayoutChange={handleLayoutChange}
           onMoveNode={handleMoveNode}
           onSaveView={() => persistView(viewSpec)}
         />
         {selectedNode ? (
-          <aside className="node-inspector">
-            <header>
-              <div>
-                <span className={`status-dot status-dot--${selectedNode.status}`}>
-                  {selectedNode.status === 'draft' ? <Sparkles size={12} /> : <CircleCheck size={12} />}
-                  {selectedNode.status === 'draft' ? '草稿' : '已确认'}
-                </span>
-                <strong>{selectedNode.name}</strong>
-              </div>
-              <button
-                type="button"
-                className="icon-button icon-button--quiet"
-                aria-label="关闭详情"
-                onClick={() => setSelectedNodeId(null)}
-              >
-                <X size={15} />
-              </button>
-            </header>
-            <p>{selectedNode.description || '尚未补充描述'}</p>
-            <div className="property-list">
-              {selectedNode.properties.length ? (
-                selectedNode.properties.map((property) => (
-                  <div key={property.id}>
-                    <span>{property.name}</span>
-                    <code>{property.datatype}</code>
-                    {property.required ? <em>必填</em> : null}
-                  </div>
-                ))
-              ) : (
-                <span className="empty-list">暂无属性</span>
-              )}
-            </div>
-          </aside>
+          <NodeDrawer
+            key={`${selectedNode.id}:${nodeSavedToken}`}
+            node={selectedNode}
+            pendingDeleteIds={pendingDeleteIds}
+            isSaving={isSavingNode}
+            error={nodeSaveError}
+            onClose={closeDrawer}
+            onSubmit={(draft, options) => void saveSelectedNode(draft, options)}
+          />
+        ) : null}
+        {selectedRelation && selectedRelationEndpoints ? (
+          <RelationDrawer
+            key={`${selectedRelation.id}:${relationSavedToken}`}
+            relation={selectedRelation}
+            sourceName={selectedRelationEndpoints.source}
+            targetName={selectedRelationEndpoints.target}
+            isSaving={isSavingRelation}
+            error={relationSaveError}
+            onClose={closeRelationDrawer}
+            onSubmit={(draft, options) => void saveSelectedRelation(draft, options)}
+            onDelete={() => void deleteSelectedRelation()}
+          />
         ) : null}
       </section>
 

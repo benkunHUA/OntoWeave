@@ -1,6 +1,7 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { Box, CircleCheck, Layers3, Sparkles } from 'lucide-react'
 import type { OntologyFlowNode } from '../lib/flow'
+import { STATUS_LABEL } from '../lib/status'
 
 export function OntologyNode({ data, selected }: NodeProps<OntologyFlowNode>) {
   const classNames = [
@@ -14,8 +15,7 @@ export function OntologyNode({ data, selected }: NodeProps<OntologyFlowNode>) {
     .filter(Boolean)
     .join(' ')
 
-  const statusLabel =
-    data.status === 'draft' ? '草稿' : data.status === 'approved' ? '已批准' : '已确认'
+  const statusLabel = STATUS_LABEL[data.status]
   const StatusIcon = data.status === 'confirmed' || data.status === 'approved' ? CircleCheck : Sparkles
 
   return (
