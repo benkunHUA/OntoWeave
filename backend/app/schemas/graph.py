@@ -58,6 +58,7 @@ class GraphRelationRead(BaseModel):
     cardinality: str
     forward_label: str | None
     reverse_label: str | None
+    foreign_key_property_id: uuid.UUID | None
     status: str
 
 

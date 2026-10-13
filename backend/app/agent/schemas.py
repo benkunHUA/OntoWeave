@@ -60,6 +60,7 @@ ONTOLOGY_TOOLS = [
             "cardinality": "str",
             "forward_label": "str | None",
             "reverse_label": "str | None",
+            "foreign_key_property_id": "uuid | None",
         },
     ),
     ToolSpec(

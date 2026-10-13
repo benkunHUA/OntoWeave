@@ -165,11 +165,13 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         cardinality: str = DEFAULT_CARDINALITY,
         forward_label: str | None = None,
         reverse_label: str | None = None,
+        foreign_key_property_id: str | None = None,
         direction: str = "forward",
     ) -> dict:
         """加一条关系，只在用户明确要求关系或确认后才能使用；两端必须都已存在。
         cardinality 取 one_to_one/one_to_many/many_to_many；
-        forward_label / reverse_label 是源端与目标端各自的可读名（如 客户—下订单→订单）。"""
+        forward_label / reverse_label 是源端与目标端各自的可读名（如 客户—下订单→订单）。
+        一对一/一对多可选填 foreign_key_property_id：承载这条链接的外键属性（存对端主键）。"""
         return _capture(
             ctx,
             lambda: ontology_tools.propose_relation(
@@ -183,6 +185,9 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 cardinality=cardinality,
                 forward_label=forward_label,
                 reverse_label=reverse_label,
+                foreign_key_property_id=(
+                    uuid.UUID(foreign_key_property_id) if foreign_key_property_id else None
+                ),
             ),
         )
 

@@ -33,8 +33,35 @@ _ELEMENT_MODELS = {
 _RESTORABLE_FIELDS = {
     "object_type": {"name", "description"},
     "property": {"name", "datatype", "required", "is_array", "is_primary_key", "is_title_key"},
-    "relation": {"name", "direction", "cardinality", "forward_label", "reverse_label"},
+    "relation": {
+        "name",
+        "direction",
+        "cardinality",
+        "forward_label",
+        "reverse_label",
+        "foreign_key_property_id",
+    },
 }
+
+
+def _json_safe(value: object) -> object:
+    """存进 JSONB 前把 UUID 转成字符串，其余原样，避免 JSON 序列化失败。"""
+    return str(value) if isinstance(value, uuid.UUID) else value
+
+
+def _coerce_field(field: str, value: object) -> object:
+    """把从 JSON 读回的字段值转回列类型。约定：以 ``_id`` 结尾的是 UUID 列。"""
+    if field.endswith("_id") and isinstance(value, str):
+        try:
+            return uuid.UUID(value)
+        except ValueError as exc:
+            raise InvariantViolationError(f"field {field!r} is not a valid uuid") from exc
+    return value
+
+
+def _apply_fields(element: object, fields: dict) -> None:
+    for field, value in fields.items():
+        setattr(element, field, _coerce_field(field, value))
 
 
 def create_changeset(
@@ -218,11 +245,11 @@ def record_update(
             f"changeset {changeset_id} is {cs.status}, cannot record new ops"
         )
     element = _load_element(session, element_kind, element_id, owner_id=owner_id)
-    before = {field: getattr(element, field) for field in patch}
+    before = {field: _json_safe(getattr(element, field)) for field in patch}
     payload = {
         "kind": element_kind,
         "before": before,
-        "after": dict(patch),
+        "after": {field: _json_safe(value) for field, value in patch.items()},
     }
     _validate_op(OP_UPDATE, element_id, payload)
     _apply_update_payload(session, element_id, payload, owner_id=owner_id)
@@ -269,17 +296,16 @@ def _apply_update_payload(
     element = _load_element(session, kind, element_id, owner_id=owner_id)
 
     stale = {
-        field: {"expected": expected, "actual": getattr(element, field)}
+        field: {"expected": expected, "actual": _json_safe(getattr(element, field))}
         for field, expected in before.items()
-        if getattr(element, field) != expected
+        if _json_safe(getattr(element, field)) != expected
     }
     if stale:
         raise InvariantViolationError(
             f"{kind} {element_id} changed after the update snapshot was taken: {stale}"
         )
 
-    for field, value in after.items():
-        setattr(element, field, value)
+    _apply_fields(element, after)
     session.flush()
 
 
@@ -463,8 +489,7 @@ def confirm_changeset(
         elif op.op == OP_UPDATE:
             kind = _op_kind(op)
             element = _load_element(session, kind, _op_target(op), owner_id=owner_id)
-            for field, value in op.payload["after"].items():
-                setattr(element, field, value)
+            _apply_fields(element, op.payload["after"])
         elif op.op == OP_DELETE:
             deletions.append((_op_kind(op), _op_target(op)))
 
@@ -498,8 +523,7 @@ def reject_changeset(
             created.append((_op_kind(op), _op_target(op)))
         elif op.op == OP_UPDATE:
             element = _load_element(session, _op_kind(op), _op_target(op), owner_id=owner_id)
-            for field, value in op.payload.get("before", {}).items():
-                setattr(element, field, value)
+            _apply_fields(element, op.payload.get("before", {}))
         elif op.op == OP_DELETE:
             pass  # 草稿阶段没真删
 

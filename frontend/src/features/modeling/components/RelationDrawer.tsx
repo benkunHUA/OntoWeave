@@ -4,8 +4,10 @@ import type { GraphRelation } from '../../../shared/types'
 import {
   CARDINALITY_OPTIONS,
   draftFromRelation,
+  foreignKeyAllowed,
   isRelationDraftDirty,
   relationDraftValidationError,
+  type ForeignKeyCandidate,
   type RelationDraft,
 } from '../lib/relationDetails'
 import { DrawerShell, type DrawerSubmitOptions } from './drawers/DrawerShell'
@@ -14,6 +16,7 @@ interface RelationDrawerProps {
   relation: GraphRelation
   sourceName: string
   targetName: string
+  foreignKeyCandidates: ForeignKeyCandidate[]
   isSaving: boolean
   error: string | null
   onClose: () => void
@@ -29,6 +32,7 @@ export function RelationDrawer({
   relation,
   sourceName,
   targetName,
+  foreignKeyCandidates,
   isSaving,
   error,
   onClose,
@@ -90,9 +94,17 @@ export function RelationDrawer({
         <span>基数</span>
         <select
           value={draft.cardinality}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, cardinality: event.target.value }))
-          }
+          onChange={(event) => {
+            const cardinality = event.target.value
+            setDraft((current) => ({
+              ...current,
+              cardinality,
+              // 多对多不用外键，切过去时清空，避免留下非法组合。
+              foreignKeyPropertyId: foreignKeyAllowed(cardinality)
+                ? current.foreignKeyPropertyId
+                : '',
+            }))
+          }}
         >
           {CARDINALITY_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -101,6 +113,26 @@ export function RelationDrawer({
           ))}
         </select>
       </label>
+
+      {foreignKeyAllowed(draft.cardinality) ? (
+        <label className="drawer__field">
+          <span>外键属性</span>
+          <select
+            value={draft.foreignKeyPropertyId}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, foreignKeyPropertyId: event.target.value }))
+            }
+          >
+            <option value="">不绑定</option>
+            {foreignKeyCandidates.map((candidate) => (
+              <option key={candidate.value} value={candidate.value}>
+                {candidate.label}
+              </option>
+            ))}
+          </select>
+          <small className="drawer__hint">承载这条链接的属性，存的是对端主键的值。</small>
+        </label>
+      ) : null}
 
       <label className="drawer__field">
         <span>正向可读名</span>

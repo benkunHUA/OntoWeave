@@ -238,3 +238,107 @@ def test_create_relation_rejects_unknown_cardinality(session):
             name="下订单",
             cardinality="lots",
         )
+
+
+def _customer_order(session):
+    customer = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="客户")
+    order = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="订单")
+    return customer, order
+
+
+def test_create_relation_binds_foreign_key(session):
+    customer, order = _customer_order(session)
+    ontology.create_property(session, owner_type_id=customer.id, name="客户号", is_primary_key=True)
+    fk = ontology.create_property(session, owner_type_id=order.id, name="客户号", datatype="text")
+    rel = ontology.create_relation(
+        session,
+        owner_id=uuid.uuid4(),
+        source_type_id=customer.id,
+        target_type_id=order.id,
+        name="下订单",
+        cardinality="one_to_many",
+        foreign_key_property_id=fk.id,
+    )
+    assert rel.foreign_key_property_id == fk.id
+
+
+def test_relation_foreign_key_rejected_for_many_to_many(session):
+    customer, order = _customer_order(session)
+    fk = ontology.create_property(session, owner_type_id=order.id, name="客户号")
+    with pytest.raises(InvariantViolationError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=order.id,
+            name="下订单",
+            cardinality="many_to_many",
+            foreign_key_property_id=fk.id,
+        )
+
+
+def test_relation_foreign_key_must_belong_to_an_endpoint(session):
+    customer, order = _customer_order(session)
+    product = ontology.create_object_type(session, owner_id=uuid.uuid4(), name="产品")
+    stray = ontology.create_property(session, owner_type_id=product.id, name="客户号")
+    with pytest.raises(InvariantViolationError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=order.id,
+            name="下订单",
+            cardinality="one_to_one",
+            foreign_key_property_id=stray.id,
+        )
+
+
+def test_relation_foreign_key_must_be_single_valued(session):
+    customer, order = _customer_order(session)
+    fk = ontology.create_property(session, owner_type_id=order.id, name="客户号", is_array=True)
+    with pytest.raises(InvariantViolationError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=order.id,
+            name="下订单",
+            cardinality="one_to_many",
+            foreign_key_property_id=fk.id,
+        )
+
+
+def test_relation_foreign_key_datatype_must_match_primary_key(session):
+    customer, order = _customer_order(session)
+    ontology.create_property(
+        session, owner_type_id=customer.id, name="客户号", datatype="integer", is_primary_key=True
+    )
+    fk = ontology.create_property(session, owner_type_id=order.id, name="客户号", datatype="text")
+    with pytest.raises(InvariantViolationError):
+        ontology.create_relation(
+            session,
+            owner_id=uuid.uuid4(),
+            source_type_id=customer.id,
+            target_type_id=order.id,
+            name="下订单",
+            cardinality="one_to_many",
+            foreign_key_property_id=fk.id,
+        )
+
+
+def test_validate_relation_patch_rejects_many_to_many_with_foreign_key(session):
+    customer, order = _customer_order(session)
+    fk = ontology.create_property(session, owner_type_id=order.id, name="客户号")
+    rel = ontology.create_relation(
+        session,
+        owner_id=uuid.uuid4(),
+        source_type_id=customer.id,
+        target_type_id=order.id,
+        name="下订单",
+        cardinality="one_to_many",
+        foreign_key_property_id=fk.id,
+    )
+    with pytest.raises(InvariantViolationError):
+        ontology.validate_relation_patch(
+            session, relation_id=rel.id, patch={"cardinality": "many_to_many"}
+        )

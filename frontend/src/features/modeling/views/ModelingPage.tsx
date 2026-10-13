@@ -62,6 +62,7 @@ import {
 import {
   buildRelationEdits,
   deleteRelationEdit,
+  type ForeignKeyCandidate,
   type RelationDraft,
 } from '../lib/relationDetails'
 import {
@@ -176,6 +177,22 @@ export function ModelingPage() {
       source: nameOf(selectedRelation.source_type_id),
       target: nameOf(selectedRelation.target_type_id),
     }
+  }, [selectedRelation, snapshot])
+  // 外键属性候选：关系两端的对象类型各自持有的属性。
+  const selectedRelationForeignKeyCandidates = useMemo<ForeignKeyCandidate[]>(() => {
+    if (!selectedRelation || !snapshot) return []
+    const candidates: ForeignKeyCandidate[] = []
+    for (const typeId of [
+      selectedRelation.source_type_id,
+      selectedRelation.target_type_id,
+    ]) {
+      const node = snapshot.nodes.find((item) => item.id === typeId)
+      if (!node) continue
+      for (const property of node.properties) {
+        candidates.push({ value: property.id, label: `${node.name} · ${property.name}` })
+      }
+    }
+    return candidates
   }, [selectedRelation, snapshot])
   const opSummary = useMemo(() => formatOpSummary(changeset), [changeset])
   const pendingDeleteIds = useMemo(() => pendingPropertyDeleteIds(changeset), [changeset])
@@ -953,6 +970,7 @@ export function ModelingPage() {
             relation={selectedRelation}
             sourceName={selectedRelationEndpoints.source}
             targetName={selectedRelationEndpoints.target}
+            foreignKeyCandidates={selectedRelationForeignKeyCandidates}
             isSaving={isSavingRelation}
             error={relationSaveError}
             onClose={closeRelationDrawer}

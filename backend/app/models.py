@@ -236,6 +236,11 @@ class Relation(Base):
     # 两端各自的可读名；为空时界面回落到 name。
     forward_label: Mapped[str | None] = mapped_column(Text)
     reverse_label: Mapped[str | None] = mapped_column(Text)
+    # 一对一 / 一对多的链接靠外键属性承载：这条属性存的是对端主键的值。
+    # 多对多的链接由独立链接表承载，这里留空。属性被删时置空（SET NULL）。
+    foreign_key_property_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("property.id", ondelete="SET NULL")
+    )
     status: Mapped[str] = mapped_column(
         Text, nullable=False, default="draft", server_default="draft"
     )

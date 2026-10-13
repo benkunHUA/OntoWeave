@@ -195,6 +195,7 @@ def propose_relation(
     cardinality: str = DEFAULT_CARDINALITY,
     forward_label: str | None = None,
     reverse_label: str | None = None,
+    foreign_key_property_id: uuid.UUID | None = None,
     home_graph_id: uuid.UUID | None = None,
 ) -> dict:
     cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
@@ -212,6 +213,7 @@ def propose_relation(
         cardinality=cardinality,
         forward_label=forward_label,
         reverse_label=reverse_label,
+        foreign_key_property_id=foreign_key_property_id,
         home_graph_id=home_graph_id or cs.graph_id,
     )
     graph.add_relation_to_graph(session, cs.graph_id, rel.id, owner_id=owner_id)
@@ -230,6 +232,9 @@ def propose_relation(
         "cardinality": rel.cardinality,
         "forward_label": rel.forward_label,
         "reverse_label": rel.reverse_label,
+        "foreign_key_property_id": (
+            str(rel.foreign_key_property_id) if rel.foreign_key_property_id else None
+        ),
         "status": rel.status,
     }
 

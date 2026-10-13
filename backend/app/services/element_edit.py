@@ -147,7 +147,7 @@ def _validate_patch(
     if element_kind == PROPERTY:
         ontology.validate_property_patch(session, property_id=element_id, patch=patch)
     elif element_kind == RELATION:
-        ontology.validate_relation_patch(patch)
+        ontology.validate_relation_patch(session, relation_id=element_id, patch=patch)
 
 
 def create_property(

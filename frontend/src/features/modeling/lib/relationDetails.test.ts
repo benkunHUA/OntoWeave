@@ -43,6 +43,7 @@ function relation(): GraphRelation {
     cardinality: 'many_to_many',
     forward_label: null,
     reverse_label: null,
+    foreign_key_property_id: null,
     status: 'confirmed',
   }
 }
@@ -91,6 +92,45 @@ describe('relation drafts', () => {
       '关系名不能为空',
     )
     expect(relationDraftValidationError(draftFromRelation(relation()))).toBeNull()
+  })
+
+  it('emits a foreign key binding change', () => {
+    const source = { ...relation(), cardinality: 'one_to_many' }
+    const draft = { ...draftFromRelation(source), foreignKeyPropertyId: 'p9' }
+    expect(buildRelationEdits(source, draft)).toEqual([
+      {
+        op: 'update',
+        element_kind: 'relation',
+        element_id: 'r1',
+        patch: { foreign_key_property_id: 'p9' },
+      },
+    ])
+  })
+
+  it('clears a foreign key binding that was emptied out', () => {
+    const source = {
+      ...relation(),
+      cardinality: 'one_to_many',
+      foreign_key_property_id: 'p9',
+    }
+    const draft = { ...draftFromRelation(source), foreignKeyPropertyId: '' }
+    expect(buildRelationEdits(source, draft)).toEqual([
+      {
+        op: 'update',
+        element_kind: 'relation',
+        element_id: 'r1',
+        patch: { foreign_key_property_id: null },
+      },
+    ])
+  })
+
+  it('rejects a foreign key on a many-to-many relation', () => {
+    const draft = {
+      ...draftFromRelation(relation()),
+      cardinality: 'many_to_many',
+      foreignKeyPropertyId: 'p9',
+    }
+    expect(relationDraftValidationError(draft)).toContain('多对多')
   })
 
   it('builds a delete op for the relation', () => {
