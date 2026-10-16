@@ -19,11 +19,12 @@ import {
   Plus,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { buildFlowElements, type OntologyFlowNode } from '../lib/flow'
+import { buildFlowElements, type FlowNode } from '../lib/flow'
+import { ActionNode } from './action/ActionNode'
 import { OntologyNode } from './OntologyNode'
 import type { Changeset, GraphSnapshot, ViewSpec } from '../../../shared/types'
 
-const nodeTypes = { ontology: OntologyNode }
+const nodeTypes = { ontology: OntologyNode, action: ActionNode }
 
 interface OntologyCanvasProps {
   snapshot: GraphSnapshot | null
@@ -31,8 +32,10 @@ interface OntologyCanvasProps {
   changeset: Changeset | null
   selectedNodeId: string | null
   selectedRelationId: string | null
+  selectedActionId: string | null
   onSelectNode: (nodeId: string | null) => void
   onSelectRelation: (relationId: string | null) => void
+  onSelectAction: (actionId: string | null) => void
   onLayoutChange: (kind: NonNullable<ViewSpec['layout']>['kind']) => void
   onMoveNode: (nodeId: string, x: number, y: number) => void
   onSaveView: () => void
@@ -44,13 +47,15 @@ function CanvasInner({
   changeset,
   selectedNodeId,
   selectedRelationId,
+  selectedActionId,
   onSelectNode,
   onSelectRelation,
+  onSelectAction,
   onLayoutChange,
   onMoveNode,
   onSaveView,
 }: OntologyCanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<OntologyFlowNode>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [zoom, setZoom] = useState(1)
   const { fitView, zoomIn, zoomOut } = useReactFlow()
@@ -60,7 +65,7 @@ function CanvasInner({
     setNodes(
       elements.nodes.map((node) => ({
         ...node,
-        selected: node.id === selectedNodeId,
+        selected: node.id === selectedNodeId || node.id === selectedActionId,
       })),
     )
     setEdges(
@@ -81,16 +86,20 @@ function CanvasInner({
     changeset,
     selectedNodeId,
     selectedRelationId,
+    selectedActionId,
     setNodes,
     setEdges,
     fitView,
   ])
 
-  const handleNodeClick: NodeMouseHandler<OntologyFlowNode> = (_, node) => {
-    onSelectNode(node.id)
+  const handleNodeClick: NodeMouseHandler<FlowNode> = (_, node) => {
+    if (node.type === 'action') onSelectAction(node.id)
+    else onSelectNode(node.id)
   }
 
   const handleEdgeClick: EdgeMouseHandler = (_, edge) => {
+    // 动作与本体的连线是跟着定义自动生成的，点它不该开关系面板。
+    if (edge.data?.involves) return
     onSelectRelation(edge.id)
   }
 
@@ -106,7 +115,8 @@ function CanvasInner({
           <div>
             <strong>{snapshot?.graph.name || '本体图'}</strong>
             <span>
-              {snapshot?.nodes.length ?? 0} 个对象 · {snapshot?.relations.length ?? 0} 条关系
+              {snapshot?.nodes.length ?? 0} 个对象 · {snapshot?.relations.length ?? 0} 条关系 ·{' '}
+              {snapshot?.actions.length ?? 0} 个动作
             </span>
           </div>
         </div>
@@ -131,7 +141,7 @@ function CanvasInner({
       </header>
 
       <div className="canvas-stage">
-        {snapshot?.nodes.length ? (
+        {snapshot?.nodes.length || snapshot?.actions.length ? (
           <>
             <ReactFlow
               nodes={nodes}
@@ -141,7 +151,10 @@ function CanvasInner({
               onEdgesChange={onEdgesChange}
               onNodeClick={handleNodeClick}
               onEdgeClick={handleEdgeClick}
-              onPaneClick={() => onSelectNode(null)}
+              onPaneClick={() => {
+                onSelectNode(null)
+                onSelectAction(null)
+              }}
               onNodeDragStop={(_, node) =>
                 onMoveNode(node.id, node.position.x, node.position.y)
               }

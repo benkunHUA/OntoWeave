@@ -1,6 +1,7 @@
 import { Box, Plus } from 'lucide-react'
 import { useState } from 'react'
 import type { GraphNode } from '../../../shared/types'
+import type { DrawerSubmitOptions } from '../lib/drawerSubmit'
 import {
   draftFromNode,
   draftValidationError,
@@ -9,10 +10,8 @@ import {
   type NodeDraft,
   type PropertyDraft,
 } from '../lib/nodeDetails'
-import { DrawerShell, type DrawerSubmitOptions } from './drawers/DrawerShell'
+import { DrawerShell } from './drawers/DrawerShell'
 import { PropertyFieldRow } from './PropertyFieldRow'
-
-export type NodeDrawerSubmit = DrawerSubmitOptions
 
 interface NodeDrawerProps {
   node: GraphNode
@@ -21,7 +20,7 @@ interface NodeDrawerProps {
   isSaving: boolean
   error: string | null
   onClose: () => void
-  onSubmit: (draft: NodeDraft, options: NodeDrawerSubmit) => void
+  onSubmit: (draft: NodeDraft, options: DrawerSubmitOptions) => void
 }
 
 /**

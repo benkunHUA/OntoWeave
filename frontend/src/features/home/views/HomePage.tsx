@@ -1,7 +1,7 @@
 import { ArrowRight, Clock3, Network, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConversation, listConversations } from '../../../shared/api/client'
+import { createConversation, listConversations } from '../../../shared/api'
 import type { Conversation } from '../../../shared/types'
 
 export function HomePage() {

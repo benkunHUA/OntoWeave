@@ -1,6 +1,7 @@
 import dagre from '@dagrejs/dagre'
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react'
 import type { Changeset, GraphSnapshot, ViewSpec } from '../../../shared/types'
+import { ACTION_NODE_HEIGHT, ACTION_NODE_WIDTH } from './actionConfig'
 import { cardinalityMark, relationEdgeLabel } from './relationDetails'
 
 export interface OntologyNodeData extends Record<string, unknown> {
@@ -18,10 +19,27 @@ export interface OntologyNodeData extends Record<string, unknown> {
 
 export type OntologyFlowNode = Node<OntologyNodeData, 'ontology'>
 
+export interface ActionNodeData extends Record<string, unknown> {
+  label: string
+  description: string | null
+  status: 'draft' | 'confirmed' | 'approved'
+  draft: boolean
+  ghosted: boolean
+  highlighted: boolean
+  dimmed: boolean
+}
+
+export type ActionFlowNode = Node<ActionNodeData, 'action'>
+
+export type FlowNode = OntologyFlowNode | ActionFlowNode
+
 const NODE_WIDTH = 224
 const NODE_HEIGHT = 116
 const POSITION_GAP_X = 48
 const POSITION_GAP_Y = 48
+/** 动作节点单独排一行，挂在对象图下方，不掺进对象之间的布局。 */
+const ACTION_GAP_X = 40
+const ACTION_GAP_Y = 96
 
 function positionsOverlap(left: XYPosition, right: XYPosition) {
   return (
@@ -63,7 +81,7 @@ function findFreePosition(
 }
 
 function resolvePositions(
-  snapshot: GraphSnapshot,
+  ids: string[],
   baseLayout: Record<string, XYPosition>,
   saved: Record<string, XYPosition> | undefined,
 ): Record<string, XYPosition> {
@@ -71,24 +89,66 @@ function resolvePositions(
   const occupied: XYPosition[] = []
 
   // 用户手工摆放过的坐标优先保留；自动布局只负责没有坐标的节点。
-  for (const node of snapshot.nodes) {
-    const position = saved?.[node.id]
+  for (const id of ids) {
+    const position = saved?.[id]
     if (!position) continue
-    resolved[node.id] = position
+    resolved[id] = position
     occupied.push(position)
   }
 
-  for (const node of snapshot.nodes) {
-    if (resolved[node.id]) continue
+  for (const id of ids) {
+    if (resolved[id]) continue
     const position = findFreePosition(
-      baseLayout[node.id] ?? { x: 0, y: 0 },
+      baseLayout[id] ?? { x: 0, y: 0 },
       occupied,
     )
-    resolved[node.id] = position
+    resolved[id] = position
     occupied.push(position)
   }
 
   return resolved
+}
+
+/** 动作排成一行落在对象图下方，每个动作横向居中于它涉及的对象；互相重叠时依次右移。 */
+function layoutActionRow(
+  snapshot: GraphSnapshot,
+  positions: Record<string, XYPosition>,
+): Record<string, XYPosition> {
+  if (!snapshot.actions.length) return {}
+  const bottoms = Object.values(positions).map((position) => position.y + NODE_HEIGHT)
+  const rowTop = (bottoms.length ? Math.max(...bottoms) : 0) + ACTION_GAP_Y
+
+  const preferred = snapshot.actions.map((action, index) => {
+    const anchors = action.involves
+      .map((target) => positions[target.id])
+      .filter((position): position is XYPosition => Boolean(position))
+    if (!anchors.length) return { id: action.id, index, x: 0 }
+    const left = Math.min(...anchors.map((position) => position.x))
+    const right = Math.max(...anchors.map((position) => position.x + NODE_WIDTH))
+    return { id: action.id, index, x: (left + right) / 2 - ACTION_NODE_WIDTH / 2 }
+  })
+
+  // 按期望位置排序后再铺开：动作与它涉及的对象对得上，线不用横跨整行。
+  const ordered = [...preferred].sort((left, right) => left.x - right.x || left.index - right.index)
+  const row: Record<string, XYPosition> = {}
+  let cursor: number | null = null
+  for (const item of ordered) {
+    const x: number =
+      cursor === null ? item.x : Math.max(item.x, cursor + ACTION_NODE_WIDTH + ACTION_GAP_X)
+    row[item.id] = { x, y: rowTop }
+    cursor = x
+  }
+  return row
+}
+
+/** `involves` 虚线从离目标近的那一侧出去，两根线不至于挤在同一个端口上。 */
+function involvesSide(
+  source: XYPosition,
+  target: XYPosition,
+): 'left' | 'right' {
+  const sourceCenter = source.x + ACTION_NODE_WIDTH / 2
+  const targetCenter = target.x + NODE_WIDTH / 2
+  return targetCenter < sourceCenter ? 'left' : 'right'
 }
 
 function layoutHierarchical(snapshot: GraphSnapshot): Record<string, XYPosition> {
@@ -171,7 +231,7 @@ export function buildFlowElements(
   snapshot: GraphSnapshot | null,
   spec: ViewSpec,
   changeset: Changeset | null,
-): { nodes: OntologyFlowNode[]; edges: Edge[] } {
+): { nodes: FlowNode[]; edges: Edge[] } {
   if (!snapshot) return { nodes: [], edges: [] }
 
   const kind = spec.layout?.kind ?? 'hierarchical'
@@ -183,7 +243,13 @@ export function buildFlowElements(
         : kind === 'domain-grouped'
           ? layoutDomainGrouped(snapshot, spec)
           : layoutHierarchical(snapshot)
-  const positions = resolvePositions(snapshot, layout, spec.nodes)
+  const nodeIds = snapshot.nodes.map((node) => node.id)
+  const positions = resolvePositions(nodeIds, layout, spec.nodes)
+  const actionPositions = resolvePositions(
+    snapshot.actions.map((action) => action.id),
+    layoutActionRow(snapshot, positions),
+    spec.nodes,
+  )
 
   const deleted = new Set(
     changeset?.ops
@@ -210,7 +276,7 @@ export function buildFlowElements(
     group.nodeIds.forEach((nodeId) => groupLabels.set(nodeId, group.label))
   }
 
-  const nodes: OntologyFlowNode[] = snapshot.nodes
+  const objectNodes: OntologyFlowNode[] = snapshot.nodes
     .filter((node) => !hiddenNodes.has(node.id))
     .map((node) => ({
       id: node.id,
@@ -234,7 +300,27 @@ export function buildFlowElements(
       },
     }))
 
-  const visibleNodeIds = new Set(nodes.map((node) => node.id))
+  const actionNodes: ActionFlowNode[] = snapshot.actions.map((action) => ({
+    id: action.id,
+    type: 'action',
+    position: actionPositions[action.id] ?? { x: 0, y: 0 },
+    data: {
+      label: action.name,
+      description: action.description,
+      status: action.status,
+      draft: action.status === 'draft' && !deleted.has(action.id),
+      ghosted: deleted.has(action.id),
+      highlighted: highlighted.has(action.id),
+      dimmed: dimmed.has(action.id),
+    },
+    style: {
+      width: ACTION_NODE_WIDTH,
+      height: ACTION_NODE_HEIGHT,
+    },
+  }))
+
+  const nodes: FlowNode[] = [...objectNodes, ...actionNodes]
+  const visibleNodeIds = new Set(objectNodes.map((node) => node.id))
   const edges: Edge[] = snapshot.relations
     .filter(
       (relation) =>
@@ -272,5 +358,29 @@ export function buildFlowElements(
       }
     })
 
-  return { nodes, edges }
+  // 动作与本体元素之间的连线：跟着定义自动生成，删不掉也点不开，
+  // 视觉上弱化成虚线，好和用户自己画的关系区分开。
+  const involvesEdges: Edge[] = snapshot.actions.flatMap((action) => {
+    const ghosted = deleted.has(action.id)
+    const origin = actionPositions[action.id] ?? { x: 0, y: 0 }
+    return action.involves
+      .filter((target) => visibleNodeIds.has(target.id))
+      .map((target) => ({
+        id: `involves:${action.id}:${target.kind}:${target.id}`,
+        source: action.id,
+        target: target.id,
+        sourceHandle: involvesSide(origin, positions[target.id] ?? origin),
+        type: 'default',
+        className: 'edge-involves',
+        data: { involves: true },
+        style: {
+          stroke: '#6f5f8f',
+          strokeWidth: 1.2,
+          strokeDasharray: '2 6',
+          opacity: ghosted ? 0.2 : 0.45,
+        },
+      }))
+  })
+
+  return { nodes, edges: [...edges, ...involvesEdges] }
 }

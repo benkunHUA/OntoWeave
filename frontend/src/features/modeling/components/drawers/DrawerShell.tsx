@@ -1,18 +1,16 @@
 import { CircleCheck, LoaderCircle, Save, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Status } from '../../../../shared/types'
+import type { DrawerSubmitOptions } from '../../lib/drawerSubmit'
 import { STATUS_LABEL } from '../../lib/status'
-
-export interface DrawerSubmitOptions {
-  /** true = 保存后立刻确认这批改动，不用再去左侧确认条点一次。 */
-  confirm: boolean
-}
 
 interface DrawerShellProps {
   ariaLabel: string
   icon: ReactNode
   title: string
   status: Status
+  /** 额外的样式类：抽屉宽度等按元素类型微调。 */
+  className?: string
   isSaving: boolean
   canSave: boolean
   error: string | null
@@ -30,6 +28,7 @@ export function DrawerShell({
   icon,
   title,
   status,
+  className,
   isSaving,
   canSave,
   error,
@@ -40,7 +39,7 @@ export function DrawerShell({
   children,
 }: DrawerShellProps) {
   return (
-    <aside className="drawer" aria-label={ariaLabel}>
+    <aside className={`drawer${className ? ` ${className}` : ''}`} aria-label={ariaLabel}>
       <header className="drawer__header">
         <span className="drawer__icon">{icon}</span>
         <div className="drawer__heading">

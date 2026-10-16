@@ -876,6 +876,20 @@
   font-weight: 700;
 }
 
+/* 子智能体内部的步骤：缩进 + 左侧竖线，一眼看出它属于上面那次委派。 */
+.tool-block--subagent {
+  margin-left: 18px;
+  border-left: 2px solid rgba(160, 107, 255, 0.4);
+}
+
+.tool-block__agent {
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: #c9b3ff;
+  background: rgba(160, 107, 255, 0.14);
+  font-size: 10.5px;
+}
+
 .tool-block__body {
   padding: 0 10px 10px;
 }

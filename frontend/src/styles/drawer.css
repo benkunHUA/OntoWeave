@@ -234,6 +234,47 @@
   background: var(--red-soft);
 }
 
+.enum-values {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 2px 2px;
+}
+
+.enum-values__title {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.enum-values__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.enum-values__input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  color: var(--ink);
+  background: #2e2e2e;
+}
+
+.enum-values__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.enum-values__hint {
+  color: var(--amber-ink);
+  font-size: 11px;
+}
+
 .drawer__empty {
   color: var(--faint);
   font-size: 12px;

@@ -1,7 +1,7 @@
 import { ChevronRight, CircleAlert, CircleCheck, LoaderCircle, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import type { MessageBlock } from '../../../shared/types'
-import { toolLabel } from '../lib/toolLabels'
+import { subagentLabel, toolLabel } from '../lib/toolLabels'
 
 type ToolBlock = Extract<MessageBlock, { kind: 'tool' }>
 
@@ -16,9 +16,13 @@ export function ToolCallBlock({ block }: { block: ToolBlock }) {
   const [open, setOpen] = useState(false)
   const args = formatArgs(block.args)
   const hasDetail = Boolean(args) || Boolean(block.result)
+  // 子智能体内部的步骤：挂在委派行下面，标出是哪个子智能体在动。
+  const agent = block.agent ? subagentLabel(block.agent) : null
 
   return (
-    <div className={`tool-block tool-block--${block.status}`}>
+    <div
+      className={`tool-block tool-block--${block.status} ${agent ? 'tool-block--subagent' : ''}`}
+    >
       <button
         type="button"
         className="tool-block__head"
@@ -33,7 +37,8 @@ export function ToolCallBlock({ block }: { block: ToolBlock }) {
         ) : (
           <CircleCheck size={13} />
         )}
-        <span className="tool-block__label">{toolLabel(block.name)}</span>
+        {agent ? <span className="tool-block__agent">{agent}</span> : null}
+        <span className="tool-block__label">{toolLabel(block.name, block.args)}</span>
         <code>{block.name}</code>
         {block.durationMs ? <em>{block.durationMs}ms</em> : null}
         {hasDetail ? <ChevronRight size={13} className={open ? 'is-open' : ''} /> : null}

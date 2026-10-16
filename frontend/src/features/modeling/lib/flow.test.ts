@@ -25,6 +25,7 @@ describe('buildFlowElements', () => {
       graph: { id: 'g1', name: '测试图' },
       nodes: [node('a', '节点 A'), node('b', '节点 B'), node('c', '新节点 C')],
       relations: [],
+      actions: [],
     }
     const spec = {
       layout: { kind: 'grid' as const, options: {} },
@@ -47,6 +48,7 @@ describe('buildFlowElements', () => {
       graph: { id: 'g1', name: '测试图' },
       nodes: Array.from({ length: 6 }, (_, index) => node(`${index}`, `节点 ${index}`)),
       relations: [],
+      actions: [],
     }
 
     const { nodes } = buildFlowElements(
@@ -60,5 +62,86 @@ describe('buildFlowElements', () => {
         expect(overlaps(nodes[left].position, nodes[right].position)).toBe(false)
       }
     }
+  })
+
+  it('places action nodes under the object graph and wires involves edges', () => {
+    const snapshot: GraphSnapshot = {
+      graph: { id: 'g1', name: '测试图' },
+      nodes: [node('a', '节点 A'), node('b', '节点 B')],
+      relations: [],
+      actions: [
+        {
+          id: 'act1',
+          name: '指派工单',
+          description: null,
+          status: 'draft',
+          involves: [
+            { kind: 'object_type', id: 'a' },
+            { kind: 'object_type', id: 'b' },
+          ],
+        },
+      ],
+    }
+
+    const { nodes, edges } = buildFlowElements(
+      snapshot,
+      {
+        layout: { kind: 'grid', options: {} },
+        nodes: { a: { x: 0, y: 0 }, b: { x: 400, y: 0 } },
+      },
+      null,
+    )
+
+    const action = nodes.find((item) => item.id === 'act1')
+    expect(action?.type).toBe('action')
+    expect(action?.data).toMatchObject({ draft: true })
+    // 排在对象图下方，横向落在两个对象中间（两个对象的中心是 312）。
+    expect(action?.position.y).toBeGreaterThan(116)
+    expect((action?.position.x ?? 0) + 252 / 2).toBe(312)
+    expect(edges).toContainEqual(
+      expect.objectContaining({
+        id: 'involves:act1:object_type:a',
+        source: 'act1',
+        target: 'a',
+        sourceHandle: 'left',
+        className: 'edge-involves',
+        data: { involves: true },
+      }),
+    )
+    expect(edges).toContainEqual(
+      expect.objectContaining({
+        id: 'involves:act1:object_type:b',
+        sourceHandle: 'right',
+      }),
+    )
+  })
+
+  it('drops an involves edge whose element is not on the canvas', () => {
+    const snapshot: GraphSnapshot = {
+      graph: { id: 'g1', name: '测试图' },
+      nodes: [node('a', '节点 A'), node('b', '节点 B')],
+      relations: [],
+      actions: [
+        {
+          id: 'act1',
+          name: '指派工单',
+          description: null,
+          status: 'confirmed',
+          involves: [
+            { kind: 'object_type', id: 'a' },
+            { kind: 'object_type', id: 'missing' },
+          ],
+        },
+      ],
+    }
+    const spec = {
+      layout: { kind: 'grid' as const, options: {} },
+      nodes: {},
+      groups: [{ id: 'grp', label: '域', nodeIds: ['b'] }],
+      collapsed: ['grp'],
+    }
+
+    const { edges } = buildFlowElements(snapshot, spec, null)
+    expect(edges.map((edge) => edge.id)).toEqual(['involves:act1:object_type:a'])
   })
 })

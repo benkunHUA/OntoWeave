@@ -1,0 +1,259 @@
+/* 动作层：画布上的动作节点，以及动作详情抽屉（参数 / 规则 / 提交校验）里的行与块。 */
+
+/* 动作条：横向一条，像「可执行的指令」，而不是对象那种卡片。
+   左右两端各有一个出线端口，`involves` 虚线从这里出去。 */
+.action-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  padding: 0 12px;
+  overflow: hidden;
+  border: 1px solid #4b3a6b;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2b2440, #231e33);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.32);
+}
+
+/* 顶部一条紫色亮线：不用读文字也能认出这是动作。 */
+.action-node::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(160, 107, 255, 0.2), #a06bff, rgba(160, 107, 255, 0.2));
+}
+
+.action-node__icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: #c9b3ff;
+  background: rgba(160, 107, 255, 0.18);
+}
+
+.action-node__text {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 2px;
+  min-width: 0;
+}
+
+.action-node__text strong {
+  overflow: hidden;
+  color: #f0f0f0;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-node__text p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-node__text .muted-line {
+  color: var(--faint);
+}
+
+/* 端口只用来出线，它接不了东西，就别画成可连的圆点。 */
+.action-node .react-flow__handle {
+  width: 2px;
+  height: 2px;
+  border: 0;
+  background: transparent;
+}
+
+.action-node.is-draft {
+  border: 1px dashed var(--amber);
+  background: linear-gradient(180deg, #2f2a22, #262119);
+}
+
+.action-node.is-draft::before {
+  background: var(--amber);
+}
+
+.action-node.is-ghosted {
+  border-color: #3a3a3a;
+  opacity: 0.42;
+  filter: grayscale(0.8);
+}
+
+.action-node.is-highlighted,
+.action-node.is-selected {
+  border-color: #a06bff;
+  box-shadow:
+    0 0 0 3px rgba(160, 107, 255, 0.22),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.action-node.is-dimmed {
+  opacity: 0.35;
+}
+
+/* 动作与本体元素之间的连线是推导出来的，不给点。 */
+.react-flow__edge.edge-involves {
+  pointer-events: none;
+}
+
+.drawer--action {
+  width: min(460px, 100%);
+}
+
+.action-section {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: var(--panel-soft);
+}
+
+.action-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.action-section__head h4 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13px;
+}
+
+.action-section__head h4 em {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--raised-hi);
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.action-section__hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.action-section__empty {
+  margin: 0;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.action-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+}
+
+/* 引用的元素不在了 / 字段没填全：整行标红，保存同时被挡住。 */
+.action-row.is-invalid {
+  border-color: var(--red);
+}
+
+.action-row__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-row__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-row__input {
+  flex: 1 1 120px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.action-row__input:focus {
+  border-color: var(--blue);
+  outline: none;
+}
+
+.action-row__input:disabled {
+  color: var(--faint);
+}
+
+.action-row__input--narrow {
+  flex: 0 0 104px;
+}
+
+.action-row__input--wide {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+.action-row__label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.action-row__hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.action-row__issue {
+  margin: 0;
+  color: var(--red);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.action-row__flags {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.action-row__assignments {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+}
+
+.action-row__subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.drawer__field-issue {
+  color: var(--red);
+  font-size: 11px;
+  font-style: normal;
+}

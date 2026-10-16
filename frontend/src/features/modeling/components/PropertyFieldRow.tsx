@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react'
-import { datatypeOptions, type PropertyDraft } from '../lib/nodeDetails'
+import { ENUM_DATATYPE, datatypeOptions, type PropertyDraft } from '../lib/nodeDetails'
+import { EnumValuesEditor } from './EnumValuesEditor'
 
 interface PropertyFieldRowProps {
   property: PropertyDraft
@@ -30,7 +31,7 @@ function FlagToggle({ label, title, active, onToggle }: FlagToggleProps) {
   )
 }
 
-/** 抽屉里的一行字段：字段名、类型、标记开关与删除；必填只是只读标记。 */
+/** 抽屉里的一行字段：字段名、类型、枚举取值、标记开关与删除；必填只是只读标记。 */
 export function PropertyFieldRow({
   property,
   required,
@@ -69,6 +70,13 @@ export function PropertyFieldRow({
           <Trash2 size={15} />
         </button>
       </div>
+      {property.datatype === ENUM_DATATYPE ? (
+        <EnumValuesEditor
+          propertyName={property.name}
+          values={property.enumValues}
+          onChange={(enumValues) => onChange(property.key, { enumValues })}
+        />
+      ) : null}
       <div className="field-row__flags">
         <FlagToggle
           label="多值"

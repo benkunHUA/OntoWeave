@@ -10,7 +10,8 @@ import {
   type ForeignKeyCandidate,
   type RelationDraft,
 } from '../lib/relationDetails'
-import { DrawerShell, type DrawerSubmitOptions } from './drawers/DrawerShell'
+import type { DrawerSubmitOptions } from '../lib/drawerSubmit'
+import { DrawerShell } from './drawers/DrawerShell'
 
 interface RelationDrawerProps {
   relation: GraphRelation

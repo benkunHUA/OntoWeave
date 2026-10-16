@@ -1,33 +1,25 @@
-import type { Changeset, GraphEditOp, GraphNode } from '../../../shared/types'
+import type { EditPatchValue, GraphEditOp, GraphNode } from '../../../shared/types'
+import {
+  ENUM_DATATYPE,
+  MIN_ENUM_VALUES,
+  enumValuesFor,
+  hasUsableEnumValues,
+  sameEnumValues,
+} from './datatypeOptions'
 
-/** 字段类型下拉的候选项：值用后端约定的英文，界面显示中文。 */
-export interface DatatypeOption {
-  value: string
-  label: string
-}
-
-export const DATATYPE_OPTIONS: DatatypeOption[] = [
-  { value: 'text', label: '文本' },
-  { value: 'integer', label: '整数' },
-  { value: 'decimal', label: '小数' },
-  { value: 'boolean', label: '布尔' },
-  { value: 'date', label: '日期' },
-  { value: 'timestamp', label: '日期时间' },
-]
+// 字段类型是对象与动作参数共用的词表，实现在 `datatypeOptions`；这里原样再导出，
+// 已有调用方（字段行、枚举编辑器）不用改 import。
+export {
+  DATATYPE_OPTIONS,
+  ENUM_DATATYPE,
+  MIN_ENUM_VALUES,
+  datatypeLabel,
+  datatypeOptions,
+  hasUsableEnumValues,
+  type DatatypeOption,
+} from './datatypeOptions'
 
 const DEFAULT_DATATYPE = 'text'
-
-/** 老数据里可能有非标准类型，兜底把它也放进下拉，别在编辑时悄悄改掉。 */
-export function datatypeOptions(current: string): DatatypeOption[] {
-  if (DATATYPE_OPTIONS.some((option) => option.value === current)) {
-    return DATATYPE_OPTIONS
-  }
-  return [...DATATYPE_OPTIONS, { value: current, label: current }]
-}
-
-export function datatypeLabel(datatype: string): string {
-  return DATATYPE_OPTIONS.find((option) => option.value === datatype)?.label ?? datatype
-}
 
 export interface PropertyDraft {
   /** React 列表用的稳定 key：已有字段用后端 id，新增字段用临时 id。 */
@@ -41,6 +33,8 @@ export interface PropertyDraft {
   /** 每个对象类型至多一个主键 / 标题键。 */
   isPrimaryKey: boolean
   isTitleKey: boolean
+  /** datatype = enum 时的候选值；换成别的类型时留着不动，保存时不发出去。 */
+  enumValues: string[]
 }
 
 export interface NodeDraft {
@@ -60,18 +54,8 @@ export function newPropertyDraft(): PropertyDraft {
     isArray: false,
     isPrimaryKey: false,
     isTitleKey: false,
+    enumValues: [],
   }
-}
-
-/** 已经在改动集里标记删除、但还没确认的字段 id：抽屉里不再把它们当成可编元素。 */
-export function pendingPropertyDeleteIds(changeset: Changeset | null): Set<string> {
-  const ids = new Set<string>()
-  for (const op of changeset?.ops ?? []) {
-    if (op.op === 'delete' && op.payload.kind === 'property' && op.target_id) {
-      ids.add(op.target_id)
-    }
-  }
-  return ids
 }
 
 export function draftFromNode(
@@ -91,6 +75,7 @@ export function draftFromNode(
         isArray: property.is_array,
         isPrimaryKey: property.is_primary_key,
         isTitleKey: property.is_title_key,
+        enumValues: property.enum_values ?? [],
       })),
     removedIds: [],
   }
@@ -121,6 +106,7 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
   for (const property of draft.properties) {
     const propertyName = property.name.trim()
     if (property.id === null) {
+      const enumValues = enumValuesFor(property.datatype, property.enumValues)
       edits.push({
         op: 'create_property',
         owner_type_id: node.id,
@@ -129,12 +115,14 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
         is_array: property.isArray,
         is_primary_key: property.isPrimaryKey,
         is_title_key: property.isTitleKey,
+        // 只有枚举才带候选值，别往别的类型上塞一个用不上的空字段。
+        ...(enumValues ? { enum_values: enumValues } : {}),
       })
       continue
     }
     const original = originals.get(property.id)
     if (!original) continue
-    const patch: Record<string, string | null | boolean> = {}
+    const patch: Record<string, EditPatchValue> = {}
     if (propertyName !== original.name) patch.name = propertyName
     if (property.datatype !== original.datatype) patch.datatype = property.datatype
     if (property.isArray !== original.is_array) patch.is_array = property.isArray
@@ -142,6 +130,10 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
       patch.is_primary_key = property.isPrimaryKey
     }
     if (property.isTitleKey !== original.is_title_key) patch.is_title_key = property.isTitleKey
+    const nextEnumValues = enumValuesFor(property.datatype, property.enumValues)
+    if (!sameEnumValues(nextEnumValues, original.enum_values ?? null)) {
+      patch.enum_values = nextEnumValues
+    }
     if (Object.keys(patch).length) {
       edits.push({ op: 'update', element_kind: 'property', element_id: property.id, patch })
     }
@@ -163,6 +155,12 @@ export function draftValidationError(draft: NodeDraft): string | null {
   if (!draft.name.trim()) return '对象名称不能为空'
   if (draft.properties.some((property) => !property.name.trim())) {
     return '字段名不能为空'
+  }
+  const brokenEnum = draft.properties.find(
+    (property) => property.datatype === ENUM_DATATYPE && !hasUsableEnumValues(property.enumValues),
+  )
+  if (brokenEnum) {
+    return `枚举字段「${brokenEnum.name.trim()}」至少要有 ${MIN_ENUM_VALUES} 个互不相同的取值`
   }
   return null
 }

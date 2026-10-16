@@ -65,6 +65,28 @@ describe('reduceBlocks', () => {
     expect(blocks[1]).toMatchObject({ status: 'ok', result: '命中 2 个' })
     expect(textFromBlocks(blocks)).toBe('建好了')
   })
+
+  it('tags steps that come from inside a subagent', () => {
+    const blocks = reduceBlocks(
+      [],
+      event({
+        v: 1,
+        type: 'tool.start',
+        messageId: 'm1',
+        callId: 'c2',
+        name: 'propose_action_rule',
+        args: {},
+        agent: 'action_modeler',
+        parentCallId: 'c1',
+      }),
+    )
+
+    expect(blocks[0]).toMatchObject({
+      kind: 'tool',
+      agent: 'action_modeler',
+      parentCallId: 'c1',
+    })
+  })
 })
 
 describe('blocksFromMessage', () => {
