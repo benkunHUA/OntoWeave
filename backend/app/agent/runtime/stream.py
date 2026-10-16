@@ -18,7 +18,7 @@ from langgraph.types import Command
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.agent import observability
-from app.agent.runtime import assembly
+from app.agent.runtime import assembly, subagent_trace
 from app.agent.runtime.events import TurnBuilder, block_fragments, content_text, sse
 from app.agent.runtime.interrupts import normalize_interrupt
 from app.agent.runtime.runs import RunContext, prepare_run, thread_config
@@ -35,18 +35,31 @@ from app.services import changeset, conversation, view_state
 # langgraph 嵌套子图用 "|" 拼命名空间；顶层节点没有它。
 _SUBGRAPH_SEP = "|"
 _STREAM_MODES = ("updates", "messages", "values", "custom")
+# deepagents 用这个工具名把活派给子智能体；参数里的 subagent_type 才是派给了谁。
+_TASK_TOOL = "task"
 
 
-def _split_chunk(chunk: Any) -> tuple[str, Any]:
-    """多 stream_mode 下 langgraph 吐 (mode, payload)；兼容只给 updates 的旧实现。"""
+def _split_chunk(chunk: Any) -> tuple[tuple[str, ...], str, Any]:
+    """多 stream_mode 下 langgraph 吐 (mode, payload)。
+
+    `subgraphs=True` 时前面还多一段命名空间：`(namespace, mode, payload)`。命名空间为空
+    表示主智能体自己；非空就是某个工具内部调起来的图（目前只有 `task` 起的子智能体）。
+    """
+    if (
+        isinstance(chunk, tuple)
+        and len(chunk) == 3
+        and isinstance(chunk[1], str)
+        and chunk[1] in _STREAM_MODES
+    ):
+        return tuple(chunk[0] or ()), chunk[1], chunk[2]
     if (
         isinstance(chunk, tuple)
         and len(chunk) == 2
         and isinstance(chunk[0], str)
         and chunk[0] in _STREAM_MODES
     ):
-        return chunk[0], chunk[1]
-    return "updates", chunk
+        return (), chunk[0], chunk[1]
+    return (), "updates", chunk
 
 
 def _is_streamable(metadata: dict | None) -> bool:
@@ -115,10 +128,23 @@ def stream_run(
         # 两种情况都只出一遍，靠这个标记二选一。
         saw_delta = False
         tool_started_at: dict[str, float] = {}
+        trace = subagent_trace.SubagentTrace()
 
-        for chunk in agent.stream(payload, config=config, stream_mode=["updates", "messages"]):
-            mode, data = _split_chunk(chunk)
+        # subgraphs=True：子智能体内部的事件也吐出来，由 SubagentTrace 决定露不露给前端。
+        for chunk in agent.stream(
+            payload,
+            config=config,
+            stream_mode=["updates", "messages"],
+            subgraphs=True,
+        ):
+            namespace, mode, data = _split_chunk(chunk)
+            subagent = trace.call_for(namespace)
+            if namespace and (subagent is None or not subagent.visible):
+                continue
             if mode == "messages":
+                # 只流主智能体的正文；子智能体的话留在它自己的任务里，不混进主对话。
+                if subagent is not None:
+                    continue
                 message_chunk, metadata = data
                 # 完整的 AIMessage 会再从 updates 走一遍，这里只认增量 chunk。
                 if not isinstance(message_chunk, AIMessageChunk) or not _is_streamable(metadata):
@@ -151,6 +177,7 @@ def stream_run(
                     if isinstance(message, ToolMessage):
                         call_id = getattr(message, "tool_call_id", "") or ""
                         started = tool_started_at.pop(call_id, None)
+                        trace.note_tool_end(call_id)
                         duration = int((time.monotonic() - started) * 1000) if started else 0
                         status: ToolStatus = (
                             "error" if getattr(message, "status", None) == "error" else "ok"
@@ -166,7 +193,7 @@ def stream_run(
                     if not isinstance(message, AIMessage):
                         continue
                     # 正文/思考既然已经流式出过，就不再回放整条；工具调用永远走这里。
-                    if not saw_delta:
+                    if subagent is None and not saw_delta:
                         for kind, piece in block_fragments(message):
                             events = (
                                 turn.reasoning(piece) if kind == "reasoning" else turn.text(piece)
@@ -175,11 +202,20 @@ def stream_run(
                                 yield sse(event)
                     for call in getattr(message, "tool_calls", None) or []:
                         call_id = str(call.get("id") or uuid.uuid4().hex)
+                        name = str(call.get("name") or "")
+                        args = call.get("args") or {}
                         tool_started_at[call_id] = time.monotonic()
+                        if subagent is None and name == _TASK_TOOL:
+                            trace.note_task_call(
+                                call_id=call_id,
+                                subagent_type=str(args.get("subagent_type") or ""),
+                            )
                         for event in turn.tool_start(
                             call_id=call_id,
-                            name=str(call.get("name") or ""),
-                            args=call.get("args") or {},
+                            name=name,
+                            args=args,
+                            agent=subagent.name if subagent else None,
+                            parent_call_id=subagent.call_id if subagent else None,
                         ):
                             yield sse(event)
 

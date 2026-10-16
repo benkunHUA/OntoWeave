@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import NotFoundError
-from app.models import ObjectType, Relation
+from app.models import ObjectType, Property, Relation
 from app.services import graph
 
 
@@ -24,6 +24,20 @@ def object_type_brief(obj: ObjectType) -> dict:
         "name": obj.name,
         "description": obj.description,
         "status": obj.status,
+    }
+
+
+def property_brief(prop: Property) -> dict:
+    """模型看到的属性摘要：写规则赋值 / 校验条件时要知道属性 id、类型与候选值。"""
+    return {
+        "id": str(prop.id),
+        "name": prop.name,
+        "datatype": prop.datatype,
+        "is_array": prop.is_array,
+        "is_primary_key": prop.is_primary_key,
+        "is_title_key": prop.is_title_key,
+        "enum_values": prop.enum_values,
+        "status": prop.status,
     }
 
 

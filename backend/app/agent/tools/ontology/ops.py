@@ -12,30 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.agent.tools.graph_read import load_membership, object_type_brief, render_slice
 from app.errors import NotFoundError
-from app.services import element_edit, embedding, ontology
+from app.services import element_edit, embedding
 from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
-
-
-def search_ontology(
-    session: Session,
-    *,
-    query: str,
-    embedder: embedding.Embedder,
-    owner_id: uuid.UUID,
-    limit: int = 10,
-) -> list[dict]:
-    """按语义找已有对象类型。新建之前应该先调这个，避免造重复。"""
-    hits = embedding.search_object_types(
-        session, query=query, embedder=embedder, owner_id=owner_id, limit=limit
-    )
-    return [{**object_type_brief(obj), "similarity": round(score, 4)} for obj, score in hits]
-
-
-def list_types(session: Session, *, owner_id: uuid.UUID, limit: int = 50) -> list[dict]:
-    return [
-        object_type_brief(obj)
-        for obj in ontology.list_object_types(session, owner_id=owner_id, limit=limit)
-    ]
 
 
 def get_subgraph(
@@ -110,6 +88,7 @@ def propose_property(
     is_array: bool = False,
     is_primary_key: bool = False,
     is_title_key: bool = False,
+    enum_values: list[str] | None = None,
 ) -> dict:
     prop = element_edit.create_property(
         session,
@@ -122,6 +101,7 @@ def propose_property(
         is_array=is_array,
         is_primary_key=is_primary_key,
         is_title_key=is_title_key,
+        enum_values=enum_values,
     )
     return {
         "id": str(prop.id),
@@ -131,6 +111,7 @@ def propose_property(
         "is_array": prop.is_array,
         "is_primary_key": prop.is_primary_key,
         "is_title_key": prop.is_title_key,
+        "enum_values": prop.enum_values,
         "status": prop.status,
     }
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Graph, GraphObject, GraphRelation, ObjectType, Property, Relation
+from app.services import action_brief
 
 
 @dataclass(frozen=True)
@@ -16,6 +17,7 @@ class GraphSnapshot:
     nodes: list[ObjectType]
     relations: list[Relation]
     properties: dict[uuid.UUID, list[Property]]
+    actions: list[action_brief.ActionBrief]
 
 
 def create_graph(session: Session, *, owner_id: uuid.UUID, name: str | None = None) -> Graph:
@@ -138,6 +140,7 @@ def get_graph_snapshot(
         nodes=nodes,
         relations=relations,
         properties=properties,
+        actions=action_brief.list_graph_action_briefs(session, graph_id),
     )
 
 

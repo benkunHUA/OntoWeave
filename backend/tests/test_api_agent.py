@@ -12,7 +12,7 @@ from app.services import view_state
 class StubAgent:
     """假的编译产物：只按约定吐 update chunk，用来单独验证 SSE 这层的管道。"""
 
-    def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+    def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
         yield {
             "model": {
                 "messages": [
@@ -124,7 +124,7 @@ def test_interrupt_is_reported_as_paused(client, monkeypatch):
     """中断和完成都是 run.end，前端靠 paused 区分，不能含糊。"""
 
     class InterruptingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             from langgraph.types import Interrupt
 
             yield {"__interrupt__": (Interrupt(value={"question": "客户还是供应商？"}),)}
@@ -166,7 +166,7 @@ def test_interrupt_is_reported_as_paused(client, monkeypatch):
 
 def test_ask_user_options_become_resume_payloads(client, monkeypatch):
     class AskingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             from langgraph.types import Interrupt
 
             yield {
@@ -205,7 +205,7 @@ def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
     asked = {"question": "客户还是供应商？", "options": ["客户", "供应商"]}
 
     class InterruptingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             yield {
                 "model": {
                     "messages": [
@@ -226,7 +226,7 @@ def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
             yield {"__interrupt__": (Interrupt(value=asked),)}
 
     class ResumingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             yield {"tools": {"messages": [ToolMessage(content="客户", tool_call_id=call_id)]}}
             yield {"model": {"messages": [AIMessage(content="行，按客户来。")]}}
 
@@ -269,7 +269,7 @@ def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
 
 def test_state_update_includes_the_saved_view_spec(client, monkeypatch):
     class ViewWritingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             yield {"model": {"messages": [AIMessage(content="已经把图按域分组。")]}}
 
     def build_with_view(session, settings, run, owner_id, *, checkpointer=None):  # noqa: ARG001
@@ -304,7 +304,7 @@ def test_streaming_agent_emits_reasoning_and_text_blocks(client, monkeypatch):
     """增量流里思考在前、正文在后，中间靠 block.end 收口。"""
 
     class StreamingAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             meta = {"langgraph_node": "model", "langgraph_checkpoint_ns": "model:1"}
             yield (
                 "messages",
@@ -365,7 +365,7 @@ def test_streaming_agent_emits_reasoning_and_text_blocks(client, monkeypatch):
 
 def test_stream_errors_are_reported_as_events(client, monkeypatch):
     class BrokenAgent:
-        def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+        def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             raise RuntimeError("模型挂了")
             yield  # pragma: no cover
 

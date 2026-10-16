@@ -6,8 +6,8 @@
 
 import uuid
 
-from app.models import ObjectType, Property, Relation
-from app.services import conversation, graph, graph_cleanup, ontology
+from app.models import ActionParameter, ActionType, ObjectType, Property, Relation
+from app.services import action, conversation, graph, graph_cleanup, ontology
 
 
 def test_graph_only_scope_keeps_shared_pool_intact(session):
@@ -191,3 +191,57 @@ def test_purge_graph_elements_is_a_noop_for_default_scope(session):
     session.expire_all()
 
     assert session.get(ObjectType, obj.id) is not None
+
+
+def test_drafts_scope_removes_local_action_types(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="连草稿动作一起删")
+    graph_id = conv.graph_id
+
+    draft_action = action.create_action_type(
+        session, owner_id=owner, name="草稿动作", home_graph_id=graph_id
+    )
+    action.add_action_to_graph(session, graph_id, draft_action.id)
+    parameter = action.create_parameter(
+        session, action_type_id=draft_action.id, name="金额", datatype="decimal"
+    )
+    confirmed_action = action.create_action_type(
+        session, owner_id=owner, name="已确认动作", home_graph_id=graph_id
+    )
+    action.transition_action_type(session, confirmed_action.id, "confirmed")
+
+    conversation.delete_conversation(session, conv.id, owner_id=owner, scope="graph-and-drafts")
+    session.expunge_all()
+
+    assert session.get(ActionType, draft_action.id) is None
+    assert session.get(ActionParameter, parameter.id) is None
+    kept = session.get(ActionType, confirmed_action.id)
+    assert kept is not None
+    assert kept.home_graph_id is None
+
+
+def test_unreferenced_scope_keeps_action_types_used_elsewhere(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="清理没被引用的动作")
+    graph_id = conv.graph_id
+
+    shared = action.create_action_type(
+        session, owner_id=owner, name="别处也在用", home_graph_id=graph_id
+    )
+    action.add_action_to_graph(session, graph_id, shared.id)
+    other = conversation.create_conversation(session, owner_id=owner, title="另一张图")
+    action.add_action_to_graph(session, other.graph_id, shared.id)
+    alone = action.create_action_type(
+        session, owner_id=owner, name="只在这张图", home_graph_id=graph_id
+    )
+    action.add_action_to_graph(session, graph_id, alone.id)
+
+    conversation.delete_conversation(
+        session, conv.id, owner_id=owner, scope="graph-and-unreferenced"
+    )
+    session.expunge_all()
+
+    assert session.get(ActionType, alone.id) is None
+    kept = session.get(ActionType, shared.id)
+    assert kept is not None
+    assert kept.home_graph_id is None

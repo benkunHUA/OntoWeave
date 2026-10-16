@@ -5,7 +5,7 @@ import logging
 import math
 import uuid
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
 from sqlalchemy import select
@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
-from app.models import EMBEDDING_DIM, ObjectType
-from app.services import ontology
+from app.models import EMBEDDING_DIM, ActionType, ObjectType
+from app.services import status
 
 logger = logging.getLogger(__name__)
 
@@ -146,47 +146,89 @@ def _check_dim(embedder: Embedder) -> None:
         )
 
 
-def _embedding_text(obj: ObjectType) -> str:
+def _embedding_text(element: Any) -> str:
     """检索文本只由名称 + 描述拼成，状态、归属、图都不参与。"""
-    return obj.name if not obj.description else f"{obj.name} {obj.description}"
+    return element.name if not element.description else f"{element.name} {element.description}"
+
+
+def _refresh_embedding(
+    session: Session, *, model: Any, element_id: uuid.UUID, embedder: Embedder, kind: str
+) -> Any:
+    """让向量始终跟着确认状态走：确认/批准过的才有向量，草稿一律清空。
+
+    这样检索命中的必然已确认，调用方不用再判状态；草稿也不会被检索到、被误复用。
+    改动名称/描述后同样调它，把旧向量刷新掉。
+    """
+    _check_dim(embedder)
+    element = session.get(model, element_id)
+    if element is None:
+        raise NotFoundError(f"{kind} {element_id} not found")
+    if element.status == status.DRAFT:
+        element.embedding = None
+    else:
+        element.embedding = embedder.embed([_embedding_text(element)])[0]
+    session.flush()
+    return element
+
+
+def _try_refresh_embedding(
+    session: Session, *, model: Any, element_id: uuid.UUID, embedder: Embedder, kind: str
+) -> None:
+    """尽力而为版：算向量失败不往上抛，只记日志。
+
+    定稿（确认/撤销）和改名这类路径用。本体改动本身已经生效，不该因为嵌入服务
+    抖动就整笔回滚；代价是这个元素暂时没向量、检索不到，等下次编辑或再次确认时补。
+    """
+    try:
+        _refresh_embedding(
+            session, model=model, element_id=element_id, embedder=embedder, kind=kind
+        )
+    except Exception:
+        logger.warning(
+            "%s %s embedding refresh failed; leaving it unembedded",
+            kind,
+            element_id,
+            exc_info=True,
+        )
+
+
+def _search_embeddings(
+    session: Session,
+    *,
+    model: Any,
+    query: str,
+    embedder: Embedder,
+    owner_id: uuid.UUID | None = None,
+    limit: int = 10,
+    exclude_ids: Sequence[uuid.UUID] = (),
+) -> list[tuple[Any, float]]:
+    """按语义远近返回候选 (元素, 相似度)，相似度是 1 - 余弦距离。"""
+    _check_dim(embedder)
+    vector = embedder.embed([query])[0]
+    distance = model.embedding.cosine_distance(vector)
+    stmt = select(model, distance.label("distance")).where(model.embedding.isnot(None))
+    if owner_id is not None:
+        stmt = stmt.where(model.owner_id == owner_id)
+    if exclude_ids:
+        stmt = stmt.where(model.id.notin_(list(exclude_ids)))
+    stmt = stmt.order_by(distance).limit(limit)
+    return [(row[0], 1.0 - float(row[1])) for row in session.execute(stmt)]
 
 
 def refresh_object_type_embedding(
     session: Session, *, object_type_id: uuid.UUID, embedder: Embedder
 ) -> ObjectType:
-    """让向量始终跟着确认状态走：确认/批准过的才有向量，草稿一律清空。
-
-    这样 search_object_types 命中的必然已确认，调用方不用再判状态；草稿也不会
-    被检索到、被误复用。改动名称/描述后同样调它，把旧向量刷新掉。
-    """
-    _check_dim(embedder)
-    obj = session.get(ObjectType, object_type_id)
-    if obj is None:
-        raise NotFoundError(f"object type {object_type_id} not found")
-    if obj.status == ontology.DRAFT:
-        obj.embedding = None
-    else:
-        obj.embedding = embedder.embed([_embedding_text(obj)])[0]
-    session.flush()
-    return obj
+    return _refresh_embedding(
+        session, model=ObjectType, element_id=object_type_id, embedder=embedder, kind="object type"
+    )
 
 
 def try_refresh_object_type_embedding(
     session: Session, *, object_type_id: uuid.UUID, embedder: Embedder
 ) -> None:
-    """尽力而为版：算向量失败不往上抛，只记日志。
-
-    定稿（确认/撤销）和改名这类路径用。本体改动本身已经生效，不该因为嵌入服务
-    抖动就整笔回滚；代价是这个对象暂时没向量、检索不到，等下次编辑或再次确认时补。
-    """
-    try:
-        refresh_object_type_embedding(session, object_type_id=object_type_id, embedder=embedder)
-    except Exception:
-        logger.warning(
-            "object type %s embedding refresh failed; leaving it unembedded",
-            object_type_id,
-            exc_info=True,
-        )
+    _try_refresh_embedding(
+        session, model=ObjectType, element_id=object_type_id, embedder=embedder, kind="object type"
+    )
 
 
 def search_object_types(
@@ -198,14 +240,49 @@ def search_object_types(
     limit: int = 10,
     exclude_ids: Sequence[uuid.UUID] = (),
 ) -> list[tuple[ObjectType, float]]:
-    """按语义远近返回候选 (对象, 相似度)，相似度是 1 - 余弦距离。"""
-    _check_dim(embedder)
-    vector = embedder.embed([query])[0]
-    distance = ObjectType.embedding.cosine_distance(vector)
-    stmt = select(ObjectType, distance.label("distance")).where(ObjectType.embedding.isnot(None))
-    if owner_id is not None:
-        stmt = stmt.where(ObjectType.owner_id == owner_id)
-    if exclude_ids:
-        stmt = stmt.where(ObjectType.id.notin_(list(exclude_ids)))
-    stmt = stmt.order_by(distance).limit(limit)
-    return [(row[0], 1.0 - float(row[1])) for row in session.execute(stmt)]
+    return _search_embeddings(
+        session,
+        model=ObjectType,
+        query=query,
+        embedder=embedder,
+        owner_id=owner_id,
+        limit=limit,
+        exclude_ids=exclude_ids,
+    )
+
+
+def refresh_action_type_embedding(
+    session: Session, *, action_type_id: uuid.UUID, embedder: Embedder
+) -> ActionType:
+    """动作类型与对象类型同一条路径：确认过的才有向量，草稿一律清空。"""
+    return _refresh_embedding(
+        session, model=ActionType, element_id=action_type_id, embedder=embedder, kind="action type"
+    )
+
+
+def try_refresh_action_type_embedding(
+    session: Session, *, action_type_id: uuid.UUID, embedder: Embedder
+) -> None:
+    _try_refresh_embedding(
+        session, model=ActionType, element_id=action_type_id, embedder=embedder, kind="action type"
+    )
+
+
+def search_action_types(
+    session: Session,
+    *,
+    query: str,
+    embedder: Embedder,
+    owner_id: uuid.UUID | None = None,
+    limit: int = 10,
+    exclude_ids: Sequence[uuid.UUID] = (),
+) -> list[tuple[ActionType, float]]:
+    return _search_embeddings(
+        session,
+        model=ActionType,
+        query=query,
+        embedder=embedder,
+        owner_id=owner_id,
+        limit=limit,
+        exclude_ids=exclude_ids,
+    )

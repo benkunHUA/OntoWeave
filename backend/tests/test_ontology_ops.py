@@ -29,26 +29,6 @@ def _setup(session, owner):
     return conv, emb, customer, order, rel
 
 
-def test_search_ontology_returns_similar_with_scores(session):
-    owner = uuid.uuid4()
-    _, emb, *_ = _setup(session, owner)
-    hits = ops.search_ontology(session, query="客户公司", embedder=emb, owner_id=owner)
-    assert hits[0]["name"] == "客户"
-    assert "similarity" in hits[0]
-
-
-def test_search_ontology_only_returns_own(session):
-    owner, other = uuid.uuid4(), uuid.uuid4()
-    emb = embedding.HashingEmbedder()
-    mine = ontology.create_object_type(session, owner_id=owner, name="客户")
-    outsider = ontology.create_object_type(session, owner_id=other, name="客户")
-    for obj in (mine, outsider):
-        ontology.transition_object_type(session, obj.id, "confirmed")
-        embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
-    hits = ops.search_ontology(session, query="客户", embedder=emb, owner_id=owner)
-    assert [hit["id"] for hit in hits] == [str(mine.id)]
-
-
 def test_get_subgraph_walks_one_hop(session):
     owner = uuid.uuid4()
     conv, _, customer, _, _ = _setup(session, owner)
@@ -66,13 +46,6 @@ def test_get_subgraph_rejects_unknown_node(session):
         ops.get_subgraph(
             session, graph_id=conv.graph_id, object_type_id=uuid.uuid4(), owner_id=owner
         )
-
-
-def test_list_types_only_returns_own(session):
-    owner, other = uuid.uuid4(), uuid.uuid4()
-    ontology.create_object_type(session, owner_id=owner, name="mine")
-    ontology.create_object_type(session, owner_id=other, name="other")
-    assert [item["name"] for item in ops.list_types(session, owner_id=owner)] == ["mine"]
 
 
 def _changeset(session, owner):

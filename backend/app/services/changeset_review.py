@@ -19,9 +19,17 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.models import Changeset, ChangesetOp, ObjectType, Property, Relation
+from app.models import (
+    ActionParameter,
+    ActionType,
+    Changeset,
+    ChangesetOp,
+    ObjectType,
+    Property,
+    Relation,
+)
 from app.services import changeset as changeset_service
-from app.services import conversation, embedding
+from app.services import conversation, element_kinds, embedding
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +58,15 @@ _OP_ORDER = (
 
 # 元素种类的中文说法，写回模型线程时按名字点名，别只报数量。
 _ELEMENT_LABELS = {
-    "object_type": "对象类型",
-    "property": "属性",
-    "relation": "关系",
+    element_kinds.OBJECT_TYPE: "对象类型",
+    element_kinds.PROPERTY: "属性",
+    element_kinds.RELATION: "关系",
+    element_kinds.ACTION_TYPE: "动作",
+    element_kinds.ACTION_PARAMETER: "动作参数",
+    element_kinds.ACTION_RULE: "动作规则",
+    element_kinds.ACTION_RULE_ASSIGNMENT: "字段赋值",
+    element_kinds.ACTION_CRITERIA_NODE: "提交校验条件",
+    element_kinds.ACTION_CRITERIA_OPERAND: "条件操作数",
 }
 
 _HEADLINES = {
@@ -133,6 +147,14 @@ def _describe_target(session: Session, kind: str | None, target_id: uuid.UUID | 
             if owner is not None
             else f"{label}「{prop.name}」"
         )
+    if kind == element_kinds.ACTION_TYPE:
+        action_type = session.get(ActionType, target_id)
+        return (
+            f"{label}「{action_type.name}」" if action_type is not None else f"{label}（已不存在）"
+        )
+    if kind == element_kinds.ACTION_PARAMETER:
+        parameter = session.get(ActionParameter, target_id)
+        return f"{label}「{parameter.name}」" if parameter is not None else f"{label}（已不存在）"
     if kind == "relation":
         rel = session.get(Relation, target_id)
         if rel is None:
@@ -197,15 +219,21 @@ def _refresh_embeddings(
     if embedder is None:
         return
     for op in changeset_service.list_ops(session, changeset_id):
-        if op.payload.get("kind") != "object_type" or op.target_id is None:
+        kind = op.payload.get("kind")
+        if op.target_id is None:
             continue
         if op.op in (changeset_service.OP_DELETE, changeset_service.OP_VIEW):
             continue
-        if session.get(ObjectType, op.target_id) is None:
-            continue
-        embedding.try_refresh_object_type_embedding(
-            session, object_type_id=op.target_id, embedder=embedder
-        )
+        if kind == element_kinds.OBJECT_TYPE and session.get(ObjectType, op.target_id) is not None:
+            embedding.try_refresh_object_type_embedding(
+                session, object_type_id=op.target_id, embedder=embedder
+            )
+        elif (
+            kind == element_kinds.ACTION_TYPE and session.get(ActionType, op.target_id) is not None
+        ):
+            embedding.try_refresh_action_type_embedding(
+                session, action_type_id=op.target_id, embedder=embedder
+            )
 
 
 def _inspect(

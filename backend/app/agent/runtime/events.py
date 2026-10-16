@@ -149,7 +149,16 @@ class TurnBuilder:
     def text(self, text: str) -> list[AgentEvent]:
         return self._append("text", text)
 
-    def tool_start(self, *, call_id: str, name: str, args: Any) -> list[AgentEvent]:
+    def tool_start(
+        self,
+        *,
+        call_id: str,
+        name: str,
+        args: Any,
+        agent: str | None = None,
+        parent_call_id: str | None = None,
+    ) -> list[AgentEvent]:
+        """起一个工具块；子智能体内部的调用带上 agent / parent_call_id 好让前端叠起来。"""
         events = self._close_open()
         block = ToolBlock(
             id=uuid.uuid4().hex,
@@ -160,11 +169,20 @@ class TurnBuilder:
             result=None,
             truncated=False,
             durationMs=None,
+            agent=agent,
+            parentCallId=parent_call_id,
         )
         self.blocks.append(block)
         self._tools[call_id] = block
         events.append(
-            ToolStartEvent(messageId=self.message_id, callId=call_id, name=name, args=block.args)
+            ToolStartEvent(
+                messageId=self.message_id,
+                callId=call_id,
+                name=name,
+                args=block.args,
+                agent=agent,
+                parentCallId=parent_call_id,
+            )
         )
         return events
 

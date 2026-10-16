@@ -53,6 +53,8 @@ class ToolStartEvent(_Event):
     callId: str
     name: str
     args: dict
+    agent: str | None = None
+    parentCallId: str | None = None
 
 
 class ToolEndEvent(_Event):

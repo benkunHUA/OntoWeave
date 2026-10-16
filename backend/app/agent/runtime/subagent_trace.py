@@ -1,0 +1,69 @@
+"""子智能体的过程可见性。
+
+`subgraphs=True` 时，langgraph 给「工具内部调起来的图」打上 `("tools:<task_id>",)` 命名空间，
+但那个 id 是 langgraph 自己的任务 id，认不出是哪个子智能体。这里记下主智能体发出的 `task`
+调用，按「先起的先认」把命名空间绑回那次调用；绑定只做一次并缓存。
+
+可见范围默认只放动作子智能体：视觉整理是短任务，一次性给结果就够；动作的定义过程长，
+前端要边跑边看到它在做什么。要放开别的子智能体，只改 `VISIBLE_SUBAGENTS` 一处。
+"""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+from app.agent.tools.action.subagent import ACTION_AGENT_NAME
+
+# 内部过程对前端可见的子智能体。
+VISIBLE_SUBAGENTS = frozenset({ACTION_AGENT_NAME})
+
+# 子图命名空间的形状：`("<父节点>:<langgraph 任务 id>", ...)`。
+_TOOL_NAMESPACE_PREFIX = "tools:"
+
+
+@dataclass(frozen=True)
+class SubagentCall:
+    """一次 `task` 委派：哪个子智能体、露不露给前端、发起它的工具调用 id。"""
+
+    call_id: str
+    name: str
+    visible: bool
+
+
+class SubagentTrace:
+    """把子图命名空间对回发起它的那次 `task` 调用。"""
+
+    def __init__(self, visible: frozenset[str] = VISIBLE_SUBAGENTS) -> None:
+        self._visible = visible
+        self._pending: list[SubagentCall] = []
+        self._bound: dict[str, SubagentCall | None] = {}
+
+    def note_task_call(self, *, call_id: str, subagent_type: str) -> None:
+        """主智能体委派了一次 `task`：等它的子图命名空间露头，好把两边对起来。"""
+        if not subagent_type:
+            return
+        self._pending.append(
+            SubagentCall(
+                call_id=call_id,
+                name=subagent_type,
+                visible=subagent_type in self._visible,
+            )
+        )
+
+    def note_tool_end(self, call_id: str) -> None:
+        self._pending = [call for call in self._pending if call.call_id != call_id]
+
+    def call_for(self, namespace: Sequence[str]) -> SubagentCall | None:
+        """这段事件属于哪个子智能体；顶层命名空间（主智能体）返回 None。"""
+        if not namespace:
+            return None
+        head = str(namespace[0])
+        if not head.startswith(_TOOL_NAMESPACE_PREFIX):
+            return None
+        if head in self._bound:
+            return self._bound[head]
+        # 并行委派时命名空间里没有子智能体名，只能按「先起的先认」依次绑定。
+        call = self._pending.pop(0) if self._pending else None
+        self._bound[head] = call
+        return call

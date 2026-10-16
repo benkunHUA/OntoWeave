@@ -77,7 +77,7 @@ class _RecordingAgent:
     def __init__(self) -> None:
         self.configs: list[dict] = []
 
-    def stream(self, payload, config=None, stream_mode=None):  # noqa: ARG002
+    def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
         self.configs.append(config)
         yield {"model": {"messages": [AIMessage(content="好的")]}}
 

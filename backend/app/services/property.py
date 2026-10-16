@@ -9,6 +9,7 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Property
+from app.services import enum_values as enum_values_rules
 from app.services import object_type, status
 from app.vocabulary import DEFAULT_DATATYPE, PROPERTY_DATATYPES, PropertyDatatype
 
@@ -23,9 +24,13 @@ def create_property(
     is_array: bool = False,
     is_primary_key: bool = False,
     is_title_key: bool = False,
+    enum_values: list[str] | None = None,
 ) -> Property:
     object_type.get_object_type(session, owner_type_id)
     _ensure_datatype(datatype)
+    stored_enum_values = _enum_values_for(
+        datatype=datatype, values=enum_values, where=f"property {name!r}"
+    )
     if is_primary_key:
         _ensure_key_free(session, owner_type_id=owner_type_id, column=Property.is_primary_key)
     if is_title_key:
@@ -38,6 +43,7 @@ def create_property(
         is_array=is_array,
         is_primary_key=is_primary_key,
         is_title_key=is_title_key,
+        enum_values=stored_enum_values,
         status=status.DRAFT,
     )
     session.add(prop)
@@ -52,6 +58,19 @@ def _ensure_datatype(datatype: str) -> None:
         raise InvariantViolationError(
             f"unsupported datatype {datatype!r}; expected one of {list(PROPERTY_DATATYPES)}"
         ) from exc
+
+
+def _enum_values_for(*, datatype: str, values: list[str] | None, where: str) -> list[str] | None:
+    """候选取值与数据类型必须配套：enum 要有至少两个候选值，其它类型不许留候选值。"""
+    if datatype == PropertyDatatype.ENUM:
+        if not values:
+            raise InvariantViolationError(f"{where}: enum datatype requires enum_values")
+        return enum_values_rules.ensure_valid(values, where=where)
+    if values:
+        raise InvariantViolationError(
+            f"{where}: enum_values is only allowed when datatype is 'enum'"
+        )
+    return None
 
 
 def _ensure_key_free(
@@ -86,6 +105,12 @@ def validate_property_patch(session: Session, *, property_id: uuid.UUID, patch: 
         raise NotFoundError(f"property {property_id} not found")
     if "datatype" in patch:
         _ensure_datatype(patch["datatype"])
+    if "datatype" in patch or "enum_values" in patch:
+        _enum_values_for(
+            datatype=patch.get("datatype", prop.datatype),
+            values=patch.get("enum_values", prop.enum_values),
+            where=f"property {prop.name!r}",
+        )
     if patch.get("is_primary_key"):
         _ensure_key_free(
             session,
@@ -100,6 +125,13 @@ def validate_property_patch(session: Session, *, property_id: uuid.UUID, patch: 
             column=Property.is_title_key,
             excluding_id=prop.id,
         )
+
+
+def get_property(session: Session, property_id: uuid.UUID) -> Property:
+    prop = session.get(Property, property_id)
+    if prop is None:
+        raise NotFoundError(f"property {property_id} not found")
+    return prop
 
 
 def list_properties(session: Session, owner_type_id: uuid.UUID) -> list[Property]:

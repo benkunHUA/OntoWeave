@@ -10,16 +10,21 @@ from app.config import get_settings
 from app.deps import get_agent_checkpointer, get_current_user_id, get_session
 from app.models import Changeset
 from app.schemas.changeset import (
+    AddActionParameterEdit,
+    AddActionRuleAssignmentEdit,
+    AddActionRuleEdit,
     ChangesetDetail,
     ChangesetOpCreate,
     ChangesetOpRead,
     ChangesetRead,
+    CreateActionTypeEdit,
     CreateObjectTypeEdit,
     CreatePropertyEdit,
     CreateRelationEdit,
     DeleteEdit,
     GraphEditsCreate,
     ReuseObjectTypeEdit,
+    SetActionCriteriaEdit,
     UpdateEdit,
 )
 from app.services import changeset, changeset_review, element_edit, embedding
@@ -85,6 +90,7 @@ def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
                     is_array=edit.is_array,
                     is_primary_key=edit.is_primary_key,
                     is_title_key=edit.is_title_key,
+                    enum_values=edit.enum_values,
                 )
             )
         elif isinstance(edit, CreateObjectTypeEdit):
@@ -102,6 +108,54 @@ def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
                     forward_label=edit.forward_label,
                     reverse_label=edit.reverse_label,
                     foreign_key_property_id=edit.foreign_key_property_id,
+                )
+            )
+        elif isinstance(edit, CreateActionTypeEdit):
+            ops.append(element_edit.ActionTypeCreate(name=edit.name, description=edit.description))
+        elif isinstance(edit, AddActionParameterEdit):
+            ops.append(
+                element_edit.ActionParameterCreate(
+                    action_type_id=edit.action_type_id,
+                    name=edit.name,
+                    kind=edit.kind,
+                    description=edit.description,
+                    datatype=edit.datatype,
+                    target_object_type_id=edit.target_object_type_id,
+                    is_array=edit.is_array,
+                    is_required=edit.is_required,
+                    default_value=edit.default_value,
+                    enum_values=edit.enum_values,
+                )
+            )
+        elif isinstance(edit, AddActionRuleEdit):
+            ops.append(
+                element_edit.ActionRuleCreate(
+                    action_type_id=edit.action_type_id,
+                    rule_kind=edit.rule_kind,
+                    target_object_type_id=edit.target_object_type_id,
+                    target_relation_id=edit.target_relation_id,
+                    source_parameter_id=edit.source_parameter_id,
+                    target_parameter_id=edit.target_parameter_id,
+                    assignments=tuple(assignment.model_dump() for assignment in edit.assignments),
+                )
+            )
+        elif isinstance(edit, AddActionRuleAssignmentEdit):
+            ops.append(
+                element_edit.ActionRuleAssignmentCreate(
+                    rule_id=edit.rule_id,
+                    target_property_id=edit.target_property_id,
+                    value_source=edit.value_source,
+                    value_parameter_id=edit.value_parameter_id,
+                    object_parameter_id=edit.object_parameter_id,
+                    object_property_id=edit.object_property_id,
+                    static_value=edit.static_value,
+                )
+            )
+        elif isinstance(edit, SetActionCriteriaEdit):
+            ops.append(
+                element_edit.ActionCriteriaReplace(
+                    action_type_id=edit.action_type_id,
+                    conditions=tuple(condition.model_dump() for condition in edit.conditions),
                 )
             )
         elif isinstance(edit, DeleteEdit):

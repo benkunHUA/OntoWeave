@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
 from app.schemas.graph import (
+    GraphActionBriefRead,
+    GraphActionInvolvesRead,
     GraphCreate,
     GraphNodeRead,
     GraphPropertyRead,
@@ -16,7 +18,7 @@ from app.schemas.graph import (
     ObjectMembership,
     RelationMembership,
 )
-from app.services import graph
+from app.services import action_brief, graph
 
 router = APIRouter(tags=["graphs"])
 
@@ -42,6 +44,20 @@ def get_graph_snapshot(
             for node in snapshot.nodes
         ],
         relations=[GraphRelationRead.model_validate(relation) for relation in snapshot.relations],
+        actions=[_action_brief_read(brief) for brief in snapshot.actions],
+    )
+
+
+def _action_brief_read(brief: action_brief.ActionBrief) -> GraphActionBriefRead:
+    return GraphActionBriefRead(
+        id=brief.action.id,
+        name=brief.action.name,
+        description=brief.action.description,
+        status=brief.action.status,
+        involves=[
+            GraphActionInvolvesRead(kind=involves.kind, id=involves.id)
+            for involves in brief.involves
+        ],
     )
 
 

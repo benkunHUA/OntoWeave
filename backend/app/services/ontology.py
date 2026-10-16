@@ -15,6 +15,7 @@ from app.services.object_type import (
 )
 from app.services.property import (
     create_property,
+    get_property,
     list_properties,
     transition_property,
     validate_property_patch,
@@ -36,6 +37,7 @@ __all__ = [
     "create_property",
     "create_relation",
     "get_object_type",
+    "get_property",
     "get_relation",
     "list_object_types",
     "list_properties",

@@ -6,7 +6,7 @@ import pytest
 
 from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
-from app.services import embedding, ontology
+from app.services import action, embedding, ontology
 
 
 def test_hashing_embedder_is_deterministic_and_normalised():
@@ -155,3 +155,33 @@ def test_build_embedder_switches_on_configuration():
     assert isinstance(configured, embedding.ApiEmbedder)
     assert configured.model == "m"
     assert configured.dim == 4
+
+
+def test_action_type_embeddings_follow_confirmation(session):
+    emb = embedding.HashingEmbedder()
+    owner = uuid.uuid4()
+    action_type = action.create_action_type(session, owner_id=owner, name="指派工单")
+
+    embedding.refresh_action_type_embedding(session, action_type_id=action_type.id, embedder=emb)
+    assert action_type.embedding is None
+
+    action.transition_action_type(session, action_type.id, "confirmed")
+    embedding.refresh_action_type_embedding(session, action_type_id=action_type.id, embedder=emb)
+    assert action_type.embedding is not None
+
+    hits = embedding.search_action_types(
+        session, query="指派工单给员工", embedder=emb, owner_id=owner, limit=5
+    )
+    assert [hit[0].id for hit in hits] == [action_type.id]
+
+
+def test_try_refresh_action_embedding_swallows_failures(session, failing_embedder):
+    owner = uuid.uuid4()
+    action_type = action.create_action_type(session, owner_id=owner, name="指派工单")
+    action.transition_action_type(session, action_type.id, "confirmed")
+
+    embedding.try_refresh_action_type_embedding(
+        session, action_type_id=action_type.id, embedder=failing_embedder
+    )
+
+    assert action_type.embedding is None

@@ -136,6 +136,23 @@ def list_ops(session: Session, changeset_id: uuid.UUID) -> list[ChangesetOp]:
     )
 
 
+def pending_delete_ids(
+    session: Session, changeset_id: uuid.UUID, element_kind: str
+) -> set[uuid.UUID]:
+    """这个改动集里已经标记删除、但还没真删的元素 id。
+
+    草稿阶段的删除是延后的，行还在库里；读树、算替换计划时要把它们排除，否则第二次
+    保存会把上一轮标删的东西又当成现有元素留下。
+    """
+    return {
+        op.target_id
+        for op in list_ops(session, changeset_id)
+        if op.op == OP_DELETE
+        and op.target_id is not None
+        and op.payload.get("kind") == element_kind
+    }
+
+
 def record_op(
     session: Session,
     *,
@@ -378,18 +395,28 @@ def _delete_elements(
 
     子元素对父元素是 ON DELETE CASCADE——先删父行的话数据库会把子行一起带走，
     ORM 再删一次就是 0 匹配（SAWarning）。删除顺序由注册表的 delete_phase 决定，
-    每阶段 flush 一次，把 DELETE 顺序钉死。
+    每阶段 flush 一次，把 DELETE 顺序钉死；同一档位里若有自引用（条件节点），
+    再由登记项的 order_for_delete 给出子先父后的顺序。
     """
     phases = {kind: element_kinds.REGISTRY[kind].delete_phase for kind, _ in elements}
     for kind in sorted(phases, key=lambda item: phases[item]):
+        entry = element_kinds.REGISTRY[kind]
         pending = [
-            (element_kind, element_id)
+            _load_element(session, element_kind, element_id, owner_id=owner_id)
             for element_kind, element_id in elements
             if element_kind == kind
         ]
-        for element_kind, element_id in pending:
-            session.delete(_load_element(session, element_kind, element_id, owner_id=owner_id))
-        if pending:
+        # 同一档位里还有自引用时（条件节点的 parent_id），登记项会给出子先父后的顺序。
+        # 这种表必须一条一条删：一批删会被 ORM 打包成 executemany，落库顺序就不再是
+        # 我们给的顺序，父行先落地会把子行级联带走。
+        ordered = entry.order_for_delete is not None
+        if entry.order_for_delete is not None:
+            pending = list(entry.order_for_delete(session, pending))
+        for element in pending:
+            session.delete(element)
+            if ordered:
+                session.flush()
+        if pending and not ordered:
             session.flush()
 
 

@@ -12,30 +12,12 @@ from langchain_core.tools import BaseTool, tool
 
 from app.agent.tools.context import ToolContext
 from app.agent.tools.ontology import ops
+from app.agent.tools.search import build_search_tool
 from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
 
 
 def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
     """把本体操作绑上运行上下文，包成模型可调用的工具。"""
-
-    @tool("search_ontology")
-    def search_ontology(query: str, limit: int = 10) -> list[dict] | dict:
-        """按语义检索已有对象类型。只返回已确认的类型（草稿没有向量、不在结果里）；
-        新建类型之前必须先调用，避免造重复。"""
-        return ctx.invoke(
-            lambda: ops.search_ontology(
-                ctx.session,
-                query=query,
-                embedder=ctx.embedder,
-                owner_id=ctx.owner_id,
-                limit=limit,
-            ),
-        )
-
-    @tool("list_types")
-    def list_types(limit: int = 50) -> list[dict] | dict:
-        """列出现有对象类型。"""
-        return ctx.invoke(lambda: ops.list_types(ctx.session, owner_id=ctx.owner_id, limit=limit))
 
     @tool("get_subgraph")
     def get_subgraph(object_type_id: str) -> dict:
@@ -51,7 +33,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("propose_type")
     def propose_type(name: str, description: str | None = None) -> dict:
-        """新建对象类型并加进草稿。只负责建：先 search_ontology 查重，确认没有可复用的再用它。"""
+        """新建对象类型并加进草稿。只负责建：先 search 查重，确认没有可复用的再用它。"""
         return ctx.invoke(
             lambda: ops.propose_type(
                 ctx.session,
@@ -64,7 +46,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
 
     @tool("reuse_type")
     def reuse_type(object_type_id: str) -> dict:
-        """把已有对象类型并进当前图，不新建。用户确认复用后用它，id 取自 search_ontology。"""
+        """把已有对象类型并进当前图，不新建。用户确认复用后用它，id 取自 search。"""
         return ctx.invoke(
             lambda: ops.reuse_type(
                 ctx.session,
@@ -83,9 +65,11 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         is_array: bool = False,
         is_primary_key: bool = False,
         is_title_key: bool = False,
+        enum_values: list[str] | None = None,
     ) -> dict:
-        """给对象类型加属性。datatype 取 text/integer/decimal/boolean/date/timestamp；
+        """给对象类型加属性。datatype 取 text/integer/decimal/boolean/date/timestamp/enum；
         is_array 表示多值，is_primary_key/is_title_key 各类型至多一个。
+        datatype=enum 时必填 enum_values：至少两个候选值，如 ["待处理", "已完成"]。
         用户明确列出的属性和字段逐项用它，不要改成关系。"""
         return ctx.invoke(
             lambda: ops.propose_property(
@@ -99,6 +83,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
                 is_array=is_array,
                 is_primary_key=is_primary_key,
                 is_title_key=is_title_key,
+                enum_values=enum_values,
             ),
         )
 
@@ -184,8 +169,7 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         return str(answer)
 
     return [
-        search_ontology,
-        list_types,
+        build_search_tool(ctx),
         get_subgraph,
         propose_type,
         reuse_type,

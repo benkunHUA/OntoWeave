@@ -1,4 +1,5 @@
 import uuid
+from typing import get_args
 
 import pytest
 
@@ -454,3 +455,16 @@ def test_apply_edits_reuse_refuses_a_draft(session):
             ops=[element_edit.ObjectTypeReuse(object_type_id=draft.id)],
             owner_id=owner,
         )
+
+
+def test_every_create_op_has_a_handler():
+    """新建类 op 必须登记实现：漏登记要在测试里炸，而不是等用户保存时 500。"""
+    ops = [
+        op
+        for op in get_args(element_edit.EditOp)
+        if op not in (element_edit.ElementUpdate, element_edit.ElementDelete)
+    ]
+    handlers = element_edit.write_handlers()
+
+    assert set(ops) <= set(handlers)
+    assert set(handlers) <= set(ops)

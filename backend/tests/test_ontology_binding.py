@@ -22,8 +22,7 @@ def test_binds_expected_tool_names(session):
     ctx = _context(session, uuid.uuid4())
     names = [item.name for item in build_model_tools(ctx)]
     assert names == [
-        "search_ontology",
-        "list_types",
+        "search",
         "get_subgraph",
         "propose_type",
         "reuse_type",
@@ -46,7 +45,7 @@ def test_tool_calls_reach_the_service_layer(session):
     ctx = _context(session, owner)
     by_name = {item.name: item for item in build_model_tools(ctx)}
 
-    assert by_name["list_types"].invoke({}) == []
+    assert by_name["search"].invoke({}) == []
 
     created = by_name["propose_type"].invoke({"name": "客户"})
     assert created["status"] == "draft"

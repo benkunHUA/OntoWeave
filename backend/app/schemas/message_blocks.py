@@ -71,6 +71,10 @@ class ToolBlock(_Block):
     result: str | None = None
     truncated: bool = False
     durationMs: int | None = None
+    # 子智能体内部的工具调用：agent 是子智能体名，parentCallId 是发起它的那次 `task` 调用。
+    # 主智能体自己的调用不带这两个字段。
+    agent: str | None = None
+    parentCallId: str | None = None
 
 
 class InterruptBlock(_Block):

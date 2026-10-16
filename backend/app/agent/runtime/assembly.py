@@ -13,7 +13,12 @@ from sqlalchemy.orm import Session
 from app.agent import graph as agent_graph
 from app.agent import llm
 from app.agent.runtime.runs import RunContext
-from app.agent.tools import ToolContext, build_model_tools, build_view_subagent
+from app.agent.tools import (
+    ToolContext,
+    build_action_subagent,
+    build_model_tools,
+    build_view_subagent,
+)
 from app.config import Settings
 from app.services import embedding
 
@@ -36,6 +41,6 @@ def build_agent_for_run(
     return agent_graph.build_agent(
         llm.build_chat_model(settings),
         build_model_tools(ctx),
-        subagents=[build_view_subagent(ctx)],
+        subagents=[build_view_subagent(ctx), build_action_subagent(ctx)],
         checkpointer=checkpointer,
     )
