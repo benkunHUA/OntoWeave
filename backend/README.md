@@ -1,6 +1,8 @@
 # OntoWeave Backend
 
-会话驱动的企业本体建模工具后端。当前进度：本体数据层（对象类型 / 属性 / 关系 / 图成员 / 状态机）。
+会话驱动的企业本体建模工具后端。当前进度：本体数据层（对象类型 / 属性 / 关系 / 图成员 /
+状态机）+ 动作层定义（动作类型 / 参数 / 规则 / 字段赋值 / 提交校验）。动作层只定义
+「一次能做哪些改动」，不执行实例，执行层留给下一版。
 
 ## 用容器跑整套
 
@@ -78,9 +80,16 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 | 路径 | 作用 |
 |---|---|
-| `app/models.py` | SQLAlchemy 模型（本体、图、视图、改动集） |
+| `app/models.py` | SQLAlchemy 模型（本体、图、视图、改动集、动作） |
 | `app/schemas/` | 按领域拆分的 Pydantic 出入参 |
 | `app/services/ontology.py` | 对象类型 / 属性 / 关系的领域逻辑与状态机 |
+| `app/services/action.py` | 动作类型 / 参数 / 规则 / 字段赋值的领域逻辑与不变量 |
+| `app/services/action_rules.py` | 规则-赋值校验策略，按规则种类分派 |
+| `app/services/criteria/` | 提交校验条件树：读取顺序、单条形状、建树、整树不变量 |
+| `app/services/action_references.py` | 删除保护：被动作定义引用的共享元素拒绝删除 |
+| `app/services/action_brief.py` · `action_detail.py` | 画布 brief 与 `involves` 推导 / 动作详情组装 |
+| `app/services/element_kinds.py` | 元素种类注册表（9 种）：create 分派、删除顺序、引用检查都按它走 |
+| `app/services/element_edit/` | 改动集写入：操作形状、建草稿、更新与删除、条件树整棵替换 |
 | `app/services/graph.py` | 图的成员管理与关系端点完整性约束 |
 | `app/api/` | 按领域拆分的路由，统一挂在 `/api/v1` 下 |
 | `app/deps.py` | 依赖注入；事务边界在这里（成功提交、异常回滚） |
@@ -114,6 +123,9 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | POST | `/api/v1/changesets/{id}/reject` | 撤销：删掉本次新建的元素、还原改动 |
 | GET | `/api/v1/graphs/{id}/view-state` | 读当前用户的视图状态 |
 | PUT | `/api/v1/graphs/{id}/view-state` | 覆盖写入视图状态 |
+| POST | `/api/v1/graphs/{id}/edits` | 按元素种类写入一批编辑（新增 / 更新 / 删除） |
+| GET | `/api/v1/actions` | 动作类型列表（分页） |
+| GET | `/api/v1/actions/{id}` | 动作详情（参数 / 规则 / 赋值 / 提交校验） |
 
 每个响应都带 `X-Request-ID`；请求里带了就透传，没带就生成一个，并出现在日志里。
 
@@ -125,14 +137,24 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 确认前会先对所有操作做一遍全量校验，避免改到一半失败留下半生不熟的状态。
 
+可写元素种类集中在 `app/services/element_kinds.py`：对象类型 / 属性 / 关系 / 动作类型 /
+动作参数 / 动作规则 / 规则赋值 / 条件节点 / 条件操作数，共 9 种。新增一种元素 =
+在注册表加一条（模型、字段白名单、删除顺序阶梯、引用检查都在这里），不再各自维护分支。
+
 ## 智能体工具层
 
 工具层在 `app/agent/tools/`，领域函数是普通 Python 函数，不依赖大模型，可以直接单测：
 
-- `ontology/`：主智能体的建模工具。读 `search_ontology` / `list_types` / `get_subgraph`，
+- `ontology/`：主智能体的建模工具。读 `search` / `get_subgraph`，
   写 `propose_type` / `reuse_type` / `propose_property` / `propose_relation` /
   `update_element` / `remove_element`，以及中断提问 `ask_user`。`ops.py` 只做参数与对外
   形状的转换，规则都在 service 层；`binding.py` 把它们绑成模型可调用的工具。
+- `action/`：动作子智能体。`ops.py` 是动作定义（参数 / 规则 / 赋值 / 提交校验）的读写与
+  形状转换，`args.py` 放嵌套入参模型，`binding.py` 绑成 `search_actions` / `get_action` /
+  `get_object_type` / `propose_action` / `reuse_action` / `propose_action_parameter` /
+  `propose_action_rule` / `set_action_criteria`，`subagent.py` 包成 `action_modeler` 子智能体。
+- `search.py`：只读检索，主智能体与动作子智能体共用一份——对象类型与动作一个入口，
+  不传 `query` 即按名称列出全部（含草稿，看 `status`），`limit` 是每类各自的上限。
 - `view/`：绘图子智能体。`ops.py` 是视图规格的纯变换，`registry.py` 登记每种视图能力
   （名字、描述、参数、对应的纯变换），`binding.py` 按表生成工具，`subagent.py` 包成子智能体。
   新增一种视图操作 = 在注册表加一条。
@@ -153,7 +175,7 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
   「HTTP 200 但正文为空」的响应**（推理把 token 吃光了），默认给到 4096。
 - `prompts.py`：系统提示词与子智能体描述。提示词是产品行为的一部分，只放这一处。
 - `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph；
-  同时挂上 `view_designer` 绘图子智能体。
+  同时挂上 `view_designer` 绘图子智能体与 `action_modeler` 动作子智能体。
 - `tools/`：模型可调用的工具（见上）。
 - `runtime/`：一次运行的编排。`runs.py` 管运行的生命周期（一条会话一个模型线程、
   一个打开的改动集），`assembly.py` 把模型与工具装配成可运行的图，`events.py` 是对外的
@@ -163,6 +185,19 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 绘图子智能体只拥有视图工具：读取图切片和当前视图，修改布局、高亮、分组、折叠、
 过滤、视野与标注，并持久化到 `view_state`。它没有创建或修改本体的工具。
 `view_state.name` 不再独立编辑，始终镜像对应图的名称。
+
+动作子智能体只拥有动作定义工具（外加共用的只读 `search`）：新建 / 复用一个动作，
+补参数、补规则与字段赋值、整棵替换提交校验。它不碰实例，也不管画布怎么画。
+
+**子智能体的过程默认不外露，动作是例外。** 视觉整理是短任务，前端只看到委派行与结果；
+动作要连着调十几次工具，看不见过程就是「一直等待中」。`runtime/subagent_trace.py`
+把子图命名空间对回发起它的那次 `task` 调用，登记的可见子智能体的工具调用会带
+`agent` / `parentCallId` 流到前端，在委派行下面缩进显示；放宽或收紧只改
+`VISIBLE_SUBAGENTS` 一处。
+
+工具按关注点分类：建模工具与只读检索由主智能体直接持有（`build_model_tools`），
+视图与动作两类包成子智能体**按需加载**——主智能体只看到子智能体的名字与描述，
+用到哪一类才把那一类工具展开，避免工具清单一次全铺给模型。
 
 视图规格的形状定义在 `app/schemas/view_state.py`（`ViewSpec`），写入前校验：前端画布
 与绘图子智能体共写这份 JSONB，坏形状在落库前就挡下，别等前端算布局时才炸。

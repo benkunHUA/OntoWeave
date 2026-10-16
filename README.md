@@ -25,6 +25,10 @@ OntoWeave 换一条路：**建模就是聊天**。
 | 对象类型 Object Type | 业务里的「类别」，如客户、订单、产品。放在共享池。 |
 | 属性 Property | 挂在对象类型上的字段，如客户等级、订单金额。 |
 | 关系 Relation | 两个对象类型之间的连接，如「客户 —下单→ 订单」。放在共享池。 |
+| 动作类型 Action Type | 一次「能做哪些改动」的定义：建 / 改 / 删对象，加 / 删链接。放在共享池。 |
+| 动作参数 Parameter | 动作的输入：让用户选一个对象，或填一个值。 |
+| 动作规则 Rule | 动作到底改了什么：改哪个对象的哪个字段，或加删哪条链接。 |
+| 提交校验 Submission Criteria | 提交前必须成立的条件，不满足就拦住这次动作。 |
 | 图 Graph | 共享池里的一个子集，也是「一次对话」的产物。 |
 | 会话 Conversation | 用户看到的入口，和一张图一对一。 |
 | 改动集 Changeset | 一次对话产出的增删改集合，负责版本与审计。 |
@@ -40,7 +44,7 @@ flowchart LR
     U["业务专家"] -->|自然语言| FE["前端 · 建模工作台<br/>React + React Flow"]
     FE -->|REST| API["后端 · FastAPI"]
     FE <-->|SSE 流式回合| AGENT["智能体运行时<br/>LangGraph / deepagents"]
-    AGENT --> TOOLS["建模工具层<br/>propose / update / remove"]
+    AGENT --> TOOLS["建模工具层<br/>对象 / 关系 / 动作定义"]
     TOOLS --> SVC["领域服务<br/>状态机 · 改动集 · 图成员"]
     API --> SVC
     SVC --> DB[("PostgreSQL + pgvector<br/>本体 · 图 · 视图 · 检查点")]
@@ -135,6 +139,7 @@ cp .env.example .env
 | 对象类型 | `/object-types` | 增改查，草案 → 已确认 |
 | 图 | `/graphs` | 建图、加成员、读画布快照 |
 | 会话 | `/conversations` | 建会话（同时建图）、改标题、读消息历史 |
+| 动作 | `/actions` | 读动作定义（参数 / 规则 / 字段赋值 / 提交校验） |
 | 改动集 | `/changesets` | 记录 / 确认 / 撤销一次对话的改动 |
 | 视图状态 | `/graphs/{id}/view-state` | 读写当前用户布局 |
 | 智能体 | `/conversations/{id}/messages` · `/resume` | 发消息、回答中断提问（返回 SSE 流） |
@@ -156,4 +161,5 @@ cp .env.example .env
 | 智能体工具层与相似检索 | ✅ 已完成 |
 | 智能体运行时与 SSE | ✅ 已完成 |
 | 前端建模工作台与视图同步 | ✅ MVP 已完成 |
-| 动作层 / 实例进图 / 实时同编 / 用户系统 | 🔜 规划中（数据模型已预留） |
+| 动作层（动作类型 / 参数 / 规则 / 提交校验） | ✅ 定义层已完成 |
+| 动作执行 / 实例进图 / 实时同编 / 用户系统 | 🔜 规划中（数据模型已预留） |
