@@ -170,3 +170,63 @@ def test_reject_writes_the_decision_back_into_the_model_thread(client, monkeypat
     assert text.startswith("（系统回执）用户已撤销本次改动，以下内容已回退：")
     assert "- 新增 对象类型「景点」" in text
     assert "不要再引用" in text
+
+
+def test_graph_edits_endpoint_builds_types_and_relations(client):
+    """抽屉保存：新建类型、建关系走的是和模型写工具同一套 service 规则。"""
+    graph_id = client.post(f"{API}/conversations", json={"title": "手建"}).json()["graph_id"]
+
+    created = client.post(
+        f"{API}/graphs/{graph_id}/edits",
+        json={
+            "edits": [
+                {"op": "create_object_type", "name": "客户", "description": "下订单的一方"},
+                {"op": "create_object_type", "name": "订单"},
+            ]
+        },
+    )
+    assert created.status_code == 200
+    assert [op["payload"]["kind"] for op in created.json()["ops"]] == [
+        "object_type",
+        "object_type",
+    ]
+
+    nodes = {
+        node["name"]: node["id"]
+        for node in client.get(f"{API}/graphs/{graph_id}/snapshot").json()["nodes"]
+    }
+    assert set(nodes) == {"客户", "订单"}
+
+    linked = client.post(
+        f"{API}/graphs/{graph_id}/edits",
+        json={
+            "edits": [
+                {
+                    "op": "create_relation",
+                    "source_type_id": nodes["客户"],
+                    "target_type_id": nodes["订单"],
+                    "name": "下订单",
+                    "cardinality": "one_to_many",
+                }
+            ]
+        },
+    )
+    assert linked.status_code == 200
+    relations = client.get(f"{API}/graphs/{graph_id}/snapshot").json()["relations"]
+    assert [(rel["name"], rel["cardinality"]) for rel in relations] == [("下订单", "one_to_many")]
+
+
+def test_graph_edits_endpoint_refuses_to_reuse_a_draft(client):
+    graph_id = client.post(f"{API}/conversations", json={"title": "草稿"}).json()["graph_id"]
+    draft_id = client.post(
+        f"{API}/graphs/{graph_id}/edits",
+        json={"edits": [{"op": "create_object_type", "name": "客户"}]},
+    ).json()["ops"][0]["target_id"]
+
+    other_graph = client.post(f"{API}/conversations", json={"title": "另一张图"}).json()["graph_id"]
+    response = client.post(
+        f"{API}/graphs/{other_graph}/edits",
+        json={"edits": [{"op": "reuse_object_type", "object_type_id": draft_id}]},
+    )
+
+    assert response.status_code == 409

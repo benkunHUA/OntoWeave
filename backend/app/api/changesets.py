@@ -14,9 +14,12 @@ from app.schemas.changeset import (
     ChangesetOpCreate,
     ChangesetOpRead,
     ChangesetRead,
+    CreateObjectTypeEdit,
     CreatePropertyEdit,
+    CreateRelationEdit,
     DeleteEdit,
     GraphEditsCreate,
+    ReuseObjectTypeEdit,
     UpdateEdit,
 )
 from app.services import changeset, changeset_review, element_edit, embedding
@@ -84,6 +87,23 @@ def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
                     is_title_key=edit.is_title_key,
                 )
             )
+        elif isinstance(edit, CreateObjectTypeEdit):
+            ops.append(element_edit.ObjectTypeCreate(name=edit.name, description=edit.description))
+        elif isinstance(edit, ReuseObjectTypeEdit):
+            ops.append(element_edit.ObjectTypeReuse(object_type_id=edit.object_type_id))
+        elif isinstance(edit, CreateRelationEdit):
+            ops.append(
+                element_edit.RelationCreate(
+                    source_type_id=edit.source_type_id,
+                    target_type_id=edit.target_type_id,
+                    name=edit.name,
+                    direction=edit.direction,
+                    cardinality=edit.cardinality,
+                    forward_label=edit.forward_label,
+                    reverse_label=edit.reverse_label,
+                    foreign_key_property_id=edit.foreign_key_property_id,
+                )
+            )
         elif isinstance(edit, DeleteEdit):
             ops.append(
                 element_edit.ElementDelete(
@@ -100,10 +120,11 @@ def edit_graph_elements(
     payload: GraphEditsCreate,
     session: Session = Depends(get_session),
 ) -> ChangesetDetail:
-    """抽屉里的表单保存：把对象/字段的编辑登记进未定稿的改动集。
+    """抽屉里的表单保存：把对象的编辑登记进未定稿的改动集。
 
-    支持改名/改类型、新增字段、删除字段。没有改动集就顺手建一个，界面不必
-    先手动开一个改动集。返回改动集详情，前端据此刷新「改动待确认」那一条。
+    支持新建对象类型、复用已有类型、新建关系、改名/改类型、新增字段、删除字段——
+    与模型走工具写入时是同一套 service 规则。没有改动集就顺手建一个，界面不必先手动
+    开一个改动集。返回改动集详情，前端据此刷新「改动待确认」那一条。
     """
     cs = element_edit.apply_edits(
         session,

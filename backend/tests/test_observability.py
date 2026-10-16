@@ -90,7 +90,7 @@ def test_runtime_attaches_trace_callback_to_config(session_factory, monkeypatch)
         lambda: Settings(langfuse_public_key="pk", langfuse_secret_key="sk"),
     )
     agent = _RecordingAgent()
-    monkeypatch.setattr("app.agent.runtime.build_agent_for_run", lambda *a, **k: agent)
+    monkeypatch.setattr("app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: agent)
 
     from app.main import _create_app
 
@@ -115,7 +115,7 @@ def test_runtime_omits_callbacks_when_unconfigured(session_factory, monkeypatch)
         lambda: Settings(langfuse_public_key="", langfuse_secret_key=""),
     )
     agent = _RecordingAgent()
-    monkeypatch.setattr("app.agent.runtime.build_agent_for_run", lambda *a, **k: agent)
+    monkeypatch.setattr("app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: agent)
 
     from app.main import _create_app
 

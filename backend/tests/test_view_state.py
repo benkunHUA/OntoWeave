@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.errors import NotFoundError
@@ -81,3 +82,35 @@ def test_api_get_view_state_returns_404_for_unknown_graph(client):
     missing = uuid.uuid4()
     assert client.get(f"{API}/graphs/{missing}/view-state").status_code == 404
     assert client.put(f"{API}/graphs/{missing}/view-state", json={"spec": {}}).status_code == 404
+
+
+def test_upsert_rejects_a_malformed_spec(session):
+    """规格是 agent 工具与前端共写的形状，坏数据在落库前就该挡下。"""
+    with pytest.raises(ValidationError):
+        view_state.upsert_view_state(
+            session,
+            graph_id=_graph_id(session),
+            user_id=uuid.uuid4(),
+            spec={"highlight": [{"style": "focus"}]},
+        )
+
+
+def test_upsert_keeps_unknown_keys_and_adds_none(session):
+    graph_id = _graph_id(session)
+
+    saved = view_state.upsert_view_state(
+        session,
+        graph_id=graph_id,
+        user_id=uuid.uuid4(),
+        spec={"layout": {"kind": "grid"}, "somethingNew": {"a": 1}},
+    )
+
+    assert saved.spec == {"layout": {"kind": "grid"}, "somethingNew": {"a": 1}}
+
+
+def test_view_state_api_rejects_a_malformed_spec(client):
+    graph_id = client.post(f"{API}/conversations", json={"title": "坏规格"}).json()["graph_id"]
+
+    response = client.put(f"{API}/graphs/{graph_id}/view-state", json={"spec": {"dim": "全部"}})
+
+    assert response.status_code == 422

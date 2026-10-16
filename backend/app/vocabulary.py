@@ -37,6 +37,18 @@ DEFAULT_DATATYPE: str = PropertyDatatype.TEXT.value
 DEFAULT_CARDINALITY: str = RelationCardinality.MANY_TO_MANY.value
 
 
+class ViewLayout(StrEnum):
+    """声明式视图的布局标识。取值即前端算布局用的 kind，顺序即界面下拉顺序。"""
+
+    HIERARCHICAL = "hierarchical"
+    FORCE = "force"
+    DOMAIN_GROUPED = "domain-grouped"
+    GRID = "grid"
+
+
+VIEW_LAYOUTS: tuple[str, ...] = tuple(layout.value for layout in ViewLayout)
+
+
 def sql_in_list(column: str, values: tuple[str, ...]) -> str:
     """把枚举渲染成 CHECK 约束里的 `col IN ('a', 'b')` 片段。"""
     rendered = ", ".join(f"'{value}'" for value in values)

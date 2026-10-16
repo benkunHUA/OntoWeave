@@ -83,11 +83,40 @@ export interface ElementDeleteEdit {
   element_id: string
 }
 
+/** 新建一个草稿对象类型，并挂进当前图。 */
+export interface ObjectTypeCreateEdit {
+  op: 'create_object_type'
+  name: string
+  description?: string | null
+}
+
+/** 把共享池里已确认的对象类型并进当前图。 */
+export interface ObjectTypeReuseEdit {
+  op: 'reuse_object_type'
+  object_type_id: string
+}
+
+/** 新建一条草稿关系；两端类型不存在时会一并挂进当前图。 */
+export interface RelationCreateEdit {
+  op: 'create_relation'
+  source_type_id: string
+  target_type_id: string
+  name: string
+  direction?: string
+  cardinality?: string
+  forward_label?: string | null
+  reverse_label?: string | null
+  foreign_key_property_id?: string | null
+}
+
 /** 抽屉一次保存里的全部编辑，整批落进同一个改动集。 */
 export type GraphEditOp =
   | ElementUpdateEdit
   | PropertyCreateEdit
   | ElementDeleteEdit
+  | ObjectTypeCreateEdit
+  | ObjectTypeReuseEdit
+  | RelationCreateEdit
 
 export interface GraphSnapshot {
   graph: {

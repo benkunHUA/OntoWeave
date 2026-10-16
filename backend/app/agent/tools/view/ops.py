@@ -1,11 +1,16 @@
+"""视图规格的纯变换。
+
+每个函数只做一件事：拿当前声明式规格，返回改过的规格；不碰数据库、不碰本体。
+模型调用它们之前/之后怎么落库、怎么记进改动集，属于工具层的事（见 binding.py）。
+"""
+
 from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
 
 from app.errors import InvariantViolationError
-
-LAYOUT_KINDS = {"hierarchical", "force", "domain-grouped", "grid"}
+from app.vocabulary import VIEW_LAYOUTS
 
 
 def _copy(spec: dict) -> dict:
@@ -14,7 +19,7 @@ def _copy(spec: dict) -> dict:
 
 
 def set_layout(spec: dict, *, kind: str, options: dict | None = None) -> dict:
-    if kind not in LAYOUT_KINDS:
+    if kind not in VIEW_LAYOUTS:
         raise InvariantViolationError(f"unsupported layout kind: {kind!r}")
     result = _copy(spec)
     result["layout"] = {"kind": kind, "options": options or {}}

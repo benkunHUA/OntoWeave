@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
-from app.schemas.view_state import ViewStateRead, ViewStateWrite
+from app.schemas.view_state import ViewSpec, ViewStateRead, ViewStateWrite
 from app.services import graph, view_state
 
 router = APIRouter(tags=["view-state"])
@@ -36,7 +36,7 @@ def put_view_state(
         session,
         graph_id=graph_id,
         user_id=get_current_user_id(),
-        spec=payload.spec,
+        spec=ViewSpec.normalize(payload.spec),
         owner_id=get_current_user_id(),
     )
     return ViewStateRead(graph_id=vs.graph_id, name=vs.name, spec=vs.spec)

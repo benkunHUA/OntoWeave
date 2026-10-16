@@ -29,5 +29,6 @@ class ConversationMessageRead(BaseModel):
     role: str
     content: str
     kind: str
+    # 原样返回落库的块（形状见 app.schemas.message_blocks 的 MessageBlock）。
     blocks: list[dict] | None = None
     created_at: datetime

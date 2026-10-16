@@ -127,34 +127,45 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 ## 智能体工具层
 
-工具是普通 Python 函数，位于 `app/agent/`，不依赖大模型，可以直接单测：
+工具层在 `app/agent/tools/`，领域函数是普通 Python 函数，不依赖大模型，可以直接单测：
 
-- `ontology_tools.py`：主智能体的建模工具。读工具 `search_ontology` / `list_types` /
-  `get_subgraph`；写工具 `propose_type` / `propose_property` / `propose_relation` /
-  `update_element` / `remove_element`。
-- `view_tools.py`：绘图子智能体的视图工具，全部是对视图规格的纯函数操作，不碰本体。
-- `schemas.py`：工具清单元数据，用它导出 tool schema。
+- `ontology/`：主智能体的建模工具。读 `search_ontology` / `list_types` / `get_subgraph`，
+  写 `propose_type` / `reuse_type` / `propose_property` / `propose_relation` /
+  `update_element` / `remove_element`，以及中断提问 `ask_user`。`ops.py` 只做参数与对外
+  形状的转换，规则都在 service 层；`binding.py` 把它们绑成模型可调用的工具。
+- `view/`：绘图子智能体。`ops.py` 是视图规格的纯变换，`registry.py` 登记每种视图能力
+  （名字、描述、参数、对应的纯变换），`binding.py` 按表生成工具，`subagent.py` 包成子智能体。
+  新增一种视图操作 = 在注册表加一条。
+- `graph_read.py`：图切片的读取与对外形状。`get_subgraph` 与 `get_ontology_slice` 共用它，
+  免得同一份节点/关系字段各写一遍。
+- `context.py`：`ToolContext`（一次运行的外部依赖）与工具调用的错误兜底、并发串行化。
 
-护栏都放在工具内部，不靠调用方自觉：`propose_type` 先查近邻，同名或足够像就复用
-已有的类型；`update_element` 强制要求 `before` 快照，且只允许白名单字段；
-`remove_element` 只标记不真删。相似检索走 pgvector，嵌入模型可替换，默认是本地
-确定性实现（`HashingEmbedder`），不需要网络。
+护栏都放在工具内部，不靠调用方自觉：`propose_type` 之前必须先 `search_ontology` 查重、
+命中候选要 `ask_user` 让用户决定复用还是新建；`update_element` 只允许白名单字段、
+`before` 快照由 service 采集；`remove_element` 只标记不真删。相似检索走 pgvector，
+嵌入模型可替换，默认是本地确定性实现（`HashingEmbedder`），不需要网络。
 
 ## 智能体运行时
 
-`app/agent/` 分五层：
+`app/agent/` 按职责分层：
 
 - `llm.py`：模型装配。**`deepseek-flash` 是推理模型，`CHAT_MAX_TOKENS` 给小了会得到
   「HTTP 200 但正文为空」的响应**（推理把 token 吃光了），默认给到 4096。
-- `tools.py`：把普通的建模函数用闭包绑上运行上下文，包成 LangChain 工具。
+- `prompts.py`：系统提示词与子智能体描述。提示词是产品行为的一部分，只放这一处。
 - `graph.py`：用 deepagents 的 `create_deep_agent` 装配，不自己拼 StateGraph；
   同时挂上 `view_designer` 绘图子智能体。
-- `runtime.py`：一次运行的装配，以及「一次对话一个打开的改动集」的生命周期。
+- `tools/`：模型可调用的工具（见上）。
+- `runtime/`：一次运行的编排。`runs.py` 管运行的生命周期（一条会话一个模型线程、
+  一个打开的改动集），`assembly.py` 把模型与工具装配成可运行的图，`events.py` 是对外的
+  事件协议与消息内容块，`interrupts.py` 把两种中断折成同一份形状，`stream.py` 是流式编排。
 - `observability.py`：按配置给一轮 run 挂 Langfuse 审计回调（可选，见下）。
 
 绘图子智能体只拥有视图工具：读取图切片和当前视图，修改布局、高亮、分组、折叠、
 过滤、视野与标注，并持久化到 `view_state`。它没有创建或修改本体的工具。
 `view_state.name` 不再独立编辑，始终镜像对应图的名称。
+
+视图规格的形状定义在 `app/schemas/view_state.py`（`ViewSpec`），写入前校验：前端画布
+与绘图子智能体共写这份 JSONB，坏形状在落库前就挡下，别等前端算布局时才炸。
 
 接 SSE 的接口挂在会话下——线程 ID 直接复用 `conversation_id`，不另引线程表：
 
@@ -163,8 +174,11 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | POST | `/api/v1/conversations/{id}/messages` | 发一句，返回 SSE 事件流 |
 | POST | `/api/v1/conversations/{id}/resume` | 回答中断提问，返回 SSE 事件流 |
 
-事件类型：`run.start` / `message.delta` / `tool.start` / `tool.end` / `interrupt` /
-`state.update` / `run.error` / `run.end`。
+事件类型：`run.start` / `block.start` / `block.delta` / `block.end` / `tool.start` /
+`tool.end` / `interrupt` / `state.update` / `run.error` / `run.end`。协议在后端一侧
+定义于 `app/schemas/agent_events.py`（消息内容块见 `app/schemas/message_blocks.py`），
+前端 `shared/types` 里的 `AgentEvent` / `MessageBlock` 与它一一对应；加字段不用抬
+`PROTOCOL_VERSION`，改语义必须抬。
 
 用户发言（包括 `/resume` 的回答）在运行开始时先单独提交；助手正文在回合结束时
 写入 `conversation_message`。模型或工具失败也会留下带 `kind='error'` 的助手消息。
@@ -178,7 +192,7 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 
 - 装配在 `app/agent/observability.py`：`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
   两个都填上才启用；留空则整条链路零开销（不 import、不建客户端）。
-- 回调挂在主图一轮 run 的 `config` 上（`runtime.py`）：`conversation_id` 作 session、
+- 回调挂在主图一轮 run 的 `config` 上（`runtime/stream.py`）：`conversation_id` 作 session、
   `owner_id` 作 user，前端一次对话正好对应 Langfuse 一个 session，方便回看。
 - **子智能体内部的模型与工具调用也会被记录。** langgraph 把父 run 的 callbacks 透传给
   子智能体，deepagents 还会给它打 `ls_agent_type=subagent` 标签——这正是 SSE 里被

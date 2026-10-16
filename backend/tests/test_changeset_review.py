@@ -1,8 +1,15 @@
 import uuid
 
-from app.agent import ontology_tools
 from app.models import ChangesetOp
-from app.services import changeset, changeset_review, conversation, embedding, graph, ontology
+from app.services import (
+    changeset,
+    changeset_review,
+    conversation,
+    element_edit,
+    embedding,
+    graph,
+    ontology,
+)
 
 
 def _conversation_with_changeset(session):
@@ -66,7 +73,7 @@ def test_revert_recomputes_the_embedding_after_a_rename(session):
     embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
     original = list(obj.embedding)
 
-    ontology_tools.update_element(
+    element_edit.record_update(
         session,
         changeset_id=cs.id,
         owner_id=owner,

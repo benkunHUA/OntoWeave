@@ -2,7 +2,7 @@ import uuid
 
 import pytest
 
-from app.agent import ontology_tools as tools
+from app.agent.tools.ontology import ops
 from app.errors import InvariantViolationError, NotFoundError
 from app.services import changeset, conversation, embedding, graph, ontology
 
@@ -32,7 +32,7 @@ def _setup(session, owner):
 def test_search_ontology_returns_similar_with_scores(session):
     owner = uuid.uuid4()
     _, emb, *_ = _setup(session, owner)
-    hits = tools.search_ontology(session, query="客户公司", embedder=emb, owner_id=owner)
+    hits = ops.search_ontology(session, query="客户公司", embedder=emb, owner_id=owner)
     assert hits[0]["name"] == "客户"
     assert "similarity" in hits[0]
 
@@ -45,14 +45,14 @@ def test_search_ontology_only_returns_own(session):
     for obj in (mine, outsider):
         ontology.transition_object_type(session, obj.id, "confirmed")
         embedding.refresh_object_type_embedding(session, object_type_id=obj.id, embedder=emb)
-    hits = tools.search_ontology(session, query="客户", embedder=emb, owner_id=owner)
+    hits = ops.search_ontology(session, query="客户", embedder=emb, owner_id=owner)
     assert [hit["id"] for hit in hits] == [str(mine.id)]
 
 
 def test_get_subgraph_walks_one_hop(session):
     owner = uuid.uuid4()
     conv, _, customer, _, _ = _setup(session, owner)
-    result = tools.get_subgraph(
+    result = ops.get_subgraph(
         session, graph_id=conv.graph_id, object_type_id=customer.id, owner_id=owner
     )
     assert sorted(node["name"] for node in result["nodes"]) == ["客户", "订单"]
@@ -63,7 +63,7 @@ def test_get_subgraph_rejects_unknown_node(session):
     owner = uuid.uuid4()
     conv, *_ = _setup(session, owner)
     with pytest.raises(NotFoundError):
-        tools.get_subgraph(
+        ops.get_subgraph(
             session, graph_id=conv.graph_id, object_type_id=uuid.uuid4(), owner_id=owner
         )
 
@@ -72,7 +72,7 @@ def test_list_types_only_returns_own(session):
     owner, other = uuid.uuid4(), uuid.uuid4()
     ontology.create_object_type(session, owner_id=owner, name="mine")
     ontology.create_object_type(session, owner_id=other, name="other")
-    assert [item["name"] for item in tools.list_types(session, owner_id=owner)] == ["mine"]
+    assert [item["name"] for item in ops.list_types(session, owner_id=owner)] == ["mine"]
 
 
 def _changeset(session, owner):
@@ -85,7 +85,7 @@ def test_propose_type_creates_draft_and_records_op(session):
     _, emb, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="供应商")
+    result = ops.propose_type(session, changeset_id=cs.id, owner_id=owner, name="供应商")
     obj = ontology.get_object_type(session, uuid.UUID(result["id"]))
     assert obj.status == "draft"
     assert obj.embedding is None
@@ -96,7 +96,7 @@ def test_propose_type_adds_created_type_to_graph(session):
     owner = uuid.uuid4()
     conv, cs = _changeset(session, owner)
 
-    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="机场")
+    result = ops.propose_type(session, changeset_id=cs.id, owner_id=owner, name="机场")
 
     assert uuid.UUID(result["id"]) in graph.list_graph_objects(session, conv.graph_id)
 
@@ -106,7 +106,7 @@ def test_propose_type_creates_new_draft_even_when_similar_exists(session):
     _, emb, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    result = tools.propose_type(session, changeset_id=cs.id, owner_id=owner, name="客户信息")
+    result = ops.propose_type(session, changeset_id=cs.id, owner_id=owner, name="客户信息")
 
     assert result["name"] == "客户信息"
     assert "reused" not in result
@@ -118,9 +118,7 @@ def test_reuse_type_adds_existing_type_to_the_current_graph(session):
     _, _, customer, *_ = _setup(session, owner)
     current, cs = _changeset(session, owner)
 
-    result = tools.reuse_type(
-        session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id
-    )
+    result = ops.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id)
 
     assert result["id"] == str(customer.id)
     assert result["reused"] is True
@@ -132,7 +130,7 @@ def test_reuse_type_does_not_record_a_changeset_op(session):
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id)
+    ops.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=customer.id)
 
     assert changeset.list_ops(session, cs.id) == []
 
@@ -143,7 +141,7 @@ def test_reuse_type_rejects_draft_type(session):
     _, cs = _changeset(session, owner)
 
     with pytest.raises(InvariantViolationError):
-        tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=draft.id)
+        ops.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=draft.id)
 
 
 def test_reuse_type_rejects_another_owners_type(session):
@@ -152,7 +150,7 @@ def test_reuse_type_rejects_another_owners_type(session):
     _, cs = _changeset(session, owner)
 
     with pytest.raises(NotFoundError):
-        tools.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=outsider.id)
+        ops.reuse_type(session, changeset_id=cs.id, owner_id=owner, object_type_id=outsider.id)
 
 
 def test_propose_relation_requires_existing_endpoints(session):
@@ -160,7 +158,7 @@ def test_propose_relation_requires_existing_endpoints(session):
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
     with pytest.raises(NotFoundError):
-        tools.propose_relation(
+        ops.propose_relation(
             session,
             changeset_id=cs.id,
             owner_id=owner,
@@ -176,7 +174,7 @@ def test_propose_relation_adds_endpoints_and_relation_to_graph(session):
     source = ontology.create_object_type(session, owner_id=owner, name="飞机")
     target = ontology.create_object_type(session, owner_id=owner, name="机场")
 
-    result = tools.propose_relation(
+    result = ops.propose_relation(
         session,
         changeset_id=cs.id,
         owner_id=owner,
@@ -196,7 +194,7 @@ def test_update_element_requires_a_patch(session):
     _, emb, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
     with pytest.raises(InvariantViolationError):
-        tools.update_element(
+        ops.update_element(
             session,
             changeset_id=cs.id,
             owner_id=owner,
@@ -212,7 +210,7 @@ def test_update_element_rejects_field_outside_whitelist(session):
     _, emb, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
     with pytest.raises(InvariantViolationError):
-        tools.update_element(
+        ops.update_element(
             session,
             changeset_id=cs.id,
             owner_id=owner,
@@ -228,7 +226,7 @@ def test_update_element_applies_and_records_snapshot(session):
     _, emb, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    tools.update_element(
+    ops.update_element(
         session,
         changeset_id=cs.id,
         owner_id=owner,
@@ -251,7 +249,7 @@ def test_update_element_reembeds_object_type_on_description_change(session):
     before = list(ontology.get_object_type(session, customer.id).embedding)
     _, cs = _changeset(session, owner)
 
-    tools.update_element(
+    ops.update_element(
         session,
         changeset_id=cs.id,
         owner_id=owner,
@@ -271,7 +269,7 @@ def test_update_element_survives_embedding_failure(session, failing_embedder):
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    tools.update_element(
+    ops.update_element(
         session,
         changeset_id=cs.id,
         owner_id=owner,
@@ -289,7 +287,7 @@ def test_remove_element_only_marks(session):
     _, _, customer, *_ = _setup(session, owner)
     _, cs = _changeset(session, owner)
 
-    tools.remove_element(
+    ops.remove_element(
         session,
         changeset_id=cs.id,
         owner_id=owner,
