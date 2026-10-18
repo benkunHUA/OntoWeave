@@ -5,12 +5,20 @@ import '../styles/app.css'
 import '../styles/action.css'
 import '../styles/dialog.css'
 import '../styles/drawer.css'
+import '../styles/data-connection.css'
+import '../styles/data-connection-context.css'
 import { HomePage } from '../features/home/views/HomePage'
 import { queryClient } from '../shared/query/client'
 
 const ModelingPage = lazy(() =>
   import('../features/modeling/views/ModelingPage').then((module) => ({
     default: module.ModelingPage,
+  })),
+)
+
+const DataConnectionWorkbench = lazy(() =>
+  import('../features/data-connection/views/DataConnectionWorkbench').then((module) => ({
+    default: module.DataConnectionWorkbench,
   })),
 )
 
@@ -23,6 +31,8 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/modeling" element={<Navigate replace to="/" />} />
             <Route path="/modeling/:conversationId" element={<ModelingPage />} />
+            <Route path="/data-connections" element={<DataConnectionWorkbench />} />
+            <Route path="/data-connections/:connectionId" element={<DataConnectionWorkbench />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>
         </Suspense>

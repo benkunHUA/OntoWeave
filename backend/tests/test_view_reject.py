@@ -6,11 +6,11 @@ from app.services import changeset, conversation, embedding, graph, ontology, vi
 
 def _context(session, owner):
     conv = conversation.create_conversation(session, owner_id=owner, title="撤销视图")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    return conv, agent_tools.ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    return conv, agent_tools.OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )
@@ -22,7 +22,7 @@ def _view_tools(ctx):
 
 def _spec(session, conv, owner):
     saved = view_state.get_view_state(
-        session, graph_id=conv.graph_id, user_id=owner, owner_id=owner
+        session, graph_id=conv.resource_id, user_id=owner, owner_id=owner
     )
     return saved.spec if saved is not None else {}
 
@@ -31,7 +31,7 @@ def test_reject_reverts_view_changes(session):
     owner = uuid.uuid4()
     conv, ctx = _context(session, owner)
     customer = ontology.create_object_type(session, owner_id=owner, name="客户")
-    graph.add_object_to_graph(session, conv.graph_id, customer.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, customer.id, owner_id=owner)
 
     _view_tools(ctx)["highlight"].invoke({"node_ids": [str(customer.id)]})
     assert _spec(session, conv, owner)["highlight"] == [
@@ -66,16 +66,16 @@ def test_reject_keeps_view_state_that_predates_the_changeset(session):
     # 改动集之前用户就手工保存过视图，撤销只能翻回它，不能清空。
     view_state.upsert_view_state(
         session,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         user_id=owner,
         spec={"layout": {"kind": "grid", "options": {}}},
         owner_id=owner,
     )
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    ctx = agent_tools.ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    ctx = agent_tools.OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )
@@ -90,7 +90,7 @@ def test_confirm_keeps_view_changes(session):
     owner = uuid.uuid4()
     conv, ctx = _context(session, owner)
     customer = ontology.create_object_type(session, owner_id=owner, name="客户")
-    graph.add_object_to_graph(session, conv.graph_id, customer.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, customer.id, owner_id=owner)
 
     _view_tools(ctx)["highlight"].invoke({"node_ids": [str(customer.id)]})
     changeset.confirm_changeset(session, ctx.changeset_id, owner_id=owner)

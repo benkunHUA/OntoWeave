@@ -10,9 +10,11 @@ from __future__ import annotations
 from app.agent.tools.action import build_action_subagent, build_action_tools
 from app.agent.tools.context import ToolContext
 from app.agent.tools.ontology import build_model_tools
+from app.agent.tools.ontology.context import OntologyToolContext
 from app.agent.tools.view import build_view_subagent, build_view_tools
 
 __all__ = [
+    "OntologyToolContext",
     "ToolContext",
     "build_action_subagent",
     "build_action_tools",

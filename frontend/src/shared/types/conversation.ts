@@ -1,8 +1,16 @@
 import type { MessageBlock } from './agent'
 
+export const CONVERSATION_KIND_MODELING = 'modeling' as const
+export const CONVERSATION_KIND_DATA_CONNECTION = 'data_connection' as const
+
+export type ConversationKind =
+  | typeof CONVERSATION_KIND_MODELING
+  | typeof CONVERSATION_KIND_DATA_CONNECTION
+
 export interface Conversation {
   id: string
-  graph_id: string
+  kind: ConversationKind
+  resource_id: string
   title: string | null
 }
 

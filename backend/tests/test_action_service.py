@@ -15,7 +15,7 @@ def _action(session: Session, owner: uuid.UUID, name: str = "指派工单"):
 
 def test_action_type_starts_as_an_unembedded_draft(session: Session):
     owner = uuid.uuid4()
-    graph_id = conversation.create_conversation(session, owner_id=owner).graph_id
+    graph_id = conversation.create_conversation(session, owner_id=owner).resource_id
 
     action_type = action.create_action_type(
         session,

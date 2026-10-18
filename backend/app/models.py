@@ -29,10 +29,12 @@ from app.vocabulary import (
     ACTION_PARAMETER_KINDS,
     ACTION_RULE_KINDS,
     ACTION_VALUE_SOURCES,
+    CONVERSATION_KINDS,
     DEFAULT_CARDINALITY,
     DEFAULT_DATATYPE,
     PROPERTY_DATATYPES,
     RELATION_CARDINALITIES,
+    ConversationKind,
     sql_in_list,
 )
 
@@ -63,15 +65,20 @@ class Graph(Base):
 
 class Conversation(Base):
     __tablename__ = "conversation"
+    __table_args__ = (
+        CheckConstraint(sql_in_list("kind", CONVERSATION_KINDS), name="ck_conversation_kind"),
+        UniqueConstraint("kind", "resource_id", name="uq_conversation_kind_resource"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    graph_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("graph.id", ondelete="CASCADE"),
+    kind: Mapped[str] = mapped_column(
+        Text,
         nullable=False,
-        unique=True,
+        default=ConversationKind.MODELING.value,
+        server_default=ConversationKind.MODELING.value,
     )
+    resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     title: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -117,6 +124,44 @@ class ConversationMessage(Base):
         DateTime(timezone=True),
         server_default=func.clock_timestamp(),
         nullable=False,
+    )
+
+
+class ConversationEvent(Base):
+    """数据连接 / 同步产生的结构化事件卡片。
+
+    事件由 Java Outbox 经 RabbitMQ 投递，Python 按 `event_id` 幂等落库；它不是
+    LangGraph 的消息，不进入检查点。`created_at` 用 clock_timestamp()，保证同一毫秒
+    内的连续事件也有稳定顺序，`(created_at, id)` 就是增量游标。
+    """
+
+    __tablename__ = "conversation_event"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_conversation_event_event_id"),
+        Index(
+            "ix_conversation_event_conversation_created",
+            "conversation_id",
+            "created_at",
+            "id",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("conversation.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    operation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    event_type: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp(), nullable=False
     )
 
 

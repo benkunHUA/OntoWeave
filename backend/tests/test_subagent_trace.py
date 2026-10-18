@@ -10,7 +10,8 @@ from langchain_core.tools import tool
 from sqlalchemy import select
 
 from app.agent import graph as agent_graph
-from app.agent.runtime import assembly, subagent_trace
+from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.runtime import subagent_trace
 from app.agent.runtime.stream import stream_run
 from app.agent.tools.action.subagent import ACTION_AGENT_NAME
 from app.config import Settings
@@ -106,12 +107,15 @@ def _script() -> list[AIMessage]:
 
 def _scripted_agent():
     return agent_graph.build_agent(
-        _ScriptedModel(messages=iter(_script())), [], subagents=_subagents()
+        _ScriptedModel(messages=iter(_script())),
+        [],
+        system_prompt=SYSTEM_PROMPT,
+        subagents=_subagents(),
     )
 
 
 def test_binds_a_namespace_to_the_task_call_that_started_it():
-    trace = subagent_trace.SubagentTrace()
+    trace = subagent_trace.SubagentTrace(visible=frozenset({ACTION_AGENT_NAME}))
     trace.note_task_call(call_id="c1", subagent_type=ACTION_AGENT_NAME)
 
     call = trace.call_for(("tools:abc",))
@@ -129,6 +133,17 @@ def test_top_level_namespace_is_the_main_agent():
 def test_hidden_subagent_keeps_its_internals_back():
     trace = subagent_trace.SubagentTrace()
     trace.note_task_call(call_id="c1", subagent_type="view_designer")
+
+    call = trace.call_for(("tools:abc",))
+
+    assert call is not None
+    assert call.visible is False
+
+
+def test_default_trace_hides_every_subagent():
+    """默认可见集合为空：即使动作子智能体也得由定义显式登记才露内部过程。"""
+    trace = subagent_trace.SubagentTrace()
+    trace.note_task_call(call_id="c1", subagent_type=ACTION_AGENT_NAME)
 
     call = trace.call_for(("tools:abc",))
 
@@ -162,7 +177,7 @@ def test_parallel_delegations_are_bound_in_the_order_they_started():
 
 def test_real_graph_namespaces_map_back_to_the_delegating_call():
     """真图跑一遍：命名空间确实长成 tools:<id>，且两支子智能体都能认出来。"""
-    trace = subagent_trace.SubagentTrace()
+    trace = subagent_trace.SubagentTrace(visible=frozenset({ACTION_AGENT_NAME}))
     bindings: dict[str, tuple[str, str, bool]] = {}
 
     for namespace, _mode, data in _scripted_agent().stream(
@@ -195,7 +210,10 @@ def test_real_graph_namespaces_map_back_to_the_delegating_call():
 
 def test_stream_run_tags_subagent_steps_and_hides_the_rest(monkeypatch, session, session_factory):
     """编排那一层：可见子智能体的步骤带 agent / parentCallId，隐藏的那支只剩委派行。"""
-    monkeypatch.setattr(assembly, "build_agent_for_run", lambda *args, **kwargs: _scripted_agent())
+    monkeypatch.setattr(
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *args, **kwargs: _scripted_agent(),
+    )
 
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="子智能体可见性")

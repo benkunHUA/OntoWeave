@@ -75,7 +75,7 @@ def test_object_type_response_has_no_internal_fields(client):
 
 
 def test_graph_snapshot_endpoint_returns_canvas_data(client):
-    graph_id = client.post(f"{API}/conversations", json={"title": "快照"}).json()["graph_id"]
+    graph_id = client.post(f"{API}/conversations", json={"title": "快照"}).json()["resource_id"]
     customer = client.post(f"{API}/object-types", json={"name": "客户"}).json()
     client.post(
         f"{API}/graphs/{graph_id}/objects",
@@ -132,7 +132,7 @@ def test_list_object_types_rejects_invalid_paging(client):
 
 def test_reject_changeset_leaves_a_notice_in_the_conversation(client):
     conv = client.post(f"{API}/conversations", json={"title": "撤销回执"}).json()
-    cs = client.post(f"{API}/graphs/{conv['graph_id']}/changesets").json()
+    cs = client.post(f"{API}/graphs/{conv['resource_id']}/changesets").json()
     obj = client.post(f"{API}/object-types", json={"name": "客户"}).json()
     client.post(
         f"{API}/changesets/{cs['id']}/ops",
@@ -155,7 +155,7 @@ def test_reject_writes_the_decision_back_into_the_model_thread(client, monkeypat
         "app.agent.thread.record_decision", lambda *args, **kwargs: captured.append(kwargs)
     )
     conv = client.post(f"{API}/conversations", json={"title": "线程回写"}).json()
-    cs = client.post(f"{API}/graphs/{conv['graph_id']}/changesets").json()
+    cs = client.post(f"{API}/graphs/{conv['resource_id']}/changesets").json()
     obj = client.post(f"{API}/object-types", json={"name": "景点"}).json()
     client.post(
         f"{API}/changesets/{cs['id']}/ops",
@@ -174,7 +174,7 @@ def test_reject_writes_the_decision_back_into_the_model_thread(client, monkeypat
 
 def test_graph_edits_endpoint_builds_types_and_relations(client):
     """抽屉保存：新建类型、建关系走的是和模型写工具同一套 service 规则。"""
-    graph_id = client.post(f"{API}/conversations", json={"title": "手建"}).json()["graph_id"]
+    graph_id = client.post(f"{API}/conversations", json={"title": "手建"}).json()["resource_id"]
 
     created = client.post(
         f"{API}/graphs/{graph_id}/edits",
@@ -217,13 +217,15 @@ def test_graph_edits_endpoint_builds_types_and_relations(client):
 
 
 def test_graph_edits_endpoint_refuses_to_reuse_a_draft(client):
-    graph_id = client.post(f"{API}/conversations", json={"title": "草稿"}).json()["graph_id"]
+    graph_id = client.post(f"{API}/conversations", json={"title": "草稿"}).json()["resource_id"]
     draft_id = client.post(
         f"{API}/graphs/{graph_id}/edits",
         json={"edits": [{"op": "create_object_type", "name": "客户"}]},
     ).json()["ops"][0]["target_id"]
 
-    other_graph = client.post(f"{API}/conversations", json={"title": "另一张图"}).json()["graph_id"]
+    other_graph = client.post(f"{API}/conversations", json={"title": "另一张图"}).json()[
+        "resource_id"
+    ]
     response = client.post(
         f"{API}/graphs/{other_graph}/edits",
         json={"edits": [{"op": "reuse_object_type", "object_type_id": draft_id}]},

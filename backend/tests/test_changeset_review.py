@@ -15,7 +15,7 @@ from app.services import (
 def _conversation_with_changeset(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="回执")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
     return owner, conv, cs
 
 
@@ -123,11 +123,12 @@ def test_find_conversation_by_graph_respects_owner(session):
     owner, conv, _ = _conversation_with_changeset(session)
 
     assert (
-        conversation.find_conversation_by_graph(session, conv.graph_id, owner_id=owner) is not None
+        conversation.find_conversation_by_graph(session, conv.resource_id, owner_id=owner)
+        is not None
     )
     assert conversation.find_conversation_by_graph(session, uuid.uuid4()) is None
     assert (
-        conversation.find_conversation_by_graph(session, conv.graph_id, owner_id=uuid.uuid4())
+        conversation.find_conversation_by_graph(session, conv.resource_id, owner_id=uuid.uuid4())
         is None
     )
 
@@ -158,7 +159,7 @@ def test_revert_notifies_the_thread_with_specific_names(session):
     assert len(notices) == 1
     notice = notices[0]
     assert notice.conversation_id == conv.id
-    assert notice.graph_id == conv.graph_id
+    assert notice.graph_id == conv.resource_id
     assert notice.changeset_id == cs.id
     assert notice.text == (
         "（系统回执）用户已撤销本次改动，以下内容已回退：\n"

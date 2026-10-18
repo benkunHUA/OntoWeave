@@ -1,7 +1,7 @@
 """建模工具的 LangChain 绑定。
 
 模型只看得到这里的工具名、描述与参数：能力本身在 `ops.py`，绑定时统一套上运行上下文
-与错误兜底（`ToolContext.invoke`）。
+与错误兜底（`OntologyToolContext.invoke`）。
 """
 
 from __future__ import annotations
@@ -10,13 +10,14 @@ import uuid
 
 from langchain_core.tools import BaseTool, tool
 
-from app.agent.tools.context import ToolContext
+from app.agent.tools.common import build_ask_user_tool
 from app.agent.tools.ontology import ops
+from app.agent.tools.ontology.context import OntologyToolContext
 from app.agent.tools.search import build_search_tool
 from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
 
 
-def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
+def build_model_tools(ctx: OntologyToolContext) -> list[BaseTool]:
     """把本体操作绑上运行上下文，包成模型可调用的工具。"""
 
     @tool("get_subgraph")
@@ -148,26 +149,6 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
             ),
         )
 
-    @tool("ask_user")
-    def ask_user(
-        question: str,
-        options: list[str] | None = None,
-        details: list[dict] | None = None,
-    ) -> str:
-        """拿不准时停下来问用户。这是中断点，用户回答后你会拿到答案继续。
-
-        只在真的无法判断时才用：同名不同义、一个词可能是对象也可能是属性、关系方向不确定。
-        details 是给用户看的补充信息，形如 [{"label": "描述", "value": "..."}]；
-        让用户确认复用某个类型时，把它的名称、描述、状态都放进来。
-        """
-        # 由 LangGraph 的 interrupt 在工具内部暂停。
-        from langgraph.types import interrupt
-
-        answer = interrupt(
-            {"question": question, "options": options or [], "details": details or []}
-        )
-        return str(answer)
-
     return [
         build_search_tool(ctx),
         get_subgraph,
@@ -177,5 +158,5 @@ def build_model_tools(ctx: ToolContext) -> list[BaseTool]:
         propose_relation,
         update_element,
         remove_element,
-        ask_user,
+        build_ask_user_tool(),
     ]

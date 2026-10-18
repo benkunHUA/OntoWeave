@@ -14,21 +14,13 @@ from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
-from app.agent.prompts import SYSTEM_PROMPT
-
-# 破坏性操作要人批。日常草稿不在这里拦——它们走改动集整体确认（REST 那套）。
-DEFAULT_INTERRUPTS: dict[str, bool | InterruptOnConfig] = {
-    "remove_element": True,
-    "update_element": True,
-}
-
 
 def build_agent(
     model: Any,
     tools: list[BaseTool],
     *,
+    system_prompt: str,
     checkpointer: BaseCheckpointSaver | None = None,
-    system_prompt: str = SYSTEM_PROMPT,
     subagents: Sequence[SubAgent | CompiledSubAgent] | None = None,
     interrupt_on: dict[str, bool | InterruptOnConfig] | None = None,
     include_planning: bool = True,
@@ -36,12 +28,12 @@ def build_agent(
 ):
     """装配一轮可运行的智能体。
 
-    interrupt_on 需要 checkpointer 才能用，所以没给检查点时自动关掉审批，
-    避免装配期就报错。
+    提示词与审批策略都由调用方的 Agent 定义提供；通用装配层不暗含任何领域默认值。
+    interrupt_on 没有 checkpointer 时不可用，这里统一关掉，避免装配期就报错。
     """
     middleware = [TodoListMiddleware()] if include_planning else []
-    if interrupt_on is None:
-        interrupt_on = DEFAULT_INTERRUPTS if checkpointer is not None else None
+    if checkpointer is None:
+        interrupt_on = None
 
     return create_deep_agent(
         model=model,

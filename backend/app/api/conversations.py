@@ -13,6 +13,7 @@ from app.schemas.conversation import (
     ConversationUpdate,
 )
 from app.services import conversation, graph_cleanup
+from app.vocabulary import ConversationKind
 
 router = APIRouter(tags=["conversations"])
 
@@ -29,12 +30,17 @@ def create_conversation(
 
 @router.get("/conversations", response_model=list[ConversationRead])
 def list_conversations(
+    kind: ConversationKind | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     session: Session = Depends(get_session),
 ) -> list[ConversationRead]:
     items = conversation.list_conversations(
-        session, owner_id=get_current_user_id(), limit=limit, offset=offset
+        session,
+        owner_id=get_current_user_id(),
+        kind=kind.value if kind is not None else None,
+        limit=limit,
+        offset=offset,
     )
     return [ConversationRead.model_validate(item) for item in items]
 

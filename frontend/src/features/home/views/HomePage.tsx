@@ -1,8 +1,8 @@
-import { ArrowRight, Clock3, Network, Plus } from 'lucide-react'
+import { ArrowRight, Clock3, Database, Network, Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConversation, listConversations } from '../../../shared/api'
-import type { Conversation } from '../../../shared/types'
+import { CONVERSATION_KIND_MODELING, type Conversation } from '../../../shared/types'
 
 export function HomePage() {
   const navigate = useNavigate()
@@ -10,7 +10,9 @@ export function HomePage() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
-    void listConversations().then(setConversations).catch(() => setConversations([]))
+    void listConversations(CONVERSATION_KIND_MODELING)
+      .then(setConversations)
+      .catch(() => setConversations([]))
   }, [])
 
   async function openNewConversation() {
@@ -61,6 +63,24 @@ export function HomePage() {
           </span>
           <span className="feature-card__action">
             {creating ? '创建中' : '进入'}
+            <ArrowRight size={17} />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="feature-card"
+          onClick={() => navigate('/data-connections')}
+        >
+          <span className="feature-card__icon">
+            <Database size={30} />
+          </span>
+          <span className="feature-card__body">
+            <strong>数据连接</strong>
+            <span>接入 MySQL，选择数据表并持续同步到数据集</span>
+          </span>
+          <span className="feature-card__action">
+            进入
             <ArrowRight size={17} />
           </span>
         </button>

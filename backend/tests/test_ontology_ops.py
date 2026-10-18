@@ -23,9 +23,9 @@ def _setup(session, owner):
         target_type_id=order.id,
         name="下订单",
     )
-    graph.add_object_to_graph(session, conv.graph_id, customer.id, owner_id=owner)
-    graph.add_object_to_graph(session, conv.graph_id, order.id, owner_id=owner)
-    graph.add_relation_to_graph(session, conv.graph_id, rel.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, customer.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, order.id, owner_id=owner)
+    graph.add_relation_to_graph(session, conv.resource_id, rel.id, owner_id=owner)
     return conv, emb, customer, order, rel
 
 
@@ -33,7 +33,7 @@ def test_get_subgraph_walks_one_hop(session):
     owner = uuid.uuid4()
     conv, _, customer, _, _ = _setup(session, owner)
     result = ops.get_subgraph(
-        session, graph_id=conv.graph_id, object_type_id=customer.id, owner_id=owner
+        session, graph_id=conv.resource_id, object_type_id=customer.id, owner_id=owner
     )
     assert sorted(node["name"] for node in result["nodes"]) == ["客户", "订单"]
     assert [rel["name"] for rel in result["relations"]] == ["下订单"]
@@ -44,13 +44,13 @@ def test_get_subgraph_rejects_unknown_node(session):
     conv, *_ = _setup(session, owner)
     with pytest.raises(NotFoundError):
         ops.get_subgraph(
-            session, graph_id=conv.graph_id, object_type_id=uuid.uuid4(), owner_id=owner
+            session, graph_id=conv.resource_id, object_type_id=uuid.uuid4(), owner_id=owner
         )
 
 
 def _changeset(session, owner):
     conv = conversation.create_conversation(session, owner_id=owner, title="写工具")
-    return conv, changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
+    return conv, changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
 
 
 def test_propose_type_creates_draft_and_records_op(session):
@@ -71,7 +71,7 @@ def test_propose_type_adds_created_type_to_graph(session):
 
     result = ops.propose_type(session, changeset_id=cs.id, owner_id=owner, name="机场")
 
-    assert uuid.UUID(result["id"]) in graph.list_graph_objects(session, conv.graph_id)
+    assert uuid.UUID(result["id"]) in graph.list_graph_objects(session, conv.resource_id)
 
 
 def test_propose_type_creates_new_draft_even_when_similar_exists(session):
@@ -95,7 +95,7 @@ def test_reuse_type_adds_existing_type_to_the_current_graph(session):
 
     assert result["id"] == str(customer.id)
     assert result["reused"] is True
-    assert customer.id in graph.list_graph_objects(session, current.graph_id)
+    assert customer.id in graph.list_graph_objects(session, current.resource_id)
 
 
 def test_reuse_type_does_not_record_a_changeset_op(session):
@@ -156,10 +156,10 @@ def test_propose_relation_adds_endpoints_and_relation_to_graph(session):
         name="停靠",
     )
 
-    graph_objects = graph.list_graph_objects(session, conv.graph_id)
+    graph_objects = graph.list_graph_objects(session, conv.resource_id)
     assert source.id in graph_objects
     assert target.id in graph_objects
-    assert uuid.UUID(result["id"]) in graph.list_graph_relations(session, conv.graph_id)
+    assert uuid.UUID(result["id"]) in graph.list_graph_relations(session, conv.resource_id)
 
 
 def test_update_element_requires_a_patch(session):

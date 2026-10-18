@@ -8,14 +8,38 @@ from sqlalchemy.orm import Session
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Conversation, ConversationMessage, Graph, ViewState
 from app.services import graph, graph_cleanup
+from app.vocabulary import CONVERSATION_KINDS, ConversationKind
+
+
+def _ensure_supported_kind(kind: str) -> None:
+    if kind not in CONVERSATION_KINDS:
+        raise InvariantViolationError(f"unsupported conversation kind {kind!r}")
 
 
 def create_conversation(
-    session: Session, *, owner_id: uuid.UUID, title: str | None = None
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    title: str | None = None,
+    kind: str = ConversationKind.MODELING.value,
+    resource_id: uuid.UUID | None = None,
 ) -> Conversation:
-    """一次对话一张图：建会话的同时把图建出来，两者一对一。"""
-    g = graph.create_graph(session, owner_id=owner_id, name=title)
-    conv = Conversation(owner_id=owner_id, graph_id=g.id, title=title)
+    """按会话类型建立资源绑定；建模会话仍保持一次对话一张图。"""
+    _ensure_supported_kind(kind)
+    if kind == ConversationKind.MODELING:
+        if resource_id is not None:
+            raise InvariantViolationError("modeling conversations cannot set resource_id")
+        g = graph.create_graph(session, owner_id=owner_id, name=title)
+        resource_id = g.id
+    elif resource_id is None:
+        raise InvariantViolationError(f"{kind} conversations require a resource_id")
+
+    conv = Conversation(
+        owner_id=owner_id,
+        kind=kind,
+        resource_id=resource_id,
+        title=title,
+    )
     session.add(conv)
     session.flush()
     return conv
@@ -34,7 +58,26 @@ def find_conversation_by_graph(
     session: Session, graph_id: uuid.UUID, *, owner_id: uuid.UUID | None = None
 ) -> Conversation | None:
     """一图一会话，按图反查。找不到返回 None，交给调用方决定是不是硬要求。"""
-    stmt = select(Conversation).where(Conversation.graph_id == graph_id)
+    return find_conversation_by_resource(
+        session,
+        kind=ConversationKind.MODELING.value,
+        resource_id=graph_id,
+        owner_id=owner_id,
+    )
+
+
+def find_conversation_by_resource(
+    session: Session,
+    *,
+    kind: str,
+    resource_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> Conversation | None:
+    _ensure_supported_kind(kind)
+    stmt = select(Conversation).where(
+        Conversation.kind == kind,
+        Conversation.resource_id == resource_id,
+    )
     if owner_id is not None:
         stmt = stmt.where(Conversation.owner_id == owner_id)
     return session.scalar(stmt)
@@ -52,11 +95,12 @@ def rename_conversation(
     if not normalized:
         raise InvariantViolationError("conversation title must not be empty")
     conv.title = normalized
-    graph_row = graph.get_graph(session, conv.graph_id, owner_id=owner_id)
-    graph_row.name = normalized
-    session.execute(
-        update(ViewState).where(ViewState.graph_id == conv.graph_id).values(name=normalized)
-    )
+    if conv.kind == ConversationKind.MODELING:
+        graph_row = graph.get_graph(session, conv.resource_id, owner_id=owner_id)
+        graph_row.name = normalized
+        session.execute(
+            update(ViewState).where(ViewState.graph_id == conv.resource_id).values(name=normalized)
+        )
     session.flush()
     return conv
 
@@ -68,17 +112,21 @@ def delete_conversation(
     owner_id: uuid.UUID | None = None,
     scope: graph_cleanup.DeleteScope = graph_cleanup.DEFAULT_DELETE_SCOPE,
 ) -> None:
-    """删会话，连带删掉它一对一的那张图。
+    """删会话；建模会话连带删掉它一对一的那张图。
 
-    图被删时，图成员（graph_object / graph_relation）、改动集、视图状态随
+    只有建模会话持有图。图被删时，图成员（graph_object / graph_relation）、改动集、视图状态随
     ON DELETE CASCADE 一起清掉；共享池里的对象类型 / 关系只把 home_graph_id
     置空（ON DELETE SET NULL）。要不要顺手清理这些共享元素由 `scope` 决定，
-    具体口径见 `app.services.graph_cleanup`。
+    具体口径见 `app.services.graph_cleanup`。其它资源会话只删会话与消息。
     """
     conv = get_conversation(session, conversation_id, owner_id=owner_id)
-    graph_id = conv.graph_id
-    graph_cleanup.purge_graph_elements(session, graph_id=graph_id, owner_id=owner_id, scope=scope)
-    graph_row = session.get(Graph, graph_id)
+    graph_row = None
+    if conv.kind == ConversationKind.MODELING:
+        graph_id = conv.resource_id
+        graph_cleanup.purge_graph_elements(
+            session, graph_id=graph_id, owner_id=owner_id, scope=scope
+        )
+        graph_row = session.get(Graph, graph_id)
     session.delete(conv)
     if graph_row is not None:
         session.delete(graph_row)
@@ -89,12 +137,17 @@ def list_conversations(
     session: Session,
     *,
     owner_id: uuid.UUID | None = None,
+    kind: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Conversation]:
+    if kind is not None:
+        _ensure_supported_kind(kind)
     stmt = select(Conversation)
     if owner_id is not None:
         stmt = stmt.where(Conversation.owner_id == owner_id)
+    if kind is not None:
+        stmt = stmt.where(Conversation.kind == kind)
     return list(
         session.scalars(
             stmt.order_by(Conversation.created_at.desc(), Conversation.id)

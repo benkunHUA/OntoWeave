@@ -19,7 +19,7 @@ def client(session_factory: sessionmaker[Session]) -> TestClient:
 
 
 def _graph_id(client: TestClient) -> str:
-    return client.post(f"{API}/conversations", json={"title": "动作"}).json()["graph_id"]
+    return client.post(f"{API}/conversations", json={"title": "动作"}).json()["resource_id"]
 
 
 def _edits(client: TestClient, graph_id: str, *edits: dict) -> dict:

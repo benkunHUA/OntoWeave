@@ -1,8 +1,8 @@
 # OntoWeave Backend
 
 会话驱动的企业本体建模工具后端。当前进度：本体数据层（对象类型 / 属性 / 关系 / 图成员 /
-状态机）+ 动作层定义（动作类型 / 参数 / 规则 / 字段赋值 / 提交校验）。动作层只定义
-「一次能做哪些改动」，不执行实例，执行层留给下一版。
+状态机）+ 动作层定义 + 数据连接与同步（MySQL → Flink CDC → Iceberg 数据集）+ 数据连接
+Agent。动作层只定义「一次能做哪些改动」，不执行实例，执行层留给下一版。
 
 ## 用容器跑整套
 
@@ -34,7 +34,7 @@ uvicorn app.main:app --reload --port 18000
 cp .env.example .env
 ```
 
-四组配置：
+六组配置：
 
 | 组 | 变量 | 说明 |
 |---|---|---|
@@ -42,6 +42,8 @@ cp .env.example .env
 | 对话模型 | `CHAT_BASE_URL` / `CHAT_API_KEY` / `CHAT_MODEL` | 智能体用；OpenAI 兼容接口，私有化环境换成自建网关 |
 | 嵌入模型 | `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | 相似检索用 |
 | 可观测性 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_BASE_URL` | 可选；审计追踪用，两个 key 都填才开启 |
+| Java 数据服务 | `DATA_SERVICE_URL` / `DATA_SERVICE_TOKEN` / `DATA_SERVICE_TIMEOUT_SECONDS` | 内部 REST，默认 `http://localhost:18001`；token 必须与 Java 一致 |
+| 事件消费 | `RABBITMQ_URL` / `DATA_EVENT_EXCHANGE` / `DATA_EVENT_QUEUE` / `EVENT_CONSUMER_ENABLED` | 消费 Java Outbox 的连接与同步事件；测试默认关闭 |
 
 两个坑先说清楚：
 
@@ -91,6 +93,12 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | `app/services/element_kinds.py` | 元素种类注册表（9 种）：create 分派、删除顺序、引用检查都按它走 |
 | `app/services/element_edit/` | 改动集写入：操作形状、建草稿、更新与删除、条件树整棵替换 |
 | `app/services/graph.py` | 图的成员管理与关系端点完整性约束 |
+| `app/services/data_connection.py` | 数据连接编排：Python 会话 + Java 数据服务 |
+| `app/services/data_service/` | Java 内部 REST 客户端与 camelCase → snake_case 映射 |
+| `app/services/conversation_event.py` | 事件幂等落库、游标查询、Outbox 信封消费 |
+| `app/services/conversation_event_stream.py` | 对话事件 SSE：历史补发 + 增量推送 |
+| `app/messaging/consumer.py` | RabbitMQ 消费者与重连 |
+| `app/agent/tools/data_connection/` | 数据连接 Agent 的只读工具与上下文 |
 | `app/api/` | 按领域拆分的路由，统一挂在 `/api/v1` 下 |
 | `app/deps.py` | 依赖注入；事务边界在这里（成功提交、异常回滚） |
 | `app/middleware.py` | 请求 ID 与访问日志 |
@@ -126,6 +134,28 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | POST | `/api/v1/graphs/{id}/edits` | 按元素种类写入一批编辑（新增 / 更新 / 删除） |
 | GET | `/api/v1/actions` | 动作类型列表（分页） |
 | GET | `/api/v1/actions/{id}` | 动作详情（参数 / 规则 / 赋值 / 提交校验） |
+| POST | `/api/v1/data-connections` | 创建草稿连接与对应会话 |
+| GET | `/api/v1/data-connections` | 连接列表（分页） |
+| GET / PATCH | `/api/v1/data-connections/{id}` | 连接详情 / 修改名称、配置或密码 |
+| POST | `/api/v1/data-connections/{id}/test` | 测试已保存的连接 |
+| GET | `/api/v1/data-connections/{id}/tables` | 源库表列表 |
+| GET | `/api/v1/data-connections/{id}/tables/{schema}/{table}` | 表字段与主键 |
+| GET | `/api/v1/data-connections/{id}/state` | 连接、任务、运行、数据集与缺失步骤 |
+| POST / GET | `/api/v1/data-connections/{id}/sync-tasks` | 保存本次选表 / 查询同步任务 |
+| POST | `/api/v1/data-connections/{id}/sync-runs` | 触发同步（202） |
+| GET | `/api/v1/data-connections/{id}/sync-runs` | 最近同步运行 |
+| GET / POST | `/api/v1/sync-runs/{id}` · `/stop` | 查询运行 / 停止运行（202） |
+| GET | `/api/v1/data-connections/{id}/datasets` | 连接下的数据集 |
+| GET | `/api/v1/datasets/{id}` | 数据集详情与版本 |
+| GET | `/api/v1/conversations/{id}/events` | 事件历史与增量拉取 |
+| GET | `/api/v1/conversations/{id}/events/stream` | SSE 推送事件卡片 |
+
+### 数据连接事件
+
+同步执行是异步的：Python 受理写操作后调 Java 内部接口，Java 通过 Outbox 把
+`connection.tested`、`sync.run.*`、`dataset.version.published` 等事件投到 RabbitMQ。
+Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过 SSE 推给打开该会话的
+前端。事件只更新操作卡片，不自动触发模型；失败后由用户发消息让 Agent 解释。
 
 每个响应都带 `X-Request-ID`；请求里带了就透传，没带就生成一个，并出现在日志里。
 

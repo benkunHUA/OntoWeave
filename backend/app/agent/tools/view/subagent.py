@@ -5,13 +5,13 @@ from __future__ import annotations
 from deepagents import SubAgent
 
 from app.agent.prompts import VIEW_AGENT_DESCRIPTION, VIEW_AGENT_PROMPT
-from app.agent.tools.context import ToolContext
+from app.agent.tools.ontology.context import OntologyToolContext
 from app.agent.tools.view.binding import build_view_tools
 
 VIEW_AGENT_NAME = "view_designer"
 
 
-def build_view_subagent(ctx: ToolContext) -> SubAgent:
+def build_view_subagent(ctx: OntologyToolContext) -> SubAgent:
     return {
         "name": VIEW_AGENT_NAME,
         "description": VIEW_AGENT_DESCRIPTION,

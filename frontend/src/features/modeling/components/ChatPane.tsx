@@ -1,9 +1,9 @@
 import { useModeling } from '../context/modelingContext'
+import { MessageList } from '../../../shared/chat/components/MessageList'
 import { ChangesetPanel } from './ChangesetPanel'
 import { ChatHeader } from './ChatHeader'
 import { Composer } from './Composer'
 import { ErrorToast } from './ErrorToast'
-import { MessageList } from './MessageList'
 
 /** 中间对话栏：头部、消息、待确认改动条、输入区。状态全在 context 里，这里只摆放。 */
 export function ChatPane() {

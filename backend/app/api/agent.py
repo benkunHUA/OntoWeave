@@ -54,7 +54,11 @@ def post_message(
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
     # 先在普通请求里校验会话存在与归属，别等流开了才报 404
-    runtime.prepare_run(session, conversation_id=conversation_id, owner_id=get_current_user_id())
+    runtime.validate_conversation(
+        session,
+        conversation_id=conversation_id,
+        owner_id=get_current_user_id(),
+    )
     return _stream(request, conversation_id, text=payload.text)
 
 
@@ -65,7 +69,11 @@ def post_resume(
     request: Request,
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
-    runtime.prepare_run(session, conversation_id=conversation_id, owner_id=get_current_user_id())
+    runtime.validate_conversation(
+        session,
+        conversation_id=conversation_id,
+        owner_id=get_current_user_id(),
+    )
     display = payload.text or (
         payload.answer
         if isinstance(payload.answer, str)

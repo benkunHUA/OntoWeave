@@ -4,19 +4,13 @@
 但那个 id 是 langgraph 自己的任务 id，认不出是哪个子智能体。这里记下主智能体发出的 `task`
 调用，按「先起的先认」把命名空间绑回那次调用；绑定只做一次并缓存。
 
-可见范围默认只放动作子智能体：视觉整理是短任务，一次性给结果就够；动作的定义过程长，
-前端要边跑边看到它在做什么。要放开别的子智能体，只改 `VISIBLE_SUBAGENTS` 一处。
+可见范围由会话的 AgentDefinition 提供；默认不暴露任何子智能体的内部过程。
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-
-from app.agent.tools.action.subagent import ACTION_AGENT_NAME
-
-# 内部过程对前端可见的子智能体。
-VISIBLE_SUBAGENTS = frozenset({ACTION_AGENT_NAME})
 
 # 子图命名空间的形状：`("<父节点>:<langgraph 任务 id>", ...)`。
 _TOOL_NAMESPACE_PREFIX = "tools:"
@@ -34,7 +28,7 @@ class SubagentCall:
 class SubagentTrace:
     """把子图命名空间对回发起它的那次 `task` 调用。"""
 
-    def __init__(self, visible: frozenset[str] = VISIBLE_SUBAGENTS) -> None:
+    def __init__(self, visible: frozenset[str] = frozenset()) -> None:
         self._visible = visible
         self._pending: list[SubagentCall] = []
         self._bound: dict[str, SubagentCall | None] = {}

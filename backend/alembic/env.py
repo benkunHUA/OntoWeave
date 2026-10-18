@@ -17,6 +17,7 @@ config.set_main_option(
     config.attributes.get("sqlalchemy_url") or get_settings().database_url,
 )
 target_metadata = Base.metadata
+version_table_schema = config.attributes.get("version_table_schema")
 CHECKPOINT_TABLES = {
     "checkpoints",
     "checkpoint_blobs",
@@ -38,6 +39,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_name=include_name,
+        version_table_schema=version_table_schema,
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -54,6 +56,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_name=include_name,
+            version_table_schema=version_table_schema,
         )
         with context.begin_transaction():
             context.run_migrations()

@@ -7,6 +7,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
+from app.services.data_service.client import DataServiceClient
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -24,6 +25,11 @@ def get_session(request: Request) -> Iterator[Session]:
 def get_current_user_id() -> uuid.UUID:
     """一期没有用户系统，统一返回配置里的默认用户。"""
     return uuid.UUID(get_settings().default_user_id)
+
+
+def get_data_service_client() -> DataServiceClient:
+    """Java 内部接口客户端。单次请求无连接池状态，关闭由 httpx 自身负责。"""
+    return DataServiceClient(get_settings())
 
 
 def get_agent_checkpointer(state: Any, settings: Settings) -> BaseCheckpointSaver | None:

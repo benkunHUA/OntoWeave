@@ -1,0 +1,67 @@
+server:
+  port: ${SERVER_PORT:8081}
+
+spring:
+  application:
+    name: ontoweave-data-service
+  datasource:
+    url: ${DATA_DATABASE_URL:jdbc:postgresql://localhost:5432/ontoweave}
+    username: ${DATA_DATABASE_USER:ontoweave}
+    password: ${DATA_DATABASE_PASSWORD:ontoweave}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: data
+        jdbc:
+          time_zone: UTC
+  flyway:
+    schemas: data
+    default-schema: data
+    create-schemas: true
+    locations: classpath:db/migration
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:ontoweave}
+    password: ${RABBITMQ_PASSWORD:ontoweave}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+ontoweave:
+  internal-token: ${ONTOWEAVE_INTERNAL_TOKEN:dev-internal-token}
+  secret:
+    current-version: ${ONTOWEAVE_SECRET_KEY_VERSION:1}
+    keys:
+      1: ${ONTOWEAVE_SECRET_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+  outbox:
+    enabled: ${ONTOWEAVE_OUTBOX_ENABLED:true}
+    exchange: ${ONTOWEAVE_EVENT_EXCHANGE:ontoweave.data.events}
+    poll-interval-ms: ${ONTOWEAVE_OUTBOX_POLL_INTERVAL_MS:1000}
+  sync:
+    flink-rest-url: ${FLINK_REST_URL:http://localhost:8081}
+    flink-home: ${FLINK_HOME:/opt/flink}
+    flink-cdc-home: ${FLINK_CDC_HOME:/opt/flink-cdc-3.7.0-1.20}
+    iceberg-catalog: ${ICEBERG_CATALOG:ontoweave}
+    iceberg-warehouse: ${ICEBERG_WAREHOUSE:/data/iceberg/warehouse}
+    checkpoint-dir: ${FLINK_CHECKPOINT_DIR:file:///data/flink/checkpoints}
+    savepoint-dir: ${FLINK_SAVEPOINT_DIR:file:///data/flink/savepoints}
+    parallelism: ${SYNC_PARALLELISM:2}
+    server-id-block-size: ${SYNC_SERVER_ID_BLOCK_SIZE:100}
+    command-exchange: ${SYNC_COMMAND_EXCHANGE:ontoweave.data.commands}
+    command-queue: ${SYNC_COMMAND_QUEUE:sync.execute}
+    dispatch-enabled: ${SYNC_DISPATCH_ENABLED:true}
+    supervisor-enabled: ${SYNC_SUPERVISOR_ENABLED:true}
+    max-dispatch-attempts: ${SYNC_MAX_DISPATCH_ATTEMPTS:5}
+    default-version-interval-seconds: ${SYNC_DEFAULT_VERSION_INTERVAL_SECONDS:86400}
+    checkpoint-interval-seconds: ${SYNC_CHECKPOINT_INTERVAL_SECONDS:300}

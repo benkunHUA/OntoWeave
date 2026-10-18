@@ -9,13 +9,15 @@ deepagents 图里不给消息分配 id，会掩盖「按 id 覆盖」这条真�
 
 import uuid
 
+import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent import graph as agent_graph
 from app.agent import runtime, thread
-from app.agent.tools import ToolContext, build_model_tools
+from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.tools import OntologyToolContext, build_model_tools
 from app.config import Settings
 from app.services import changeset, conversation, embedding
 
@@ -30,12 +32,12 @@ class _ScriptedModel(GenericFakeChatModel):
 def _conversation(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="线程回写")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
     return owner, conv, cs
 
 
 def _agent(saver, *script):
-    ctx = ToolContext(
+    ctx = OntologyToolContext(
         session=None,
         owner_id=uuid.uuid4(),
         graph_id=uuid.uuid4(),
@@ -45,6 +47,7 @@ def _agent(saver, *script):
     return agent_graph.build_agent(
         _ScriptedModel(messages=iter(script)),
         build_model_tools(ctx),
+        system_prompt=SYSTEM_PROMPT,
         subagents=[],
         checkpointer=saver,
     )
@@ -131,7 +134,7 @@ def test_record_decision_writes_back_into_the_thread(session):
         Settings(chat_api_key="fake-key"),
         owner,
         conversation_id=conv.id,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         text="（系统回执）用户已撤销本次改动。",
         checkpointer=saver,
@@ -150,8 +153,32 @@ def test_record_decision_without_checkpointer_is_a_silent_noop(session):
         Settings(chat_api_key="fake-key"),
         owner,
         conversation_id=conv.id,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         text="（系统回执）用户已撤销本次改动。",
         checkpointer=None,
     )
+
+
+@pytest.mark.parametrize("mismatch", ["owner", "graph"])
+def test_record_decision_ignores_mismatched_context(session, monkeypatch, mismatch):
+    """归属或图对不上时宁可不写，也不能把旁白写进错误的模型线程。"""
+    owner, conv, cs = _conversation(session)
+    saver = InMemorySaver()
+    agent, cfg = _seed(conv, saver, AIMessage("好的，已加入草稿。"))
+    calls: list[tuple] = []
+    monkeypatch.setattr(thread, "append_note", lambda *args, **kwargs: calls.append(args))
+
+    thread.record_decision(
+        session,
+        Settings(chat_api_key="fake-key"),
+        uuid.uuid4() if mismatch == "owner" else owner,
+        conversation_id=conv.id,
+        graph_id=uuid.uuid4() if mismatch == "graph" else conv.resource_id,
+        changeset_id=cs.id,
+        text="（系统回执）用户已撤销本次改动。",
+        checkpointer=saver,
+    )
+
+    assert calls == []
+    assert _messages(agent, cfg)[-1].content == "好的，已加入草稿。"

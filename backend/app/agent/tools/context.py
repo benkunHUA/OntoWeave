@@ -1,8 +1,8 @@
-"""工具的运行上下文与调用方式。
+"""通用工具的运行上下文与调用方式。
 
-模型调用工具要拿到 Session、当前图、改动集这些外部依赖，模型自己看不见它们，
-由闭包注入，统一收在 ToolContext 里。调用策略（串行、错误兜底）也由它负责，
-工具包装函数只写「调用哪个领域函数」。
+模型调用工具要拿到 Session、owner 这些外部依赖，模型自己看不见它们，由闭包注入，
+统一收在 ToolContext 里。调用策略（串行、错误兜底）也由它负责，工具包装函数只写
+「调用哪个领域函数」。建模专用依赖由子类承接。
 """
 
 from __future__ import annotations
@@ -15,18 +15,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services import embedding
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ToolContext:
-    """一次运行里工具需要的全部外部依赖。模型看不见它，由闭包注入。"""
+    """一次运行里通用工具需要的外部依赖。模型看不见它，由闭包注入。"""
 
     session: Session
     owner_id: uuid.UUID
-    graph_id: uuid.UUID
-    changeset_id: uuid.UUID
-    embedder: embedding.Embedder
     # 同一轮里模型可以并发调多个工具，它们共用一个 Session，必须串行——理由见 invoke。
     lock: threading.Lock = field(default_factory=threading.Lock, compare=False)
 

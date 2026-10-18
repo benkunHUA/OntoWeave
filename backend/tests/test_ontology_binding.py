@@ -1,18 +1,18 @@
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
-from app.agent.tools import ToolContext
+from app.agent.tools import OntologyToolContext, ToolContext
 from app.agent.tools.ontology import build_model_tools
 from app.services import changeset, conversation, embedding, ontology
 
 
-def _context(session, owner):
+def _context(session, owner) -> OntologyToolContext:
     conv = conversation.create_conversation(session, owner_id=owner, title="绑定测试")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    return ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    return OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )
@@ -32,6 +32,12 @@ def test_binds_expected_tool_names(session):
         "remove_element",
         "ask_user",
     ]
+
+
+def test_ontology_context_extends_tool_context_and_invokes(session):
+    ctx = _context(session, uuid.uuid4())
+    assert isinstance(ctx, ToolContext)
+    assert ctx.invoke(lambda: "ok") == "ok"
 
 
 def test_every_tool_exposes_a_description(session):

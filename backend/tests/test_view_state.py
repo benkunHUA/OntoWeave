@@ -18,7 +18,9 @@ def client(session_factory: sessionmaker[Session]) -> TestClient:
 
 
 def _graph_id(session) -> uuid.UUID:
-    return conversation.create_conversation(session, owner_id=uuid.uuid4(), title="测试").graph_id
+    return conversation.create_conversation(
+        session, owner_id=uuid.uuid4(), title="测试"
+    ).resource_id
 
 
 def test_absent_view_state_returns_none(session):
@@ -55,7 +57,7 @@ def test_upsert_rejects_unknown_graph(session):
 
 
 def test_view_state_api_roundtrip(client):
-    graph_id = client.post(f"{API}/conversations", json={"title": "视图测试"}).json()["graph_id"]
+    graph_id = client.post(f"{API}/conversations", json={"title": "视图测试"}).json()["resource_id"]
 
     empty = client.get(f"{API}/graphs/{graph_id}/view-state")
     assert empty.status_code == 200
@@ -109,7 +111,7 @@ def test_upsert_keeps_unknown_keys_and_adds_none(session):
 
 
 def test_view_state_api_rejects_a_malformed_spec(client):
-    graph_id = client.post(f"{API}/conversations", json={"title": "坏规格"}).json()["graph_id"]
+    graph_id = client.post(f"{API}/conversations", json={"title": "坏规格"}).json()["resource_id"]
 
     response = client.put(f"{API}/graphs/{graph_id}/view-state", json={"spec": {"dim": "全部"}})
 

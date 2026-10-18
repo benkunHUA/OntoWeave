@@ -13,8 +13,8 @@ from langchain_core.tools import BaseTool, tool
 from sqlalchemy.orm import Session
 
 from app.agent.tools.action.ops import action_type_brief
-from app.agent.tools.context import ToolContext
 from app.agent.tools.graph_read import object_type_brief
+from app.agent.tools.ontology.context import OntologyToolContext
 from app.errors import InvariantViolationError
 from app.services import action, element_kinds, embedding, ontology
 
@@ -119,7 +119,7 @@ def _entry(kind: str, brief: dict, score: float | None = None) -> dict:
     return entry
 
 
-def build_search_tool(ctx: ToolContext) -> BaseTool:
+def build_search_tool(ctx: OntologyToolContext) -> BaseTool:
     """检索本体元素：主智能体与动作子智能体共用同一个只读工具。"""
 
     @tool("search")

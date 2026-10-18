@@ -4,7 +4,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.tools import ToolContext, build_view_subagent, build_view_tools
+from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.tools import OntologyToolContext, build_view_subagent, build_view_tools
 from app.agent.tools.view.registry import VIEW_OPS
 from app.config import Settings
 from app.services import changeset, conversation, embedding, graph, ontology, view_state
@@ -30,11 +31,11 @@ VIEW_TOOL_NAMES = [
 
 def _context(session, owner):
     conv = conversation.create_conversation(session, owner_id=owner, title="绘图测试")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    return conv, ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    return conv, OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )
@@ -85,7 +86,7 @@ def test_optional_arguments_can_be_omitted(session):
     by_name["reset_view"].invoke({})
 
     saved = view_state.get_view_state(
-        session, graph_id=conv.graph_id, user_id=owner, owner_id=owner
+        session, graph_id=conv.resource_id, user_id=owner, owner_id=owner
     )
     assert saved.spec == {}
 
@@ -95,15 +96,15 @@ def test_view_tools_persist_spec_and_read_the_graph_slice(session):
     conv, ctx = _context(session, owner)
     customer = ontology.create_object_type(session, owner_id=owner, name="客户")
     order = ontology.create_object_type(session, owner_id=owner, name="订单")
-    graph.add_object_to_graph(session, conv.graph_id, customer.id, owner_id=owner)
-    graph.add_object_to_graph(session, conv.graph_id, order.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, customer.id, owner_id=owner)
+    graph.add_object_to_graph(session, conv.resource_id, order.id, owner_id=owner)
 
     by_name = {item.name: item for item in build_view_tools(ctx)}
     by_name["set_layout"].invoke({"kind": "domain-grouped", "options": {"spacing": 80}})
     by_name["highlight"].invoke({"node_ids": [str(customer.id)]})
 
     saved = view_state.get_view_state(
-        session, graph_id=conv.graph_id, user_id=owner, owner_id=owner
+        session, graph_id=conv.resource_id, user_id=owner, owner_id=owner
     )
     assert saved is not None
     assert saved.spec["layout"] == {
@@ -136,6 +137,7 @@ def test_deep_agent_accepts_the_view_subagent(session):
     compiled = agent_graph.build_agent(
         _fake_model(),
         [],
+        system_prompt=SYSTEM_PROMPT,
         subagents=[subagent],
         checkpointer=InMemorySaver(),
     )

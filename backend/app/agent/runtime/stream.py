@@ -1,7 +1,7 @@
 """一轮对话的流式编排。
 
-只做编排：把模型线程、事件协议、工具执行、落库与改动集快照串起来。读图/写草稿的
-规则在工具层，事件形状在 events.py，中断形状在 interrupts.py，装配在 assembly.py。
+只做编排：把模型线程、事件协议、工具执行与落库串起来。会话类型对应的运行策略由
+AgentDefinition 提供，事件形状在 events.py，中断形状在 interrupts.py。
 
 这里自己管事务，不走请求级依赖注入——流式响应会活过依赖的生命周期。
 """
@@ -18,10 +18,12 @@ from langgraph.types import Command
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.agent import observability
-from app.agent.runtime import assembly, subagent_trace
+from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.registry import get_definition
+from app.agent.runtime import subagent_trace
 from app.agent.runtime.events import TurnBuilder, block_fragments, content_text, sse
 from app.agent.runtime.interrupts import normalize_interrupt
-from app.agent.runtime.runs import RunContext, prepare_run, thread_config
+from app.agent.runtime.runs import thread_config
 from app.config import Settings
 from app.schemas.agent_events import (
     RunEndEvent,
@@ -30,7 +32,7 @@ from app.schemas.agent_events import (
     StateUpdateEvent,
 )
 from app.schemas.message_blocks import ToolStatus
-from app.services import changeset, conversation, view_state
+from app.services import conversation
 
 # langgraph 嵌套子图用 "|" 拼命名空间；顶层节点没有它。
 _SUBGRAPH_SEP = "|"
@@ -87,12 +89,18 @@ def stream_run(
     这里自己管事务，不走请求级依赖注入——流式响应会活过依赖的生命周期。
     """
     session = factory()
-    run: RunContext | None = None
+    run: AgentRunContext | None = None
     run_id = uuid.uuid4().hex
     message_id = uuid.uuid4().hex
     turn = TurnBuilder(message_id)
     try:
-        run = prepare_run(session, conversation_id=conversation_id, owner_id=owner_id)
+        conv = conversation.get_conversation(
+            session,
+            conversation_id,
+            owner_id=owner_id,
+        )
+        definition = get_definition(conv.kind)
+        run = definition.prepare_run(session, conversation=conv, owner_id=owner_id)
         conversation.add_message(
             session,
             conversation_id=conversation_id,
@@ -101,9 +109,7 @@ def stream_run(
         )
         # 用户输入先独立提交，后面的模型或工具失败也不能把这句话丢掉。
         session.commit()
-        agent = assembly.build_agent_for_run(
-            session, settings, run, owner_id, checkpointer=checkpointer
-        )
+        agent = definition.build_graph(session, settings, run, checkpointer=checkpointer)
         config: dict = thread_config(conversation_id)
         # 配了 Langfuse 就把审计回调挂上；langgraph 会把它透传给子智能体。
         config.update(
@@ -128,7 +134,7 @@ def stream_run(
         # 两种情况都只出一遍，靠这个标记二选一。
         saw_delta = False
         tool_started_at: dict[str, float] = {}
-        trace = subagent_trace.SubagentTrace()
+        trace = subagent_trace.SubagentTrace(definition.visible_subagents)
 
         # subgraphs=True：子智能体内部的事件也吐出来，由 SubagentTrace 决定露不露给前端。
         for chunk in agent.stream(
@@ -243,23 +249,8 @@ def stream_run(
                 duration_ms=resolution["durationMs"],
             )
         session.commit()
-        ops = [
-            {"op": op.op, "kind": op.payload.get("kind")}
-            for op in changeset.list_ops(session, run.changeset_id)
-        ]
-        saved_view = view_state.get_view_state(
-            session,
-            graph_id=run.graph_id,
-            user_id=owner_id,
-            owner_id=owner_id,
-        )
-        yield sse(
-            StateUpdateEvent(
-                changesetId=str(run.changeset_id),
-                ops=ops,
-                view=saved_view.spec if saved_view is not None else {},
-            )
-        )
+        state_payload = definition.build_state_update(session, settings, run)
+        yield sse(StateUpdateEvent(**state_payload))
         # paused 必须显式给出来：否则前端分不清「本轮做完」和「卡在中途等人回答」，
         # 两个都是 run.end，却要走向完全不同的交互。
         yield sse(RunEndEvent(messageId=message_id, paused=paused))

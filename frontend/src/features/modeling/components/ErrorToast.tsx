@@ -1,18 +1,8 @@
-import { CircleAlert, X } from 'lucide-react'
+import { ErrorToast as ChatErrorToast } from '../../../shared/chat/components/ErrorToast'
 import { useModeling } from '../context/modelingContext'
 
-/** 对话栏右下角的错误提示：取数、保存、运行失败都从这里出。 */
+/** 建模对话栏的错误提示：消息来自共享 toast 状态。 */
 export function ErrorToast() {
   const { toast } = useModeling()
-  if (!toast.error) return null
-
-  return (
-    <div className="error-toast">
-      <CircleAlert size={16} />
-      <span>{toast.error}</span>
-      <button type="button" aria-label="关闭错误" onClick={toast.clear}>
-        <X size={14} />
-      </button>
-    </div>
-  )
+  return <ChatErrorToast message={toast.error} onClose={toast.clear} />
 }

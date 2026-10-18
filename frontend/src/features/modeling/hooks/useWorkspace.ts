@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef } from 'react'
-import type {
-  Changeset,
-  Conversation,
-  ConversationMessage,
-  GraphEditOp,
-  GraphSnapshot,
-  ViewSpec,
+import {
+  CONVERSATION_KIND_MODELING,
+  type Changeset,
+  type Conversation,
+  type ConversationMessage,
+  type GraphEditOp,
+  type GraphSnapshot,
+  type ViewSpec,
 } from '../../../shared/types'
 import {
   confirmChangeset,
@@ -21,7 +22,7 @@ import {
   saveViewState,
 } from '../../../shared/api'
 import type { DrawerSubmitOptions } from '../lib/drawerSubmit'
-import type { ReportError } from './useErrorToast'
+import type { ReportError } from '../../../shared/chat/hooks/useErrorToast'
 import { workspaceKeys } from './queryKeys'
 
 /** 一个会话对应的整块工作区：对话、图、视图规格、未定稿的改动集、消息历史。 */
@@ -35,10 +36,14 @@ export interface Workspace {
 
 async function fetchWorkspace(conversationId: string): Promise<Workspace> {
   const conversation = await getConversation(conversationId)
+  if (conversation.kind !== CONVERSATION_KIND_MODELING) {
+    throw new Error('该会话不是建模会话')
+  }
+  const graphId = conversation.resource_id
   const [snapshot, viewState, changesets, history] = await Promise.all([
-    getGraphSnapshot(conversation.graph_id),
-    getViewState(conversation.graph_id),
-    listChangesets(conversation.graph_id),
+    getGraphSnapshot(graphId),
+    getViewState(graphId),
+    listChangesets(graphId),
     listConversationMessages(conversation.id),
   ])
   const open = changesets.find((item) => item.status === 'open')
@@ -97,7 +102,7 @@ export function useWorkspace(conversationId: string | undefined, onError: Report
 
   const persistView = useCallback(
     (spec: ViewSpec, delay = 0) => {
-      const graphId = read()?.conversation.graph_id
+      const graphId = read()?.conversation.resource_id
       if (!graphId) return
       cancelPendingViewSave()
       saveTimerRef.current = window.setTimeout(() => {
@@ -140,7 +145,7 @@ export function useWorkspace(conversationId: string | undefined, onError: Report
     async (edits: GraphEditOp[], options: DrawerSubmitOptions) => {
       const current = read()
       if (!current) return
-      const graphId = current.conversation.graph_id
+      const graphId = current.conversation.resource_id
       const updated = await editGraphElements(graphId, edits)
       if (options.confirm) {
         // 抽屉里直接确认：省掉再去左侧确认条点一次。确认会往会话追一条回执，

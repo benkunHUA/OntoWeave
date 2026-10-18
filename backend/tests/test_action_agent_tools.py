@@ -2,7 +2,7 @@
 
 import uuid
 
-from app.agent.tools import ToolContext, build_action_subagent, build_action_tools
+from app.agent.tools import OntologyToolContext, build_action_subagent, build_action_tools
 from app.services import (
     action,
     changeset,
@@ -13,13 +13,13 @@ from app.services import (
 )
 
 
-def _context(session, owner) -> ToolContext:
+def _context(session, owner) -> OntologyToolContext:
     conv = conversation.create_conversation(session, owner_id=owner, title="动作工具")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    return ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    return OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )

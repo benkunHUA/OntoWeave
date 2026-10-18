@@ -47,7 +47,7 @@ def test_deleting_type_with_its_property_and_relation_in_one_batch(session: Sess
     外键是 ON DELETE SET NULL，属性先删不会挡住关系，关系先删也不会挡住对象类型。
     """
     owner = uuid.uuid4()
-    graph_id = conversation.create_conversation(session, owner_id=owner).graph_id
+    graph_id = conversation.create_conversation(session, owner_id=owner).resource_id
     trip = ontology.create_object_type(session, owner_id=owner, name="行程")
     spot = ontology.create_object_type(session, owner_id=owner, name="景点")
     spot_code = ontology.create_property(session, owner_type_id=spot.id, name="景点编号")
@@ -116,7 +116,7 @@ def test_action_type_dependents_cover_every_child(session: Session):
 def test_deleting_an_action_type_takes_its_children_along(session: Session):
     """确认删动作类型：参数、规则、赋值一起走，且不会撞上参数那侧的 RESTRICT 外键。"""
     owner = uuid.uuid4()
-    graph_id = conversation.create_conversation(session, owner_id=owner).graph_id
+    graph_id = conversation.create_conversation(session, owner_id=owner).resource_id
     action_type = action.create_action_type(session, owner_id=owner, name="指派工单")
     ticket = ontology.create_object_type(session, owner_id=owner, name="工单")
     amount = ontology.create_property(

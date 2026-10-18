@@ -13,7 +13,7 @@ from app.services import action, conversation, graph, graph_cleanup, ontology
 def test_graph_only_scope_keeps_shared_pool_intact(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="只删图")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     source = ontology.create_object_type(
         session, owner_id=owner, name="保留来源", home_graph_id=graph_id
@@ -45,7 +45,7 @@ def test_graph_only_scope_keeps_shared_pool_intact(session):
 def test_drafts_scope_removes_only_local_drafts(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="连草稿一起删")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     draft_source = ontology.create_object_type(
         session, owner_id=owner, name="草稿来源", home_graph_id=graph_id
@@ -70,7 +70,7 @@ def test_drafts_scope_removes_only_local_drafts(session):
     ontology.transition_object_type(session, confirmed.id, "confirmed")
     other = conversation.create_conversation(session, owner_id=owner, title="另一张图")
     reused = ontology.create_object_type(
-        session, owner_id=owner, name="别处复用的草稿", home_graph_id=other.graph_id
+        session, owner_id=owner, name="别处复用的草稿", home_graph_id=other.resource_id
     )
 
     ids = {
@@ -81,7 +81,7 @@ def test_drafts_scope_removes_only_local_drafts(session):
         "confirmed": confirmed.id,
         "reused": reused.id,
     }
-    other_graph_id = other.graph_id
+    other_graph_id = other.resource_id
 
     conversation.delete_conversation(session, conv.id, owner_id=owner, scope="graph-and-drafts")
     session.expire_all()
@@ -103,7 +103,7 @@ def test_drafts_scope_removes_only_local_drafts(session):
 def test_unreferenced_scope_removes_local_elements_but_keeps_shared(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="清理未被引用")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     shared = ontology.create_object_type(
         session, owner_id=owner, name="被别的图复用", home_graph_id=graph_id
@@ -124,7 +124,7 @@ def test_unreferenced_scope_removes_local_elements_but_keeps_shared(session):
         home_graph_id=graph_id,
     )
     other = conversation.create_conversation(session, owner_id=owner, title="另一张图")
-    graph.add_object_to_graph(session, graph_id=other.graph_id, object_type_id=shared.id)
+    graph.add_object_to_graph(session, graph_id=other.resource_id, object_type_id=shared.id)
 
     ids = {
         "shared": shared.id,
@@ -148,7 +148,7 @@ def test_unreferenced_scope_removes_local_elements_but_keeps_shared(session):
 def test_unreferenced_scope_keeps_shared_relation_and_its_endpoints(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="共享关系")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     source = ontology.create_object_type(session, owner_id=owner, name="源", home_graph_id=graph_id)
     target = ontology.create_object_type(session, owner_id=owner, name="靶", home_graph_id=graph_id)
@@ -162,9 +162,9 @@ def test_unreferenced_scope_keeps_shared_relation_and_its_endpoints(session):
     )
 
     other = conversation.create_conversation(session, owner_id=owner, title="另一张图")
-    graph.add_object_to_graph(session, graph_id=other.graph_id, object_type_id=source.id)
-    graph.add_object_to_graph(session, graph_id=other.graph_id, object_type_id=target.id)
-    graph.add_relation_to_graph(session, graph_id=other.graph_id, relation_id=relation.id)
+    graph.add_object_to_graph(session, graph_id=other.resource_id, object_type_id=source.id)
+    graph.add_object_to_graph(session, graph_id=other.resource_id, object_type_id=target.id)
+    graph.add_relation_to_graph(session, graph_id=other.resource_id, relation_id=relation.id)
 
     ids = {"source": source.id, "target": target.id, "relation": relation.id}
 
@@ -184,10 +184,10 @@ def test_purge_graph_elements_is_a_noop_for_default_scope(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="默认范围")
     obj = ontology.create_object_type(
-        session, owner_id=owner, name="原地不动", home_graph_id=conv.graph_id
+        session, owner_id=owner, name="原地不动", home_graph_id=conv.resource_id
     )
 
-    graph_cleanup.purge_graph_elements(session, graph_id=conv.graph_id, owner_id=owner)
+    graph_cleanup.purge_graph_elements(session, graph_id=conv.resource_id, owner_id=owner)
     session.expire_all()
 
     assert session.get(ObjectType, obj.id) is not None
@@ -196,7 +196,7 @@ def test_purge_graph_elements_is_a_noop_for_default_scope(session):
 def test_drafts_scope_removes_local_action_types(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="连草稿动作一起删")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     draft_action = action.create_action_type(
         session, owner_id=owner, name="草稿动作", home_graph_id=graph_id
@@ -223,14 +223,14 @@ def test_drafts_scope_removes_local_action_types(session):
 def test_unreferenced_scope_keeps_action_types_used_elsewhere(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="清理没被引用的动作")
-    graph_id = conv.graph_id
+    graph_id = conv.resource_id
 
     shared = action.create_action_type(
         session, owner_id=owner, name="别处也在用", home_graph_id=graph_id
     )
     action.add_action_to_graph(session, graph_id, shared.id)
     other = conversation.create_conversation(session, owner_id=owner, title="另一张图")
-    action.add_action_to_graph(session, other.graph_id, shared.id)
+    action.add_action_to_graph(session, other.resource_id, shared.id)
     alone = action.create_action_type(
         session, owner_id=owner, name="只在这张图", home_graph_id=graph_id
     )

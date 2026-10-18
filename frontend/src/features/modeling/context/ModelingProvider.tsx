@@ -1,16 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
-import { messagesFromHistory } from '../lib/chatMessages'
+import { messagesFromHistory } from '../../../shared/chat/lib/chatMessages'
 import { formatOpSummary, hasPendingOntologyChanges } from '../lib/changesetSummary'
-import { pendingInterruptFrom } from '../lib/messageBlocks'
+import { pendingInterruptFrom } from '../../../shared/chat/lib/messageBlocks'
 import { pendingDeleteIds } from '../lib/pendingDeletes'
 import { useActionDrawer } from '../hooks/useActionDrawer'
-import { useAgentRun } from '../hooks/useAgentRun'
+import { useAgentRun } from '../../../shared/chat/hooks/useAgentRun'
 import { useCanvasSelection } from '../hooks/useCanvasSelection'
-import { useChatMessages } from '../hooks/useChatMessages'
+import { useChatMessages } from '../../../shared/chat/hooks/useChatMessages'
 import { useConversations } from '../hooks/useConversations'
-import { useErrorToast } from '../hooks/useErrorToast'
+import { useErrorToast } from '../../../shared/chat/hooks/useErrorToast'
 import { useNodeDrawer } from '../hooks/useNodeDrawer'
 import { usePaneLayout } from '../hooks/usePaneLayout'
 import { useRelationDrawer } from '../hooks/useRelationDrawer'
@@ -47,7 +47,11 @@ export function ModelingProvider({ children }: { children: ReactNode }) {
     setMessage: toast.setMessage,
     clearMessage: toast.clear,
     onFinished: onRunFinished,
-    onViewSpec: adoptViewSpec,
+    onStateUpdate: (event) => {
+      if (event.view && typeof event.view === 'object') {
+        adoptViewSpec(event.view)
+      }
+    },
   })
 
   const nodeDrawer = useNodeDrawer({

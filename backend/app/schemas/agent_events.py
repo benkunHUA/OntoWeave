@@ -82,6 +82,8 @@ class StateUpdateEvent(_Event):
     changesetId: str | None = None
     ops: list[dict] | None = None
     view: dict = Field(default_factory=dict)
+    # 数据连接会话的连接状态摘要；建模会话不填。
+    dataConnection: dict | None = None
 
 
 class RunErrorEvent(_Event):

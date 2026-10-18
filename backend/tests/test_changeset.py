@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.db import build_session_factory
 from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
 from app.main import create_app
-from app.models import Graph
+from app.models import Conversation, Graph
 from app.services import changeset, conversation, graph, ontology
 
 API = "/api/v1"
@@ -32,7 +32,15 @@ def _graph_id(session) -> uuid.UUID:
     """接口层按默认用户过滤，这里也用默认用户建图，保证接口看得见。"""
     return conversation.create_conversation(
         session, owner_id=_default_user(), title="测试"
-    ).graph_id
+    ).resource_id
+
+
+def _delete_conversation_and_graph(
+    session: Session, *, conversation_id: uuid.UUID, graph_id: uuid.UUID
+) -> None:
+    session.execute(delete(Conversation).where(Conversation.id == conversation_id))
+    session.execute(delete(Graph).where(Graph.id == graph_id))
+    session.commit()
 
 
 def test_create_changeset_is_open(session):
@@ -284,7 +292,7 @@ def test_changeset_api_reject_flow(api_client, session):
 
 def test_recording_into_closed_changeset_returns_409(api_client):
     graph_id = api_client.post(f"{API}/conversations", json={"title": "接口测试"}).json()[
-        "graph_id"
+        "resource_id"
     ]
     cid = api_client.post(f"{API}/graphs/{graph_id}/changesets").json()["id"]
     api_client.post(f"{API}/changesets/{cid}/confirm")
@@ -382,7 +390,7 @@ def test_confirm_refuses_element_not_in_draft(session):
 def test_changeset_is_scoped_to_graph_owner(session):
     owner = uuid.uuid4()
     conv = conversation.create_conversation(session, owner_id=owner, title="mine")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
 
     assert changeset.get_changeset(session, cs.id, owner_id=owner).id == cs.id
     with pytest.raises(NotFoundError):
@@ -394,9 +402,10 @@ def test_concurrent_confirm_only_one_wins(engine):
     owner = _default_user()
     with factory() as setup:
         conv = conversation.create_conversation(session=setup, owner_id=owner, title="并发确认")
-        cs = changeset.create_changeset(session=setup, graph_id=conv.graph_id, owner_id=owner)
+        cs = changeset.create_changeset(session=setup, graph_id=conv.resource_id, owner_id=owner)
         setup.commit()
-        graph_id = conv.graph_id
+        conversation_id = conv.id
+        graph_id = conv.resource_id
         changeset_id = cs.id
 
     started = Event()
@@ -424,8 +433,9 @@ def test_concurrent_confirm_only_one_wins(engine):
                 assert future.result(timeout=5) == "conflict"
     finally:
         with factory() as cleanup:
-            cleanup.execute(delete(Graph).where(Graph.id == graph_id))
-            cleanup.commit()
+            _delete_conversation_and_graph(
+                cleanup, conversation_id=conversation_id, graph_id=graph_id
+            )
 
 
 def test_record_op_waits_for_the_changeset_lock(engine):
@@ -433,9 +443,10 @@ def test_record_op_waits_for_the_changeset_lock(engine):
     owner = _default_user()
     with factory() as setup:
         conv = conversation.create_conversation(session=setup, owner_id=owner, title="并发记录")
-        cs = changeset.create_changeset(session=setup, graph_id=conv.graph_id, owner_id=owner)
+        cs = changeset.create_changeset(session=setup, graph_id=conv.resource_id, owner_id=owner)
         setup.commit()
-        graph_id = conv.graph_id
+        conversation_id = conv.id
+        graph_id = conv.resource_id
         changeset_id = cs.id
 
     started = Event()
@@ -470,8 +481,9 @@ def test_record_op_waits_for_the_changeset_lock(engine):
                 assert future.result(timeout=5) == "closed"
     finally:
         with factory() as cleanup:
-            cleanup.execute(delete(Graph).where(Graph.id == graph_id))
-            cleanup.commit()
+            _delete_conversation_and_graph(
+                cleanup, conversation_id=conversation_id, graph_id=graph_id
+            )
 
 
 def test_deleting_a_type_and_its_children_does_not_double_delete(session):
@@ -486,7 +498,7 @@ def test_deleting_a_type_and_its_children_does_not_double_delete(session):
 
     owner = uuid.uuid4()
     cs = changeset.create_changeset(
-        session, graph_id=conversation.create_conversation(session, owner_id=owner).graph_id
+        session, graph_id=conversation.create_conversation(session, owner_id=owner).resource_id
     )
     spot = ontology.create_object_type(session, owner_id=owner, name="景点")
     trip = ontology.create_object_type(session, owner_id=owner, name="行程")

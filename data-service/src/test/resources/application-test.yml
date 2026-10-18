@@ -1,0 +1,36 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: data
+        jdbc:
+          time_zone: UTC
+  flyway:
+    schemas: data
+    default-schema: data
+    create-schemas: true
+    locations: classpath:db/migration
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        auto-startup: false
+
+ontoweave:
+  internal-token: test-internal-token
+  secret:
+    current-version: 1
+    keys:
+      1: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  outbox:
+    enabled: false
+    exchange: ontoweave.data.events
+    poll-interval-ms: 60000
+  sync:
+    dispatch-enabled: false
+    supervisor-enabled: false
+    iceberg-warehouse: ${java.io.tmpdir}/ontoweave-iceberg

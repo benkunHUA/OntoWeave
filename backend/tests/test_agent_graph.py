@@ -4,7 +4,8 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.tools import ToolContext, build_model_tools
+from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.tools import OntologyToolContext, build_model_tools
 from app.config import Settings
 from app.services import changeset, conversation, embedding
 
@@ -16,11 +17,11 @@ def _fake_model():
 
 def _context(session, owner):
     conv = conversation.create_conversation(session, owner_id=owner, title="装配测试")
-    cs = changeset.create_changeset(session, graph_id=conv.graph_id, owner_id=owner)
-    return conv, ToolContext(
+    cs = changeset.create_changeset(session, graph_id=conv.resource_id, owner_id=owner)
+    return conv, OntologyToolContext(
         session=session,
         owner_id=owner,
-        graph_id=conv.graph_id,
+        graph_id=conv.resource_id,
         changeset_id=cs.id,
         embedder=embedding.HashingEmbedder(),
     )
@@ -29,7 +30,10 @@ def _context(session, owner):
 def test_build_agent_compiles(session):
     conv, ctx = _context(session, uuid.uuid4())
     agent = agent_graph.build_agent(
-        _fake_model(), build_model_tools(ctx), checkpointer=InMemorySaver()
+        _fake_model(),
+        build_model_tools(ctx),
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=InMemorySaver(),
     )
     assert type(agent).__name__ == "CompiledStateGraph"
 
@@ -37,20 +41,24 @@ def test_build_agent_compiles(session):
 def test_build_agent_without_checkpointer_skips_interrupts(session):
     """interrupt_on 需要 checkpointer，没给的时候不能硬塞，否则装配期就炸。"""
     conv, ctx = _context(session, uuid.uuid4())
-    agent = agent_graph.build_agent(_fake_model(), build_model_tools(ctx))
+    agent = agent_graph.build_agent(
+        _fake_model(),
+        build_model_tools(ctx),
+        system_prompt=SYSTEM_PROMPT,
+    )
     assert type(agent).__name__ == "CompiledStateGraph"
 
 
 def test_system_prompt_keeps_explicit_property_requests_as_properties():
-    assert "用户明确说" in agent_graph.SYSTEM_PROMPT
-    assert "必须按属性处理" in agent_graph.SYSTEM_PROMPT
-    assert "不要改写成关系" in agent_graph.SYSTEM_PROMPT
+    assert "用户明确说" in SYSTEM_PROMPT
+    assert "必须按属性处理" in SYSTEM_PROMPT
+    assert "不要改写成关系" in SYSTEM_PROMPT
 
 
 def test_system_prompt_hands_view_tasks_off_without_pre_reading_the_graph():
     """视图任务直接交给子智能体，别让主 agent 用 get_subgraph 逐节点把图读一遍。"""
-    assert "直接交给 view_designer" in agent_graph.SYSTEM_PROMPT
-    assert "不要自己先调 get_subgraph" in agent_graph.SYSTEM_PROMPT
+    assert "直接交给 view_designer" in SYSTEM_PROMPT
+    assert "不要自己先调 get_subgraph" in SYSTEM_PROMPT
 
 
 def test_tool_domain_errors_become_payloads_not_exceptions(session):

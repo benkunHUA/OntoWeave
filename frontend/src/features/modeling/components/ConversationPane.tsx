@@ -1,7 +1,11 @@
 import { MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Conversation, DeleteScope } from '../../../shared/types'
+import {
+  CONVERSATION_KIND_MODELING,
+  type Conversation,
+  type DeleteScope,
+} from '../../../shared/types'
 import { useModeling } from '../context/modelingContext'
 import { DEFAULT_DELETE_SCOPE } from '../lib/deleteScopes'
 import { DeleteConversationDialog } from './dialogs/DeleteConversationDialog'
@@ -15,6 +19,9 @@ export function ConversationPane() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const activeId = workspace.conversation?.id ?? null
+  const modelingConversations = conversations.conversations.filter(
+    (conversation) => conversation.kind === CONVERSATION_KIND_MODELING,
+  )
 
   async function startConversation() {
     try {
@@ -82,7 +89,7 @@ export function ConversationPane() {
       </button>
 
       <nav className="conversation-list" aria-label="会话列表">
-        {conversations.conversations.map((conversation) => (
+        {modelingConversations.map((conversation) => (
           <div
             key={conversation.id}
             className={`conversation-list__item ${

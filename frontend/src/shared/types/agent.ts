@@ -51,6 +51,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   blocks: MessageBlock[]
   kind?: 'message' | 'error'
+  created_at?: string
 }
 
 /** POST /messages 或 /resume 的请求体。 */
@@ -97,6 +98,9 @@ export type AgentEvent =
       changesetId?: string
       ops?: Array<{ op: string; kind?: string }>
       view?: ViewSpec
+      dataConnection?: unknown
     }
   | { v: number; type: 'run.error'; message?: string }
   | { v: number; type: 'run.end'; messageId?: string; paused: boolean }
+
+export type StateUpdateEvent = Extract<AgentEvent, { type: 'state.update' }>

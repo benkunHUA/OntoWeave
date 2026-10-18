@@ -1,7 +1,7 @@
 """动作工具的 LangChain 绑定。
 
 模型只看得到这里的工具名、描述与参数模型：能力本身在 `ops.py`，入参形状在 `args.py`，
-绑定时统一套上运行上下文与错误兜底（`ToolContext.invoke`）。
+绑定时统一套上运行上下文与错误兜底（`OntologyToolContext.invoke`）。
 
 描述与参数说明分散在 `args.py` 与这里的 `bind(...)`：名字 + 一句话描述放在一处，
 字段级的说明放在模型定义里。两处合起来就是模型看到的全部契约。
@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from app.agent.tools.action import args as action_args
 from app.agent.tools.action import ops
-from app.agent.tools.context import ToolContext
+from app.agent.tools.ontology.context import OntologyToolContext
 
 _ARGS = type[BaseModel]
 _Run = Callable[[Any], Any]
@@ -29,7 +29,7 @@ def _uuid(value: str | None) -> uuid.UUID | None:
     return uuid.UUID(value) if value else None
 
 
-def build_action_tools(ctx: ToolContext) -> list[BaseTool]:
+def build_action_tools(ctx: OntologyToolContext) -> list[BaseTool]:
     """把动作能力绑上运行上下文，包成模型可调用的工具。"""
 
     def bind(name: str, description: str, args_schema: _ARGS, run: _Run) -> BaseTool:

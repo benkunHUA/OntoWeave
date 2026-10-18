@@ -6,7 +6,8 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.services import view_state
+from app.config import get_settings
+from app.services import conversation, view_state
 
 
 class StubAgent:
@@ -41,7 +42,8 @@ def _events(text: str) -> list[dict]:
 @pytest.fixture
 def client(session_factory: sessionmaker[Session], monkeypatch) -> TestClient:
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: StubAgent()
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: StubAgent(),
     )
     # 关掉检查点：这几个用例验证的是 SSE 管道，不需要连库建检查点。
     from app.main import _create_app
@@ -78,6 +80,8 @@ def test_message_endpoint_streams_events(client):
     delta = next(event for event in events if event["type"] == "block.delta")
     assert delta["text"] == "图里现在还没有类型。"
     state = next(event for event in events if event["type"] == "state.update")
+    assert state["changesetId"]
+    assert isinstance(state["ops"], list)
     assert state["view"] == {}
 
     history = client.get(f"/api/v1/conversations/{conv['id']}/messages").json()
@@ -90,6 +94,27 @@ def test_message_endpoint_streams_events(client):
     assert [block["kind"] for block in assistant["blocks"]] == ["tool", "text"]
     assert assistant["blocks"][0]["name"] == "list_types"
     assert assistant["blocks"][0]["status"] == "ok"
+
+
+def test_validate_conversation_accepts_data_connection(session):
+    from app.agent import runtime
+
+    conv = conversation.create_conversation(
+        session,
+        owner_id=uuid.UUID(get_settings().default_user_id),
+        title="数据连接",
+        kind="data_connection",
+        resource_id=uuid.uuid4(),
+    )
+    session.commit()
+
+    checked = runtime.validate_conversation(
+        session,
+        conversation_id=conv.id,
+        owner_id=uuid.UUID(get_settings().default_user_id),
+    )
+
+    assert checked.id == conv.id
 
 
 def test_resume_endpoint_streams_events(client):
@@ -130,7 +155,8 @@ def test_interrupt_is_reported_as_paused(client, monkeypatch):
             yield {"__interrupt__": (Interrupt(value={"question": "客户还是供应商？"}),)}
 
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: InterruptingAgent()
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: InterruptingAgent(),
     )
     conv = client.post("/api/v1/conversations", json={"title": "中断"}).json()
     with client.stream(
@@ -178,7 +204,8 @@ def test_ask_user_options_become_resume_payloads(client, monkeypatch):
             }
 
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: AskingAgent()
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: AskingAgent(),
     )
     conv = client.post("/api/v1/conversations", json={"title": "选项"}).json()
     with client.stream(
@@ -232,7 +259,8 @@ def test_resume_resolves_the_tool_block_left_by_ask_user(client, monkeypatch):
 
     agents = iter([InterruptingAgent(), ResumingAgent()])
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: next(agents)
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: next(agents),
     )
 
     conv = client.post("/api/v1/conversations", json={"title": "挂起收口"}).json()
@@ -272,17 +300,20 @@ def test_state_update_includes_the_saved_view_spec(client, monkeypatch):
         def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
             yield {"model": {"messages": [AIMessage(content="已经把图按域分组。")]}}
 
-    def build_with_view(session, settings, run, owner_id, *, checkpointer=None):  # noqa: ARG001
+    def build_with_view(self, session, settings, run, *, checkpointer=None):  # noqa: ARG001, ARG002
         view_state.upsert_view_state(
             session,
             graph_id=run.graph_id,
-            user_id=owner_id,
+            user_id=run.owner_id,
             spec={"layout": {"kind": "domain-grouped", "options": {}}},
-            owner_id=owner_id,
+            owner_id=run.owner_id,
         )
         return ViewWritingAgent()
 
-    monkeypatch.setattr("app.agent.runtime.assembly.build_agent_for_run", build_with_view)
+    monkeypatch.setattr(
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        build_with_view,
+    )
     conv = client.post("/api/v1/conversations", json={"title": "视图事件"}).json()
     with client.stream(
         "POST",
@@ -332,7 +363,8 @@ def test_streaming_agent_emits_reasoning_and_text_blocks(client, monkeypatch):
             yield ("updates", {"model": {"messages": [AIMessage(content="已经建好了。")]}})
 
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: StreamingAgent()
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: StreamingAgent(),
     )
     conv = client.post("/api/v1/conversations", json={"title": "流式"}).json()
     with client.stream(
@@ -370,7 +402,8 @@ def test_stream_errors_are_reported_as_events(client, monkeypatch):
             yield  # pragma: no cover
 
     monkeypatch.setattr(
-        "app.agent.runtime.assembly.build_agent_for_run", lambda *a, **k: BrokenAgent()
+        "app.agent.definitions.ontology.OntologyAgentDefinition.build_graph",
+        lambda *a, **k: BrokenAgent(),
     )
     conv = client.post("/api/v1/conversations", json={"title": "错误"}).json()
     with client.stream(

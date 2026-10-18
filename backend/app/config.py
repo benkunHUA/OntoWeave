@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     # ---- 智能体运行时
     agent_max_iterations: int = 12
 
+    # ---- Java 数据服务（内部接口）
+    data_service_url: str = "http://localhost:18001"
+    data_service_token: str = "dev-internal-token"
+    data_service_timeout_seconds: float = 10.0
+
+    # ---- RabbitMQ：消费 Java Outbox 发出的数据连接/同步事件
+    rabbitmq_url: str = "amqp://ontoweave:ontoweave@localhost:5672/%2F"
+    data_event_exchange: str = "ontoweave.data.events"
+    data_event_queue: str = "ontoweave.python.data-events"
+    event_consumer_enabled: bool = True
+    event_consumer_reconnect_seconds: float = 5.0
+
     # ---- 可观测性（Langfuse 审计追踪，可选）----
     # 两个 key 都填上才启用；留空则整条链路零开销。字段名即 LANGFUSE_* 环境变量名。
     langfuse_public_key: str = ""

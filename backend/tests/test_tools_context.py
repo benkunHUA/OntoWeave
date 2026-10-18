@@ -1,21 +1,23 @@
-"""ToolContext.invoke 的两条策略：串行执行与错误兜底。"""
+"""通用 ToolContext 的字段边界，以及 invoke 的串行执行与错误兜底。"""
 
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from app.agent.tools.context import ToolContext
-from app.services import embedding
 
 
 def _context(session) -> ToolContext:
     return ToolContext(
         session=session,
         owner_id=uuid.uuid4(),
-        graph_id=uuid.uuid4(),
-        changeset_id=uuid.uuid4(),
-        embedder=embedding.HashingEmbedder(),
     )
+
+
+def test_tool_context_only_contains_generic_fields():
+    assert "graph_id" not in ToolContext.__dataclass_fields__
+    assert "changeset_id" not in ToolContext.__dataclass_fields__
+    assert "embedder" not in ToolContext.__dataclass_fields__
 
 
 def test_invoke_turns_errors_into_a_result_the_model_can_read(session):

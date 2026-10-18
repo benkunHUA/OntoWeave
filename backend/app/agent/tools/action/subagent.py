@@ -6,13 +6,13 @@ from deepagents import SubAgent
 
 from app.agent.prompts import ACTION_AGENT_DESCRIPTION, ACTION_AGENT_PROMPT
 from app.agent.tools.action.binding import build_action_tools
-from app.agent.tools.context import ToolContext
 from app.agent.tools.ontology.binding import build_search_tool
+from app.agent.tools.ontology.context import OntologyToolContext
 
 ACTION_AGENT_NAME = "action_modeler"
 
 
-def build_action_subagent(ctx: ToolContext) -> SubAgent:
+def build_action_subagent(ctx: OntologyToolContext) -> SubAgent:
     return {
         "name": ACTION_AGENT_NAME,
         "description": ACTION_AGENT_DESCRIPTION,

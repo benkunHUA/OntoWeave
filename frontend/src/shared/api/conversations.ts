@@ -1,8 +1,15 @@
-import type { Conversation, ConversationMessage, DeleteScope } from '../types'
+import type {
+  Conversation,
+  ConversationKind,
+  ConversationMessage,
+  DeleteScope,
+} from '../types'
 import { request } from './client'
 
-export function listConversations(): Promise<Conversation[]> {
-  return request<Conversation[]>('/conversations?limit=100')
+export function listConversations(kind?: ConversationKind): Promise<Conversation[]> {
+  const params = new URLSearchParams({ limit: '100' })
+  if (kind) params.set('kind', kind)
+  return request<Conversation[]>(`/conversations?${params.toString()}`)
 }
 
 export function createConversation(title?: string): Promise<Conversation> {

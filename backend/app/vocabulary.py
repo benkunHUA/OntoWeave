@@ -39,6 +39,16 @@ DEFAULT_DATATYPE: str = PropertyDatatype.TEXT.value
 DEFAULT_CARDINALITY: str = RelationCardinality.MANY_TO_MANY.value
 
 
+class ConversationKind(StrEnum):
+    """会话资源类型。建模会话的 resource_id 指向 graph；数据连接会话指向连接资源。"""
+
+    MODELING = "modeling"
+    DATA_CONNECTION = "data_connection"
+
+
+CONVERSATION_KINDS: tuple[str, ...] = tuple(kind.value for kind in ConversationKind)
+
+
 class ActionParameterKind(StrEnum):
     """动作参数的两种形态：值参数（复用属性数据类型）与对象引用参数。"""
 

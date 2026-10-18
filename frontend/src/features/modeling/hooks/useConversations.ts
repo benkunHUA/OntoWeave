@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect } from 'react'
-import type { Conversation, DeleteScope } from '../../../shared/types'
+import {
+  CONVERSATION_KIND_MODELING,
+  type Conversation,
+  type DeleteScope,
+} from '../../../shared/types'
 import {
   createConversation,
   deleteConversation,
   listConversations,
   renameConversation,
 } from '../../../shared/api'
-import type { ReportError } from './useErrorToast'
+import type { ReportError } from '../../../shared/chat/hooks/useErrorToast'
 import { conversationKeys } from './queryKeys'
 
 /**
@@ -19,7 +23,10 @@ import { conversationKeys } from './queryKeys'
 export function useConversations(onError: ReportError) {
   const queryClient = useQueryClient()
 
-  const list = useQuery({ queryKey: conversationKeys.all, queryFn: listConversations })
+  const list = useQuery({
+    queryKey: conversationKeys.all,
+    queryFn: () => listConversations(CONVERSATION_KIND_MODELING),
+  })
 
   useEffect(() => {
     if (list.error) onError(list.error, '无法加载会话')
@@ -27,6 +34,7 @@ export function useConversations(onError: ReportError) {
 
   const remember = useCallback(
     (conversation: Conversation) => {
+      if (conversation.kind !== CONVERSATION_KIND_MODELING) return
       queryClient.setQueryData<Conversation[]>(conversationKeys.all, (current) =>
         current?.some((item) => item.id === conversation.id)
           ? current

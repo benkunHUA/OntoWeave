@@ -5,12 +5,18 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.vocabulary import ConversationKind
+
 
 class ConversationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = None
 
 
 class ConversationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str = Field(min_length=1, max_length=120)
 
 
@@ -18,7 +24,8 @@ class ConversationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    graph_id: uuid.UUID
+    kind: ConversationKind
+    resource_id: uuid.UUID
     title: str | None
 
 

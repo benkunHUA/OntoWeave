@@ -19,8 +19,13 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.orm import Session
 
-from app.agent import runtime
+from app.agent.definitions.ontology import OntologyRunContext
+from app.agent.definitions.registry import get_definition
+from app.agent.runtime.runs import thread_config
 from app.config import Settings
+from app.errors import InvariantViolationError
+from app.services import conversation
+from app.vocabulary import ConversationKind
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ def append_note(agent: Any, conversation_id: uuid.UUID, text: str) -> None:
     并进上一条 assistant 消息，线程始终严格 user/assistant 交替。万一最后一条不是
     助手消息（线程为空、或停在工具错误上），退化成追加一条 assistant 消息。
     """
-    config = runtime.thread_config(conversation_id)
+    config = thread_config(conversation_id)
     messages = (agent.get_state(config).values or {}).get("messages") or []
     last = messages[-1] if messages else None
     if isinstance(last, AIMessage):
@@ -70,14 +75,29 @@ def record_decision(
     if checkpointer is None:
         return
     try:
-        run = runtime.RunContext(
+        conv = conversation.get_conversation(
+            session,
+            conversation_id,
+            owner_id=owner_id,
+        )
+        if conv.kind != ConversationKind.MODELING or conv.resource_id != graph_id:
+            raise InvariantViolationError(
+                "conversation does not match the modeling graph being recorded"
+            )
+        run = OntologyRunContext(
             conversation_id=conversation_id,
+            owner_id=owner_id,
+            kind=ConversationKind.MODELING,
+            resource_id=graph_id,
             graph_id=graph_id,
             changeset_id=changeset_id,
         )
-        agent = runtime.build_agent_for_run(
-            session, settings, run, owner_id, checkpointer=checkpointer
+        agent = get_definition(ConversationKind.MODELING).build_graph(
+            session,
+            settings,
+            run,
+            checkpointer=checkpointer,
         )
         append_note(agent, conversation_id, text)
-    except Exception:  # pragma: no cover - 兜底分支由测试用桩覆盖
+    except Exception:
         logger.warning("failed to write changeset decision into agent thread", exc_info=True)

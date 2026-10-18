@@ -9,9 +9,16 @@ from sqlalchemy.orm import Session
 from app.api.router import api_router
 from app.config import get_settings
 from app.db import build_engine, build_session_factory
-from app.errors import InvalidTransitionError, InvariantViolationError, NotFoundError
+from app.errors import (
+    DataServiceUnavailableError,
+    InvalidRequestError,
+    InvalidTransitionError,
+    InvariantViolationError,
+    NotFoundError,
+)
 from app.logging_config import configure_logging
 from app.middleware import RequestContextMiddleware
+from app.services.event_bus import ConversationEventBus
 
 SessionFactory = Callable[[], Session]
 
@@ -33,7 +40,19 @@ def _create_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
+        settings = get_settings()
+        consumer = None
+        if settings.event_consumer_enabled:
+            from app.messaging import DataEventConsumer
+
+            consumer = DataEventConsumer(
+                settings, application.state.session_factory, application.state.event_bus
+            )
+            consumer.start()
+        application.state.event_consumer = consumer
         yield
+        if consumer is not None:
+            consumer.stop()
         # 检查点的连接池是懒建的，关的时候也要顺手关掉，不然进程退出会漏连接。
         pool = application.state.checkpointer_pool
         if pool is not None:
@@ -54,6 +73,7 @@ def _create_app(
     app.state.checkpointer = None
     app.state.checkpointer_pool = None
     app.state.enable_agent_checkpoints = enable_agent_checkpoints
+    app.state.event_bus = ConversationEventBus()
     app.add_middleware(RequestContextMiddleware)
     app.include_router(api_router)
 
@@ -65,6 +85,24 @@ def _create_app(
     async def _not_found(_: Request, exc: NotFoundError) -> JSONResponse:
         logger.warning("not found: %s", exc)
         return JSONResponse(status_code=404, content={"error": "not_found", "message": str(exc)})
+
+    @app.exception_handler(InvalidRequestError)
+    async def _bad_request(_: Request, exc: InvalidRequestError) -> JSONResponse:
+        logger.warning("invalid request: %s", exc)
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_request", "message": str(exc)},
+        )
+
+    @app.exception_handler(DataServiceUnavailableError)
+    async def _data_service_unavailable(
+        _: Request, exc: DataServiceUnavailableError
+    ) -> JSONResponse:
+        logger.warning("data service unavailable: %s", exc)
+        return JSONResponse(
+            status_code=503,
+            content={"error": "data_service_unavailable", "message": str(exc)},
+        )
 
     @app.exception_handler(InvalidTransitionError)
     async def _invalid(_: Request, exc: InvalidTransitionError) -> JSONResponse:
