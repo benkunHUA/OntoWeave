@@ -198,7 +198,8 @@ export function DataConnectionWorkbench() {
         error={stateView.error}
         selectedDatasetId={selectedDatasetId}
         onSelectDataset={setSelectedDatasetId}
-        onRefresh={stateView.loadTables}
+        onRefresh={stateView.refreshAll}
+        onReloadTables={stateView.reloadTables}
         onSaveConnection={saveConnection}
         onTestConnection={testConnection}
         onSaveTasks={persistTasks}

@@ -79,8 +79,13 @@ cd backend
 - `POST /sync-tasks` 改为替换语义，未选中的任务置为 `disabled`；重新选中恢复 `enabled`。
 
 数据集行级预览已补齐：Java 新增 `/internal/v1/datasets/{id}/preview`，按版本对应的
-Iceberg 表和 snapshot 读取，支持 `version_id` 与 `limit`（1–500）；Python 透传
+Iceberg 表和 snapshot 读取，支持 `version_id`、`live` 与 `limit`（1–500）；Python 透传
 `GET /api/v1/datasets/{id}/preview`；前端数据集详情会随版本切换加载预览，最多展示 100 行。
 真实冒烟验证了 2 行数据、版本过滤、截断标记和非法 limit 的 `400` 响应。
+
+2026-10-19 补充：
+
+- CDC 初始快照完成即发布 `snapshot_end` v1；后续增量才按版本间隔发布。
+- `live=true` 读取数据集最近运行的最新 Iceberg snapshot，返回 `version_id=null`，标记为未发布实时预览，不参与对象实例。
 
 前端交付与验证见设计稿 12.2 节。当前前端校验结果：78 tests、tsc、lint、build 全部通过。

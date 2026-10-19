@@ -14,6 +14,7 @@ import com.ontoweave.data.sync.repository.SyncRunRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -75,8 +76,7 @@ public class DatasetVersionPublisher {
                         info.snapshotId()
                 );
         if (existing.isPresent()) {
-            run.recordPublishedSnapshot(info.snapshotId());
-            runs.save(run);
+            markPublished(run, info.snapshotId());
             return existing;
         }
         int versionNumber = versions.findTopByDatasetIdOrderByVersionNumberDesc(dataset.getId())
@@ -109,14 +109,24 @@ public class DatasetVersionPublisher {
                     run.getIcebergTable()
             );
             datasets.save(dataset);
-            run.recordPublishedSnapshot(info.snapshotId());
-            runs.save(run);
+            markPublished(run, info.snapshotId());
             outbox.write("dataset", dataset.getId(), "dataset.version.published", payload(dataset, version, run));
             return Optional.of(version);
         } catch (RuntimeException exception) {
             iceberg.removeTag(run.getIcebergCatalog(), run.getIcebergNamespace(), run.getIcebergTable(), tag);
             throw exception;
         }
+    }
+
+    private void markPublished(SyncRunEntity run, long snapshotId) {
+        Instant now = Instant.now();
+        runs.markSnapshotPublished(
+                run.getId(),
+                snapshotId,
+                now.plusSeconds(run.getVersionIntervalSeconds()),
+                now
+        );
+        run.recordPublishedSnapshot(snapshotId);
     }
 
     private Map<String, Object> payload(

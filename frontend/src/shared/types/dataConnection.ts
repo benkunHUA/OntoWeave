@@ -116,6 +116,7 @@ export interface SyncRun {
   operation_id: string | null
   run_mode: SyncMode
   status: SyncRunStatus
+  flink_job_id: string | null
   flink_job_state: string | null
   snapshot_completed_at: string | null
   last_checkpoint_at: string | null
@@ -155,8 +156,10 @@ export interface Dataset {
 
 export interface DatasetPreview {
   dataset_id: string
-  version_id: string
-  version_number: number
+  version_id: string | null
+  version_number: number | null
+  snapshot_id: number
+  live: boolean
   columns: string[]
   rows: Array<Record<string, unknown>>
   truncated: boolean

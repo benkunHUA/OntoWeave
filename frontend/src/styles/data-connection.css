@@ -262,6 +262,78 @@
   line-height: 1.55;
 }
 
+.operation-card__datasets {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0 21px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  list-style: none;
+}
+
+.operation-card__datasets li {
+  overflow-wrap: anywhere;
+}
+
+.operation-card .failure-details {
+  margin: 7px 0 0 21px;
+}
+
+.failure-details {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.failure-details__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 700;
+  background: transparent;
+  cursor: pointer;
+}
+
+.failure-details__toggle svg {
+  transition: transform 140ms ease;
+}
+
+.failure-details__toggle svg.is-open {
+  transform: rotate(90deg);
+}
+
+.failure-details__code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 600;
+  background: var(--raised);
+}
+
+.failure-details__content {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  color: var(--ink-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--panel-soft);
+}
+
 .operation-card__steps {
   margin: 8px 0 0 21px;
   padding-left: 14px;

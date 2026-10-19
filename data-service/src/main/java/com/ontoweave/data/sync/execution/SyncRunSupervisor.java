@@ -26,13 +26,10 @@ import java.util.Optional;
 public class SyncRunSupervisor {
 
     private static final Logger log = LoggerFactory.getLogger(SyncRunSupervisor.class);
-    private static final List<SyncRunStatus> ACTIVE = List.of(
-            SyncRunStatus.PREPARING,
+    private static final List<SyncRunStatus> ACTIVE_JOB_STATUSES = List.of(
             SyncRunStatus.SUBMITTED,
-            SyncRunStatus.RUNNING,
-            SyncRunStatus.STOPPING
+            SyncRunStatus.RUNNING
     );
-
     private final SyncProperties properties;
     private final SyncRunRepository runs;
     private final FlinkRestClient flink;
@@ -40,6 +37,7 @@ public class SyncRunSupervisor {
     private final DatasetVersionPublisher publisher;
     private final SyncTaskRepository tasks;
     private final SyncRunEventWriter events;
+    private final SyncRunStopInitiator stopInitiator;
 
     public SyncRunSupervisor(
             SyncProperties properties,
@@ -48,7 +46,8 @@ public class SyncRunSupervisor {
             IcebergCatalogClient iceberg,
             DatasetVersionPublisher publisher,
             SyncTaskRepository tasks,
-            SyncRunEventWriter events
+            SyncRunEventWriter events,
+            SyncRunStopInitiator stopInitiator
     ) {
         this.properties = properties;
         this.runs = runs;
@@ -57,6 +56,7 @@ public class SyncRunSupervisor {
         this.publisher = publisher;
         this.tasks = tasks;
         this.events = events;
+        this.stopInitiator = stopInitiator;
     }
 
     @Scheduled(fixedDelayString = "${ontoweave.sync.supervisor-interval-ms:5000}")
@@ -64,7 +64,7 @@ public class SyncRunSupervisor {
         if (!properties.supervisorEnabled()) {
             return;
         }
-        for (SyncRunEntity run : runs.findTop50ByStatusInOrderByCreatedAtAsc(ACTIVE)) {
+        for (SyncRunEntity run : runs.findTop50ByStatusInOrderByCreatedAtAsc(SyncRunStatus.FLINK_ACTIVE)) {
             try {
                 reconcileRun(run);
             } catch (Exception exception) {
@@ -88,8 +88,13 @@ public class SyncRunSupervisor {
         Optional<FlinkJobInfo> job = flink.job(run.getFlinkJobId());
         if (job.isEmpty()) {
             if (run.getStartedAt() != null && run.getStartedAt().isBefore(Instant.now().minusSeconds(30))) {
-                run.markFailed("FLINK_JOB_LOST", "Flink 作业已丢失");
-                runs.save(run);
+                failRun(
+                        run,
+                        "FLINK_JOB_LOST",
+                        "Flink 作业已丢失（job " + run.getFlinkJobId() + "）",
+                        null,
+                        null
+                );
             }
             return;
         }
@@ -97,28 +102,51 @@ public class SyncRunSupervisor {
         SyncRunStatus previous = run.getStatus();
         run.recordFlinkState(info.state());
         if (previous == SyncRunStatus.SUBMITTED && run.getStatus() == SyncRunStatus.RUNNING) {
+            int updated = runs.markRunning(
+                    run.getId(),
+                    SyncRunStatus.SUBMITTED,
+                    SyncRunStatus.RUNNING,
+                    info.state(),
+                    Instant.now()
+            );
+            if (updated != 1) {
+                return;
+            }
             task(run).ifPresent(value -> events.write(run, value, "sync.run.running", "Flink 作业已开始运行"));
         }
         if ("FINISHED".equalsIgnoreCase(info.state())) {
             if (run.getRunMode() == SyncMode.SNAPSHOT) {
                 refreshCheckpoint(run);
-                run.markSucceeded();
-                runs.save(run);
-                task(run).ifPresent(value -> events.write(run, value, "sync.run.succeeded", "快照同步完成"));
-                publisher.publish(run.getId(), VersionSource.SNAPSHOT_END);
+                int updated = runs.markSucceeded(
+                        run.getId(),
+                        ACTIVE_JOB_STATUSES,
+                        SyncRunStatus.SUCCEEDED,
+                        info.state(),
+                        run.getLastCheckpointAt(),
+                        run.getLastSnapshotId(),
+                        Instant.now()
+                );
+                if (updated == 1) {
+                    run.markSucceeded();
+                    task(run).ifPresent(value -> events.write(run, value, "sync.run.succeeded", "快照同步完成"));
+                    publisher.publish(run.getId(), VersionSource.SNAPSHOT_END);
+                }
             } else {
-                run.markFailed("FLINK_JOB_ENDED_UNEXPECTEDLY", "CDC 作业意外结束");
-                runs.save(run);
-                task(run).ifPresent(value -> events.write(
-                        run, value, "sync.run.failed", "CDC 作业意外结束"
-                ));
+                failRun(
+                        run,
+                        "FLINK_JOB_ENDED_UNEXPECTEDLY",
+                        "CDC 作业意外结束（job " + run.getFlinkJobId() + "）",
+                        info.state(),
+                        "CDC 作业意外结束"
+                );
             }
             return;
         }
         if ("FAILED".equalsIgnoreCase(info.state())) {
-            run.markFailed("FLINK_JOB_FAILED", "Flink 作业失败");
-            runs.save(run);
-            task(run).ifPresent(value -> events.write(run, value, "sync.run.failed", "Flink 作业失败"));
+            String detail = flink.failureSummary(run.getFlinkJobId())
+                    .orElse("Flink 作业失败：未能从 Flink 读取异常详情（job "
+                            + run.getFlinkJobId() + "）");
+            failRun(run, "FLINK_JOB_FAILED", detail, info.state(), "Flink 作业失败");
             return;
         }
         if ("CANCELED".equalsIgnoreCase(info.state())) {
@@ -127,7 +155,25 @@ public class SyncRunSupervisor {
         }
         refreshCheckpoint(run);
         maybeMarkSnapshotCompleted(run);
-        runs.save(run);
+        int updated = runs.recordProgress(
+                run.getId(),
+                ACTIVE_JOB_STATUSES,
+                info.state(),
+                run.getLastCheckpointAt(),
+                run.getLastSnapshotId(),
+                run.getSnapshotCompletedAt(),
+                run.getNextVersionDueAt(),
+                Instant.now()
+        );
+        if (updated != 1) {
+            return;
+        }
+        if (run.getRunMode() == SyncMode.CDC
+                && run.getSnapshotCompletedAt() != null
+                && run.getLastPublishedSnapshotId() == null) {
+            publisher.publish(run.getId(), VersionSource.SNAPSHOT_END);
+            return;
+        }
         maybePublishScheduled(run);
     }
 
@@ -136,14 +182,15 @@ public class SyncRunSupervisor {
             return;
         }
         if (run.getDispatchAttempts() >= properties.maxDispatchAttempts()) {
-            run.markFailed("DISPATCH_EXHAUSTED", "同步命令未能完成投递");
-            task(run).ifPresent(value -> events.write(
-                    run, value, "sync.run.failed", "同步命令未能完成投递"
-            ));
+            failRun(run, "DISPATCH_EXHAUSTED", "同步命令未能完成投递", null, "同步命令未能完成投递");
         } else {
-            run.requeue();
+            runs.requeuePreparing(
+                    run.getId(),
+                    SyncRunStatus.PREPARING,
+                    SyncRunStatus.QUEUED,
+                    Instant.now()
+            );
         }
-        runs.save(run);
     }
 
     private void reconcileStopping(SyncRunEntity run) {
@@ -167,32 +214,90 @@ public class SyncRunSupervisor {
             return;
         }
         if ("FAILED".equalsIgnoreCase(state)) {
-            run.markFailed("FLINK_JOB_FAILED", "停止过程中作业失败");
-            runs.save(run);
-            task(run).ifPresent(value -> events.write(run, value, "sync.run.failed", "停止过程中作业失败"));
+            String detail = flink.failureSummary(run.getFlinkJobId())
+                    .orElse("停止过程中作业失败（job " + run.getFlinkJobId() + "）");
+            failRun(run, "FLINK_JOB_FAILED", detail, state, "停止过程中作业失败");
             return;
         }
-        if (run.getStopRequestedAt() == null) {
-            String target = properties.savepointDir() + "/" + run.getId();
-            if (run.getRunMode() == SyncMode.CDC) {
-                if (flink.stopWithSavepoint(run.getFlinkJobId(), target).isEmpty()) {
-                    flink.cancel(run.getFlinkJobId());
-                }
-            } else {
+        if (run.getStopRequestedAt() != null
+                && run.getStopRequestedAt().isBefore(
+                        Instant.now().minusSeconds(properties.stopSavepointTimeoutSeconds())
+                )) {
+            Instant now = Instant.now();
+            if (runs.claimCancelFallback(
+                    run.getId(),
+                    SyncRunStatus.STOPPING,
+                    run.getStopRequestedAt(),
+                    now
+            ) == 1) {
+                run.markStopRequested(now);
+                log.info("savepoint stop timed out, canceling Flink job {} for run {}",
+                        run.getFlinkJobId(), run.getId());
                 flink.cancel(run.getFlinkJobId());
             }
-            run.markStopRequested(Instant.now());
         }
-        runs.save(run);
+        SyncRunEntity current = run;
+        if (current.getStopRequestedAt() == null) {
+            stopInitiator.initiate(current);
+            current = runs.findById(current.getId()).orElse(current);
+            current.recordFlinkState(state);
+        }
+        runs.recordProgress(
+                current.getId(),
+                List.of(SyncRunStatus.STOPPING),
+                current.getFlinkJobState(),
+                current.getLastCheckpointAt(),
+                current.getLastSnapshotId(),
+                current.getSnapshotCompletedAt(),
+                current.getNextVersionDueAt(),
+                Instant.now()
+        );
+    }
+
+    private void failRun(
+            SyncRunEntity run,
+            String errorCode,
+            String errorMessage,
+            String flinkJobState,
+            String eventSummary
+    ) {
+        int updated = runs.markFailed(
+                run.getId(),
+                run.getStatus(),
+                SyncRunStatus.FAILED,
+                flinkJobState,
+                errorCode,
+                errorMessage,
+                Instant.now()
+        );
+        if (updated != 1) {
+            return;
+        }
+        run.markFailed(errorCode, errorMessage);
+        if (eventSummary != null) {
+            task(run).ifPresent(value -> events.write(run, value, "sync.run.failed", eventSummary));
+        }
     }
 
     private void finishStopped(SyncRunEntity run, String savepointPath) {
         refreshCheckpoint(run);
-        run.markStopped(savepointPath);
-        runs.save(run);
-        task(run).ifPresent(value -> events.write(run, value, "sync.run.stopped", "同步已停止"));
-        if (run.getRunMode() == SyncMode.CDC && run.getLastCheckpointAt() != null) {
-            publisher.publish(run.getId(), VersionSource.STOP);
+        int updated = runs.markStopped(
+                run.getId(),
+                SyncRunStatus.STOPPING,
+                SyncRunStatus.STOPPED,
+                run.getFlinkJobId(),
+                run.getFlinkJobState(),
+                savepointPath,
+                run.getLastCheckpointAt(),
+                run.getLastSnapshotId(),
+                Instant.now()
+        );
+        if (updated == 1) {
+            run.markStopped(savepointPath);
+            task(run).ifPresent(value -> events.write(run, value, "sync.run.stopped", "同步已停止"));
+            if (run.getRunMode() == SyncMode.CDC && run.getLastCheckpointAt() != null) {
+                publisher.publish(run.getId(), VersionSource.STOP);
+            }
         }
     }
 
@@ -236,8 +341,15 @@ public class SyncRunSupervisor {
             return;
         }
         if (publisher.publish(run.getId(), VersionSource.SCHEDULED).isEmpty()) {
-            run.scheduleNextVersion();
-            runs.save(run);
+            int updated = runs.scheduleNextVersion(
+                    run.getId(),
+                    SyncRunStatus.RUNNING,
+                    Instant.now().plusSeconds(run.getVersionIntervalSeconds()),
+                    Instant.now()
+            );
+            if (updated == 1) {
+                run.scheduleNextVersion();
+            }
         }
     }
 }

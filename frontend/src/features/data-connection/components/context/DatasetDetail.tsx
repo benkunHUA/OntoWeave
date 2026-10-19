@@ -5,6 +5,7 @@ import type { Dataset, DatasetPreview } from '../../../../shared/types'
 import { DATASET_PREVIEW_LIMIT } from '../../lib/constants'
 import { schemaFields } from '../../lib/datasetSchema'
 import { formatBytes, formatDateTime, formatRows } from '../../lib/format'
+import { PREVIEW_MODE_LABELS } from '../../lib/labels'
 import { DatasetPreviewTable } from './DatasetPreviewTable'
 
 interface DatasetDetailProps {
@@ -19,11 +20,14 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
   const [preview, setPreview] = useState<DatasetPreview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [live, setLive] = useState(false)
+  const [refreshToken, setRefreshToken] = useState(0)
 
   useEffect(() => {
     let active = true
     setDataset(null)
     setError(null)
+    setLive(false)
     void getDataset(datasetId)
       .then((value) => {
         if (!active) return
@@ -39,7 +43,7 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
   }, [datasetId])
 
   useEffect(() => {
-    if (!versionId) {
+    if (!live && !versionId) {
       setPreview(null)
       setPreviewError(null)
       setPreviewLoading(false)
@@ -49,7 +53,7 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
     setPreview(null)
     setPreviewError(null)
     setPreviewLoading(true)
-    void getDatasetPreview(datasetId, versionId, DATASET_PREVIEW_LIMIT)
+    void getDatasetPreview(datasetId, live ? null : versionId, DATASET_PREVIEW_LIMIT, live)
       .then((value) => {
         if (active) setPreview(value)
       })
@@ -62,7 +66,7 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
     return () => {
       active = false
     }
-  }, [datasetId, versionId])
+  }, [datasetId, versionId, live, refreshToken])
 
   const version = useMemo(
     () => dataset?.versions.find((item) => item.id === versionId) ?? dataset?.current_version ?? null,
@@ -123,7 +127,10 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
                   <button
                     type="button"
                     className={item.id === version?.id ? 'is-active' : ''}
-                    onClick={() => setVersionId(item.id)}
+                    onClick={() => {
+                      setLive(false)
+                      setVersionId(item.id)
+                    }}
                   >
                     <span>v{item.version_number}</span>
                     <span>{formatRows(item.row_count)} 行</span>
@@ -136,8 +143,30 @@ export function DatasetDetail({ datasetId, onBack }: DatasetDetailProps) {
           </section>
 
           <section className="context-section">
-            <h2>数据预览</h2>
-            {version ? (
+            <div className="context-section__heading">
+              <h2>数据预览</h2>
+              <div className="preview-actions">
+                <button
+                  type="button"
+                  className={!live ? 'is-active' : ''}
+                  disabled={!version}
+                  onClick={() => setLive(false)}
+                >
+                  {PREVIEW_MODE_LABELS.version}
+                </button>
+                <button
+                  type="button"
+                  className={live ? 'is-active' : ''}
+                  onClick={() => setLive(true)}
+                >
+                  {PREVIEW_MODE_LABELS.live}
+                </button>
+                <button type="button" onClick={() => setRefreshToken((value) => value + 1)}>
+                  {PREVIEW_MODE_LABELS.refresh}
+                </button>
+              </div>
+            </div>
+            {live || version ? (
               <DatasetPreviewTable preview={preview} loading={previewLoading} error={previewError} />
             ) : <div className="empty-panel">还没有已发布版本</div>}
           </section>

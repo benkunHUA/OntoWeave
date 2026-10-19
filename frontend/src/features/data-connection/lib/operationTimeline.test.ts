@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConversationEvent } from '../../../shared/types'
-import { mergeTimeline, operationStatus, operationTitle } from './operationTimeline'
+import { mergeTimeline, operationDatasets, operationStatus, operationTitle } from './operationTimeline'
 
 function event(overrides: Partial<ConversationEvent>): ConversationEvent {
   return {
@@ -68,5 +68,39 @@ describe('operationTimeline', () => {
       [event({ created_at: '2026-01-01T00:00:01Z' })],
     )
     expect(items.map((item) => item.kind)).toEqual(['operation', 'message'])
+  })
+
+  it('同一次操作按数据集汇总全部同步对象', () => {
+    const datasets = operationDatasets([
+      event({
+        summary: 'demo.customers：已进入同步队列',
+        payload: { datasetId: 'dataset-customers' },
+      }),
+      event({
+        summary: 'demo.orders：已进入同步队列',
+        payload: { datasetId: 'dataset-orders' },
+        created_at: '2026-01-01T00:00:01Z',
+      }),
+      event({
+        summary: 'demo.customers：Flink 作业已开始运行',
+        payload: { datasetId: 'dataset-customers' },
+        created_at: '2026-01-01T00:00:02Z',
+      }),
+    ])
+
+    expect(datasets).toEqual([
+      {
+        datasetId: 'dataset-customers',
+        label: 'demo.customers',
+        summary: 'demo.customers：Flink 作业已开始运行',
+        at: '2026-01-01T00:00:02Z',
+      },
+      {
+        datasetId: 'dataset-orders',
+        label: 'demo.orders',
+        summary: 'demo.orders：已进入同步队列',
+        at: '2026-01-01T00:00:01Z',
+      },
+    ])
   })
 })

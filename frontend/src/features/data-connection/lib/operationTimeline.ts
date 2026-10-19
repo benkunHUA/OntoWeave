@@ -26,6 +26,13 @@ export interface TimelineOperationItem {
 
 export type TimelineItem = TimelineMessageItem | TimelineEventItem | TimelineOperationItem
 
+export interface OperationDatasetSummary {
+  datasetId: string
+  label: string
+  summary: string
+  at: string
+}
+
 const RUNNING_EVENTS = new Set([
   'sync.run.queued',
   'sync.run.submitted',
@@ -46,6 +53,35 @@ function isStandalone(event: ConversationEvent): boolean {
 
 function eventLabel(event: ConversationEvent): string {
   return EVENT_TYPE_LABELS[event.event_type] ?? UNKNOWN_EVENT_LABEL
+}
+
+function datasetIdOf(event: ConversationEvent): string | null {
+  const value = event.payload?.datasetId
+  return typeof value === 'string' && value ? value : null
+}
+
+function datasetLabel(event: ConversationEvent): string {
+  const name = event.payload?.datasetName
+  if (typeof name === 'string' && name) return name
+  const separator = event.summary.indexOf('：')
+  return separator > 0 ? event.summary.slice(0, separator) : '数据集'
+}
+
+export function operationDatasets(events: ConversationEvent[]): OperationDatasetSummary[] {
+  const latest = new Map<string, OperationDatasetSummary>()
+  for (const event of events) {
+    const datasetId = datasetIdOf(event)
+    if (!datasetId) continue
+    const current = latest.get(datasetId)
+    if (current && timeOf(current.at) > timeOf(event.created_at)) continue
+    latest.set(datasetId, {
+      datasetId,
+      label: datasetLabel(event),
+      summary: event.summary,
+      at: event.created_at,
+    })
+  }
+  return [...latest.values()]
 }
 
 export function operationTitle(events: ConversationEvent[]): string {

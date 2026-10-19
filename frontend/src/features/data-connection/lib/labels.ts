@@ -56,3 +56,9 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
 }
 
 export const UNKNOWN_EVENT_LABEL = '数据操作'
+
+export const PREVIEW_MODE_LABELS = {
+  version: '版本数据',
+  live: '最新数据',
+  refresh: '刷新',
+} as const

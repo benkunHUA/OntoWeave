@@ -296,12 +296,14 @@ class FakeDataServiceClient:
         return dict(self.dataset)
 
     def get_dataset_preview(  # noqa: ANN001, ARG002
-        self, dataset_id, *, owner_id, version_id, limit
+        self, dataset_id, *, owner_id, version_id, limit, live=False
     ):
         return {
             "datasetId": str(dataset_id),
-            "versionId": str(version_id or uuid.uuid4()),
-            "versionNumber": 1,
+            "versionId": None if live else str(version_id or uuid.uuid4()),
+            "versionNumber": None if live else 1,
+            "snapshotId": 100,
+            "live": live,
             "columns": ["id", "name"],
             "rows": [{"id": 1, "name": "Ada"}][:limit],
             "truncated": False,

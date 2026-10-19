@@ -1,6 +1,23 @@
 import type { ConversationEvent } from '../types'
 import { apiUrl, request } from './client'
 
+const CONVERSATION_EVENT_NAME = 'conversation.event'
+
+interface SseFrame {
+  event: string
+  data: string
+}
+
+export function parseSseFrame(block: string): SseFrame | null {
+  let event = 'message'
+  const data: string[] = []
+  for (const line of block.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    else if (line.startsWith('data:')) data.push(line.slice(5).trimStart())
+  }
+  return data.length ? { event, data: data.join('\n') } : null
+}
+
 export function listConversationEvents(
   conversationId: string,
   afterEventId?: string,
@@ -44,14 +61,9 @@ export async function streamConversationEvents(
     const blocks = buffer.split('\n\n')
     buffer = blocks.pop() ?? ''
     for (const block of blocks) {
-      const payload = block
-        .split('\n')
-        .filter((line) => line.startsWith('data: '))
-        .map((line) => line.slice(6))
-        .join('\n')
-      if (payload) {
-        onEvent(JSON.parse(payload) as ConversationEvent)
-      }
+      const frame = parseSseFrame(block)
+      if (frame?.event !== CONVERSATION_EVENT_NAME) continue
+      onEvent(JSON.parse(frame.data) as ConversationEvent)
     }
   }
 }

@@ -165,6 +165,50 @@ class SyncApiIntegrationTest {
         assertThat(tasks).isZero();
     }
 
+    @Test
+    void rejectsAnotherRunWhileTheSameTaskIsActive() throws Exception {
+        UUID owner = UUID.randomUUID();
+        UUID connectionId = createConnection(owner);
+        mvc.perform(post("/internal/v1/data-connections/{id}/sync-tasks", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tables":[{"schema":"demo","table":"customers","syncMode":"snapshot"}]}
+                                """))
+                .andExpect(status().isOk());
+
+        UUID firstOperation = UUID.randomUUID();
+        JsonNode first = json(mvc.perform(post("/internal/v1/data-connections/{id}/sync-runs", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(triggerBody(firstOperation)))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString());
+        UUID runId = UUID.fromString(first.path("runs").get(0).path("id").asText());
+
+        JsonNode conflict = json(mvc.perform(post("/internal/v1/data-connections/{id}/sync-runs", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(triggerBody(UUID.randomUUID())))
+                .andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString());
+
+        assertThat(conflict.path("code").asText()).isEqualTo("SYNC_RUN_ACTIVE");
+        Integer runCount = jdbc.queryForObject("SELECT count(*) FROM data.sync_run", Integer.class);
+        assertThat(runCount).isEqualTo(1);
+
+        jdbc.update("UPDATE data.sync_run SET status = 'stopped' WHERE id = ?", runId);
+        mvc.perform(post("/internal/v1/data-connections/{id}/sync-runs", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(triggerBody(UUID.randomUUID())))
+                .andExpect(status().isAccepted());
+    }
+
     private UUID createConnection(UUID owner) throws Exception {
         String body = objectMapper.writeValueAsString(Map.of(
                 "ownerId", owner,
@@ -186,6 +230,13 @@ class SyncApiIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString());
         return UUID.fromString(created.path("id").asText());
+    }
+
+    private String triggerBody(UUID operationId) throws Exception {
+        return objectMapper.writeValueAsString(Map.of(
+                "operationId", operationId,
+                "tables", java.util.List.of(Map.of("schema", "demo", "table", "customers"))
+        ));
     }
 
     private JsonNode json(String body) throws Exception {

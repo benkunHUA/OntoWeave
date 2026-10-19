@@ -287,6 +287,7 @@ def get_dataset_preview(
     dataset_id: uuid.UUID,
     version_id: uuid.UUID | None = None,
     limit: int = Query(100, ge=1, le=500),
+    live: bool = False,
     client: DataServiceClient = Depends(get_data_service_client),
 ) -> DatasetPreviewRead:
     return DatasetPreviewRead.model_validate(
@@ -296,5 +297,6 @@ def get_dataset_preview(
             dataset_id=dataset_id,
             version_id=version_id,
             limit=limit,
+            live=live,
         )
     )

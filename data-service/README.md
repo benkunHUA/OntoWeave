@@ -27,7 +27,7 @@ Compose 会启动：
 - Flink JobManager `127.0.0.1:18081`，TaskManager 与共享 checkpoint/savepoint 卷
 - Java 服务 `127.0.0.1:18001`
 
-Iceberg 数据写在 Compose 卷 `data-service_iceberg-warehouse`，Java 服务和 Flink 共享该卷。停止 CDC 运行时优先 request stop-with-savepoint；第一版不做 savepoint 路径回填和恢复。
+Iceberg 数据写在 Compose 卷 `data-service_iceberg-warehouse`，Java 服务和 Flink 共享该卷。停止接口会立即向 Flink 发起 stop-with-savepoint（CDC）或 cancel（快照）；Supervisor 只做后续状态确认、失败重试，并在 savepoint 超过 `SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS`（默认 30 秒）未完成时兜底 cancel。第一版不做 savepoint 路径回填和恢复。
 
 ## 测试
 
@@ -78,6 +78,10 @@ Iceberg 数据写在 Compose 卷 `data-service_iceberg-warehouse`，Java 服务�
 | GET | `/internal/v1/sync-runs/{id}?ownerId=` | 运行状态、Flink 与 Iceberg 进度 |
 | POST | `/internal/v1/sync-runs/{id}/stop?ownerId=` | 停止运行 |
 | GET | `/internal/v1/datasets/{id}?ownerId=` | 数据集与版本历史 |
+
+同一 `sync_task` 同时只允许一个活动运行（`queued/preparing/submitted/running/stopping`）。
+重复触发返回 `409 SYNC_RUN_ACTIVE`，必须先停止当前运行；运行中也不能把该表从同步任务里取消选择。
+运行失败时 `errorMessage` 会带上 Flink `/jobs/{id}/exceptions` 的根因、失败任务和堆栈摘要，供 Agent 排查。
 
 创建示例：
 

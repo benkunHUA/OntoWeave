@@ -88,6 +88,21 @@ def test_dataset_preview_returns_rows_and_version(client, fake_data_service):
     assert body["truncated"] is False
 
 
+def test_dataset_live_preview_has_no_version(client, fake_data_service):
+    response = client.get(
+        f"/api/v1/datasets/{fake_data_service.dataset_id}/preview",
+        params={"live": "true", "limit": 1},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["live"] is True
+    assert body["version_id"] is None
+    assert body["version_number"] is None
+    assert body["snapshot_id"] == 100
+    assert body["rows"] == [{"id": 1, "name": "Ada"}]
+
+
 def test_dataset_preview_rejects_invalid_limit(client, fake_data_service):
     response = client.get(
         f"/api/v1/datasets/{fake_data_service.dataset_id}/preview",

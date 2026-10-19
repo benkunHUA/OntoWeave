@@ -75,6 +75,16 @@ public class FlinkRestClient {
         }
     }
 
+    public Optional<String> failureSummary(String jobId) {
+        try {
+            JsonNode body = client.get().uri("/jobs/{id}/exceptions", jobId)
+                    .retrieve().body(JsonNode.class);
+            return Optional.of(FlinkFailureFormatter.format(body));
+        } catch (RestClientException exception) {
+            return Optional.empty();
+        }
+    }
+
     public void cancel(String jobId) {
         try {
             client.patch().uri("/jobs/{id}?mode=cancel", jobId).retrieve().toBodilessEntity();
@@ -92,7 +102,11 @@ public class FlinkRestClient {
                             .build(jobId))
                     .retrieve()
                     .body(JsonNode.class);
-            return body == null ? Optional.empty() : Optional.of(body.path("request-id").asText());
+            if (body == null) {
+                return Optional.empty();
+            }
+            String requestId = body.path("request-id").asText("");
+            return requestId.isBlank() ? Optional.empty() : Optional.of(requestId);
         } catch (RestClientException exception) {
             return Optional.empty();
         }

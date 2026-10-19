@@ -1,7 +1,14 @@
 import { AlertTriangle, KeyRound, RefreshCw, Search, SlidersHorizontal, Table2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { SyncMode, SyncTask, SyncTaskSelection, TableSummary } from '../../../../shared/types'
+import type {
+  SyncMode,
+  SyncRun,
+  SyncTask,
+  SyncTaskSelection,
+  TableSummary,
+} from '../../../../shared/types'
 import {
+  ACTIVE_RUN_STATUSES,
   DEFAULT_SYNC_MODE,
   DEFAULT_VERSION_INTERVAL_SECONDS,
   VERSION_INTERVAL_OPTIONS,
@@ -12,6 +19,7 @@ import { SYNC_MODE_LABELS } from '../../lib/labels'
 interface TablePickerProps {
   tasks: SyncTask[]
   tables: TableSummary[]
+  runs: SyncRun[]
   warnings: string[]
   isBusy: boolean
   onRefresh: () => Promise<void>
@@ -45,6 +53,7 @@ function initialSelection(tasks: SyncTask[]): SelectionMap {
 export function TablePicker({
   tasks,
   tables,
+  runs,
   warnings,
   isBusy,
   onRefresh,
@@ -55,6 +64,26 @@ export function TablePicker({
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const taskSignature = tasks.map((task) => `${task.id}:${task.updated_at}:${task.status}`).join('|')
+
+  const activeRunByTask = useMemo(() => {
+    const next = new Map<string, SyncRun>()
+    for (const run of runs) {
+      if (!ACTIVE_RUN_STATUSES.includes(run.status)) continue
+      if (!next.has(run.sync_task_id)) next.set(run.sync_task_id, run)
+    }
+    return next
+  }, [runs])
+
+  const taskByTable = useMemo(() => {
+    const next = new Map<string, SyncTask>()
+    for (const task of tasks) next.set(tableKey(task.schema, task.table), task)
+    return next
+  }, [tasks])
+
+  function activeRunFor(table: TableSummary): SyncRun | null {
+    const task = taskByTable.get(tableKey(table.schema, table.name))
+    return task ? activeRunByTask.get(task.id) ?? null : null
+  }
 
   useEffect(() => {
     setSelection(initialSelection(tasks))
@@ -69,6 +98,9 @@ export function TablePicker({
   }, [query, tables])
 
   const selectedCount = Object.keys(selection).length
+  const hasRunningSelection = tables.some(
+    (table) => Boolean(selection[tableKey(table.schema, table.name)] && activeRunFor(table)),
+  )
 
   function toggle(table: TableSummary) {
     if (!table.has_primary_key) return
@@ -89,6 +121,7 @@ export function TablePicker({
   }
 
   async function submit(start: boolean) {
+    if (start && hasRunningSelection) return
     const selections: SyncTaskSelection[] = tables
       .filter((table) => selection[tableKey(table.schema, table.name)])
       .map((table) => {
@@ -128,13 +161,18 @@ export function TablePicker({
           const key = tableKey(table.schema, table.name)
           const draft = selection[key]
           const disabled = !table.has_primary_key
+          const activeRun = activeRunFor(table)
+          const running = Boolean(activeRun)
           return (
-            <li key={key} className={`table-row ${draft ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}>
+            <li
+              key={key}
+              className={`table-row ${draft ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${running ? 'is-running' : ''}`}
+            >
               <div className="table-row__main">
                 <input
                   type="checkbox"
                   checked={Boolean(draft)}
-                  disabled={disabled}
+                  disabled={disabled || running}
                   onChange={() => toggle(table)}
                   aria-label={`选择 ${table.schema}.${table.name}`}
                 />
@@ -142,15 +180,26 @@ export function TablePicker({
                 <button type="button" className="table-row__name" onClick={() => onOpenSchema(table.schema, table.name)}>
                   {table.schema}.{table.name}
                 </button>
-                {table.has_primary_key ? <KeyRound size={12} /> : <span className="table-row__warn">无主键</span>}
+                {running ? (
+                  <span className="table-row__running">运行中</span>
+                ) : table.has_primary_key ? (
+                  <KeyRound size={12} />
+                ) : (
+                  <span className="table-row__warn">无主键</span>
+                )}
                 <span className="table-row__rows">{formatRows(table.estimated_rows)} 行</span>
               </div>
               {table.comment ? <p className="table-row__comment">{table.comment}</p> : null}
-              {disabled ? <p className="table-row__comment">第一版仅支持有主键表</p> : null}
+              {running ? (
+                <p className="table-row__comment">正在同步中，请先在下方停止运行后再重新开始。</p>
+              ) : disabled ? (
+                <p className="table-row__comment">第一版仅支持有主键表</p>
+              ) : null}
               {draft ? (
                 <div className="table-row__settings">
                   <select
                     value={draft.mode}
+                    disabled={running}
                     onChange={(event) => updateDraft(key, { mode: event.target.value as SyncMode })}
                     aria-label="同步方式"
                   >
@@ -160,6 +209,7 @@ export function TablePicker({
                   {draft.mode === 'cdc' ? (
                     <select
                       value={draft.interval}
+                      disabled={running}
                       onChange={(event) => updateDraft(key, { interval: Number(event.target.value) })}
                       aria-label="版本发布间隔"
                     >
@@ -172,6 +222,7 @@ export function TablePicker({
                     type="button"
                     className="icon-button icon-button--quiet"
                     aria-label="高级设置"
+                    disabled={running}
                     onClick={() => setExpanded(expanded === key ? null : key)}
                   >
                     <SlidersHorizontal size={14} />
@@ -192,12 +243,19 @@ export function TablePicker({
       {!filtered.length ? <div className="empty-panel">没有可选的数据表</div> : null}
 
       <div className="context-footer">
-        <span className="selection-count">已选 {selectedCount} 张表</span>
+        <span className="selection-count">
+          {hasRunningSelection ? '选中的表正在同步，请先停止运行' : `已选 ${selectedCount} 张表`}
+        </span>
         <button type="button" className="secondary-button" disabled={isBusy || selectedCount === 0} onClick={() => void submit(false)}>
           仅保存选择
         </button>
-        <button type="button" className="primary-button" disabled={isBusy || selectedCount === 0} onClick={() => void submit(true)}>
-          {isBusy ? '处理中…' : '保存并开始同步'}
+        <button
+          type="button"
+          className="primary-button"
+          disabled={isBusy || selectedCount === 0 || hasRunningSelection}
+          onClick={() => void submit(true)}
+        >
+          {isBusy ? '处理中…' : hasRunningSelection ? '请先停止运行中的表' : '保存并开始同步'}
         </button>
       </div>
     </div>

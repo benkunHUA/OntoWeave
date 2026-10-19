@@ -81,23 +81,38 @@ public class SyncRunExecutor {
                     .filter(job -> !"CANCELED".equalsIgnoreCase(job.state()))
                     .map(job -> job.id());
             if (existingJob.isPresent()) {
-                run.markSubmitted(existingJob.get());
-                runs.save(run);
-                events.write(run, task, "sync.run.submitted", "Flink 作业已提交");
+                recordSubmitted(run, task, existingJob.get());
                 return;
             }
             preflight(task, run, material);
+            Long expectedRows = null;
             if (run.getRunMode() == SyncMode.CDC) {
-                run.recordSnapshotBaseline(discovery.countRows(
+                expectedRows = discovery.countRows(
                         material.config(),
                         material.password(),
                         task.getSchemaName(),
                         task.getTableName()
-                ));
+                );
             }
             long[] ids = serverIds.allocate();
+            int prepared = runs.recordPrepared(
+                    run.getId(),
+                    expectedRows,
+                    ids[0],
+                    ids[1],
+                    SyncRunStatus.PREPARING,
+                    java.time.Instant.now()
+            );
+            if (prepared != 1) {
+                return;
+            }
+            if (expectedRows != null) {
+                run.recordSnapshotBaseline(expectedRows);
+            }
             run.assignServerIds(ids[0], ids[1]);
-            runs.save(run);
+            if (runs.findById(runId).filter(value -> value.getStatus() == SyncRunStatus.PREPARING).isEmpty()) {
+                return;
+            }
             PipelineSpec pipeline = pipelines.build(
                     run,
                     task,
@@ -112,9 +127,7 @@ public class SyncRunExecutor {
             if (jobId == null) {
                 throw new FlinkSubmitException("FLINK_SUBMIT_FAILED", "未从提交输出中找到 Flink Job ID");
             }
-            run.markSubmitted(jobId);
-            runs.save(run);
-            events.write(run, task, "sync.run.submitted", "Flink 作业已提交");
+            recordSubmitted(run, task, jobId);
         } catch (ApiException exception) {
             fail(run, exception.code(), exception.getMessage());
         } catch (FlinkSubmitException exception) {
@@ -146,10 +159,43 @@ public class SyncRunExecutor {
     }
 
     private void fail(SyncRunEntity run, String code, String message) {
-        run.markFailed(code, message);
-        runs.save(run);
+        int updated = runs.markFailed(
+                run.getId(),
+                SyncRunStatus.PREPARING,
+                SyncRunStatus.FAILED,
+                null,
+                code,
+                message,
+                java.time.Instant.now()
+        );
+        if (updated != 1) {
+            return;
+        }
         Optional<SyncTaskEntity> task = tasks.findById(run.getSyncTaskId());
         task.ifPresent(value -> events.write(run, value, "sync.run.failed", message));
+    }
+
+    private void recordSubmitted(SyncRunEntity run, SyncTaskEntity task, String jobId) {
+        int updated = runs.markSubmitted(
+                run.getId(),
+                jobId,
+                SyncRunStatus.PREPARING,
+                SyncRunStatus.SUBMITTED,
+                java.time.Instant.now()
+        );
+        if (updated == 1) {
+            events.write(run, task, "sync.run.submitted", "Flink 作业已提交");
+            return;
+        }
+        int attached = runs.attachSubmittedJob(
+                run.getId(),
+                jobId,
+                SyncRunStatus.STOPPING,
+                java.time.Instant.now()
+        );
+        if (attached == 0) {
+            flink.cancel(jobId);
+        }
     }
 
     private List<String> stringList(com.fasterxml.jackson.databind.JsonNode node) {

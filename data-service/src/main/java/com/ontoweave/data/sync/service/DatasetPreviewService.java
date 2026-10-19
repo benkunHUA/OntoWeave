@@ -4,13 +4,19 @@ import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.sync.api.dto.DatasetPreviewResponse;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
+import com.ontoweave.data.sync.domain.SyncRunEntity;
+import com.ontoweave.data.sync.domain.SyncRunStatus;
+import com.ontoweave.data.sync.iceberg.IcebergCatalogClient;
 import com.ontoweave.data.sync.iceberg.IcebergPreview;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
+import com.ontoweave.data.sync.iceberg.IcebergSnapshotInfo;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
+import com.ontoweave.data.sync.repository.SyncRunRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -20,15 +26,21 @@ public class DatasetPreviewService {
 
     private final DatasetService datasets;
     private final DatasetVersionRepository versions;
+    private final SyncRunRepository runs;
+    private final IcebergCatalogClient iceberg;
     private final IcebergPreviewReader reader;
 
     public DatasetPreviewService(
             DatasetService datasets,
             DatasetVersionRepository versions,
+            SyncRunRepository runs,
+            IcebergCatalogClient iceberg,
             IcebergPreviewReader reader
     ) {
         this.datasets = datasets;
         this.versions = versions;
+        this.runs = runs;
+        this.iceberg = iceberg;
         this.reader = reader;
     }
 
@@ -37,7 +49,8 @@ public class DatasetPreviewService {
             UUID datasetId,
             UUID versionId,
             UUID ownerId,
-            int limit
+            int limit,
+            boolean live
     ) {
         if (limit < 1 || limit > MAX_LIMIT) {
             throw new ApiException(
@@ -47,6 +60,16 @@ public class DatasetPreviewService {
             );
         }
         DatasetEntity dataset = datasets.required(datasetId, ownerId);
+        if (live && versionId != null) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_PREVIEW",
+                    "实时预览不能指定 version_id"
+            );
+        }
+        if (live) {
+            return livePreview(dataset, limit);
+        }
         DatasetVersionEntity version = resolveVersion(dataset, versionId);
         IcebergPreview preview = reader.read(
                 version.getIcebergCatalog(),
@@ -63,9 +86,55 @@ public class DatasetPreviewService {
                 dataset.getId(),
                 version.getId(),
                 version.getVersionNumber(),
+                version.getIcebergSnapshotId(),
+                false,
                 preview.columns(),
                 preview.rows(),
                 preview.truncated()
+        );
+    }
+
+    private DatasetPreviewResponse livePreview(DatasetEntity dataset, int limit) {
+        for (SyncRunEntity run : runs.findByDatasetIdOrderByCreatedAtDesc(dataset.getId())) {
+            if (run.getStatus() == SyncRunStatus.FAILED
+                    || run.getIcebergCatalog() == null
+                    || run.getIcebergNamespace() == null
+                    || run.getIcebergTable() == null) {
+                continue;
+            }
+            Optional<IcebergSnapshotInfo> snapshot = iceberg.latestSnapshot(
+                    run.getIcebergCatalog(),
+                    run.getIcebergNamespace(),
+                    run.getIcebergTable()
+            );
+            if (snapshot.isEmpty()) {
+                continue;
+            }
+            Optional<IcebergPreview> preview = reader.read(
+                    run.getIcebergCatalog(),
+                    run.getIcebergNamespace(),
+                    run.getIcebergTable(),
+                    snapshot.get().snapshotId(),
+                    limit
+            );
+            if (preview.isEmpty()) {
+                continue;
+            }
+            return new DatasetPreviewResponse(
+                    dataset.getId(),
+                    null,
+                    null,
+                    snapshot.get().snapshotId(),
+                    true,
+                    preview.get().columns(),
+                    preview.get().rows(),
+                    preview.get().truncated()
+            );
+        }
+        throw new ApiException(
+                HttpStatus.NOT_FOUND,
+                "DATASET_LIVE_PREVIEW_UNAVAILABLE",
+                "还没有可预览的同步数据"
         );
     }
 

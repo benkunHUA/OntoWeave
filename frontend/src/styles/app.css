@@ -594,6 +594,7 @@
 }
 
 .message-scroll {
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 20px 18px;
   background: #212121;

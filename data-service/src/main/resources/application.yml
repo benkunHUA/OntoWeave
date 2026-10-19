@@ -65,3 +65,4 @@ ontoweave:
     max-dispatch-attempts: ${SYNC_MAX_DISPATCH_ATTEMPTS:5}
     default-version-interval-seconds: ${SYNC_DEFAULT_VERSION_INTERVAL_SECONDS:86400}
     checkpoint-interval-seconds: ${SYNC_CHECKPOINT_INTERVAL_SECONDS:300}
+    stop-savepoint-timeout-seconds: ${SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS:30}

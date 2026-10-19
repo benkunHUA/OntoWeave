@@ -16,8 +16,11 @@ import com.ontoweave.data.sync.api.dto.SyncTasksResponse;
 import com.ontoweave.data.sync.api.dto.TableSelectionRequest;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.SyncMode;
+import com.ontoweave.data.sync.domain.SyncRunEntity;
+import com.ontoweave.data.sync.domain.SyncRunStatus;
 import com.ontoweave.data.sync.domain.SyncTaskEntity;
 import com.ontoweave.data.sync.repository.DatasetRepository;
+import com.ontoweave.data.sync.repository.SyncRunRepository;
 import com.ontoweave.data.sync.repository.SyncTaskRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,6 +43,7 @@ public class SyncTaskService {
     private final MysqlTableDiscovery discovery;
     private final MysqlCdcPreflight cdcPreflight;
     private final SyncTaskRepository tasks;
+    private final SyncRunRepository runs;
     private final DatasetRepository datasets;
     private final SyncProperties properties;
     private final ObjectMapper objectMapper;
@@ -50,6 +55,7 @@ public class SyncTaskService {
             MysqlTableDiscovery discovery,
             MysqlCdcPreflight cdcPreflight,
             SyncTaskRepository tasks,
+            SyncRunRepository runs,
             DatasetRepository datasets,
             SyncProperties properties,
             ObjectMapper objectMapper,
@@ -60,6 +66,7 @@ public class SyncTaskService {
         this.discovery = discovery;
         this.cdcPreflight = cdcPreflight;
         this.tasks = tasks;
+        this.runs = runs;
         this.datasets = datasets;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -152,6 +159,26 @@ public class SyncTaskService {
         }
         for (SyncTaskEntity existing : tasks.findByConnectionIdOrderByCreatedAtAsc(connectionId)) {
             if (!selectedKeys.contains(key(existing.getSchemaName(), existing.getTableName()))) {
+                Optional<SyncRunEntity> active = runs
+                        .findFirstBySyncTaskIdAndStatusInOrderByCreatedAtDesc(
+                                existing.getId(),
+                                SyncRunStatus.ACTIVE
+                        );
+                if (active.isPresent()) {
+                    throw new ApiException(
+                            HttpStatus.CONFLICT,
+                            "SYNC_RUN_ACTIVE",
+                            "%s.%s 正在同步中，请先停止当前运行后再取消选择".formatted(
+                                    existing.getSchemaName(),
+                                    existing.getTableName()
+                            ),
+                            Map.of(
+                                    "syncTaskId", existing.getId(),
+                                    "runId", active.get().getId(),
+                                    "status", active.get().getStatus().value()
+                            )
+                    );
+                }
                 existing.disable();
                 tasks.save(existing);
             }

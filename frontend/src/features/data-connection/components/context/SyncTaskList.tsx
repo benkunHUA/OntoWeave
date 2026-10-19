@@ -3,6 +3,7 @@ import type { SyncRun, SyncTask } from '../../../../shared/types'
 import { formatDateTime, formatInterval } from '../../lib/format'
 import { ACTIVE_RUN_STATUSES } from '../../lib/constants'
 import { RUN_STATUS_LABELS, SYNC_MODE_LABELS } from '../../lib/labels'
+import { FailureDetails } from '../FailureDetails'
 
 interface SyncTaskListProps {
   tasks: SyncTask[]
@@ -12,14 +13,17 @@ interface SyncTaskListProps {
 }
 
 export function SyncTaskList({ tasks, runs, isBusy, onStop }: SyncTaskListProps) {
+  const activeTaskIds = new Set(runs.filter((run) => ACTIVE_RUN_STATUSES.includes(run.status)).map((run) => run.sync_task_id))
+  const activeTasks = tasks.filter((task) => activeTaskIds.has(task.id))
+
   return (
     <div className="sync-task-list">
       <section className="context-section">
         <h2>同步任务</h2>
-        {tasks.length ? (
+        {activeTasks.length ? (
           <ul className="compact-list">
-            {tasks.map((task) => (
-              <li key={task.id}>
+            {activeTasks.map((task) => (
+              <li key={task.id} className="sync-task-list__item">
                 <span className="compact-list__main">{task.schema}.{task.table}</span>
                 <span className="compact-list__meta">
                   {SYNC_MODE_LABELS[task.sync_mode]}
@@ -29,7 +33,7 @@ export function SyncTaskList({ tasks, runs, isBusy, onStop }: SyncTaskListProps)
               </li>
             ))}
           </ul>
-        ) : <div className="empty-panel">还没有同步任务</div>}
+        ) : <div className="empty-panel">没有正在运行的同步任务</div>}
       </section>
 
       <section className="context-section">
@@ -44,7 +48,9 @@ export function SyncTaskList({ tasks, runs, isBusy, onStop }: SyncTaskListProps)
                   <span className="compact-list__meta">
                     {SYNC_MODE_LABELS[run.run_mode]} · {formatDateTime(run.created_at)}
                   </span>
-                  {run.error_message ? <span className="compact-list__error">{run.error_message}</span> : null}
+                  {run.error_message ? (
+                    <FailureDetails message={run.error_message} code={run.error_code} />
+                  ) : null}
                   {active ? (
                     <button type="button" className="text-button" disabled={isBusy} onClick={() => onStop(run.id)}>
                       <Square size={12} />

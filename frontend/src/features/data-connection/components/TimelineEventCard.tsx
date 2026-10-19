@@ -10,7 +10,8 @@ import {
 import { useState } from 'react'
 import type { ConversationEvent } from '../../../shared/types'
 import type { OperationStatus } from '../lib/operationTimeline'
-import { operationStepLabel } from '../lib/operationTimeline'
+import { operationDatasets, operationStepLabel } from '../lib/operationTimeline'
+import { FailureDetails } from './FailureDetails'
 
 const STATUS_LABELS: Record<OperationStatus, string> = {
   running: '进行中',
@@ -26,13 +27,23 @@ function StatusIcon({ status }: { status: OperationStatus }) {
   return <CircleCheck size={14} />
 }
 
-function eventError(event: ConversationEvent): string | null {
-  const message = event.payload.errorMessage
-  return typeof message === 'string' && message ? message : null
+interface EventFailure {
+  message: string
+  code: string | null
+}
+
+function eventFailure(event: ConversationEvent): EventFailure | null {
+  const message = event.payload?.errorMessage
+  if (typeof message !== 'string' || !message) return null
+  const code = event.payload?.errorCode
+  return {
+    message,
+    code: typeof code === 'string' && code ? code : null,
+  }
 }
 
 function datasetIdOf(event: ConversationEvent): string | null {
-  const value = event.payload.datasetId
+  const value = event.payload?.datasetId
   return typeof value === 'string' ? value : null
 }
 
@@ -47,8 +58,11 @@ interface OperationCardProps {
 export function OperationCard({ title, status, events, onExplain, onOpenDataset }: OperationCardProps) {
   const [open, setOpen] = useState(false)
   const latest = events.at(-1)
-  const failure = events.map(eventError).find(Boolean)
-  const datasetId = events.map(datasetIdOf).find(Boolean) ?? null
+  const failure = events
+    .map(eventFailure)
+    .filter((item): item is EventFailure => item !== null)
+    .at(-1) ?? null
+  const datasets = operationDatasets(events)
 
   return (
     <article className={`operation-card is-${status}`}>
@@ -58,7 +72,16 @@ export function OperationCard({ title, status, events, onExplain, onOpenDataset 
         <span className="operation-card__status">{STATUS_LABELS[status]}</span>
         <ChevronRight size={13} className={open ? 'is-open' : ''} />
       </button>
-      <p className="operation-card__summary">{failure ?? latest?.summary ?? title}</p>
+      {datasets.length ? (
+        <ul className="operation-card__datasets">
+          {datasets.map((dataset) => (
+            <li key={dataset.datasetId}>{dataset.summary}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="operation-card__summary">{latest?.summary ?? title}</p>
+      )}
+      {failure ? <FailureDetails message={failure.message} code={failure.code} /> : null}
       {open ? (
         <ol className="operation-card__steps">
           {events.map((event) => (
@@ -69,16 +92,16 @@ export function OperationCard({ title, status, events, onExplain, onOpenDataset 
           ))}
         </ol>
       ) : null}
-      {status === 'failed' || datasetId ? (
+      {status === 'failed' || datasets.length ? (
         <div className="operation-card__actions">
-          {datasetId ? (
-            <button type="button" onClick={() => onOpenDataset(datasetId)}>
+          {datasets.map((dataset) => (
+            <button key={dataset.datasetId} type="button" onClick={() => onOpenDataset(dataset.datasetId)}>
               <Database size={13} />
-              查看数据集
+              {datasets.length === 1 ? '查看数据集' : `查看 ${dataset.label}`}
             </button>
-          ) : null}
+          ))}
           {status === 'failed' ? (
-            <button type="button" onClick={() => onExplain(failure ?? latest?.summary ?? title)}>
+            <button type="button" onClick={() => onExplain(failure?.message ?? latest?.summary ?? title)}>
               <MessageSquareText size={13} />
               让 Agent 解释
             </button>

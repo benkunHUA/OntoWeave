@@ -7,7 +7,9 @@ import java.util.UUID;
 public record DatasetPreviewResponse(
         UUID datasetId,
         UUID versionId,
-        int versionNumber,
+        Integer versionNumber,
+        long snapshotId,
+        boolean live,
         List<String> columns,
         List<Map<String, Object>> rows,
         boolean truncated

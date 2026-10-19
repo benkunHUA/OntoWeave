@@ -28,6 +28,7 @@ interface ContextPanelProps {
   selectedDatasetId: string | null
   onSelectDataset: (datasetId: string | null) => void
   onRefresh: () => Promise<void>
+  onReloadTables: () => Promise<void>
   onSaveConnection: (values: ConnectionFormValues, testAfter: boolean) => Promise<void>
   onTestConnection: () => Promise<void>
   onSaveTasks: (selections: SyncTaskSelection[], start: boolean) => Promise<void>
@@ -45,6 +46,7 @@ export function ContextPanel({
   selectedDatasetId,
   onSelectDataset,
   onRefresh,
+  onReloadTables,
   onSaveConnection,
   onTestConnection,
   onSaveTasks,
@@ -128,6 +130,7 @@ export function ContextPanel({
                 onClick={() => {
                   setTab(item.id)
                   setSchemaTarget(null)
+                  if (item.id === 'tables') void onReloadTables()
                 }}
               >
                 {item.label}
@@ -157,9 +160,10 @@ export function ContextPanel({
                   <TablePicker
                     tasks={state.tasks}
                     tables={tables}
+                    runs={state.recent_runs}
                     warnings={warnings}
                     isBusy={isBusy}
-                    onRefresh={onRefresh}
+                    onRefresh={onReloadTables}
                     onOpenSchema={(schema, table) => setSchemaTarget({ schema, table })}
                     onSave={onSaveTasks}
                   />

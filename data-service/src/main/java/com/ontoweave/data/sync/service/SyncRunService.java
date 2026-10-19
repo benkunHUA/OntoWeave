@@ -12,39 +12,53 @@ import com.ontoweave.data.sync.domain.SyncRunEntity;
 import com.ontoweave.data.sync.domain.SyncRunStatus;
 import com.ontoweave.data.sync.domain.SyncTaskEntity;
 import com.ontoweave.data.sync.execution.SyncRunEventWriter;
+import com.ontoweave.data.sync.execution.SyncRunStopInitiator;
 import com.ontoweave.data.sync.repository.SyncRunRepository;
 import com.ontoweave.data.sync.repository.SyncTaskRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 public class SyncRunService {
 
+    private static final Logger log = LoggerFactory.getLogger(SyncRunService.class);
     private final DataConnectionService connections;
     private final SyncTaskRepository tasks;
     private final SyncRunRepository runs;
     private final SyncRunEventWriter events;
     private final SyncProperties properties;
+    private final SyncRunStopInitiator stopInitiator;
+    private final TransactionTemplate transactions;
 
     public SyncRunService(
             DataConnectionService connections,
             SyncTaskRepository tasks,
             SyncRunRepository runs,
             SyncRunEventWriter events,
-            SyncProperties properties
+            SyncProperties properties,
+            SyncRunStopInitiator stopInitiator,
+            PlatformTransactionManager transactionManager
     ) {
         this.connections = connections;
         this.tasks = tasks;
         this.runs = runs;
         this.events = events;
         this.properties = properties;
+        this.stopInitiator = stopInitiator;
+        this.transactions = new TransactionTemplate(transactionManager);
     }
 
     @Transactional
@@ -56,25 +70,72 @@ public class SyncRunService {
         }
         List<SyncRunEntity> result = new ArrayList<>();
         for (SyncTaskEntity task : selected) {
-            SyncRunEntity run = runs
-                    .findBySyncTaskIdAndOperationId(task.getId(), request.operationId())
-                    .orElseGet(() -> createRun(connectionId, task, request.operationId()));
-            result.add(run);
+            Optional<SyncRunEntity> sameOperation = runs
+                    .findBySyncTaskIdAndOperationId(task.getId(), request.operationId());
+            if (sameOperation.isPresent()) {
+                result.add(sameOperation.get());
+                continue;
+            }
+            Optional<SyncRunEntity> active = runs
+                    .findFirstBySyncTaskIdAndStatusInOrderByCreatedAtDesc(
+                            task.getId(),
+                            SyncRunStatus.ACTIVE
+                    );
+            if (active.isPresent()) {
+                SyncRunEntity run = active.get();
+                throw new ApiException(
+                        HttpStatus.CONFLICT,
+                        "SYNC_RUN_ACTIVE",
+                        "%s.%s 正在同步中（%s），请先停止当前运行再重新开始".formatted(
+                                task.getSchemaName(),
+                                task.getTableName(),
+                                run.getStatus().value()
+                        ),
+                        Map.of(
+                                "syncTaskId", task.getId(),
+                                "runId", run.getId(),
+                                "status", run.getStatus().value()
+                        )
+                );
+            }
+            result.add(createRun(connectionId, task, request.operationId()));
         }
         return new SyncRunsResponse(request.operationId(), result.stream().map(this::response).toList());
     }
 
-    @Transactional
     public SyncRunResponse stop(UUID runId, UUID ownerId) {
         SyncRunEntity run = required(runId, ownerId);
-        if (!run.getStatus().terminal()) {
-            run.markStopping();
-            runs.save(run);
-            tasks.findById(run.getSyncTaskId()).ifPresent(task ->
-                    events.write(run, task, "sync.run.stopping", "已请求停止")
-            );
+        if (run.getStatus().terminal()) {
+            return response(run);
         }
-        return response(run);
+
+        Boolean transitioned = transactions.execute(status -> {
+            int updated = runs.requestStop(
+                    runId,
+                    SyncRunStatus.ACTIVE,
+                    SyncRunStatus.STOPPING,
+                    Instant.now()
+            );
+            if (updated != 1) {
+                return false;
+            }
+            SyncRunEntity stopping = runs.findById(runId).orElse(run);
+            tasks.findById(stopping.getSyncTaskId()).ifPresent(task ->
+                    events.write(stopping, task, "sync.run.stopping", "已请求停止")
+            );
+            return true;
+        });
+
+        SyncRunEntity current = runs.findById(runId).orElse(run);
+        if (Boolean.TRUE.equals(transitioned)) {
+            try {
+                stopInitiator.initiate(current);
+            } catch (RuntimeException exception) {
+                log.warn("failed to initiate Flink stop for run {}", runId, exception);
+            }
+            current = runs.findById(runId).orElse(current);
+        }
+        return response(current);
     }
 
     @Transactional(readOnly = true)

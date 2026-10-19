@@ -34,8 +34,9 @@ public class DatasetController {
             @PathVariable UUID id,
             @RequestParam(required = false) UUID versionId,
             @RequestParam UUID ownerId,
-            @RequestParam(defaultValue = "100") int limit
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(defaultValue = "false") boolean live
     ) {
-        return previews.preview(id, versionId, ownerId, limit);
+        return previews.preview(id, versionId, ownerId, limit, live);
     }
 }

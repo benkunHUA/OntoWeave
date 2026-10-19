@@ -117,6 +117,7 @@ def sync_run(row: dict) -> dict:
         "operation_id": row.get("operationId"),
         "run_mode": row.get("runMode"),
         "status": row.get("status"),
+        "flink_job_id": row.get("flinkJobId"),
         "flink_job_state": row.get("flinkJobState"),
         "snapshot_completed_at": row.get("snapshotCompletedAt"),
         "last_checkpoint_at": row.get("lastCheckpointAt"),
@@ -172,6 +173,8 @@ def dataset_preview(row: dict) -> dict:
         "dataset_id": row.get("datasetId"),
         "version_id": row.get("versionId"),
         "version_number": row.get("versionNumber"),
+        "snapshot_id": row.get("snapshotId"),
+        "live": row.get("live", False),
         "columns": row.get("columns") or [],
         "rows": row.get("rows") or [],
         "truncated": row.get("truncated", False),
@@ -222,8 +225,11 @@ def state_summary(row: dict | None) -> dict:
                 "id": item["id"],
                 "sync_task_id": item["sync_task_id"],
                 "status": item["status"],
+                "flink_job_id": item["flink_job_id"],
+                "flink_job_state": item["flink_job_state"],
                 "error_code": item["error_code"],
                 "error_message": item["error_message"],
+                "finished_at": item["finished_at"],
                 "created_at": item["created_at"],
             }
             for item in mapped["recent_runs"][:5]

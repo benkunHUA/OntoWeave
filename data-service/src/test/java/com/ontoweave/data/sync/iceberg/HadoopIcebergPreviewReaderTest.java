@@ -118,6 +118,7 @@ class HadoopIcebergPreviewReaderTest {
                 false,
                 0,
                 0,
+                0,
                 0
         ));
     }

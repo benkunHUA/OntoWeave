@@ -247,6 +247,7 @@ def get_dataset_preview(
     dataset_id: uuid.UUID,
     version_id: uuid.UUID | None,
     limit: int,
+    live: bool = False,
 ) -> dict:
     return mapping.dataset_preview(
         client.get_dataset_preview(
@@ -254,6 +255,7 @@ def get_dataset_preview(
             owner_id=owner_id,
             version_id=version_id,
             limit=limit,
+            live=live,
         )
     )
 

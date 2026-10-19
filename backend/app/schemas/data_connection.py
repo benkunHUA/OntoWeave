@@ -140,6 +140,7 @@ class SyncRunRead(BaseModel):
     operation_id: uuid.UUID | None = None
     run_mode: str
     status: str
+    flink_job_id: str | None = None
     flink_job_state: str | None = None
     snapshot_completed_at: datetime | None = None
     last_checkpoint_at: datetime | None = None
@@ -184,8 +185,10 @@ class DatasetRead(BaseModel):
 
 class DatasetPreviewRead(BaseModel):
     dataset_id: uuid.UUID
-    version_id: uuid.UUID
-    version_number: int
+    version_id: uuid.UUID | None = None
+    version_number: int | None = None
+    snapshot_id: int
+    live: bool = False
     columns: list[str]
     rows: list[dict[str, Any]]
     truncated: bool = False

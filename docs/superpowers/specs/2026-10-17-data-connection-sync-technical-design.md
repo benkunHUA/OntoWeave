@@ -412,7 +412,7 @@ stateDiagram-v2
 | `GET` | `/data-connections/{id}/state` | 返回连接、任务、最近运行和数据集状态，供 Agent 上下文使用 |
 | `GET` | `/sync-runs/{id}` | 查询单次运行状态、Flink 作业状态、初始化快照是否完成，作为消息延迟时的兜底 |
 | `GET` | `/datasets/{id}` | 数据集详情和当前版本 |
-| `GET` | `/datasets/{id}/preview?limit=100` | 按所选版本记录的 Iceberg 表和 snapshot 读取前 N 行 |
+| `GET` | `/datasets/{id}/preview?version_id=&limit=100&live=false` | 按版本读取前 N 行；`live=true` 读取最新未发布 snapshot |
 
 ### 6.2 RabbitMQ
 
@@ -480,7 +480,8 @@ stateDiagram-v2
 - 连接测试失败返回 HTTP 200 + `status=failed`。
 - 事件信封和路由键按 6.2 节执行。
 - 停止运行使用 `POST /sync-runs/{id}/stop`，返回 202；状态先进入 `stopping`，完成后再进入 `stopped`。
-- 数据集预览按当前版本固定的 Iceberg 表 + snapshot 读取，返回 JSON 行数据，不返回文件 URL。
+- 数据集预览默认按当前版本固定的 Iceberg 表 + snapshot 读取，返回 JSON 行数据，不返回文件 URL。
+- `live=true` 时读取最新运行的 Iceberg 最新 snapshot，标记为未发布实时预览，不生成版本。
 
 ## 7. 议题四：凭据加密与连接测试
 
@@ -786,13 +787,14 @@ sequenceDiagram
   - `byte_size` 取 `total-file-size-in-bytes`。
   - `schema` 按 snapshot 的 `schema-id` 取对应 schema；`column_count` 从该 schema 计算。
   - `committed_at` 取 snapshot 时间；`storage_path` 取表 location；`published_at` 取 Java 写入版本的时间。
-- `version_source` 取值：`snapshot_end`（快照运行结束）、`scheduled`（CDC 到达发布间隔）、`stop`（停止时补发）。
+- `version_source` 取值：`snapshot_end`（快照运行结束或 CDC 初始快照完成）、`scheduled`（CDC 到达发布间隔）、`stop`（停止时补发）。
 - 发布顺序：锁 `Dataset` 行 → 计算下一个 `version_number` → 在 Iceberg snapshot 上创建 tag `ontoweave-version-<dataset_id>-<version_number>` → 插入新的 `DatasetVersion` → 切换 `Dataset.current_version_id` 和 `active_iceberg_*` → 写 Outbox `dataset.version.published`。
 - tag 创建失败则本次发布失败，不插入版本、不切换当前版本；如果 tag 已创建但后续数据库写入失败，清理刚创建的 tag，重试沿用同一版本号。
 - 已发布版本由 tag 保护，Iceberg snapshot 过期不会删除 tag 引用的 snapshot；未发布的中间 snapshot 按 `history.expire.max-snapshot-age-ms` 过期。
 - 旧运行表保留给旧版本；清理策略后续单独设计，不能直接删除仍被 `DatasetVersion` 引用的表。
 - 空表：如果 Iceberg 表还没有 snapshot，Java 创建一个空 append snapshot，再发布 0 行版本；预览返回空数组。
 - 数据集预览按所选 `DatasetVersion.iceberg_table + iceberg_snapshot_id` 读取；默认打开当前版本。
+- 实时预览按数据集最近运行的 `iceberg_table` 读取最新 snapshot；最新运行还没有 snapshot 时回退到更早的运行。响应带 `live=true`、`version_id=null`，不产生 `DatasetVersion`。
 - 历史版本可查看字段和预览，但不支持版本对比、回滚和跨版本合并。
 - 与 Palantir 官方行为的关系：官方文档说明每次写入生成 snapshot、snapshot 映射为数据集事务，并提供 snapshot 过期维护；本项目用 Iceberg tag 固定已发布版本，保留历史版本。
 
@@ -904,12 +906,12 @@ sequenceDiagram
 | `GET` | `/datasets/{id}` | 数据集详情和当前版本 |
 | `GET` | `/datasets/{id}/versions?limit=&offset=` | 版本列表 |
 | `GET` | `/datasets/{id}/versions/{version_id}` | 单版本详情 |
-| `GET` | `/datasets/{id}/preview?version_id=&limit=100` | 预览指定版本，默认当前版本 |
+| `GET` | `/datasets/{id}/preview?version_id=&limit=100&live=false` | 预览指定版本；`live=true` 预览最新未发布 snapshot |
 | `GET` | `/conversations/{id}/events?after_event_id=&limit=100` | 事件历史和增量拉取 |
 | `GET` | `/conversations/{id}/events/stream?after_event_id=` | SSE 推送新事件卡片 |
 
-> 实施说明（2026-10-18）：Java 已提供 `/datasets/{id}/preview`，默认读取当前版本，
-> 可选 `version_id`，`limit` 范围为 1–500；Python 透传为
+> 实施说明（2026-10-19）：Java 已提供 `/datasets/{id}/preview`，默认读取当前版本，
+> 可选 `version_id` 或 `live=true`，`limit` 范围为 1–500；Python 透传为
 > `GET /api/v1/datasets/{id}/preview`。版本分页与单版本接口仍未提供，数据集详情继续返回
 > 当前版本和全部版本。同步任务替换语义已实现：未选中的旧任务置为 `disabled`，重新选中恢复
 > `enabled`。
@@ -1411,9 +1413,23 @@ frontend/src/features/data-connection/
 
 尚未完成：
 
-- Java 没有行级数据预览接口，数据集详情只展示元数据、字段结构和版本历史，不伪造预览数据。
+- 数据集版本分页与单版本详情接口尚未提供；数据集详情仍返回全部版本。
 - Java 集成测试依赖 Testcontainers；本次环境拉取 `testcontainers/ryuk` 超时，未能跑完，单元测试与真实 compose 冒烟已覆盖主路径。
 - 前端尚未接入浏览器自动化测试。
+
+### 12.3 初始快照发布与实时预览（2026-10-19）
+
+- CDC 初始历史快照完成后，监督器立即发布一次 `snapshot_end` 版本，不再等待第一个版本间隔；后续增量仍按 `version_interval_seconds` 发布 `scheduled` 版本。
+- 初版发布时如果 Iceberg 还没有 snapshot，监督器会在后续巡检继续重试，直到发布成功。
+- Java 预览接口新增 `live=true`：按数据集最近运行的 Iceberg 表读取最新 snapshot；最新运行还没有 snapshot 时回退到更早运行。
+- 实时预览响应 `version_id=null`、`live=true`，只用于查看和校验，不产生不可变版本，也不作为对象实例接入的输入。
+- 前端数据集详情增加“版本数据 / 最新数据 / 刷新”切换；实时预览明确显示“未发布”和 snapshot ID。
+
+验证结果（2026-10-19）：
+
+- Python `446 passed`，ruff、format、mypy 通过；前端 81 个测试、tsc、lint、build 通过。
+- Java `SyncRunSupervisorTest`、`DatasetPreviewServiceTest` 通过。
+- 真实 CDC 冒烟：2 行初始快照约 46 秒发布 v1；插入第 3 行后约 24 秒可在 `live=true` 预览看到，正式版本仍为 v1。
 
 ## 13. 后续议题
 
@@ -1474,3 +1490,5 @@ frontend/src/features/data-connection/
 | 2026-10-18 | 前端右侧面板 | 草稿态只显示连接表单；正式连接后分为概览、表与同步、数据集三个页签；数据集详情内嵌展示，预览可放大。 | 已确认 |
 | 2026-10-18 | 前端操作联动 | 右侧操作均带 `operation_id`，通过后端事件更新中间操作卡片；事件不自动触发 Agent，失败卡片由用户主动请求解释。 | 已确认 |
 | 2026-10-18 | 当前设计定稿 | 作业提交与停止恢复按文档现有方案执行；数据连接与同步技术设计关闭，进入实施。 | 已确认 |
+| 2026-10-19 | CDC 初始快照 | 历史快照完成即发布 `snapshot_end` 版本，后续增量按版本间隔发布。 | 已确认 |
+| 2026-10-19 | 实时预览 | 增加 `live=true` 读取最新未发布 Iceberg snapshot；只用于查看，不生成版本，不作为对象实例输入。 | 已确认 |

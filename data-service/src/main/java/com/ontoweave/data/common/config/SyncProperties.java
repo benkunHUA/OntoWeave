@@ -19,7 +19,8 @@ public record SyncProperties(
         boolean supervisorEnabled,
         int maxDispatchAttempts,
         int defaultVersionIntervalSeconds,
-        int checkpointIntervalSeconds
+        int checkpointIntervalSeconds,
+        int stopSavepointTimeoutSeconds
 ) {
     public SyncProperties {
         flinkRestUrl = value(flinkRestUrl, "http://localhost:8081");
@@ -37,6 +38,7 @@ public record SyncProperties(
         defaultVersionIntervalSeconds = defaultVersionIntervalSeconds > 0
                 ? defaultVersionIntervalSeconds : 86400;
         checkpointIntervalSeconds = checkpointIntervalSeconds > 0 ? checkpointIntervalSeconds : 300;
+        stopSavepointTimeoutSeconds = stopSavepointTimeoutSeconds > 0 ? stopSavepointTimeoutSeconds : 30;
     }
 
     private static String value(String value, String fallback) {

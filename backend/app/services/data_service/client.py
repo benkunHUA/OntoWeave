@@ -173,8 +173,13 @@ class DataServiceClient:
         owner_id: uuid.UUID,
         version_id: uuid.UUID | None,
         limit: int,
+        live: bool = False,
     ) -> dict:
-        params: dict[str, Any] = {"ownerId": str(owner_id), "limit": limit}
+        params: dict[str, Any] = {
+            "ownerId": str(owner_id),
+            "limit": limit,
+            "live": "true" if live else "false",
+        }
         if version_id is not None:
             params["versionId"] = str(version_id)
         return self._request(

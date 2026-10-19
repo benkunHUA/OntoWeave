@@ -124,8 +124,12 @@ export function getDatasetPreview(
   datasetId: string,
   versionId?: string | null,
   limit = 100,
+  live = false,
 ): Promise<DatasetPreview> {
-  const params = new URLSearchParams({ limit: String(limit) })
+  const params = new URLSearchParams({
+    limit: String(limit),
+    live: live ? 'true' : 'false',
+  })
   if (versionId) params.set('version_id', versionId)
   return request<DatasetPreview>(`/datasets/${datasetId}/preview?${params.toString()}`)
 }

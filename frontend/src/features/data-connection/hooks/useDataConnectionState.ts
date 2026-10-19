@@ -16,14 +16,23 @@ export function useDataConnectionState(connectionId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const requestRef = useRef(0)
+  const stateRequestRef = useRef(0)
+  const tablesRequestRef = useRef(0)
 
-  const loadTables = useCallback(async (targetId: string, requestId: number) => {
-    const result = await listTables(targetId)
-    if (requestRef.current !== requestId) return
-    setTables(result.tables)
-    setWarnings(result.warnings)
-  }, [])
+  const reloadTables = useCallback(async () => {
+    if (!connectionId) return
+    const requestId = tablesRequestRef.current + 1
+    tablesRequestRef.current = requestId
+    try {
+      const result = await listTables(connectionId)
+      if (tablesRequestRef.current !== requestId) return
+      setTables(result.tables)
+      setWarnings(result.warnings)
+    } catch (reason) {
+      if (tablesRequestRef.current !== requestId) return
+      setError(reason instanceof Error ? reason.message : '加载数据表失败')
+    }
+  }, [connectionId])
 
   const refresh = useCallback(
     async (options: RefreshOptions = {}) => {
@@ -33,25 +42,25 @@ export function useDataConnectionState(connectionId: string | undefined) {
         setWarnings([])
         return
       }
-      const requestId = requestRef.current + 1
-      requestRef.current = requestId
+      const requestId = stateRequestRef.current + 1
+      stateRequestRef.current = requestId
       setIsRefreshing(true)
       try {
         const next = await getDataConnectionState(connectionId)
-        if (requestRef.current !== requestId) return
+        if (stateRequestRef.current !== requestId) return
         setState(next)
         setError(null)
         if (options.withTables && next.connection.status === 'active') {
-          await loadTables(connectionId, requestId)
+          await reloadTables()
         }
       } catch (reason) {
-        if (requestRef.current !== requestId) return
+        if (stateRequestRef.current !== requestId) return
         setError(reason instanceof Error ? reason.message : '加载连接状态失败')
       } finally {
-        if (requestRef.current === requestId) setIsRefreshing(false)
+        if (stateRequestRef.current === requestId) setIsRefreshing(false)
       }
     },
-    [connectionId, loadTables],
+    [connectionId, reloadTables],
   )
 
   const refreshState = useCallback(async () => {
@@ -59,6 +68,7 @@ export function useDataConnectionState(connectionId: string | undefined) {
   }, [refresh])
 
   useEffect(() => {
+    tablesRequestRef.current += 1
     setIsLoading(true)
     setState(null)
     setTables([])
@@ -76,6 +86,7 @@ export function useDataConnectionState(connectionId: string | undefined) {
     error,
     refresh,
     refreshState,
-    loadTables: () => (connectionId ? refresh({ withTables: true }) : Promise.resolve()),
+    reloadTables,
+    refreshAll: () => (connectionId ? refresh({ withTables: true }) : Promise.resolve()),
   }
 }
