@@ -11,7 +11,7 @@
 **Scope:** 这是数据连接与同步的总计划中的第 1 个子计划。后续依次是：2）Java 数据服务与连接器；3）Flink CDC + Iceberg 同步；4）Python 数据连接 API、事件与 Agent；5）前端三栏工作台与端到端验收。
 
 > **实施状态（2026-10-18）：Task 1-8 全部完成并通过复审。**
-> - 工作区：`/Users/haobenkun/.codex/worktrees/agent-runtime-reuse/OntoWeave`（基线提交 `ee14504`，改动未提交）。
+> - 代码已随提交 `9524589` 合并到 `main`（基线 `ee14504`）。
 > - 后端：`413 passed`；`ruff check`、`ruff format --check`、`mypy app` 全部通过。
 > - 前端：`tsc -b`、`oxlint`、`vitest`（73 passed）、`vite build` 全部通过。
 > - 下方任务步骤保留为执行记录，完成标准以本节和文末「实施确认」为准。

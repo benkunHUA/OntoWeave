@@ -12,7 +12,7 @@
 
 ## 实施状态（2026-10-18）
 
-已完成本计划全部任务，代码位于 `data-service/`，尚未提交。
+已完成本计划全部任务，代码位于 `data-service/`，已随提交 `9524589` 合并到 `main`。
 
 - `./mvnw verify` 通过：13 tests，0 failures/errors/skips。
 - Docker Compose 冒烟通过：健康检查、创建连接、连接测试、表列表、字段与主键读取。

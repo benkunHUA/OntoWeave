@@ -150,6 +150,7 @@ cp .env.example .env
 
 - 后端细节（接口、智能体、踩坑）：[`backend/README.md`](backend/README.md)
 - 前端细节：[`frontend/README.md`](frontend/README.md)
+- 数据集成与 Agent 闭环路线图：[`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md)
 
 ## 路线图
 
@@ -162,4 +163,7 @@ cp .env.example .env
 | 智能体运行时与 SSE | ✅ 已完成 |
 | 前端建模工作台与视图同步 | ✅ MVP 已完成 |
 | 动作层（动作类型 / 参数 / 规则 / 提交校验） | ✅ 定义层已完成 |
-| 动作执行 / 实例进图 / 实时同编 / 用户系统 | 🔜 规划中（数据模型已预留） |
+| P1 数据进来（连接 / 同步 / 数据集版本） | ✅ 已完成 |
+| P2 数据整理（可视化处理 / 构建 / 调度 / 来源追踪） | 🟡 技术设计中（算子范围已定） |
+| P3 变成对象（对象与关系实例） | ⏳ 规划中 |
+| P4 Agent 使用（动作执行 / 审计 / 闭环） | ⏳ 规划中 |

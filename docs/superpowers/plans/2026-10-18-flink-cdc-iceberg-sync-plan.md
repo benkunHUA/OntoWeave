@@ -66,7 +66,7 @@
 
 ## 实施状态（2026-10-18）
 
-上述任务已落地，代码在 `data-service/`，未提交。
+上述任务已落地，代码在 `data-service/`，已随提交 `9524589` 合并到 `main`。
 
 - 同步领域：`SyncTask`、`SyncRun`、`Dataset`、`DatasetVersion`、Outbox 命令投递和 RabbitMQ worker 已完成。
 - Flink：`flink-cdc.sh` 提交单表 pipeline；Snapshot 使用 `snapshot + BATCH`，CDC 使用 `initial + STREAMING`；Supervisor 负责 Flink 状态、checkpoint、初始快照完成判断和定时版本发布。

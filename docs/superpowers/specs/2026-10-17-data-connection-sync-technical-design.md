@@ -1360,7 +1360,7 @@ frontend/src/features/data-connection/
 
 ## 12. 实施记录（2026-10-18）
 
-第二阶段 Java 数据服务已按本文第 5-8 节落地，代码在 `data-service/`，未提交。
+第二阶段 Java 数据服务已按本文第 5-8 节落地，代码在 `data-service/`，已随提交 `9524589` 合并到 `main`。
 
 - 已实现：连接 CRUD、MySQL 类型校验、AES-256-GCM 凭据加密、连接测试、binlog/复制权限检查、表与字段发现、连接状态摘要、Outbox + RabbitMQ。
 - 内部接口统一为 `/internal/v1/data-connections`；`ownerId` 对所有按 ID 读取或修改的接口必填，缺失返回 400，跨 owner 返回 404。
@@ -1370,7 +1370,7 @@ frontend/src/features/data-connection/
 
 ### 12.1 第三阶段实施记录（2026-10-18）
 
-第三阶段已完成 Flink CDC + Iceberg 同步链路，代码在 `data-service/`，未提交。
+第三阶段已完成 Flink CDC + Iceberg 同步链路，代码在 `data-service/`，已随提交 `9524589` 合并到 `main`。
 
 - 已实现：`SyncTask`、`SyncRun`、`Dataset`、`DatasetVersion`；批量选表；`snapshot`/`cdc` 运行；RabbitMQ 执行命令；Flink CDC pipeline 提交；Flink 状态与 checkpoint 跟踪；Iceberg snapshot/tag；版本发布。
 - 运行状态：`queued → preparing → submitted → running → succeeded/stopped/failed`；CDC 初始化快照完成后按版本间隔发布 `scheduled` 版本，正常停止补 `stop` 版本。
