@@ -9,6 +9,7 @@ import java.util.List;
 final class SchemaNodes {
 
     static final ObjectMapper JSON = new ObjectMapper();
+    private static final String DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema";
 
     private SchemaNodes() {
     }
@@ -18,6 +19,12 @@ final class SchemaNodes {
         schema.put("type", "object");
         schema.put("additionalProperties", false);
         schema.putObject("properties");
+        return schema;
+    }
+
+    static ObjectNode rootSchema() {
+        ObjectNode schema = object();
+        schema.put("$schema", DRAFT_2020_12);
         return schema;
     }
 
@@ -36,6 +43,13 @@ final class SchemaNodes {
     static ObjectNode array() {
         ObjectNode schema = JSON.createObjectNode();
         schema.put("type", "array");
+        return schema;
+    }
+
+    static ObjectNode scalar() {
+        ObjectNode schema = JSON.createObjectNode();
+        ArrayNode types = schema.putArray("type");
+        types.add("string").add("number").add("boolean").add("null");
         return schema;
     }
 

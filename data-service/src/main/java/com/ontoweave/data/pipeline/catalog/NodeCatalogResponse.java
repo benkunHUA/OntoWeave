@@ -7,4 +7,9 @@ public record NodeCatalogResponse(String catalogVersion, List<NodeDefinition> no
     public NodeCatalogResponse {
         nodes = List.copyOf(nodes);
     }
+
+    @Override
+    public List<NodeDefinition> nodes() {
+        return List.copyOf(nodes);
+    }
 }

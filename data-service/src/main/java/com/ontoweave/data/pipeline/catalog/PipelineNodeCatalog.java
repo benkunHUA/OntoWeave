@@ -1,19 +1,14 @@
 package com.ontoweave.data.pipeline.catalog;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.common.web.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+
+import static com.ontoweave.data.pipeline.catalog.SchemaNodes.JSON;
 
 @Component
 public record PipelineNodeCatalog(List<NodeDefinition> nodes) {
@@ -23,7 +18,6 @@ public record PipelineNodeCatalog(List<NodeDefinition> nodes) {
     private static final String CATEGORY_TRANSFORM = "transform";
     private static final String CATEGORY_OUTPUT = "output";
     private static final String DATA_TYPE_TABLE = "table";
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     public PipelineNodeCatalog {
         nodes = List.copyOf(nodes);
@@ -53,15 +47,9 @@ public record PipelineNodeCatalog(List<NodeDefinition> nodes) {
         ArrayNode canonicalNodes = JSON.createArrayNode();
         nodes.stream()
                 .sorted((left, right) -> left.type().compareTo(right.type()))
-                .map(node -> canonicalize(JSON.valueToTree(node)))
+                .map(node -> CanonicalJson.canonicalize(JSON.valueToTree(node)))
                 .forEach(canonicalNodes::add);
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(JSON.writeValueAsBytes(canonicalNodes));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException | com.fasterxml.jackson.core.JsonProcessingException error) {
-            throw new IllegalStateException("Unable to compute pipeline node catalog version", error);
-        }
+        return CanonicalJson.sha256(canonicalNodes);
     }
 
     public NodeCatalogResponse response() {
@@ -115,19 +103,4 @@ public record PipelineNodeCatalog(List<NodeDefinition> nodes) {
         return new NodePort("out", NodePortRole.OUTPUT, DATA_TYPE_TABLE, false, false);
     }
 
-    private static JsonNode canonicalize(JsonNode node) {
-        if (node.isObject()) {
-            ObjectNode sorted = JSON.createObjectNode();
-            List<String> names = new ArrayList<>();
-            node.fieldNames().forEachRemaining(names::add);
-            names.stream().sorted().forEach(name -> sorted.set(name, canonicalize(node.get(name))));
-            return sorted;
-        }
-        if (node.isArray()) {
-            ArrayNode sorted = JSON.createArrayNode();
-            node.forEach(element -> sorted.add(canonicalize(element)));
-            return sorted;
-        }
-        return node;
-    }
 }

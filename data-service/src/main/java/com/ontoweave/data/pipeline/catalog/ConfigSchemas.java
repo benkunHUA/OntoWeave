@@ -18,6 +18,7 @@ import java.util.concurrent.ConcurrentMap;
 
 public final class ConfigSchemas {
 
+    private static final int CURRENT_SCHEMA_VERSION = 1;
     private static final JsonSchemaFactory FACTORY =
             JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
     private static final ConcurrentMap<String, JsonSchema> COMPILED = new ConcurrentHashMap<>();
@@ -30,19 +31,23 @@ public final class ConfigSchemas {
     }
 
     public static void validate(NodeDefinition definition, JsonNode config) {
-        validate(definition.type(), definition.configSchema(), config);
+        validate(definition.type(), definition.version(), definition.configSchema(), config);
     }
 
     public static void validate(String nodeType, JsonNode config) {
-        validate(nodeType, ConfigSchemaDefinitions.forType(nodeType), config);
+        if (!ConfigSchemaDefinitions.contains(nodeType)) {
+            throw unknownType(nodeType);
+        }
+        validate(nodeType, CURRENT_SCHEMA_VERSION, ConfigSchemaDefinitions.forType(nodeType), config);
     }
 
-    private static void validate(String nodeType, ObjectNode schemaNode, JsonNode config) {
+    private static void validate(String nodeType, int version, ObjectNode schemaNode, JsonNode config) {
         if (config == null || !config.isObject()) {
             throw invalid(nodeType, List.of(Map.of("path", "$", "message", "配置必须是 JSON 对象")));
         }
+        String cacheKey = nodeType + "@" + version + ":" + CanonicalJson.sha256(schemaNode);
         JsonSchema schema = COMPILED.computeIfAbsent(
-                nodeType,
+                cacheKey,
                 ignored -> FACTORY.getSchema(schemaNode)
         );
         Set<ValidationMessage> violations = schema.validate(config);
@@ -56,6 +61,15 @@ public final class ConfigSchemas {
                 ))
                 .toList();
         throw invalid(nodeType, errors);
+    }
+
+    private static ApiException unknownType(String nodeType) {
+        return new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "NODE_TYPE_UNKNOWN",
+                "未知的节点类型: " + nodeType,
+                Map.of("type", nodeType == null ? "" : nodeType)
+        );
     }
 
     private static ApiException invalid(String nodeType, List<Map<String, Object>> errors) {

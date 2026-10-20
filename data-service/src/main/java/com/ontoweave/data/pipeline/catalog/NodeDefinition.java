@@ -16,5 +16,17 @@ public record NodeDefinition(
 
     public NodeDefinition {
         ports = List.copyOf(ports);
+        configSchema = configSchema.deepCopy();
+        uiSchema = uiSchema.deepCopy();
+    }
+
+    @Override
+    public ObjectNode configSchema() {
+        return configSchema.deepCopy();
+    }
+
+    @Override
+    public ObjectNode uiSchema() {
+        return uiSchema.deepCopy();
     }
 }

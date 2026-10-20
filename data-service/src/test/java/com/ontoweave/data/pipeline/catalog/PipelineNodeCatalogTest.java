@@ -104,6 +104,8 @@ class PipelineNodeCatalogTest {
             assertThat(schema.path("additionalProperties").asBoolean()).as(node.type()).isFalse();
             assertThat(schema.path("required").isArray()).as(node.type()).isFalse();
             assertThat(schema.path("properties").isObject()).as(node.type()).isTrue();
+            assertThat(schema.path("$schema").asText()).as(node.type())
+                    .isEqualTo("https://json-schema.org/draft/2020-12/schema");
         }
         assertThat(catalog.require("union").configSchema().path("properties").isEmpty()).isTrue();
     }
@@ -125,6 +127,10 @@ class PipelineNodeCatalogTest {
         assertThat(enumValues(condition.path("properties").path("op"))).containsExactlyElementsOf(FILTER_OPS);
         assertThat(condition.path("properties").path("conditions").path("items").path("$ref").asText())
                 .isEqualTo("#/$defs/condition");
+        assertThat(condition.path("properties").path("value").path("$ref").asText())
+                .isEqualTo("#/$defs/operand");
+        assertThat(condition.path("properties").path("values").path("items").path("$ref").asText())
+                .isEqualTo("#/$defs/operand");
 
         assertProperties(catalog.require("select_columns"), "mode", "columns");
         assertEnum(catalog.require("select_columns"), "mode", "include", "exclude");
@@ -137,10 +143,10 @@ class PipelineNodeCatalogTest {
         assertString(catalog.require("derive_column"), "outputField");
         JsonNode expression = catalog.require("derive_column").configSchema()
                 .path("properties").path("expression");
-        assertThat(expression.path("type").asText()).isEqualTo("object");
-        assertThat(expression.path("additionalProperties").asBoolean()).isFalse();
-        assertThat(enumValues(expression.path("properties").path("kind")))
+        assertThat(expression.path("oneOf").isArray()).isTrue();
+        assertThat(expressionKinds(expression))
                 .containsExactlyElementsOf(EXPRESSION_KINDS);
+        assertThat(expression.toString()).doesNotContain("negated");
 
         assertProperties(catalog.require("deduplicate"), "mode", "columns");
         assertEnum(catalog.require("deduplicate"), "mode", "all", "subset");
@@ -247,6 +253,13 @@ class PipelineNodeCatalogTest {
         List<String> values = new ArrayList<>();
         schema.path("enum").forEach(value -> values.add(value.asText()));
         return values;
+    }
+
+    private static List<String> expressionKinds(JsonNode expression) {
+        List<String> kinds = new ArrayList<>();
+        expression.path("oneOf").forEach(variant ->
+                kinds.add(variant.path("properties").path("kind").path("enum").get(0).asText()));
+        return kinds;
     }
 
     private static void assertString(NodeDefinition node, String field) {
