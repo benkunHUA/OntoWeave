@@ -10,6 +10,8 @@ import java.util.UUID;
 
 public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> {
 
+    Optional<PipelineEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
+
     @Query(value = "SELECT * FROM data.pipeline WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<PipelineEntity> lockById(@Param("id") UUID id);
 }

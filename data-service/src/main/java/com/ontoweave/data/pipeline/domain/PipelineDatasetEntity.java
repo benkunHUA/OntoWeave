@@ -88,6 +88,18 @@ public class PipelineDatasetEntity {
         updatedAt = Instant.now();
     }
 
+    public void updateConfiguration(
+            String name,
+            PipelineDatasetWriteMode writeMode,
+            JsonNode primaryKeyColumns,
+            JsonNode expectations
+    ) {
+        this.name = name;
+        this.writeMode = writeMode;
+        this.primaryKeyColumns = primaryKeyColumns;
+        this.expectations = expectations;
+    }
+
     public UUID getId() {
         return id;
     }

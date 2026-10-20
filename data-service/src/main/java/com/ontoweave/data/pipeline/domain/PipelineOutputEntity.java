@@ -77,6 +77,10 @@ public class PipelineOutputEntity {
         updatedAt = Instant.now();
     }
 
+    public void rename(String name) {
+        this.name = name;
+    }
+
     public UUID getId() {
         return id;
     }

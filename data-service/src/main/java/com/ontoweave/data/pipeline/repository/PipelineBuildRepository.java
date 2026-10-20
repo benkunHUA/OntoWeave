@@ -1,14 +1,20 @@
 package com.ontoweave.data.pipeline.repository;
 
 import com.ontoweave.data.pipeline.domain.PipelineBuildEntity;
+import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface PipelineBuildRepository extends JpaRepository<PipelineBuildEntity, UUID> {
+
+    boolean existsByPipelineIdAndStatusIn(UUID pipelineId, List<PipelineBuildStatus> statuses);
+
+    Optional<PipelineBuildEntity> findTopByPipelineIdOrderByCreatedAtDesc(UUID pipelineId);
 
     @Query(value = """
             SELECT * FROM data.pipeline_build
