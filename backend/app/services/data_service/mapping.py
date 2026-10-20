@@ -22,6 +22,8 @@ def connection(row: dict) -> dict:
         "last_test_error": row.get("lastTestError"),
         "last_test_details": row.get("lastTestDetails"),
         "secret_configured": row.get("secretConfigured", False),
+        "last_sync_status": row.get("lastSyncStatus"),
+        "last_sync_at": row.get("lastSyncAt"),
         "created_at": row.get("createdAt"),
         "updated_at": row.get("updatedAt"),
     }
@@ -150,6 +152,8 @@ def dataset_version(row: dict) -> dict:
         "committed_at": row.get("committedAt"),
         "published_at": row.get("publishedAt"),
         "version_source": row.get("versionSource"),
+        "source_run_id": row.get("sourceRunId"),
+        "storage_path": row.get("storagePath"),
     }
 
 
@@ -163,6 +167,9 @@ def dataset(row: dict) -> dict:
         "current_version_id": row.get("currentVersionId"),
         "current_version": dataset_version(current) if isinstance(current, dict) else None,
         "versions": [dataset_version(item) for item in row.get("versions") or []],
+        "version_count": row.get("versionCount", len(row.get("versions") or [])),
+        "source_schema": row.get("sourceSchema"),
+        "source_table": row.get("sourceTable"),
         "created_at": row.get("createdAt"),
         "updated_at": row.get("updatedAt"),
     }
@@ -176,6 +183,7 @@ def dataset_preview(row: dict) -> dict:
         "snapshot_id": row.get("snapshotId"),
         "live": row.get("live", False),
         "columns": row.get("columns") or [],
+        "row_count": row.get("rowCount", 0),
         "rows": row.get("rows") or [],
         "truncated": row.get("truncated", False),
     }

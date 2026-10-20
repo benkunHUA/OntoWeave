@@ -8,6 +8,7 @@ interface DialogShellProps {
   iconTone?: DialogIconTone
   title: string
   subtitle: string
+  className?: string
   /** 右上角关闭按钮与遮罩层共用的收起动作。 */
   onClose: () => void
   /** 底部按钮区，由调用方决定按钮语义。 */
@@ -24,6 +25,7 @@ export function DialogShell({
   iconTone = 'default',
   title,
   subtitle,
+  className,
   onClose,
   footer,
   children,
@@ -33,7 +35,7 @@ export function DialogShell({
 
   return (
     <div className="dialog-backdrop" role="presentation">
-      <section className="view-dialog" role="dialog" aria-modal="true">
+      <section className={`view-dialog${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true">
         <header>
           <div>
             <span className={iconClassName}>{icon}</span>

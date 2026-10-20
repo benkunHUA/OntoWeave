@@ -1,0 +1,217 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ontoweave
+      POSTGRES_PASSWORD: ontoweave
+      POSTGRES_DB: ontoweave
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - ontoweave-db:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-schemas.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ontoweave -d ontoweave"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mysql:
+    image: mysql:8.0
+    command:
+      - --server-id=1
+      - --log-bin=mysql-bin
+      - --binlog-format=ROW
+      - --binlog-row-image=FULL
+      - --binlog-expire-logs-seconds=604800
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: demo
+      MYSQL_USER: ontoweave
+      MYSQL_PASSWORD: ontoweave
+    ports:
+      - "127.0.0.1:13306:3306"
+    volumes:
+      - ontoweave-mysql:/var/lib/mysql
+      - ./data-service/docker/mysql/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uontoweave -pontoweave --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ontoweave
+      RABBITMQ_DEFAULT_PASS: ontoweave
+    ports:
+      - "127.0.0.1:5673:5672"
+      - "127.0.0.1:15673:15672"
+    volumes:
+      - ontoweave-rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  flink-init:
+    image: ontoweave-data-service:local
+    build:
+      context: ./data-service
+    user: root
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mkdir -p /data/iceberg/warehouse /data/flink/checkpoints /data/flink/savepoints && chown -R flink:flink /data
+    volumes:
+      - ontoweave-iceberg-warehouse:/data/iceberg/warehouse
+      - ontoweave-flink-checkpoints:/data/flink/checkpoints
+      - ontoweave-flink-savepoints:/data/flink/savepoints
+    restart: "no"
+
+  flink-jobmanager:
+    image: ontoweave-data-service:local
+    build:
+      context: ./data-service
+    restart: unless-stopped
+    entrypoint: ["/docker-entrypoint.sh"]
+    command: jobmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        jobmanager.memory.process.size: 1024m
+        state.checkpoints.dir: file:///data/flink/checkpoints
+        state.savepoints.dir: file:///data/flink/savepoints
+    volumes:
+      - ontoweave-iceberg-warehouse:/data/iceberg/warehouse
+      - ontoweave-flink-checkpoints:/data/flink/checkpoints
+      - ontoweave-flink-savepoints:/data/flink/savepoints
+    ports:
+      - "127.0.0.1:18081:8081"
+    depends_on:
+      flink-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/overview >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  flink-taskmanager:
+    image: ontoweave-data-service:local
+    build:
+      context: ./data-service
+    restart: unless-stopped
+    entrypoint: ["/docker-entrypoint.sh"]
+    command: taskmanager
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.memory.process.size: 3072m
+        taskmanager.memory.jvm-metaspace.size: 512m
+        taskmanager.numberOfTaskSlots: 4
+        state.checkpoints.dir: file:///data/flink/checkpoints
+        state.savepoints.dir: file:///data/flink/savepoints
+    volumes:
+      - ontoweave-iceberg-warehouse:/data/iceberg/warehouse
+      - ontoweave-flink-checkpoints:/data/flink/checkpoints
+      - ontoweave-flink-savepoints:/data/flink/savepoints
+    depends_on:
+      flink-init:
+        condition: service_completed_successfully
+      flink-jobmanager:
+        condition: service_healthy
+
+  data-service:
+    image: ontoweave-data-service:local
+    build:
+      context: ./data-service
+    environment:
+      SERVER_PORT: 8081
+      DATA_DATABASE_URL: jdbc:postgresql://db:5432/ontoweave
+      DATA_DATABASE_USER: ontoweave
+      DATA_DATABASE_PASSWORD: ontoweave
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ontoweave
+      RABBITMQ_PASSWORD: ontoweave
+      ONTOWEAVE_INTERNAL_TOKEN: dev-internal-token
+      ONTOWEAVE_SECRET_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      ONTOWEAVE_SECRET_KEY_VERSION: 1
+      ONTOWEAVE_OUTBOX_ENABLED: "true"
+      FLINK_REST_URL: http://flink-jobmanager:8081
+      FLINK_HOME: /opt/flink
+      FLINK_CDC_HOME: /opt/flink-cdc
+      ICEBERG_WAREHOUSE: /data/iceberg/warehouse
+      FLINK_CHECKPOINT_DIR: file:///data/flink/checkpoints
+      FLINK_SAVEPOINT_DIR: file:///data/flink/savepoints
+      SYNC_CHECKPOINT_INTERVAL_SECONDS: "30"
+      SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS: "30"
+      SYNC_MAX_CONCURRENT_RUNS: "4"
+      SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION: "1"
+    volumes:
+      - ontoweave-iceberg-warehouse:/data/iceberg/warehouse
+      - ontoweave-flink-checkpoints:/data/flink/checkpoints
+      - ontoweave-flink-savepoints:/data/flink/savepoints
+    ports:
+      - "127.0.0.1:18001:8081"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      flink-jobmanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8081/actuator/health >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://ontoweave:ontoweave@db:5432/ontoweave?options=-csearch_path%3Dapp%2Cpublic
+      DATA_SERVICE_URL: http://data-service:8081
+      DATA_SERVICE_TOKEN: dev-internal-token
+      RABBITMQ_URL: amqp://ontoweave:ontoweave@rabbitmq:5672/%2F
+      DATA_EVENT_EXCHANGE: ontoweave.data.events
+      DATA_EVENT_QUEUE: ontoweave.python.data-events
+      EVENT_CONSUMER_ENABLED: "true"
+      DEFAULT_USER_ID: 00000000-0000-0000-0000-000000000001
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      data-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:18080:80"
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  ontoweave-db:
+  ontoweave-mysql:
+  ontoweave-rabbitmq:
+  ontoweave-iceberg-warehouse:
+  ontoweave-flink-checkpoints:
+  ontoweave-flink-savepoints:

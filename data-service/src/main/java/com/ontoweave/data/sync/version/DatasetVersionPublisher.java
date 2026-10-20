@@ -49,6 +49,9 @@ public class DatasetVersionPublisher {
         if (run == null) {
             return Optional.empty();
         }
+        if (!publishable(run)) {
+            return Optional.empty();
+        }
         DatasetEntity dataset = datasets.findForUpdate(run.getDatasetId()).orElseThrow();
         Optional<IcebergSnapshotInfo> snapshot = iceberg.latestSnapshot(
                 run.getIcebergCatalog(),
@@ -99,7 +102,9 @@ public class DatasetVersionPublisher {
                     info.schema(),
                     info.columnCount(),
                     info.committedAt(),
-                    source
+                    source,
+                    run.getId(),
+                    info.location()
             );
             version = versions.save(version);
             dataset.activateVersion(
@@ -116,6 +121,15 @@ public class DatasetVersionPublisher {
             iceberg.removeTag(run.getIcebergCatalog(), run.getIcebergNamespace(), run.getIcebergTable(), tag);
             throw exception;
         }
+    }
+
+    private boolean publishable(SyncRunEntity run) {
+        if (run.getRunMode() != SyncMode.CDC) {
+            return true;
+        }
+        return run.getSnapshotCompletedAt() != null
+                && run.getLastCheckpointAt() != null
+                && run.getLastCheckpointAt().isAfter(run.getSnapshotCompletedAt());
     }
 
     private void markPublished(SyncRunEntity run, long snapshotId) {

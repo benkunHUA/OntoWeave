@@ -40,6 +40,8 @@ public class SyncRunExecutor {
     private final FlinkCdcSubmitter submitter;
     private final FlinkRestClient flink;
     private final SyncRunEventWriter events;
+    private final SyncRunAdmissionService admission;
+    private final SyncRunCleanupService cleanup;
 
     public SyncRunExecutor(
             SyncRunRepository runs,
@@ -51,7 +53,9 @@ public class SyncRunExecutor {
             MysqlCdcPipelineBuilder pipelines,
             FlinkCdcSubmitter submitter,
             FlinkRestClient flink,
-            SyncRunEventWriter events
+            SyncRunEventWriter events,
+            SyncRunAdmissionService admission,
+            SyncRunCleanupService cleanup
     ) {
         this.runs = runs;
         this.tasks = tasks;
@@ -63,10 +67,12 @@ public class SyncRunExecutor {
         this.submitter = submitter;
         this.flink = flink;
         this.events = events;
+        this.admission = admission;
+        this.cleanup = cleanup;
     }
 
     public void execute(UUID runId) {
-        if (runs.claim(runId, SyncRunStatus.QUEUED, SyncRunStatus.PREPARING, java.time.Instant.now()) != 1) {
+        if (!admission.tryAdmit(runId)) {
             return;
         }
         SyncRunEntity run = runs.findById(runId).orElse(null);
@@ -173,6 +179,7 @@ public class SyncRunExecutor {
         }
         Optional<SyncTaskEntity> task = tasks.findById(run.getSyncTaskId());
         task.ifPresent(value -> events.write(run, value, "sync.run.failed", message));
+        cleanup.cleanupIfUnreferenced(run);
     }
 
     private void recordSubmitted(SyncRunEntity run, SyncTaskEntity task, String jobId) {

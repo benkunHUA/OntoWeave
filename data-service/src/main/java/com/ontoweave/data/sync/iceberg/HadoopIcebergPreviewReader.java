@@ -47,7 +47,14 @@ public class HadoopIcebergPreviewReader implements IcebergPreviewReader {
         if (schema == null) {
             schema = table.schema();
         }
-        List<String> columns = schema.columns().stream().map(Types.NestedField::name).toList();
+        List<PreviewColumn> columns = schema.columns().stream()
+                .map(field -> new PreviewColumn(
+                        field.name(),
+                        field.type().toString(),
+                        field.isOptional()
+                ))
+                .toList();
+        List<String> columnNames = columns.stream().map(PreviewColumn::name).toList();
         List<Map<String, Object>> rows = new ArrayList<>();
         boolean truncated = false;
         try (CloseableIterable<Record> records = IcebergGenerics.read(table)
@@ -59,7 +66,7 @@ public class HadoopIcebergPreviewReader implements IcebergPreviewReader {
                     truncated = true;
                     break;
                 }
-                rows.add(row(columns, record));
+                rows.add(row(columnNames, record));
             }
         }
         return new IcebergPreview(columns, rows, truncated);

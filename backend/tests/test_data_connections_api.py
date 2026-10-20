@@ -83,7 +83,11 @@ def test_dataset_preview_returns_rows_and_version(client, fake_data_service):
     body = response.json()
     assert body["dataset_id"] == str(fake_data_service.dataset_id)
     assert body["version_number"] == 1
-    assert body["columns"] == ["id", "name"]
+    assert body["columns"] == [
+        {"name": "id", "type": "long", "nullable": False},
+        {"name": "name", "type": "string", "nullable": True},
+    ]
+    assert body["row_count"] == 1
     assert body["rows"] == [{"id": 1, "name": "Ada"}]
     assert body["truncated"] is False
 

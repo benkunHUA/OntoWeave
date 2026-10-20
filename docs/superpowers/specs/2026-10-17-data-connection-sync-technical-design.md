@@ -397,7 +397,7 @@ stateDiagram-v2
 - 统一错误体：`{ "code": "...", "message": "...", "details": {...}, "traceId": "..." }`。
 - 连接测试失败属于业务结果，返回 HTTP 200，响应里给 `status=failed`、错误码和耗时；只有协议/服务错误才用 4xx/5xx。
 - 密码只放在 `secret` 字段，Java 收到后立即加密；日志和响应都不回显。
-- 新建连接顺序：Python 先建 `kind=data_connection` 的对话草稿（`resource_id` 为空），调 Java 创建连接成功后回填 `resource_id`；Java 失败则删除草稿。
+- 新建连接顺序：Python 先建 `kind=data_connection` 的对话草稿，调 Java 创建连接成功后回填 `resource_id`；Java 失败则删除草稿。当前 `conversation.resource_id` 为非空列，草稿阶段使用临时 UUID 占位，创建成功后原子替换为真实连接 ID，不参与资源查询。
 
 | 方法 | 路径 | 用途 |
 |---|---|---|
@@ -408,7 +408,7 @@ stateDiagram-v2
 | `GET` | `/data-connections/{id}/tables/{schema}/{table}` | 查看表字段 |
 | `POST` | `/data-connections/{id}/sync-tasks` | 保存选中的表及 `syncMode`，创建或复用任务，不执行 |
 | `POST` | `/data-connections/{id}/sync-runs` | 对选中的表触发同步；带 `operation_id`，返回运行列表 |
-| `POST` | `/sync-runs/{id}/stop` | 停止运行；CDC 运行优先 stop-with-savepoint，快照运行直接 cancel |
+| `POST` | `/sync-runs/{id}/stop` | 停止运行；接受可选 `X-Operation-Id`，CDC 运行优先 stop-with-savepoint，快照运行直接 cancel |
 | `GET` | `/data-connections/{id}/state` | 返回连接、任务、最近运行和数据集状态，供 Agent 上下文使用 |
 | `GET` | `/sync-runs/{id}` | 查询单次运行状态、Flink 作业状态、初始化快照是否完成，作为消息延迟时的兜底 |
 | `GET` | `/datasets/{id}` | 数据集详情和当前版本 |
@@ -417,8 +417,9 @@ stateDiagram-v2
 ### 6.2 RabbitMQ
 
 - 命令交换机 `ontoweave.data.commands`（direct），队列 `sync.execute`，Java worker 消费。
-- 事件交换机 `ontoweave.data.events`（topic），队列 `python.conversation-events`，Python 消费。
-- 路由键：`connection.tested`、`sync.run.queued`、`sync.run.submitted`、`sync.run.started`、`sync.run.snapshot_completed`、`sync.run.succeeded`、`sync.run.stopped`、`sync.run.failed`、`dataset.version.published`。
+- 事件交换机 `ontoweave.data.events`（topic），队列 `ontoweave.python.data-events`，Python 消费。
+- 路由键：`connection.updated`、`connection.tested`、`sync.tasks.saved`、`sync.run.queued`、`sync.run.submitted`、`sync.run.running`、`sync.run.snapshot_completed`、`sync.run.succeeded`、`sync.run.stopping`、`sync.run.stopped`、`sync.run.failed`、`dataset.version.published`。
+- `sync.run.running` 是设计早期 `sync.run.started` 的最终命名；`sync.run.stopping` 是停止命令的即时确认事件。
 - 消息至少投递一次；Java 用 Outbox 发布，Python 手动 ack，失败进死信队列。
 
 事件信封：
@@ -444,6 +445,7 @@ stateDiagram-v2
 }
 ```
 
+- 当前实现中 `operationId`、`connectionId`、`syncTaskId`、`runId`、`flinkJobId` 等业务字段位于 `payload` 内；信封固定提供 `schemaVersion`、`eventId`、`eventType`、`occurredAt`、`payload`。
 - `runId`、`flinkJobId` 在连接测试这类非运行事件里可以为空。
 - `payload` 只放脱敏字段，不放密码、Token、完整连接串。
 
@@ -726,10 +728,10 @@ flink-cdc.sh --flink-home /opt/flink \
 - `IcebergSnapshotTracker` 独立扫描运行中的 Iceberg 表，把最新已提交 snapshot 发布成交互层可见的“当前版本”；它不依赖 Flink 作业内存，并用数据库 advisory lock 保证同一数据集同一时刻只有一个发布者。
 - worker 消费 `sync.execute` 后做前置检查、分配 server id 和 Iceberg 表、生成 YAML、提交作业；成功拿回 Job ID 后进入 `submitted`。
 - `SyncRunSupervisor` 每 5 秒查一次 Flink REST `/jobs/{jobId}` 和 `/jobs/{jobId}/checkpoints`，把原始状态写入 `flink_job_state`，并更新 `last_checkpoint_at`；Iceberg snapshot 从 catalog 单独刷新。
-- 每 30 秒查一次 Flink 指标 `<database>.<table>.isSnapshotting` 和 `<database>.<table>.isStreamReading`。
-- `isSnapshotting` 从 1 变为 0 且 `isStreamReading=1` 时，记录 `snapshot_completed_at`，并发出 `sync.run.snapshot_completed` 事件。
+- 快照完成判断采用已接受的替代实现 `SnapshotCompletionDecider`：结合源表预估行数、最近 checkpoint 时间和 Iceberg 行数判断初始快照是否完成；完成后记录 `snapshot_completed_at`，并发出 `sync.run.snapshot_completed` 事件。
+- 该替代方案不依赖 Flink SQL connector 的 `isSnapshotting` / `isStreamReading` 指标，避免指标名随 connector 版本变化；代价是完成判定存在一个巡检周期（默认 5 秒）的延迟。
 - `snapshot_completed_at` 只表示源端快照读完；Iceberg 的数据要靠 checkpoint 提交，因此当前版本发布必须等到 `last_checkpoint_at > snapshot_completed_at`，避免把快照阶段中途提交的不完整 snapshot 暴露出去。
-- 如果指标不可用，降级为“只在运行结束或停止时发布当前版本”，不在运行中发布，避免把未完成初始化的快照暴露给用户。
+- 发布器本身也执行同一门槛：CDC 运行缺少 `snapshot_completed_at` 或之后没有完成 checkpoint 时，任何来源（包括 `snapshot_end` 和 `stop`）都不发布版本。
 
 | Flink 状态 | `SyncRun` 状态 | 处理 |
 |---|---|---|
@@ -767,8 +769,9 @@ sequenceDiagram
     MQ->>PY: 写入对话事件
 ```
 
-- 同一任务最多一个活跃运行；同一连接默认只跑一个运行；Java 全局并发默认 4。队列和并发用数据库锁控制，不靠进程内计数器。
-- 停止接口 `POST /sync-runs/{id}/stop`：CDC 运行调用 Flink stop-with-savepoint（失败则退回 cancel），记录 `savepoint_path`，完成后进入 `stopped`；快照运行直接 cancel。
+- 同一任务最多一个活跃运行：由 `V4__sync_run_active_guard.sql` 的部分唯一索引兜底；同一连接默认只跑一个运行、Java 全局并发默认 4，由 `SyncRunAdmissionService` 的 PostgreSQL advisory transaction lock 与数据库计数控制，不靠进程内计数器。
+- 提交 Flink 前先读取 `/overview` 的可用 task slots；容量不足时运行保持 `queued`，释放 dispatch claim，等待后续巡检再次尝试。
+- 停止接口 `POST /sync-runs/{id}/stop`：点击时立即标记 `stopping` 并写入独立 `stop_operation_id`，随后立即调用 Flink stop-with-savepoint（失败则退回 cancel）；Supervisor 只做终态确认、超时兜底和 `savepoint_path` 回填，完成后进入 `stopped`。快照运行直接 cancel。
 - 第一版不提供“从 savepoint 恢复”的前端入口；savepoint 只记录，供后续恢复和排障。重新同步会创建新运行、新表，重新做初始快照。
 - 失败不自动重新提交；用户手动触发新运行，生成新的 `operation_id` 和新的 `SyncRun`。
 
@@ -910,11 +913,11 @@ sequenceDiagram
 | `GET` | `/conversations/{id}/events?after_event_id=&limit=100` | 事件历史和增量拉取 |
 | `GET` | `/conversations/{id}/events/stream?after_event_id=` | SSE 推送新事件卡片 |
 
-> 实施说明（2026-10-19）：Java 已提供 `/datasets/{id}/preview`，默认读取当前版本，
-> 可选 `version_id` 或 `live=true`，`limit` 范围为 1–500；Python 透传为
-> `GET /api/v1/datasets/{id}/preview`。版本分页与单版本接口仍未提供，数据集详情继续返回
-> 当前版本和全部版本。同步任务替换语义已实现：未选中的旧任务置为 `disabled`，重新选中恢复
-> `enabled`。
+> 实施说明（2026-10-20）：Java 与 Python 均已提供数据集版本分页和单版本接口；分页使用真实
+> `LIMIT/OFFSET`，任意 offset 都能得到正确切片。数据集详情增加 `version_count`、
+> `source_schema`、`source_table`，版本增加 `source_run_id`、`storage_path`；预览返回
+> `row_count`，`columns` 为 `{name, type, nullable}` 结构。同步任务替换语义保持：
+> 未选中的旧任务置为 `disabled`，重新选中恢复 `enabled`。
 
 `POST /conversations/{id}/messages` 和 `/resume` 沿用现有 Agent SSE，不改协议。
 
@@ -1413,7 +1416,7 @@ frontend/src/features/data-connection/
 
 尚未完成：
 
-- 数据集版本分页与单版本详情接口尚未提供；数据集详情仍返回全部版本。
+- 数据集版本分页与单版本详情接口当时尚未提供；数据集详情仍返回全部版本。（2026-10-20 已补齐，见 §12.4）
 - Java 集成测试依赖 Testcontainers；本次环境拉取 `testcontainers/ryuk` 超时，未能跑完，单元测试与真实 compose 冒烟已覆盖主路径。
 - 前端尚未接入浏览器自动化测试。
 
@@ -1430,6 +1433,25 @@ frontend/src/features/data-connection/
 - Python `446 passed`，ruff、format、mypy 通过；前端 81 个测试、tsc、lint、build 通过。
 - Java `SyncRunSupervisorTest`、`DatasetPreviewServiceTest` 通过。
 - 真实 CDC 冒烟：2 行初始快照约 46 秒发布 v1；插入第 3 行后约 24 秒可在 `live=true` 预览看到，正式版本仍为 v1。
+
+### 12.4 设计落实缺陷修复（2026-10-20）
+
+依据 [P1 设计落实检查](../../checks/2026-10-20-p1-data-ingestion-check.md)，按 H1 → H2 → H3 → M1 → M6 → L1 → L4 的顺序完成修复，并执行复检，详见
+[2026-10-20 复检报告](../../checks/2026-10-20-p1-data-ingestion-recheck.md)。
+
+- 版本发布：`DatasetVersionPublisher` 对 CDC 统一要求 `snapshot_completed_at != null` 且 `last_checkpoint_at > snapshot_completed_at`，覆盖 `snapshot_end`、`scheduled`、`stop` 三种来源；新增迁移 `V5__sync_run_savepoint_request.sql`、`V6__dataset_version_provenance.sql`。
+- 并发控制：`V4__sync_run_active_guard.sql` 为同一任务活跃运行加部分唯一索引；`SyncRunAdmissionService` 使用 advisory lock、连接行锁、全局/连接级上限和 Flink slot 预检，超限运行保持 `queued`。
+- 清理：`SyncRunCleanupService` 在失败/停止终态检查 `dataset_version` 引用，未被引用的运行表才 `dropTable()`，清理失败只记日志。
+- 快照事件：Supervisor 在判定初始快照完成时发布 `sync.run.snapshot_completed`；实现方案已在 §9.6 回填。
+- 停止归组：`V7__sync_run_stop_operation.sql` 增加 `stop_operation_id`，`stopping`、`stopped` 和停止过程中的 `failed` 使用同一个操作 ID。
+- 数据契约：补齐版本分页/单版本接口、来源字段和结构化预览列；版本分页改为真实 `LIMIT/OFFSET`。
+- 前端与部署：失败详情可折叠、预览最多 100 行并可放大；根目录 `docker-compose.yml` 统一 MySQL、PostgreSQL `app/data` schema、RabbitMQ、Flink、Java、Python 和前端。
+- 草稿回滚：创建连接失败时删除 Python 侧草稿会话，成功后写入 `connection.draft.created` 事件。
+- 运行态启动修复：`DataConnectionRepository.findByIdAndOwnerIdForUpdate` 改为显式 JPQL，避免 Spring Data 把 `ForUpdate` 解析成属性；`SyncProperties` 移除多余构造器，恢复 record 配置绑定。
+
+复检结果：Python `447 passed`，ruff、format、mypy 通过；前端 tsc、lint、82 tests、build 通过；Java 50 个单测中 47 通过，3 个 `HadoopIcebergPreviewReaderTest` 仍因本机 JDK 26 的 `Subject.getSubject` 限制报错，属于环境兼容问题。
+
+运行态结果（2026-10-20）：当前 Docker 数据服务已应用 V4-V7；清理 3 个无效历史版本和 14 张孤儿 Iceberg 表；snapshot 冒烟成功发布新版本；CDC 启动后停止成功，`stop_operation_id`、`savepoint_path`、停止事件归组和未发布运行表清理均验证通过。
 
 ## 13. 后续议题
 

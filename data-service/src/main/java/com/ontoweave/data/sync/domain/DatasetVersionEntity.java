@@ -62,6 +62,12 @@ public class DatasetVersionEntity {
     @Column(name = "version_source", nullable = false)
     private VersionSource versionSource;
 
+    @Column(name = "source_run_id")
+    private UUID sourceRunId;
+
+    @Column(name = "storage_path")
+    private String storagePath;
+
     protected DatasetVersionEntity() {
     }
 
@@ -79,7 +85,9 @@ public class DatasetVersionEntity {
             JsonNode schemaJson,
             int columnCount,
             Instant committedAt,
-            VersionSource source
+            VersionSource source,
+            UUID sourceRunId,
+            String storagePath
     ) {
         this.id = id;
         this.datasetId = datasetId;
@@ -95,6 +103,8 @@ public class DatasetVersionEntity {
         this.columnCount = columnCount;
         this.committedAt = committedAt;
         this.versionSource = source;
+        this.sourceRunId = sourceRunId;
+        this.storagePath = storagePath;
     }
 
     @PrePersist
@@ -162,5 +172,13 @@ public class DatasetVersionEntity {
 
     public VersionSource getVersionSource() {
         return versionSource;
+    }
+
+    public UUID getSourceRunId() {
+        return sourceRunId;
+    }
+
+    public String getStoragePath() {
+        return storagePath;
     }
 }

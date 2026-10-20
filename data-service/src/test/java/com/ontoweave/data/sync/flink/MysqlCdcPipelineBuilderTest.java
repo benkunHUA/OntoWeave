@@ -17,7 +17,7 @@ class MysqlCdcPipelineBuilderTest {
 
     private final SyncProperties properties = new SyncProperties(
             null, null, null, null, "/data/iceberg/warehouse", null, null,
-            2, 100, null, null, false, false, 5, 86400, 300, 30
+            2, 100, null, null, false, false, 5, 86400, 300, 30, 4, 1
     );
     private final MysqlCdcPipelineBuilder builder = new MysqlCdcPipelineBuilder(properties);
     private final MysqlConfig config = new MysqlConfig("mysql", 3306, "demo", "reader", false);

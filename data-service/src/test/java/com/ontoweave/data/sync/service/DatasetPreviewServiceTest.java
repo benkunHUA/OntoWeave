@@ -9,6 +9,7 @@ import com.ontoweave.data.sync.iceberg.IcebergCatalogClient;
 import com.ontoweave.data.sync.iceberg.IcebergPreview;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
 import com.ontoweave.data.sync.iceberg.IcebergSnapshotInfo;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import com.ontoweave.data.sync.repository.SyncRunRepository;
 import org.junit.jupiter.api.Test;
@@ -123,6 +124,10 @@ class DatasetPreviewServiceTest {
     }
 
     private IcebergPreview preview() {
-        return new IcebergPreview(List.of("id"), List.of(Map.of("id", 1L)), false);
+        return new IcebergPreview(
+                List.of(new PreviewColumn("id", "long", false)),
+                List.of(Map.of("id", 1L)),
+                false
+        );
     }
 }

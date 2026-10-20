@@ -20,7 +20,9 @@ public record SyncProperties(
         int maxDispatchAttempts,
         int defaultVersionIntervalSeconds,
         int checkpointIntervalSeconds,
-        int stopSavepointTimeoutSeconds
+        int stopSavepointTimeoutSeconds,
+        int maxConcurrentRuns,
+        int maxConcurrentRunsPerConnection
 ) {
     public SyncProperties {
         flinkRestUrl = value(flinkRestUrl, "http://localhost:8081");
@@ -39,6 +41,9 @@ public record SyncProperties(
                 ? defaultVersionIntervalSeconds : 86400;
         checkpointIntervalSeconds = checkpointIntervalSeconds > 0 ? checkpointIntervalSeconds : 300;
         stopSavepointTimeoutSeconds = stopSavepointTimeoutSeconds > 0 ? stopSavepointTimeoutSeconds : 30;
+        maxConcurrentRuns = maxConcurrentRuns > 0 ? maxConcurrentRuns : 4;
+        maxConcurrentRunsPerConnection = maxConcurrentRunsPerConnection > 0
+                ? maxConcurrentRunsPerConnection : 1;
     }
 
     private static String value(String value, String fallback) {

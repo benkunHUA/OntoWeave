@@ -46,9 +46,25 @@ def create_connection(
         body["config"] = payload.config
     if payload.secret is not None:
         body["secret"] = payload.secret
-    created = client.create_connection(owner_id=owner_id, payload=body)
+    try:
+        created = client.create_connection(owner_id=owner_id, payload=body)
+    except Exception:
+        conversation.delete_conversation(session, conv.id, owner_id=owner_id)
+        raise
     conv.resource_id = uuid.UUID(str(created["id"]))
     session.flush()
+    conversation_event.append_event(
+        session,
+        conversation_id=conv.id,
+        event_id=uuid.uuid4(),
+        event_type="connection.draft.created",
+        summary="数据连接草稿已创建",
+        payload={
+            "connectionId": created["id"],
+            "conversationId": str(conv.id),
+            "summary": "数据连接草稿已创建",
+        },
+    )
     return mapping.connection(created)
 
 
@@ -210,8 +226,16 @@ def get_sync_run(client: DataServiceClient, *, owner_id: uuid.UUID, run_id: uuid
     return mapping.sync_run(client.get_sync_run(run_id, owner_id=owner_id))
 
 
-def stop_sync_run(client: DataServiceClient, *, owner_id: uuid.UUID, run_id: uuid.UUID) -> dict:
-    return mapping.sync_run(client.stop_sync_run(run_id, owner_id=owner_id))
+def stop_sync_run(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    run_id: uuid.UUID,
+    operation_id: uuid.UUID | None = None,
+) -> dict:
+    return mapping.sync_run(
+        client.stop_sync_run(run_id, owner_id=owner_id, operation_id=operation_id)
+    )
 
 
 def recent_runs(
@@ -238,6 +262,36 @@ def list_datasets(
 
 def get_dataset(client: DataServiceClient, *, owner_id: uuid.UUID, dataset_id: uuid.UUID) -> dict:
     return mapping.dataset(client.get_dataset(dataset_id, owner_id=owner_id))
+
+
+def get_dataset_versions(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    dataset_id: uuid.UUID,
+    limit: int,
+    offset: int,
+) -> dict:
+    row = client.get_dataset_versions(dataset_id, owner_id=owner_id, limit=limit, offset=offset)
+    return {
+        "dataset_id": row.get("datasetId"),
+        "total": row.get("total", 0),
+        "limit": row.get("limit", limit),
+        "offset": row.get("offset", offset),
+        "versions": [mapping.dataset_version(item) for item in row.get("versions") or []],
+    }
+
+
+def get_dataset_version(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    dataset_id: uuid.UUID,
+    version_id: uuid.UUID,
+) -> dict:
+    return mapping.dataset_version(
+        client.get_dataset_version(dataset_id, version_id, owner_id=owner_id)
+    )
 
 
 def get_dataset_preview(

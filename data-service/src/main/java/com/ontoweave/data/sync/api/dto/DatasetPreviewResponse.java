@@ -10,7 +10,8 @@ public record DatasetPreviewResponse(
         Integer versionNumber,
         long snapshotId,
         boolean live,
-        List<String> columns,
+        List<PreviewColumnResponse> columns,
+        long rowCount,
         List<Map<String, Object>> rows,
         boolean truncated
 ) {

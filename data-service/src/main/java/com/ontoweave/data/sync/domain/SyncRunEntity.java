@@ -80,8 +80,14 @@ public class SyncRunEntity {
     @Column(name = "savepoint_path")
     private String savepointPath;
 
+    @Column(name = "savepoint_request_id")
+    private String savepointRequestId;
+
     @Column(name = "stop_requested_at")
     private Instant stopRequestedAt;
+
+    @Column(name = "stop_operation_id")
+    private UUID stopOperationId;
 
     @Column(name = "error_code")
     private String errorCode;
@@ -192,13 +198,22 @@ public class SyncRunEntity {
     }
 
     public void markStopping() {
+        markStopping(null);
+    }
+
+    public void markStopping(UUID stopOperationId) {
         if (!status.terminal()) {
             this.status = SyncRunStatus.STOPPING;
+            this.stopOperationId = stopOperationId;
         }
     }
 
     public void markStopRequested(Instant requestedAt) {
         this.stopRequestedAt = requestedAt;
+    }
+
+    public void recordSavepointRequest(String requestId) {
+        this.savepointRequestId = requestId;
     }
 
     public void markSucceeded() {
@@ -316,8 +331,16 @@ public class SyncRunEntity {
         return savepointPath;
     }
 
+    public String getSavepointRequestId() {
+        return savepointRequestId;
+    }
+
     public Instant getStopRequestedAt() {
         return stopRequestedAt;
+    }
+
+    public UUID getStopOperationId() {
+        return stopOperationId;
     }
 
     public String getErrorCode() {

@@ -20,6 +20,23 @@
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
 }
 
+.view-dialog--wide {
+  width: min(1100px, 100%);
+}
+
+.dataset-preview-dialog {
+  display: grid;
+  gap: 10px;
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.dataset-preview-dialog__summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .view-dialog header {
   display: flex;
   align-items: flex-start;

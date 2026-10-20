@@ -19,6 +19,8 @@ public record DatasetVersionResponse(
         int columnCount,
         Instant committedAt,
         Instant publishedAt,
-        String versionSource
+        String versionSource,
+        UUID sourceRunId,
+        String storagePath
 ) {
 }

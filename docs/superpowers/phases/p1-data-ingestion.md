@@ -1,6 +1,6 @@
 # P1 数据进来
 
-- 状态：✅ 已完成（2026-10-19）
+- 状态：✅ 已完成（2026-10-20 复检通过）
 - 基线提交：`7c8e240`
 - 目标：把外部系统的数据稳定接进来，生成不可变的数据集版本，并能通过对话事件看到完整操作过程。
 - 完成标准：连接可测试；选表可同步；snapshot / CDC 可运行和停止；成功生成版本，失败不改变当前版本；前端三栏工作台可用。
@@ -16,6 +16,7 @@
 | 前端三栏工作台 | ✅ 已完成 | 连接列表 / 对话时间线 / 上下文面板；数据集详情与预览 |
 | 停止流程与失败诊断 | ✅ 已完成 | 点击立即停止、Supervisor 确认兜底、Flink 失败详情、可折叠错误、防重复运行 |
 | Demo 测试数据与端到端冒烟 | ✅ 已完成 | `data-service/scripts/seed-demo-data.sh`；snapshot / CDC / 实时预览验收 |
+| 设计落实复检与缺陷收尾 | ✅ 已完成 | H1-H3、M1-M6、L1-L4 修复；V4-V7 已应用；历史无效版本和孤儿表已清理；[复检报告](../../checks/2026-10-20-p1-data-ingestion-recheck.md) |
 
 ## 已确认约束
 
@@ -25,7 +26,9 @@
 - 每次同步启动写新 Iceberg 表；版本引用不可变 snapshot，不覆盖历史版本。
 - 失败运行只记录运行结果，不生成版本，不改变当前版本。
 - 停止采用「点击立即请求 Flink，Supervisor 负责确认与兜底」。
-- CDC 初始快照完成后立即发布 `snapshot_end` 版本；后续按版本间隔发布 `scheduled` 版本。
+- CDC 初始快照完成后，等待 `snapshot_completed_at` 之后的第一个 checkpoint 再发布 `snapshot_end` 版本；后续按版本间隔发布 `scheduled` 版本。
+- 同一任务最多一个活跃运行，同一连接默认 1 个、全局默认 4 个；提交 Flink 前校验可用 slot，容量不足保持 `queued`。
+- 停止操作使用独立 `operation_id`，`stopping` 与 `stopped` 归入同一张操作卡片。
 - 实时预览读取最新未发布 snapshot，不生成版本，不作为对象实例输入。
 
 ## 沟通记录
@@ -46,6 +49,7 @@
 | 2026-10-18 | Python API、事件与 Agent | [实施计划](../plans/2026-10-18-python-data-connection-api-plan.md) |
 | 2026-10-19 | 停止流程、重复运行防护、失败诊断 | [技术设计 §12.2、§14](../specs/2026-10-17-data-connection-sync-technical-design.md#122-前端与契约补齐2026-10-18) |
 | 2026-10-19 | 初始快照发布与实时预览 | [技术设计 §12.3](../specs/2026-10-17-data-connection-sync-technical-design.md#123-初始快照发布与实时预览2026-10-19) |
+| 2026-10-20 | 设计落实检查与缺陷修复 | [技术设计 §12.4](../specs/2026-10-17-data-connection-sync-technical-design.md#124-设计落实缺陷修复2026-10-20) / [复检报告](../../checks/2026-10-20-p1-data-ingestion-recheck.md) |
 
 ## 文档索引
 
@@ -58,9 +62,9 @@
 
 - 只支持 MySQL；PostgreSQL、Hive、MongoDB、Kafka 后续按连接器扩展。
 - CDC 版本的 `rowCount` 是 Iceberg 物理记录估算值，不等同于源表精确行数。
-- 旧 Iceberg 表、孤儿文件和失败运行临时表尚未清理。
+- 修复后的失败/停止运行会清理未被版本引用的 Iceberg 表；历史孤儿表仍需单独清理。
 - 不支持从 savepoint 恢复；重新同步会创建新运行和新表。
-- 数据集版本分页与单版本详情接口尚未提供。
+- 数据集版本分页和单版本详情接口已提供；数据集详情仍保留全量版本字段以兼容前端。
 - Java 全量集成测试受 Testcontainers Ryuk 和 JDK 26 环境问题影响；单元测试与真实 compose 冒烟已覆盖主路径。
 - 前端尚未接入浏览器自动化测试。
 

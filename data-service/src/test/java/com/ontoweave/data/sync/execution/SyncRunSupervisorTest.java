@@ -6,6 +6,7 @@ import com.ontoweave.data.sync.domain.DatasetVersionEntity;
 import com.ontoweave.data.sync.domain.SyncMode;
 import com.ontoweave.data.sync.domain.SyncRunEntity;
 import com.ontoweave.data.sync.domain.SyncRunStatus;
+import com.ontoweave.data.sync.domain.SyncTaskEntity;
 import com.ontoweave.data.sync.domain.VersionSource;
 import com.ontoweave.data.sync.flink.FlinkCheckpointInfo;
 import com.ontoweave.data.sync.flink.FlinkJobInfo;
@@ -57,6 +58,9 @@ class SyncRunSupervisorTest {
     @Mock
     SyncRunStopInitiator stopInitiator;
 
+    @Mock
+    SyncRunCleanupService cleanup;
+
     @Test
     void publishesInitialSnapshotVersionImmediately() {
         SyncRunEntity run = initialRun();
@@ -80,11 +84,14 @@ class SyncRunSupervisorTest {
         when(runs.markRunning(any(), eq(SyncRunStatus.SUBMITTED), eq(SyncRunStatus.RUNNING), any(), any()))
                 .thenReturn(1);
         when(runs.recordProgress(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+        SyncTaskEntity task = task(run);
+        when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
 
         supervisor().reconcile();
 
         verify(runs, never()).save(any());
         verify(publisher).publish(run.getId(), VersionSource.SNAPSHOT_END);
+        verify(events).write(run, task, "sync.run.snapshot_completed", "初始化快照已完成");
         assertThat(run.getSnapshotCompletedAt()).isNotNull();
     }
 
@@ -185,7 +192,11 @@ class SyncRunSupervisorTest {
     @Test
     void finishesStoppingRunWhenFlinkJobWasCanceled() {
         SyncRunEntity run = initialRun();
-        run.markStopping();
+        UUID stopOperationId = UUID.randomUUID();
+        run.recordSavepointRequest("request-1");
+        run.markStopping(stopOperationId);
+        SyncTaskEntity task = task(run);
+        when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
         when(runs.findTop50ByStatusInOrderByCreatedAtAsc(any())).thenReturn(List.of(run));
         when(flink.job(run.getFlinkJobId())).thenReturn(Optional.of(new FlinkJobInfo(
                 run.getFlinkJobId(), run.getFlinkJobName(), "CANCELED")));
@@ -193,10 +204,14 @@ class SyncRunSupervisorTest {
                 eq(run.getId()), eq(SyncRunStatus.STOPPING), eq(SyncRunStatus.STOPPED),
                 eq(run.getFlinkJobId()), any(), any(), any(), any(), any()
         )).thenReturn(1);
+        when(flink.completedSavepoint(run.getFlinkJobId(), "request-1"))
+                .thenReturn(Optional.of("file:///tmp/savepoints/run-1"));
 
         supervisor().reconcile();
 
         assertThat(run.getStatus()).isEqualTo(SyncRunStatus.STOPPED);
+        assertThat(run.getSavepointPath()).isEqualTo("file:///tmp/savepoints/run-1");
+        verify(events).write(run, task, "sync.run.stopped", "同步已停止", stopOperationId);
         verify(stopInitiator, never()).initiate(any());
     }
 
@@ -234,9 +249,13 @@ class SyncRunSupervisorTest {
                 5,
                 86400,
                 30,
-                30
+                30,
+                4,
+                1
         );
-        return new SyncRunSupervisor(properties, runs, flink, iceberg, publisher, tasks, events, stopInitiator);
+        return new SyncRunSupervisor(
+                properties, runs, flink, iceberg, publisher, tasks, events, stopInitiator, cleanup
+        );
     }
 
     private SyncRunEntity dueRun() {
@@ -276,5 +295,18 @@ class SyncRunSupervisorTest {
         run.markSubmitted("job-id");
         run.recordSnapshotBaseline(10);
         return run;
+    }
+
+    private SyncTaskEntity task(SyncRunEntity run) {
+        return new SyncTaskEntity(
+                run.getSyncTaskId(),
+                UUID.randomUUID(),
+                run.getDatasetId(),
+                "demo",
+                "orders",
+                SyncMode.CDC,
+                86400,
+                JsonNodeFactory.instance.arrayNode()
+        );
     }
 }

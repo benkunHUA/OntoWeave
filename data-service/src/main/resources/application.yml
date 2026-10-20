@@ -66,3 +66,5 @@ ontoweave:
     default-version-interval-seconds: ${SYNC_DEFAULT_VERSION_INTERVAL_SECONDS:86400}
     checkpoint-interval-seconds: ${SYNC_CHECKPOINT_INTERVAL_SECONDS:300}
     stop-savepoint-timeout-seconds: ${SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS:30}
+    max-concurrent-runs: ${SYNC_MAX_CONCURRENT_RUNS:4}
+    max-concurrent-runs-per-connection: ${SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION:1}

@@ -16,6 +16,8 @@ import com.ontoweave.data.connection.repository.DataConnectionSecretRepository;
 import com.ontoweave.data.outbox.OutboxWriter;
 import com.ontoweave.data.security.EncryptedSecret;
 import com.ontoweave.data.security.SecretCipher;
+import com.ontoweave.data.sync.repository.ConnectionRunSummary;
+import com.ontoweave.data.sync.repository.SyncRunRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -37,6 +39,7 @@ public class DataConnectionService {
     private final SecretCipher secretCipher;
     private final ObjectMapper objectMapper;
     private final OutboxWriter outbox;
+    private final SyncRunRepository syncRuns;
 
     public DataConnectionService(
             DataConnectionRepository connections,
@@ -44,7 +47,8 @@ public class DataConnectionService {
             ConnectionMaterialValidator validator,
             SecretCipher secretCipher,
             ObjectMapper objectMapper,
-            OutboxWriter outbox
+            OutboxWriter outbox,
+            SyncRunRepository syncRuns
     ) {
         this.connections = connections;
         this.secrets = secrets;
@@ -52,6 +56,7 @@ public class DataConnectionService {
         this.secretCipher = secretCipher;
         this.objectMapper = objectMapper;
         this.outbox = outbox;
+        this.syncRuns = syncRuns;
     }
 
     @Transactional
@@ -101,7 +106,14 @@ public class DataConnectionService {
                 ownerId,
                 PageRequest.of(offset / limit, limit)
         );
-        List<DataConnectionResponse> items = page.getContent().stream().map(this::response).toList();
+        List<UUID> ids = page.getContent().stream().map(DataConnectionEntity::getId).toList();
+        Map<UUID, ConnectionRunSummary> summaries = ids.isEmpty()
+                ? Map.of()
+                : syncRuns.findLatestRunByConnectionIds(ids).stream()
+                        .collect(java.util.stream.Collectors.toMap(ConnectionRunSummary::connectionId, value -> value));
+        List<DataConnectionResponse> items = page.getContent().stream()
+                .map(connection -> response(connection, summaries.get(connection.getId())))
+                .toList();
         return new DataConnectionPageResponse(items, page.getTotalElements(), limit, offset);
     }
 
@@ -174,12 +186,24 @@ public class DataConnectionService {
         return connections.findByIdAndOwnerId(id, ownerId).orElseThrow(() -> notFound(id));
     }
 
+    public DataConnectionEntity requiredForUpdate(UUID id, UUID ownerId) {
+        Objects.requireNonNull(ownerId, "ownerId");
+        return connections.findByIdAndOwnerIdForUpdate(id, ownerId).orElseThrow(() -> notFound(id));
+    }
+
     @Transactional(readOnly = true)
     public DataConnectionEntity load(UUID id) {
         return connections.findById(id).orElseThrow(() -> notFound(id));
     }
 
     public DataConnectionResponse response(DataConnectionEntity connection) {
+        return response(connection, null);
+    }
+
+    private DataConnectionResponse response(
+            DataConnectionEntity connection,
+            ConnectionRunSummary lastRun
+    ) {
         return new DataConnectionResponse(
                 connection.getId(),
                 connection.getOwnerId(),
@@ -194,6 +218,8 @@ public class DataConnectionService {
                 connection.getLastTestError(),
                 connection.getLastTestDetails(),
                 secrets.existsById(connection.getId()),
+                lastRun == null ? null : lastRun.status().value(),
+                lastRun == null ? null : lastRun.at(),
                 connection.getCreatedAt(),
                 connection.getUpdatedAt()
         );

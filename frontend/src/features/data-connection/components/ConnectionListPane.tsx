@@ -1,11 +1,10 @@
 import { ChevronRight, Database, House, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { DataConnection, DataConnectionState } from '../../../shared/types'
+import type { DataConnection } from '../../../shared/types'
 import { CONNECTION_STATUS_LABELS, RUN_STATUS_LABELS, TEST_STATUS_LABELS } from '../lib/labels'
 
 interface ConnectionListPaneProps {
   connections: DataConnection[]
-  selectedState: DataConnectionState | null
   activeId: string | null
   isCreating: boolean
   onSelect: (connection: DataConnection) => void
@@ -15,7 +14,6 @@ interface ConnectionListPaneProps {
 
 export function ConnectionListPane({
   connections,
-  selectedState,
   activeId,
   isCreating,
   onSelect,
@@ -64,7 +62,6 @@ export function ConnectionListPane({
       <nav className="connection-list" aria-label="数据连接列表">
         {filtered.map((connection) => {
           const isActive = connection.id === activeId
-          const latestRun = isActive ? selectedState?.recent_runs[0] : undefined
           return (
             <button
               type="button"
@@ -79,7 +76,9 @@ export function ConnectionListPane({
                   {connection.kind.toUpperCase()} · {TEST_STATUS_LABELS[connection.last_test_status]}
                 </span>
                 <span className="connection-list__meta">
-                  最近同步：{latestRun ? RUN_STATUS_LABELS[latestRun.status] : '暂无'}
+                  最近同步：{connection.last_sync_status
+                    ? RUN_STATUS_LABELS[connection.last_sync_status]
+                    : '暂无'}
                 </span>
               </span>
               <span className={`connection-list__badge is-${connection.status}`}>

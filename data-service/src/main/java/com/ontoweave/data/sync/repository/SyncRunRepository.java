@@ -34,12 +34,47 @@ public interface SyncRunRepository extends JpaRepository<SyncRunEntity, UUID> {
             """)
     List<SyncRunEntity> findRecentByConnectionId(@Param("connectionId") UUID connectionId);
 
+    @Query("""
+            select new com.ontoweave.data.sync.repository.ConnectionRunSummary(
+                t.connectionId,
+                r.status,
+                coalesce(r.finishedAt, r.createdAt)
+            )
+            from SyncRunEntity r, SyncTaskEntity t
+            where r.syncTaskId = t.id
+              and t.connectionId in :connectionIds
+              and r.createdAt = (
+                  select max(r2.createdAt)
+                  from SyncRunEntity r2, SyncTaskEntity t2
+                  where r2.syncTaskId = t2.id and t2.connectionId = t.connectionId
+              )
+            """)
+    List<ConnectionRunSummary> findLatestRunByConnectionIds(
+            @Param("connectionIds") Collection<UUID> connectionIds
+    );
+
     List<SyncRunEntity> findTop50ByStatusInOrderByCreatedAtAsc(Collection<SyncRunStatus> statuses);
 
     List<SyncRunEntity> findTop20ByStatusAndDispatchedAtIsNullAndDispatchAttemptsLessThanOrderByCreatedAtAsc(
             SyncRunStatus status,
             int maxAttempts
     );
+
+    long countByStatusIn(Collection<SyncRunStatus> statuses);
+
+    @Query("""
+            select count(r) from SyncRunEntity r, SyncTaskEntity t
+            where r.syncTaskId = t.id
+              and t.connectionId = :connectionId
+              and r.status in :statuses
+            """)
+    long countByConnectionIdAndStatusIn(
+            @Param("connectionId") UUID connectionId,
+            @Param("statuses") Collection<SyncRunStatus> statuses
+    );
+
+    @Query(value = "select pg_advisory_xact_lock(:key)", nativeQuery = true)
+    void acquireAdmissionLock(@Param("key") long key);
 
     @Modifying
     @Transactional
@@ -83,13 +118,16 @@ public interface SyncRunRepository extends JpaRepository<SyncRunEntity, UUID> {
     @Transactional
     @Query("""
             update SyncRunEntity r
-            set r.status = :target, r.updatedAt = :now
+            set r.status = :target,
+                r.stopOperationId = :stopOperationId,
+                r.updatedAt = :now
             where r.id = :id and r.status in :expected and r.status <> :target
             """)
     int requestStop(
             @Param("id") UUID id,
             @Param("expected") Collection<SyncRunStatus> expected,
             @Param("target") SyncRunStatus target,
+            @Param("stopOperationId") UUID stopOperationId,
             @Param("now") Instant now
     );
 
@@ -117,6 +155,20 @@ public interface SyncRunRepository extends JpaRepository<SyncRunEntity, UUID> {
             @Param("id") UUID id,
             @Param("status") SyncRunStatus status,
             @Param("claimedAt") Instant claimedAt,
+            @Param("now") Instant now
+    );
+
+    @Modifying
+    @Transactional
+    @Query("""
+            update SyncRunEntity r
+            set r.savepointRequestId = :requestId, r.updatedAt = :now
+            where r.id = :id and r.status = :status
+            """)
+    int recordSavepointRequest(
+            @Param("id") UUID id,
+            @Param("status") SyncRunStatus status,
+            @Param("requestId") String requestId,
             @Param("now") Instant now
     );
 
@@ -333,4 +385,19 @@ public interface SyncRunRepository extends JpaRepository<SyncRunEntity, UUID> {
             where r.id = :id and r.dispatchedAt is null
             """)
     int confirmDispatched(@Param("id") UUID id, @Param("dispatchedAt") Instant dispatchedAt);
+
+    @Modifying
+    @Transactional
+    @Query("""
+            update SyncRunEntity r
+            set r.dispatchedAt = null,
+                r.dispatchAttempts = case when r.dispatchAttempts > 0 then r.dispatchAttempts - 1 else 0 end,
+                r.updatedAt = :now
+            where r.id = :id and r.status = :status
+            """)
+    int releaseDispatch(
+            @Param("id") UUID id,
+            @Param("status") SyncRunStatus status,
+            @Param("now") Instant now
+    );
 }

@@ -68,13 +68,23 @@ export function useDataConnectionState(connectionId: string | undefined) {
   }, [refresh])
 
   useEffect(() => {
-    tablesRequestRef.current += 1
-    setIsLoading(true)
-    setState(null)
-    setTables([])
-    setWarnings([])
-    setError(null)
-    void refresh({ withTables: true }).finally(() => setIsLoading(false))
+    let active = true
+    void (async () => {
+      tablesRequestRef.current += 1
+      setIsLoading(true)
+      setState(null)
+      setTables([])
+      setWarnings([])
+      setError(null)
+      try {
+        await refresh({ withTables: true })
+      } finally {
+        if (active) setIsLoading(false)
+      }
+    })()
+    return () => {
+      active = false
+    }
   }, [refresh])
 
   return {

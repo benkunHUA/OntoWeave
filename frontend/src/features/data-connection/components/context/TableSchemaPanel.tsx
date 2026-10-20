@@ -16,15 +16,16 @@ export function TableSchemaPanel({ connectionId, schema, table, onBack }: TableS
 
   useEffect(() => {
     let active = true
-    setDetail(null)
-    setError(null)
-    void describeTable(connectionId, schema, table)
-      .then((value) => {
+    void (async () => {
+      setDetail(null)
+      setError(null)
+      try {
+        const value = await describeTable(connectionId, schema, table)
         if (active) setDetail(value)
-      })
-      .catch((reason: unknown) => {
+      } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : '读取表结构失败')
-      })
+      }
+    })()
     return () => {
       active = false
     }

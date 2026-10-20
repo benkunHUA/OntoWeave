@@ -42,12 +42,14 @@ export const MISSING_STEP_LABELS: Record<MissingStep, string> = {
 }
 
 export const EVENT_TYPE_LABELS: Record<string, string> = {
+  'connection.draft.created': '创建连接草稿',
   'connection.updated': '保存连接配置',
   'connection.tested': '测试连接',
   'sync.tasks.saved': '保存表选择',
   'sync.run.queued': '进入同步队列',
   'sync.run.submitted': '提交 Flink 作业',
   'sync.run.running': '同步运行中',
+  'sync.run.snapshot_completed': '初始化快照完成',
   'sync.run.stopping': '请求停止',
   'sync.run.stopped': '同步已停止',
   'sync.run.succeeded': '同步完成',

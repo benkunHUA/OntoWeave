@@ -117,7 +117,11 @@ export function ContextPanel({
         </div>
       ) : selectedDatasetId ? (
         <div className="context-panel__body">
-          <DatasetDetail datasetId={selectedDatasetId} onBack={() => onSelectDataset(null)} />
+          <DatasetDetail
+            datasetId={selectedDatasetId}
+            connectionName={connection.name}
+            onBack={() => onSelectDataset(null)}
+          />
         </div>
       ) : (
         <>
@@ -172,7 +176,11 @@ export function ContextPanel({
               )
             ) : null}
             {tab === 'datasets' ? (
-              <DatasetsTab datasets={state.datasets} onSelect={onSelectDataset} />
+              <DatasetsTab
+                datasets={state.datasets}
+                runs={state.recent_runs}
+                onSelect={onSelectDataset}
+              />
             ) : null}
           </div>
         </>
@@ -181,11 +189,19 @@ export function ContextPanel({
   )
 }
 
-function DatasetsTab({ datasets, onSelect }: { datasets: Dataset[]; onSelect: (id: string) => void }) {
+function DatasetsTab({
+  datasets,
+  runs,
+  onSelect,
+}: {
+  datasets: Dataset[]
+  runs: DataConnectionState['recent_runs']
+  onSelect: (id: string) => void
+}) {
   return (
     <div className="datasets-tab">
       {datasets.length ? (
-        <DatasetList datasets={datasets} onSelect={onSelect} />
+        <DatasetList datasets={datasets} runs={runs} onSelect={onSelect} />
       ) : (
         <div className="empty-panel">同步成功后，数据集会显示在这里</div>
       )}

@@ -40,17 +40,16 @@ export function DataConnectionWorkbench() {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null)
 
   useEffect(() => {
-    setSelectedDatasetId(null)
-  }, [connectionId])
-
-  useEffect(() => {
     if (!connectionId && !list.isLoading && list.items.length) {
       navigate(`${DATA_CONNECTION_PATH}/${list.items[0].id}`, { replace: true })
     }
   }, [connectionId, list.isLoading, list.items, navigate])
 
   const openConnection = useCallback(
-    (targetId: string) => navigate(`${DATA_CONNECTION_PATH}/${targetId}`),
+    (targetId: string) => {
+      setSelectedDatasetId(null)
+      navigate(`${DATA_CONNECTION_PATH}/${targetId}`)
+    },
     [navigate],
   )
 
@@ -144,7 +143,7 @@ export function DataConnectionWorkbench() {
   async function stopRun(runId: string) {
     setIsBusy(true)
     try {
-      await stopSyncRun(runId)
+      await stopSyncRun(runId, crypto.randomUUID())
       await stateView.refreshState()
     } catch (reason) {
       toast.report(reason, '停止同步失败')
@@ -159,7 +158,6 @@ export function DataConnectionWorkbench() {
     <main className="data-connection-page" style={panes.styleVars}>
       <ConnectionListPane
         connections={list.items}
-        selectedState={stateView.state}
         activeId={connection?.id ?? null}
         isCreating={isCreating}
         onCreate={() => void createConnection()}

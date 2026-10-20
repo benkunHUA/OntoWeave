@@ -29,8 +29,21 @@ export function useDataConnectionList(report: ReportError) {
   }, [report])
 
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    let active = true
+    void listDataConnections()
+      .then((page) => {
+        if (active) setItems(page.items)
+      })
+      .catch((reason: unknown) => {
+        if (active) report(reason, '加载数据连接失败')
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [report])
 
   const createDraft = useCallback(async () => {
     const created = await createDataConnection({

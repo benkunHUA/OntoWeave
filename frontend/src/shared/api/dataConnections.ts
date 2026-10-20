@@ -7,6 +7,8 @@ import type {
   DataConnectionUpdate,
   Dataset,
   DatasetPreview,
+  DatasetVersion,
+  DatasetVersionsPage,
   SyncRun,
   SyncTask,
   SyncTaskSelection,
@@ -108,8 +110,11 @@ export function listSyncRuns(connectionId: string): Promise<{ runs: SyncRun[] }>
   return request<{ runs: SyncRun[] }>(`/data-connections/${connectionId}/sync-runs`)
 }
 
-export function stopSyncRun(runId: string): Promise<SyncRun> {
-  return request<SyncRun>(`/sync-runs/${runId}/stop`, { method: 'POST' })
+export function stopSyncRun(runId: string, operationId?: string): Promise<SyncRun> {
+  return request<SyncRun>(`/sync-runs/${runId}/stop`, {
+    method: 'POST',
+    headers: operationHeaders(operationId),
+  })
 }
 
 export function listDatasets(connectionId: string): Promise<Dataset[]> {
@@ -118,6 +123,20 @@ export function listDatasets(connectionId: string): Promise<Dataset[]> {
 
 export function getDataset(datasetId: string): Promise<Dataset> {
   return request<Dataset>(`/datasets/${datasetId}`)
+}
+
+export function listDatasetVersions(
+  datasetId: string,
+  limit = 20,
+  offset = 0,
+): Promise<DatasetVersionsPage> {
+  return request<DatasetVersionsPage>(
+    `/datasets/${datasetId}/versions?limit=${limit}&offset=${offset}`,
+  )
+}
+
+export function getDatasetVersion(datasetId: string, versionId: string): Promise<DatasetVersion> {
+  return request<DatasetVersion>(`/datasets/${datasetId}/versions/${versionId}`)
 }
 
 export function getDatasetPreview(

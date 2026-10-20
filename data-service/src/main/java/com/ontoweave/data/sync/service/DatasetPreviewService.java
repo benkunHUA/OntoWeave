@@ -2,6 +2,7 @@ package com.ontoweave.data.sync.service;
 
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.sync.api.dto.DatasetPreviewResponse;
+import com.ontoweave.data.sync.api.dto.PreviewColumnResponse;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
 import com.ontoweave.data.sync.domain.SyncRunEntity;
@@ -88,7 +89,12 @@ public class DatasetPreviewService {
                 version.getVersionNumber(),
                 version.getIcebergSnapshotId(),
                 false,
-                preview.columns(),
+                preview.columns().stream()
+                        .map(column -> new PreviewColumnResponse(
+                                column.name(), column.type(), column.nullable()
+                        ))
+                        .toList(),
+                version.getRowCount(),
                 preview.rows(),
                 preview.truncated()
         );
@@ -126,7 +132,12 @@ public class DatasetPreviewService {
                     null,
                     snapshot.get().snapshotId(),
                     true,
-                    preview.get().columns(),
+                    preview.get().columns().stream()
+                            .map(column -> new PreviewColumnResponse(
+                                    column.name(), column.type(), column.nullable()
+                            ))
+                            .toList(),
+                    snapshot.get().rowCount(),
                     preview.get().rows(),
                     preview.get().truncated()
             );

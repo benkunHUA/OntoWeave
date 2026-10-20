@@ -100,20 +100,26 @@ export function useDataConnectionConversation({
   }, [agent.setInterrupt])
 
   useEffect(() => {
-    const previous = activeConversationRef.current
-    activeConversationRef.current = conversationId
-    if (previous && previous !== conversationId) {
-      forget(previous)
-    }
-    if (!conversationId) {
+    let active = true
+    void (async () => {
+      const previous = activeConversationRef.current
+      activeConversationRef.current = conversationId
+      if (previous && previous !== conversationId) {
+        forget(previous)
+      }
       setEvents([])
       cursorRef.current = undefined
-      return
+      if (!conversationId) return
+      setIsLoading(true)
+      try {
+        await loadHistory(conversationId)
+      } finally {
+        if (active) setIsLoading(false)
+      }
+    })()
+    return () => {
+      active = false
     }
-    setEvents([])
-    cursorRef.current = undefined
-    setIsLoading(true)
-    void loadHistory(conversationId).finally(() => setIsLoading(false))
   }, [conversationId, forget, loadHistory])
 
   useEffect(() => {

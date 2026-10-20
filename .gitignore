@@ -10,3 +10,6 @@ __pycache__/
 
 # 日志
 *.log
+
+# 本地数据库备份
+backups/

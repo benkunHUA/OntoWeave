@@ -18,6 +18,8 @@ from app.schemas.data_connection import (
     DataConnectionUpdate,
     DatasetPreviewRead,
     DatasetRead,
+    DatasetVersionRead,
+    DatasetVersionsRead,
     SyncRunRead,
     SyncRunsRead,
     SyncRunTriggerRequest,
@@ -245,10 +247,16 @@ def get_sync_run(
 @router.post("/sync-runs/{run_id}/stop", response_model=SyncRunRead, status_code=202)
 def stop_sync_run(
     run_id: uuid.UUID,
+    operation_id: Annotated[uuid.UUID | None, Header(alias="X-Operation-Id")] = None,
     client: DataServiceClient = Depends(get_data_service_client),
 ) -> SyncRunRead:
     return SyncRunRead.model_validate(
-        data_connection.stop_sync_run(client, owner_id=get_current_user_id(), run_id=run_id)
+        data_connection.stop_sync_run(
+            client,
+            owner_id=get_current_user_id(),
+            run_id=run_id,
+            operation_id=operation_id,
+        )
     )
 
 
@@ -279,6 +287,40 @@ def get_dataset(
 ) -> DatasetRead:
     return DatasetRead.model_validate(
         data_connection.get_dataset(client, owner_id=get_current_user_id(), dataset_id=dataset_id)
+    )
+
+
+@router.get("/datasets/{dataset_id}/versions", response_model=DatasetVersionsRead)
+def get_dataset_versions(
+    dataset_id: uuid.UUID,
+    limit: int = Query(20, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> DatasetVersionsRead:
+    return DatasetVersionsRead.model_validate(
+        data_connection.get_dataset_versions(
+            client,
+            owner_id=get_current_user_id(),
+            dataset_id=dataset_id,
+            limit=limit,
+            offset=offset,
+        )
+    )
+
+
+@router.get("/datasets/{dataset_id}/versions/{version_id}", response_model=DatasetVersionRead)
+def get_dataset_version(
+    dataset_id: uuid.UUID,
+    version_id: uuid.UUID,
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> DatasetVersionRead:
+    return DatasetVersionRead.model_validate(
+        data_connection.get_dataset_version(
+            client,
+            owner_id=get_current_user_id(),
+            dataset_id=dataset_id,
+            version_id=version_id,
+        )
     )
 
 

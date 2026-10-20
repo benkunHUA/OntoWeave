@@ -68,12 +68,17 @@ class SyncRunExecutorTest {
     @Mock
     SyncRunEventWriter events;
 
+    @Mock
+    SyncRunAdmissionService admission;
+
+    @Mock
+    SyncRunCleanupService cleanup;
+
     @Test
     void cancelsSubmittedJobWhenStopWinsBeforeStatusUpdate() {
         SyncRunEntity run = preparingRun();
         SyncTaskEntity task = task(run);
-        when(runs.claim(eq(run.getId()), eq(SyncRunStatus.QUEUED), eq(SyncRunStatus.PREPARING), any()))
-                .thenReturn(1);
+        when(admission.tryAdmit(run.getId())).thenReturn(true);
         when(runs.findById(run.getId())).thenReturn(Optional.of(run));
         when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
         when(materials.loadMysqlInternal(task.getConnectionId()))
@@ -110,7 +115,9 @@ class SyncRunExecutorTest {
                 pipelines,
                 submitter,
                 flink,
-                events
+                events,
+                admission,
+                cleanup
         );
     }
 

@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class SyncRunSupervisor {
@@ -38,6 +39,7 @@ public class SyncRunSupervisor {
     private final SyncTaskRepository tasks;
     private final SyncRunEventWriter events;
     private final SyncRunStopInitiator stopInitiator;
+    private final SyncRunCleanupService cleanup;
 
     public SyncRunSupervisor(
             SyncProperties properties,
@@ -47,7 +49,8 @@ public class SyncRunSupervisor {
             DatasetVersionPublisher publisher,
             SyncTaskRepository tasks,
             SyncRunEventWriter events,
-            SyncRunStopInitiator stopInitiator
+            SyncRunStopInitiator stopInitiator,
+            SyncRunCleanupService cleanup
     ) {
         this.properties = properties;
         this.runs = runs;
@@ -57,6 +60,7 @@ public class SyncRunSupervisor {
         this.tasks = tasks;
         this.events = events;
         this.stopInitiator = stopInitiator;
+        this.cleanup = cleanup;
     }
 
     @Scheduled(fixedDelayString = "${ontoweave.sync.supervisor-interval-ms:5000}")
@@ -150,11 +154,16 @@ public class SyncRunSupervisor {
             return;
         }
         if ("CANCELED".equalsIgnoreCase(info.state())) {
-            finishStopped(run, null);
+            finishStopped(run, resolvedSavepointPath(run));
             return;
         }
         refreshCheckpoint(run);
-        maybeMarkSnapshotCompleted(run);
+        boolean snapshotJustCompleted = maybeMarkSnapshotCompleted(run);
+        if (snapshotJustCompleted) {
+            task(run).ifPresent(value -> events.write(
+                    run, value, "sync.run.snapshot_completed", "初始化快照已完成"
+            ));
+        }
         int updated = runs.recordProgress(
                 run.getId(),
                 ACTIVE_JOB_STATUSES,
@@ -195,22 +204,22 @@ public class SyncRunSupervisor {
 
     private void reconcileStopping(SyncRunEntity run) {
         if (run.getFlinkJobId() == null) {
-            finishStopped(run, null);
+            finishStopped(run, resolvedSavepointPath(run));
             return;
         }
         Optional<FlinkJobInfo> job = flink.job(run.getFlinkJobId());
         if (job.isEmpty()) {
-            finishStopped(run, null);
+            finishStopped(run, resolvedSavepointPath(run));
             return;
         }
         String state = job.get().state();
         run.recordFlinkState(state);
         if ("CANCELED".equalsIgnoreCase(state)) {
-            finishStopped(run, null);
+            finishStopped(run, resolvedSavepointPath(run));
             return;
         }
         if ("FINISHED".equalsIgnoreCase(state)) {
-            finishStopped(run, null);
+            finishStopped(run, resolvedSavepointPath(run));
             return;
         }
         if ("FAILED".equalsIgnoreCase(state)) {
@@ -275,8 +284,15 @@ public class SyncRunSupervisor {
         }
         run.markFailed(errorCode, errorMessage);
         if (eventSummary != null) {
-            task(run).ifPresent(value -> events.write(run, value, "sync.run.failed", eventSummary));
+            task(run).ifPresent(value -> events.write(
+                    run,
+                    value,
+                    "sync.run.failed",
+                    eventSummary,
+                    terminalOperationId(run)
+            ));
         }
+        cleanup.cleanupIfUnreferenced(run);
     }
 
     private void finishStopped(SyncRunEntity run, String savepointPath) {
@@ -294,15 +310,33 @@ public class SyncRunSupervisor {
         );
         if (updated == 1) {
             run.markStopped(savepointPath);
-            task(run).ifPresent(value -> events.write(run, value, "sync.run.stopped", "同步已停止"));
+            task(run).ifPresent(value -> events.write(
+                    run,
+                    value,
+                    "sync.run.stopped",
+                    "同步已停止",
+                    terminalOperationId(run)
+            ));
             if (run.getRunMode() == SyncMode.CDC && run.getLastCheckpointAt() != null) {
                 publisher.publish(run.getId(), VersionSource.STOP);
             }
+            cleanup.cleanupIfUnreferenced(run);
         }
+    }
+
+    private UUID terminalOperationId(SyncRunEntity run) {
+        return run.getStopOperationId() == null ? run.getOperationId() : run.getStopOperationId();
     }
 
     private Optional<com.ontoweave.data.sync.domain.SyncTaskEntity> task(SyncRunEntity run) {
         return tasks.findById(run.getSyncTaskId());
+    }
+
+    private String resolvedSavepointPath(SyncRunEntity run) {
+        if (run.getFlinkJobId() == null || run.getSavepointRequestId() == null) {
+            return null;
+        }
+        return flink.completedSavepoint(run.getFlinkJobId(), run.getSavepointRequestId()).orElse(null);
     }
 
     private void refreshCheckpoint(SyncRunEntity run) {
@@ -313,9 +347,9 @@ public class SyncRunSupervisor {
                 .ifPresent(checkpoint -> run.recordCheckpoint(checkpoint.completedAt(), null));
     }
 
-    private void maybeMarkSnapshotCompleted(SyncRunEntity run) {
+    private boolean maybeMarkSnapshotCompleted(SyncRunEntity run) {
         if (run.getSnapshotCompletedAt() != null || run.getSnapshotExpectedRows() == null) {
-            return;
+            return false;
         }
         Optional<IcebergSnapshotInfo> latest = Optional.empty();
         if (run.getSnapshotExpectedRows() > 0) {
@@ -328,7 +362,9 @@ public class SyncRunSupervisor {
         if (SnapshotCompletionDecider.completed(run, latest)) {
             run.markSnapshotCompleted(Instant.now());
             latest.ifPresent(snapshot -> run.recordCheckpoint(null, snapshot.snapshotId()));
+            return true;
         }
+        return false;
     }
 
     private void maybePublishScheduled(SyncRunEntity run) {

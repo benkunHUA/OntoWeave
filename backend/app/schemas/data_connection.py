@@ -44,6 +44,8 @@ class DataConnectionRead(BaseModel):
     last_test_error: str | None
     last_test_details: dict[str, Any] | None = None
     secret_configured: bool
+    last_sync_status: str | None = None
+    last_sync_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -169,6 +171,16 @@ class DatasetVersionRead(BaseModel):
     committed_at: datetime | None = None
     published_at: datetime | None = None
     version_source: str
+    source_run_id: uuid.UUID | None = None
+    storage_path: str | None = None
+
+
+class DatasetVersionsRead(BaseModel):
+    dataset_id: uuid.UUID
+    total: int
+    limit: int
+    offset: int
+    versions: list[DatasetVersionRead]
 
 
 class DatasetRead(BaseModel):
@@ -179,8 +191,17 @@ class DatasetRead(BaseModel):
     current_version_id: uuid.UUID | None = None
     current_version: DatasetVersionRead | None = None
     versions: list[DatasetVersionRead] = Field(default_factory=list)
+    version_count: int = 0
+    source_schema: str | None = None
+    source_table: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class PreviewColumnRead(BaseModel):
+    name: str
+    type: str
+    nullable: bool
 
 
 class DatasetPreviewRead(BaseModel):
@@ -189,7 +210,8 @@ class DatasetPreviewRead(BaseModel):
     version_number: int | None = None
     snapshot_id: int
     live: bool = False
-    columns: list[str]
+    columns: list[PreviewColumnRead]
+    row_count: int = 0
     rows: list[dict[str, Any]]
     truncated: bool = False
 

@@ -44,6 +44,9 @@ class SyncRunStopInitiatorTest {
         initiator().initiate(run);
 
         verify(flink).stopWithSavepoint(run.getFlinkJobId(), "file:///tmp/savepoints/" + run.getId());
+        verify(runs).recordSavepointRequest(
+                eq(run.getId()), eq(SyncRunStatus.STOPPING), eq("request-id"), any()
+        );
         verify(flink, never()).cancel(any());
         assertThat(run.getStopRequestedAt()).isNotNull();
     }
@@ -142,7 +145,9 @@ class SyncRunStopInitiatorTest {
                 5,
                 86400,
                 30,
-                30
+                30,
+                4,
+                1
         );
     }
 

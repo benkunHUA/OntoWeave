@@ -1,6 +1,6 @@
 # 数据集成与 Agent 闭环 · 总体路线图
 
-- 最后更新：2026-10-19
+- 最后更新：2026-10-20
 - 当前分支：`main`
 - 当前基线：`7c8e240`
 - 总体设计：[2026-10-17-data-integration-and-agent-loop-design.md](specs/2026-10-17-data-integration-and-agent-loop-design.md)
@@ -10,18 +10,18 @@
 
 | 阶段 | 目标 | 状态 | 详细记录 |
 |---|---|---|---|
-| P1 数据进来 | 外部数据可连接、可同步，生成不可变数据集版本 | ✅ 已完成（2026-10-19） | [p1-data-ingestion.md](phases/p1-data-ingestion.md) |
-| P2 数据整理 | 可视化处理、构建派生版本、定时调度、来源追踪 | 🟡 技术设计中（议题 1/7） | [p2-data-preparation.md](phases/p2-data-preparation.md) |
+| P1 数据进来 | 外部数据可连接、可同步，生成不可变数据集版本 | ✅ 已完成（2026-10-20 复检通过） | [p1-data-ingestion.md](phases/p1-data-ingestion.md) |
+| P2 数据整理 | 可视化处理、构建派生版本、定时调度、来源追踪 | 🟡 技术设计中（议题 1/8 已确认；当前议题 2/8） | [p2-data-preparation.md](phases/p2-data-preparation.md) |
 | P3 变成对象 | 数据集映射为对象类型，生成对象实例和关系实例 | ⏳ 未开始 | [p3-ontology-mapping.md](phases/p3-ontology-mapping.md) |
 | P4 Agent 使用 | 动作执行、审计记录、Agent 查询与操作闭环 | ⏳ 未开始 | [p4-agent-loop.md](phases/p4-agent-loop.md) |
 
 ## 2. 当前执行位置
 
-P1 已完成并合并到 `main`：连接创建与测试、MySQL 表发现、多表同步、Flink CDC + Iceberg、数据集版本、Python API / 事件 / Agent、前端三栏工作台，以及停止流程和失败诊断补齐。
+P1 已完成并合并到 `main`：连接创建与测试、MySQL 表发现、多表同步、Flink CDC + Iceberg、数据集版本、Python API / 事件 / Agent、前端三栏工作台，以及停止流程和失败诊断补齐。2026-10-20 按检查报告完成 H1-H3、M1-M6、L1-L4 修复并复检通过；V4-V7 已应用到当前 Docker 数据库，历史无效版本和孤儿 Iceberg 表已清理，snapshot / CDC 停止冒烟通过。详见 [复检报告](../checks/2026-10-20-p1-data-ingestion-recheck.md)。
 
-P2 已进入「可视化处理」技术设计，技术设计稿为 [2026-10-19-data-preparation-technical-design.md](specs/2026-10-19-data-preparation-technical-design.md)。当前 P2 **没有实施计划**，不要直接写实现代码。
+P2 已进入「可视化处理」技术设计，技术设计稿为 [2026-10-19-data-preparation-technical-design.md](specs/2026-10-19-data-preparation-technical-design.md)。交互模型已确认：采用「对话 + 画布」，一个对话对应一条处理流程，Agent 通过对话引导用户逐步创建。议题 1「交互骨架与资源绑定」已确认：左侧流程列表、中间对话、右侧画布；Agent 直接写草稿并留痕；草稿自动保存、构建显式触发。当前 P2 **没有实施计划**，不要直接写实现代码。
 
-议题 1「MVP 处理算子范围」已确定：筛选、选列、改名、改类型、合并（Union All）、关联（Inner/Left Join）；汇总等后置。下一议题是「处理流程、运行记录与派生数据集版本的数据模型」，后续依次是预览与字段错误、构建与版本生成、调度、来源追踪、前端复用。
+议题已重排为 8 个：交互骨架、数据模型、Agent 状态机、画布节点、预览、构建、调度、来源追踪。下一议题是「处理流程的数据模型」；MVP 算子范围作为议题 4 的输入，不再单独推进。
 
 ## 3. 阶段依赖
 
@@ -53,8 +53,8 @@ P1 数据进来
 继续 OntoWeave 数据集成与 Agent 闭环计划。
 
 先读 docs/superpowers/ROADMAP.md 和对应阶段文件，确认当前执行位置。
-当前 main 基线为 7c8e240，P1「数据进来」已完成。
-下一步继续 P2「数据整理」的可视化处理技术设计；议题 1 已确定，下一议题是数据模型。不要直接写实现代码。
+当前 main 基线为 7c8e240，P1「数据进来」已完成并通过 2026-10-20 复检。
+下一步继续 P2「数据整理」的可视化处理技术设计；交互模型已确认（对话 + 画布，一个对话对应一条流程），议题 1 交互骨架与资源绑定已确认，下一议题是处理流程的数据模型。不要直接写实现代码。
 一次只推进一个设计议题，结论回填到阶段文件和技术设计稿。
 ```
 

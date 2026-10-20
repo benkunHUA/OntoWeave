@@ -39,6 +39,18 @@ public class FlinkRestClient {
         }
     }
 
+    public Optional<Integer> availableTaskSlots() {
+        try {
+            JsonNode body = client.get().uri("/overview").retrieve().body(JsonNode.class);
+            if (body == null || !body.has("slots-available")) {
+                return Optional.empty();
+            }
+            return Optional.of(body.path("slots-available").asInt());
+        } catch (RestClientException exception) {
+            return Optional.empty();
+        }
+    }
+
     public Optional<FlinkJobInfo> job(String jobId) {
         try {
             JsonNode body = client.get().uri("/jobs/{id}", jobId).retrieve().body(JsonNode.class);
@@ -107,6 +119,22 @@ public class FlinkRestClient {
             }
             String requestId = body.path("request-id").asText("");
             return requestId.isBlank() ? Optional.empty() : Optional.of(requestId);
+        } catch (RestClientException exception) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<String> completedSavepoint(String jobId, String requestId) {
+        try {
+            JsonNode body = client.get()
+                    .uri("/jobs/{id}/savepoints/{requestId}", jobId, requestId)
+                    .retrieve()
+                    .body(JsonNode.class);
+            if (body == null || !"COMPLETED".equalsIgnoreCase(body.path("status").path("id").asText())) {
+                return Optional.empty();
+            }
+            String location = body.path("operation").path("location").asText("");
+            return location.isBlank() ? Optional.empty() : Optional.of(location);
         } catch (RestClientException exception) {
             return Optional.empty();
         }

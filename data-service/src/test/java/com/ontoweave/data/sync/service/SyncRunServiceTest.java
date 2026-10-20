@@ -61,14 +61,16 @@ class SyncRunServiceTest {
         when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         doAnswer(invocation -> {
-            run.markStopping();
+            run.markStopping(invocation.getArgument(3));
             return 1;
-        }).when(runs).requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any());
+        }).when(runs).requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any(), any());
+        UUID stopOperationId = UUID.randomUUID();
 
-        var response = service().stop(run.getId(), UUID.randomUUID());
+        var response = service().stop(run.getId(), UUID.randomUUID(), stopOperationId);
 
         assertThat(response.status()).isEqualTo("stopping");
-        verify(events).write(run, task, "sync.run.stopping", "已请求停止");
+        assertThat(run.getStopOperationId()).isEqualTo(stopOperationId);
+        verify(events).write(run, task, "sync.run.stopping", "已请求停止", stopOperationId);
         verify(stopInitiator).initiate(run);
     }
 
@@ -80,12 +82,12 @@ class SyncRunServiceTest {
         when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
         doAnswer(invocation -> {
-            run.markStopping();
+            run.markStopping(invocation.getArgument(3));
             return 1;
-        }).when(runs).requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any());
+        }).when(runs).requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any(), any());
         doThrow(new IllegalStateException("flink down")).when(stopInitiator).initiate(any());
 
-        var response = service().stop(run.getId(), UUID.randomUUID());
+        var response = service().stop(run.getId(), UUID.randomUUID(), null);
 
         assertThat(response.status()).isEqualTo("stopping");
     }
@@ -98,10 +100,10 @@ class SyncRunServiceTest {
         SyncTaskEntity task = task(run);
         when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
 
-        var response = service().stop(run.getId(), UUID.randomUUID());
+        var response = service().stop(run.getId(), UUID.randomUUID(), null);
 
         assertThat(response.status()).isEqualTo("succeeded");
-        verify(runs, never()).requestStop(any(), any(), any(), any());
+        verify(runs, never()).requestStop(any(), any(), any(), any(), any());
         verify(stopInitiator, never()).initiate(any());
     }
 
@@ -113,11 +115,12 @@ class SyncRunServiceTest {
         when(runs.findById(run.getId())).thenReturn(Optional.of(run));
         when(tasks.findById(run.getSyncTaskId())).thenReturn(Optional.of(task));
         when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
-        when(runs.requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any())).thenReturn(0);
+        when(runs.requestStop(eq(run.getId()), any(), eq(SyncRunStatus.STOPPING), any(), any()))
+                .thenReturn(0);
 
-        service().stop(run.getId(), UUID.randomUUID());
+        service().stop(run.getId(), UUID.randomUUID(), null);
 
-        verify(events, never()).write(any(), any(), eq("sync.run.stopping"), any());
+        verify(events, never()).write(any(), any(), eq("sync.run.stopping"), any(), any());
         verify(stopInitiator, never()).initiate(any());
     }
 
@@ -182,7 +185,9 @@ class SyncRunServiceTest {
                 5,
                 86400,
                 30,
-                30
+                30,
+                4,
+                1
         );
     }
 }

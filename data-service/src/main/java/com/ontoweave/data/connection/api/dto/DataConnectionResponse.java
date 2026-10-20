@@ -19,6 +19,8 @@ public record DataConnectionResponse(
         String lastTestError,
         JsonNode lastTestDetails,
         boolean secretConfigured,
+        String lastSyncStatus,
+        Instant lastSyncAt,
         Instant createdAt,
         Instant updatedAt
 ) {

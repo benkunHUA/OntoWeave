@@ -2,6 +2,8 @@ package com.ontoweave.data.sync.api;
 
 import com.ontoweave.data.sync.api.dto.DatasetResponse;
 import com.ontoweave.data.sync.api.dto.DatasetPreviewResponse;
+import com.ontoweave.data.sync.api.dto.DatasetVersionResponse;
+import com.ontoweave.data.sync.api.dto.DatasetVersionsResponse;
 import com.ontoweave.data.sync.service.DatasetService;
 import com.ontoweave.data.sync.service.DatasetPreviewService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +29,25 @@ public class DatasetController {
     @GetMapping("/{id}")
     public DatasetResponse get(@PathVariable UUID id, @RequestParam UUID ownerId) {
         return service.get(id, ownerId);
+    }
+
+    @GetMapping("/{id}/versions")
+    public DatasetVersionsResponse versions(
+            @PathVariable UUID id,
+            @RequestParam UUID ownerId,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "0") int offset
+    ) {
+        return service.versions(id, ownerId, limit, offset);
+    }
+
+    @GetMapping("/{id}/versions/{versionId}")
+    public DatasetVersionResponse version(
+            @PathVariable UUID id,
+            @PathVariable UUID versionId,
+            @RequestParam UUID ownerId
+    ) {
+        return service.version(id, versionId, ownerId);
     }
 
     @GetMapping("/{id}/preview")

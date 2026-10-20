@@ -63,7 +63,7 @@ public class SyncRunService {
 
     @Transactional
     public SyncRunsResponse trigger(UUID connectionId, UUID ownerId, TriggerSyncRequest request) {
-        connections.required(connectionId, ownerId);
+        connections.requiredForUpdate(connectionId, ownerId);
         List<SyncTaskEntity> selected = selectTasks(connectionId, request.tables());
         if (selected.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "NO_SYNC_TASKS", "连接下没有可运行的同步任务");
@@ -103,17 +103,19 @@ public class SyncRunService {
         return new SyncRunsResponse(request.operationId(), result.stream().map(this::response).toList());
     }
 
-    public SyncRunResponse stop(UUID runId, UUID ownerId) {
+    public SyncRunResponse stop(UUID runId, UUID ownerId, UUID operationId) {
         SyncRunEntity run = required(runId, ownerId);
         if (run.getStatus().terminal()) {
             return response(run);
         }
+        UUID stopOperationId = operationId == null ? UUID.randomUUID() : operationId;
 
         Boolean transitioned = transactions.execute(status -> {
             int updated = runs.requestStop(
                     runId,
                     SyncRunStatus.ACTIVE,
                     SyncRunStatus.STOPPING,
+                    stopOperationId,
                     Instant.now()
             );
             if (updated != 1) {
@@ -121,7 +123,13 @@ public class SyncRunService {
             }
             SyncRunEntity stopping = runs.findById(runId).orElse(run);
             tasks.findById(stopping.getSyncTaskId()).ifPresent(task ->
-                    events.write(stopping, task, "sync.run.stopping", "已请求停止")
+                    events.write(
+                            stopping,
+                            task,
+                            "sync.run.stopping",
+                            "已请求停止",
+                            stopOperationId
+                    )
             );
             return true;
         });

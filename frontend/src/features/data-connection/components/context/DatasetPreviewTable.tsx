@@ -23,6 +23,7 @@ export function DatasetPreviewTable({ preview, loading, error }: DatasetPreviewT
   }
   const rows = preview.rows.slice(0, DATASET_PREVIEW_LIMIT)
   const truncated = preview.truncated || preview.rows.length > rows.length
+  const columnNames = preview.columns.map((column) => column.name)
 
   return (
     <>
@@ -30,13 +31,15 @@ export function DatasetPreviewTable({ preview, loading, error }: DatasetPreviewT
         <table className="schema-table preview-table">
           <thead>
             <tr>
-              {preview.columns.map((column) => <th key={column}>{column}</th>)}
+              {preview.columns.map((column) => (
+                <th key={column.name} title={column.type}>{column.name}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((row, index) => (
               <tr key={index}>
-                {preview.columns.map((column) => (
+                {columnNames.map((column) => (
                   <td key={column} title={cellText(row[column])}>{cellText(row[column])}</td>
                 ))}
               </tr>

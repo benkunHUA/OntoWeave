@@ -152,17 +152,51 @@ class DataServiceClient:
             params={"ownerId": str(owner_id)},
         )
 
-    def stop_sync_run(self, run_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:
+    def stop_sync_run(
+        self,
+        run_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        operation_id: uuid.UUID | None = None,
+    ) -> dict:
         return self._request(
             "POST",
             f"/internal/v1/sync-runs/{run_id}/stop",
             params={"ownerId": str(owner_id)},
+            operation_id=operation_id,
         )
 
     def get_dataset(self, dataset_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:
         return self._request(
             "GET",
             f"/internal/v1/datasets/{dataset_id}",
+            params={"ownerId": str(owner_id)},
+        )
+
+    def get_dataset_versions(
+        self,
+        dataset_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        limit: int,
+        offset: int,
+    ) -> dict:
+        return self._request(
+            "GET",
+            f"/internal/v1/datasets/{dataset_id}/versions",
+            params={"ownerId": str(owner_id), "limit": limit, "offset": offset},
+        )
+
+    def get_dataset_version(
+        self,
+        dataset_id: uuid.UUID,
+        version_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+    ) -> dict:
+        return self._request(
+            "GET",
+            f"/internal/v1/datasets/{dataset_id}/versions/{version_id}",
             params={"ownerId": str(owner_id)},
         )
 

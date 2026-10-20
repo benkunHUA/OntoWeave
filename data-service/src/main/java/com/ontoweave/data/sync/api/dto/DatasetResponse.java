@@ -15,6 +15,9 @@ public record DatasetResponse(
         UUID currentVersionId,
         DatasetVersionResponse currentVersion,
         List<DatasetVersionResponse> versions,
+        int versionCount,
+        String sourceSchema,
+        String sourceTable,
         Instant createdAt,
         Instant updatedAt
 ) {

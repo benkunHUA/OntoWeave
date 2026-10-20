@@ -289,11 +289,25 @@ class FakeDataServiceClient:
     def get_sync_run(self, run_id, *, owner_id):  # noqa: ANN001, ARG002
         return dict(self.run)
 
-    def stop_sync_run(self, run_id, *, owner_id):  # noqa: ANN001, ARG002
+    def stop_sync_run(self, run_id, *, owner_id, operation_id=None):  # noqa: ANN001, ARG002
         return {**self.run, "status": "stopping"}
 
     def get_dataset(self, dataset_id, *, owner_id):  # noqa: ANN001, ARG002
         return dict(self.dataset)
+
+    def get_dataset_versions(self, dataset_id, *, owner_id, limit, offset):  # noqa: ANN001, ARG002
+        versions = self.dataset.get("versions") or []
+        return {
+            "datasetId": str(dataset_id),
+            "total": len(versions),
+            "limit": limit,
+            "offset": offset,
+            "versions": versions[offset : offset + limit],
+        }
+
+    def get_dataset_version(self, dataset_id, version_id, *, owner_id):  # noqa: ANN001, ARG002
+        versions = self.dataset.get("versions") or []
+        return next(item for item in versions if item["id"] == str(version_id))
 
     def get_dataset_preview(  # noqa: ANN001, ARG002
         self, dataset_id, *, owner_id, version_id, limit, live=False
@@ -304,7 +318,11 @@ class FakeDataServiceClient:
             "versionNumber": None if live else 1,
             "snapshotId": 100,
             "live": live,
-            "columns": ["id", "name"],
+            "columns": [
+                {"name": "id", "type": "long", "nullable": False},
+                {"name": "name", "type": "string", "nullable": True},
+            ],
+            "rowCount": 1,
             "rows": [{"id": 1, "name": "Ada"}][:limit],
             "truncated": False,
         }

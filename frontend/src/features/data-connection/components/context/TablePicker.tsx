@@ -86,7 +86,7 @@ export function TablePicker({
   }
 
   useEffect(() => {
-    setSelection(initialSelection(tasks))
+    void Promise.resolve().then(() => setSelection(initialSelection(tasks)))
   }, [taskSignature]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => {

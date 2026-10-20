@@ -44,6 +44,28 @@ def test_create_draft_omits_empty_config(session, fake_data_service):
     assert "config" not in fake_data_service.last_create_payload
 
 
+def test_create_connection_removes_draft_conversation_when_java_fails(
+    session, fake_data_service, monkeypatch
+):
+    def fail_create(**_kwargs):
+        raise RuntimeError("java unavailable")
+
+    monkeypatch.setattr(fake_data_service, "create_connection", fail_create)
+
+    with pytest.raises(RuntimeError, match="java unavailable"):
+        data_connection.create_connection(
+            session,
+            owner_id=uuid.uuid4(),
+            client=fake_data_service,
+            payload=DataConnectionCreate(name="失败连接"),
+        )
+
+    remaining = conversation.list_conversations(
+        session, kind=ConversationKind.DATA_CONNECTION.value
+    )
+    assert remaining == []
+
+
 def test_update_connection_renames_conversation(session, fake_data_service):
     owner = uuid.uuid4()
     created = data_connection.create_connection(

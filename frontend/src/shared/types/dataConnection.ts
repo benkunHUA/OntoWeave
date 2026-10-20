@@ -33,6 +33,8 @@ export interface DataConnection {
   last_test_error: string | null
   last_test_details: Record<string, unknown> | null
   secret_configured: boolean
+  last_sync_status: SyncRunStatus | null
+  last_sync_at: string | null
   created_at: string
   updated_at: string
 }
@@ -140,6 +142,8 @@ export interface DatasetVersion {
   committed_at: string | null
   published_at: string | null
   version_source: string
+  source_run_id: string | null
+  storage_path: string | null
 }
 
 export interface Dataset {
@@ -150,6 +154,9 @@ export interface Dataset {
   current_version_id: string | null
   current_version: DatasetVersion | null
   versions: DatasetVersion[]
+  version_count: number
+  source_schema: string | null
+  source_table: string | null
   created_at: string
   updated_at: string
 }
@@ -160,9 +167,24 @@ export interface DatasetPreview {
   version_number: number | null
   snapshot_id: number
   live: boolean
-  columns: string[]
+  columns: PreviewColumn[]
+  row_count: number
   rows: Array<Record<string, unknown>>
   truncated: boolean
+}
+
+export interface PreviewColumn {
+  name: string
+  type: string
+  nullable: boolean
+}
+
+export interface DatasetVersionsPage {
+  dataset_id: string
+  total: number
+  limit: number
+  offset: number
+  versions: DatasetVersion[]
 }
 
 export interface DataConnectionState {

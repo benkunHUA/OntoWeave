@@ -50,7 +50,10 @@ class HadoopIcebergPreviewReaderTest {
             );
 
             assertThat(preview).isPresent();
-            assertThat(preview.get().columns()).containsExactly("id", "name");
+            assertThat(preview.get().columns()).containsExactly(
+                    new PreviewColumn("id", "long", false),
+                    new PreviewColumn("name", "string", true)
+            );
             assertThat(preview.get().rows()).containsExactlyInAnyOrder(
                     Map.of("id", 1L, "name", "Ada"),
                     Map.of("id", 2L, "name", "Grace")
@@ -119,7 +122,9 @@ class HadoopIcebergPreviewReaderTest {
                 0,
                 0,
                 0,
-                0
+                0,
+                4,
+                1
         ));
     }
 

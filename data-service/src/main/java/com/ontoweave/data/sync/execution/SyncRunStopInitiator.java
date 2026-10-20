@@ -42,8 +42,14 @@ public class SyncRunStopInitiator {
         try {
             if (run.getRunMode() == SyncMode.CDC) {
                 String target = properties.savepointDir() + "/" + run.getId();
-                if (flink.stopWithSavepoint(run.getFlinkJobId(), target).isEmpty()) {
+                Optional<String> requestId = flink.stopWithSavepoint(run.getFlinkJobId(), target);
+                if (requestId.isEmpty()) {
                     flink.cancel(run.getFlinkJobId());
+                } else {
+                    runs.recordSavepointRequest(
+                            run.getId(), SyncRunStatus.STOPPING, requestId.get(), Instant.now()
+                    );
+                    run.recordSavepointRequest(requestId.get());
                 }
             } else {
                 flink.cancel(run.getFlinkJobId());
