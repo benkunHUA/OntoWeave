@@ -35,6 +35,28 @@ class PipelineGraphExpressionTest extends PipelineGraphValidatorTestSupport {
     }
 
     @Test
+    void rejectsLongAndDoubleCaseResultTypesWithoutNumericPromotion() {
+        ObjectNode expression = caseExpression(
+                literal("boolean", mapper.getNodeFactory().booleanNode(true)),
+                literal("long", mapper.getNodeFactory().numberNode(1)),
+                literal("double", mapper.getNodeFactory().numberNode(1.5))
+        );
+
+        assertTypeMismatch(expression, "expression.otherwise");
+    }
+
+    @Test
+    void rejectsLongAndDecimalCaseResultTypesWithoutNumericPromotion() {
+        ObjectNode expression = caseExpression(
+                literal("boolean", mapper.getNodeFactory().booleanNode(true)),
+                literal("long", mapper.getNodeFactory().numberNode(1)),
+                literal("decimal", mapper.getNodeFactory().numberNode(1.5))
+        );
+
+        assertTypeMismatch(expression, "expression.otherwise");
+    }
+
+    @Test
     void rejectsLiteralValueThatDoesNotMatchItsDeclaredType() {
         ObjectNode expression = literal("boolean", mapper.getNodeFactory().textNode("yes"));
 

@@ -5,7 +5,6 @@ import com.ontoweave.data.pipeline.check.PipelineIssue;
 import com.ontoweave.data.pipeline.check.PipelineIssueCodes;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import static com.ontoweave.data.pipeline.graph.SchemaValues.text;
@@ -149,20 +148,34 @@ final class ExpressionTypeResolver {
     private Optional<String> caseType(JsonNode expression) {
         JsonNode branches = expression.path("branches");
         Optional<String> result = Optional.empty();
+        boolean inconsistent = false;
         if (!branches.isArray() || branches.isEmpty()) {
             incomplete("expression.branches");
         } else {
             for (JsonNode branch : branches) {
                 type(branch.path("when"))
                         .ifPresent(type -> requireBoolean(type, "expression.branches.when"));
-                result = unifyResultType(
-                        result,
-                        type(branch.path("then")),
-                        "expression.branches.then"
-                );
+                Optional<String> branchType = type(branch.path("then"));
+                if (!inconsistent && branchType.isPresent()) {
+                    if (result.isPresent() && !ExpressionTypes.same(result.get(), branchType.get())) {
+                        typeMismatch("case 分支结果类型不一致", "expression.branches.then");
+                        inconsistent = true;
+                    } else if (result.isEmpty()) {
+                        result = branchType;
+                    }
+                }
             }
         }
-        return unifyResultType(result, type(expression.path("otherwise")), "expression.otherwise");
+        Optional<String> otherwiseType = type(expression.path("otherwise"));
+        if (!inconsistent && result.isPresent() && otherwiseType.isPresent()
+                && !ExpressionTypes.same(result.get(), otherwiseType.get())) {
+            typeMismatch("case 分支结果类型不一致", "expression.otherwise");
+            inconsistent = true;
+        }
+        if (inconsistent) {
+            return Optional.empty();
+        }
+        return result.isPresent() ? result : otherwiseType;
     }
 
     private Optional<String> literalType(JsonNode expression) {
@@ -176,38 +189,10 @@ final class ExpressionTypeResolver {
             incomplete("expression.value");
             return Optional.of(dataType);
         }
-        if (!value.isNull() && !literalMatches(dataType, value)) {
+        if (!value.isNull() && !ExpressionTypes.literalMatches(dataType, value)) {
             typeMismatch("字面量值与 dataType 不匹配: " + dataType, "expression.value");
         }
         return Optional.of(dataType);
-    }
-
-    private Optional<String> unifyResultType(
-            Optional<String> current,
-            Optional<String> next,
-            String field
-    ) {
-        if (next.isEmpty()) {
-            return current;
-        }
-        if (current.isEmpty()) {
-            return next;
-        }
-        if (!compatible(current.get(), next.get())) {
-            typeMismatch("case 分支结果类型不兼容", field);
-        }
-        return current;
-    }
-
-    private boolean literalMatches(String dataType, JsonNode value) {
-        String normalized = normalize(dataType);
-        return switch (normalized) {
-            case "boolean" -> value.isBoolean();
-            case "string", "date", "timestamp" -> value.isTextual();
-            case "integer", "int", "short", "long" -> value.isIntegralNumber();
-            case "float", "double", "decimal", "number" -> value.isNumber();
-            default -> true;
-        };
     }
 
     private void typeMismatch(String message, String field) {
@@ -294,14 +279,14 @@ final class ExpressionTypeResolver {
     }
 
     static boolean compatible(String left, String right) {
-        String normalizedLeft = normalize(left);
-        String normalizedRight = normalize(right);
+        String normalizedLeft = ExpressionTypes.normalize(left);
+        String normalizedRight = ExpressionTypes.normalize(right);
         return normalizedLeft.equals(normalizedRight)
                 || (numeric(normalizedLeft) && numeric(normalizedRight));
     }
 
     static boolean numeric(String type) {
-        String normalized = normalize(type);
+        String normalized = ExpressionTypes.normalize(type);
         return normalized.contains("int")
                 || normalized.contains("long")
                 || normalized.contains("short")
@@ -309,9 +294,5 @@ final class ExpressionTypeResolver {
                 || normalized.contains("double")
                 || normalized.contains("decimal")
                 || normalized.equals("number");
-    }
-
-    private static String normalize(String type) {
-        return type == null ? "" : type.trim().toLowerCase(Locale.ROOT);
     }
 }
