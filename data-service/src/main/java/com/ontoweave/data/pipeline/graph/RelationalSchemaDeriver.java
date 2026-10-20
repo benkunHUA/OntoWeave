@@ -49,22 +49,24 @@ final class RelationalSchemaDeriver extends SchemaDeriverSupport {
         List<FieldSchema> output = new ArrayList<>(left);
         Set<String> names = new HashSet<>(left.stream().map(FieldSchema::name).toList());
         for (FieldSchema field : right) {
-            String name = field.name();
-            if (names.contains(name)) {
-                name = "right_" + name;
-            }
-            if (!names.add(name)) {
-                issues.add(issue(
-                        PipelineIssueCodes.DUPLICATE_FIELD,
-                        name,
-                        "关联后字段重名",
-                        "重命名冲突字段"
-                ));
-                continue;
-            }
+            String name = uniqueJoinName(field.name(), names);
+            names.add(name);
             output.add(new FieldSchema(name, field.dataType(), field.nullable()));
         }
         return output;
+    }
+
+    private String uniqueJoinName(String name, Set<String> names) {
+        if (!names.contains(name)) {
+            return name;
+        }
+        String base = "right_" + name;
+        String candidate = base;
+        int suffix = 2;
+        while (names.contains(candidate)) {
+            candidate = base + "_" + suffix++;
+        }
+        return candidate;
     }
 
     List<FieldSchema> union(List<List<FieldSchema>> inputs) {

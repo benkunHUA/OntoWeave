@@ -173,6 +173,29 @@ class PipelineGraphValidatorTest {
     }
 
     @Test
+    void joinSuffixesRepeatedRightCollisions() {
+        ObjectNode config = mapper.createObjectNode();
+        config.put("joinType", "left");
+        config.putArray("keys").addObject()
+                .put("left", "id")
+                .put("right", "id");
+
+        List<FieldSchema> output = new RelationalSchemaDeriver(FILTER.toString(), new ArrayList<>())
+                .join(
+                        config,
+                        List.of(new FieldSchema("id", "long", false),
+                                new FieldSchema("right_id", "long", false),
+                                new FieldSchema("name", "string", true)),
+                        List.of(new FieldSchema("id", "long", false),
+                                new FieldSchema("id", "long", false),
+                                new FieldSchema("dept", "string", true))
+                );
+
+        assertThat(output).extracting(FieldSchema::name)
+                .containsExactly("id", "right_id", "name", "right_id_2", "right_id_3", "dept");
+    }
+
+    @Test
     void reportsInvalidAggregationType() {
         UUID datasetId = UUID.randomUUID();
         ObjectNode config = mapper.createObjectNode();
