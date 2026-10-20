@@ -16,6 +16,7 @@ final class OutputValidator {
     void validateReachability(
             Map<UUID, DraftNode> nodes,
             Set<UUID> outputIds,
+            Map<UUID, OutputConfiguration> outputConfigurations,
             List<PipelineIssue> issues
     ) {
         List<DraftNode> outputNodes = nodes.values().stream()
@@ -35,14 +36,17 @@ final class OutputValidator {
         for (DraftNode output : outputNodes) {
             UUID outputId = boundOutputId(output);
             if (outputId == null || !outputIds.contains(outputId)) {
-                issues.add(issue(
-                        PipelineIssueCodes.OUTPUT_MISSING,
-                        PipelineIssueCodes.PHASE_SCHEMA,
-                        output.id().toString(),
-                        null,
-                        "输出节点未绑定有效 dataset 输出",
-                        "执行 set_output 绑定输出"
-                ));
+                bindingIssue(output.id(), "输出节点未绑定有效 dataset 输出", issues);
+                continue;
+            }
+            OutputConfiguration configuration = outputConfigurations.get(outputId);
+            if (configuration == null) {
+                bindingIssue(output.id(), "输出记录不存在或不可见", issues);
+            } else if (configuration.nodeId() != null
+                    && !configuration.nodeId().equals(output.id())) {
+                bindingIssue(output.id(), "输出记录绑定了其他节点", issues);
+            } else if (!configuration.datasetConfigured()) {
+                bindingIssue(output.id(), "输出缺少对应的 dataset 记录", issues);
             }
         }
     }
@@ -69,6 +73,12 @@ final class OutputValidator {
             if (configuration == null) {
                 continue;
             }
+            if (configuration.nodeId() != null && !configuration.nodeId().equals(output.id())) {
+                continue;
+            }
+            if (!configuration.datasetConfigured()) {
+                continue;
+            }
             List<FieldSchema> schema = schemas.get(output.id());
             validatePrimaryKeys(output.id().toString(), configuration.primaryKeyColumns(), schema, issues);
             validateExpectations(output.id().toString(), configuration.expectations(), schema, issues);
@@ -77,6 +87,17 @@ final class OutputValidator {
 
     private UUID boundOutputId(DraftNode output) {
         return uuid(output.config() == null ? null : output.config().path("outputId").asText(null));
+    }
+
+    private void bindingIssue(UUID nodeId, String message, List<PipelineIssue> issues) {
+        issues.add(issue(
+                PipelineIssueCodes.OUTPUT_MISSING,
+                PipelineIssueCodes.PHASE_SCHEMA,
+                nodeId.toString(),
+                null,
+                message,
+                "执行 set_output 重新绑定输出"
+        ));
     }
 
     private void validatePrimaryKeys(

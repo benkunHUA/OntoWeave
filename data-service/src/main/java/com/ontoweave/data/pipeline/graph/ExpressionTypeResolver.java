@@ -128,11 +128,11 @@ final class ExpressionTypeResolver {
     }
 
     private void compareValue(Optional<String> fieldType, JsonNode literal) {
-        String dataType = literal.path("dataType").asText(null);
-        if (fieldType.isEmpty() || dataType == null) {
+        Optional<String> literalType = literalType(literal);
+        if (fieldType.isEmpty() || literalType.isEmpty()) {
             return;
         }
-        if (!compatible(fieldType.get(), dataType)) {
+        if (!compatible(fieldType.get(), literalType.get())) {
             issues.add(new PipelineIssue(
                     PipelineIssueCodes.TYPE_MISMATCH,
                     PipelineIssueCodes.PHASE_SCHEMA,
@@ -148,24 +148,79 @@ final class ExpressionTypeResolver {
 
     private Optional<String> caseType(JsonNode expression) {
         JsonNode branches = expression.path("branches");
+        Optional<String> result = Optional.empty();
         if (!branches.isArray() || branches.isEmpty()) {
             incomplete("expression.branches");
         } else {
             for (JsonNode branch : branches) {
-                type(branch.path("when"));
-                type(branch.path("then"));
+                type(branch.path("when"))
+                        .ifPresent(type -> requireBoolean(type, "expression.branches.when"));
+                result = unifyResultType(
+                        result,
+                        type(branch.path("then")),
+                        "expression.branches.then"
+                );
             }
         }
-        Optional<String> result = type(expression.path("otherwise"));
-        return result;
+        return unifyResultType(result, type(expression.path("otherwise")), "expression.otherwise");
     }
 
     private Optional<String> literalType(JsonNode expression) {
         String dataType = text(expression, "dataType");
         if (dataType == null) {
             incomplete("expression.dataType");
+            return Optional.empty();
         }
-        return Optional.ofNullable(dataType);
+        JsonNode value = expression.get("value");
+        if (value == null) {
+            incomplete("expression.value");
+            return Optional.of(dataType);
+        }
+        if (!value.isNull() && !literalMatches(dataType, value)) {
+            typeMismatch("字面量值与 dataType 不匹配: " + dataType, "expression.value");
+        }
+        return Optional.of(dataType);
+    }
+
+    private Optional<String> unifyResultType(
+            Optional<String> current,
+            Optional<String> next,
+            String field
+    ) {
+        if (next.isEmpty()) {
+            return current;
+        }
+        if (current.isEmpty()) {
+            return next;
+        }
+        if (!compatible(current.get(), next.get())) {
+            typeMismatch("case 分支结果类型不兼容", field);
+        }
+        return current;
+    }
+
+    private boolean literalMatches(String dataType, JsonNode value) {
+        String normalized = normalize(dataType);
+        return switch (normalized) {
+            case "boolean" -> value.isBoolean();
+            case "string", "date", "timestamp" -> value.isTextual();
+            case "integer", "int", "short", "long" -> value.isIntegralNumber();
+            case "float", "double", "decimal", "number" -> value.isNumber();
+            default -> true;
+        };
+    }
+
+    private void typeMismatch(String message, String field) {
+        issues.add(new PipelineIssue(
+                PipelineIssueCodes.TYPE_MISMATCH,
+                PipelineIssueCodes.PHASE_SCHEMA,
+                true,
+                nodeId,
+                null,
+                field,
+                message,
+                "统一表达式数据类型"
+        ));
     }
 
     private void requireBoolean(String type, String field) {

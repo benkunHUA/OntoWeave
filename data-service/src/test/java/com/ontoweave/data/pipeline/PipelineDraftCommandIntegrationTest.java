@@ -1,29 +1,15 @@
 package com.ontoweave.data.pipeline;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.draft.AddNode;
 import com.ontoweave.data.pipeline.draft.DraftResponse;
 import com.ontoweave.data.pipeline.draft.MoveNodeCommand;
-import com.ontoweave.data.pipeline.draft.PipelineDraftCommandService;
 import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.draft.SetOutput;
 import com.ontoweave.data.pipeline.draft.UpdateNode;
-import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
 import java.util.UUID;
@@ -31,51 +17,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@Testcontainers
-@SpringBootTest
-@ActiveProfiles("test")
-class PipelineDraftCommandIntegrationTest {
-
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("pgvector/pgvector:pg16");
-
-    @DynamicPropertySource
-    static void datasource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
-
-    @Autowired
-    private JdbcTemplate jdbc;
-
-    @Autowired
-    private PipelineDraftCommandService service;
-
-    @Autowired
-    private PipelineDraftRepository drafts;
-
-    @Autowired
-    private ObjectMapper mapper;
-
-    private UUID pipelineId;
-    private UUID ownerId;
-
-    @BeforeEach
-    void setUp() {
-        clear();
-        pipelineId = UUID.randomUUID();
-        ownerId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO data.pipeline (id, owner_id, conversation_id, name, status)
-                VALUES (?, ?, ?, 'integration-pipeline', 'draft')
-                """, pipelineId, ownerId, UUID.randomUUID());
-    }
-
-    @AfterEach
-    void tearDown() {
-        clear();
-    }
+class PipelineDraftCommandIntegrationTest extends PipelineDraftIntegrationTestSupport {
 
     @Test
     @Transactional
@@ -235,43 +177,6 @@ class PipelineDraftCommandIntegrationTest {
         );
     }
 
-    private UUID operationId(long revision) {
-        return UUID.nameUUIDFromBytes(("operation-" + revision).getBytes());
-    }
-
-    private UUID turnId(long revision) {
-        return UUID.nameUUIDFromBytes(("turn-" + revision).getBytes());
-    }
-
-    private void insertDraft(JsonNode definition, long revision) {
-        jdbc.update("""
-                INSERT INTO data.pipeline_draft
-                    (pipeline_id, definition, revision, updated_by_type, updated_by_id)
-                VALUES (?, CAST(? AS jsonb), ?, 'user', ?)
-                """, pipelineId, definition.toString(), revision, ownerId);
-    }
-
-    private long revision() {
-        return jdbc.queryForObject(
-                "SELECT revision FROM data.pipeline_draft WHERE pipeline_id = ?",
-                Long.class,
-                pipelineId
-        );
-    }
-
-    private int count(String table) {
-        Integer count = jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
-        return count == null ? 0 : count;
-    }
-
-    private ObjectNode emptyDraft() {
-        ObjectNode definition = mapper.createObjectNode();
-        definition.put("schemaVersion", 1);
-        definition.set("nodes", mapper.createArrayNode());
-        definition.set("edges", mapper.createArrayNode());
-        return definition;
-    }
-
     private ObjectNode outputDraft(UUID outputNodeId) {
         ObjectNode definition = emptyDraft();
         ObjectNode node = definition.withArray("nodes").addObject();
@@ -283,8 +188,4 @@ class PipelineDraftCommandIntegrationTest {
         return definition;
     }
 
-    private void clear() {
-        jdbc.execute("TRUNCATE TABLE data.pipeline CASCADE");
-        jdbc.execute("TRUNCATE TABLE data.outbox_event");
-    }
 }

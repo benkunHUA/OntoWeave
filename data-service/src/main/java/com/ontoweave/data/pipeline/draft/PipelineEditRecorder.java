@@ -38,9 +38,6 @@ public class PipelineEditRecorder {
         ));
     }
 
-    public void recordMove(MoveNodeCommand ignored) {
-    }
-
     public Optional<PipelineEditOpEntity> findLatest(UUID pipelineId) {
         return repository.findTopByPipelineIdOrderByRevisionDescSeqDesc(pipelineId);
     }

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class PipelineGraphValidator {
@@ -24,7 +25,12 @@ public class PipelineGraphValidator {
             Map<UUID, InputSchema> inputSchemas,
             Set<UUID> outputIds
     ) {
-        return validate(draft, catalog, inputSchemas, outputIds, Map.of());
+        Set<UUID> ids = outputIds == null ? Set.of() : outputIds;
+        Map<UUID, OutputConfiguration> configurations = ids.stream().collect(Collectors.toMap(
+                id -> id,
+                id -> new OutputConfiguration(id, null, true, null, null)
+        ));
+        return validate(draft, catalog, inputSchemas, ids, configurations);
     }
 
     public List<PipelineIssue> validate(
@@ -42,9 +48,13 @@ public class PipelineGraphValidator {
         }
         GraphTopology.cycleNodes(structure.nodes(), structure.edges(), issues);
         GraphTopology.reportRequiredInputs(structure.nodes(), structure.edges(), catalog, issues);
+        Set<UUID> ids = outputIds == null ? Set.of() : outputIds;
+        Map<UUID, OutputConfiguration> configurations =
+                outputConfigurations == null ? Map.of() : outputConfigurations;
         outputValidator.validateReachability(
                 structure.nodes(),
-                outputIds == null ? Set.of() : outputIds,
+                ids,
+                configurations,
                 issues
         );
         Map<UUID, List<FieldSchema>> schemas = deriveSchemas(
@@ -56,8 +66,8 @@ public class PipelineGraphValidator {
         outputValidator.validateConfiguration(
                 structure.nodes(),
                 schemas,
-                outputIds == null ? Set.of() : outputIds,
-                outputConfigurations == null ? Map.of() : outputConfigurations,
+                ids,
+                configurations,
                 issues
         );
         return List.copyOf(new LinkedHashSet<>(issues));

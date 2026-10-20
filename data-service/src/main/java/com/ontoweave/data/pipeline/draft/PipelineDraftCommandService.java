@@ -60,7 +60,10 @@ public class PipelineDraftCommandService {
     public DraftResponse apply(UUID pipelineId, UUID ownerId, DraftCommand command) {
         requirePipeline(pipelineId, ownerId);
         requireCommandMetadata(command);
-        PipelineDraftEntity draft = requireDraft(pipelineId);
+        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
+        if (draft.getRevision() != command.baseRevision()) {
+            throw new PipelineRevisionConflict();
+        }
         JsonNode before = requireDefinition(draft);
         if (command instanceof SetOutput setOutput) {
             return applySetOutput(pipelineId, ownerId, before, setOutput);
@@ -80,7 +83,7 @@ public class PipelineDraftCommandService {
     @Transactional
     public DraftResponse moveNode(UUID pipelineId, UUID ownerId, MoveNodeCommand command) {
         requirePipeline(pipelineId, ownerId);
-        PipelineDraftEntity draft = requireDraft(pipelineId);
+        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
         JsonNode moved = applier.moveNode(requireDefinition(draft), command);
         int updated = drafts.updateDefinitionWithoutRevision(
                 pipelineId,
@@ -97,7 +100,7 @@ public class PipelineDraftCommandService {
     @Transactional
     public DraftResponse undoTurn(UUID pipelineId, UUID ownerId, UUID turnId, long currentRevision) {
         requirePipeline(pipelineId, ownerId);
-        PipelineDraftEntity draft = requireDraft(pipelineId);
+        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
         PipelineEditOpEntity latest = editRecorder.findLatest(pipelineId)
                 .orElseThrow(this::undoNotLatest);
         if (turnId == null || latest.getTurnId() == null
@@ -256,6 +259,11 @@ public class PipelineDraftCommandService {
 
     private PipelineDraftEntity requireDraft(UUID pipelineId) {
         return drafts.findById(pipelineId)
+                .orElseThrow(() -> notFound("草稿不存在"));
+    }
+
+    private PipelineDraftEntity requireDraftForUpdate(UUID pipelineId) {
+        return drafts.findByIdForUpdate(pipelineId)
                 .orElseThrow(() -> notFound("草稿不存在"));
     }
 

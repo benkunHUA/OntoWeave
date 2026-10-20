@@ -5,7 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.UUID;
 
-public record OutputConfiguration(UUID outputId, JsonNode primaryKeyColumns, JsonNode expectations) {
+public record OutputConfiguration(
+        UUID outputId,
+        UUID nodeId,
+        boolean datasetConfigured,
+        JsonNode primaryKeyColumns,
+        JsonNode expectations
+) {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -14,9 +20,24 @@ public record OutputConfiguration(UUID outputId, JsonNode primaryKeyColumns, Jso
         expectations = expectations == null ? JSON.createArrayNode() : expectations.deepCopy();
     }
 
+    public OutputConfiguration(
+            UUID outputId,
+            UUID nodeId,
+            JsonNode primaryKeyColumns,
+            JsonNode expectations
+    ) {
+        this(outputId, nodeId, true, primaryKeyColumns, expectations);
+    }
+
+    public OutputConfiguration(UUID outputId, JsonNode primaryKeyColumns, JsonNode expectations) {
+        this(outputId, null, true, primaryKeyColumns, expectations);
+    }
+
     public OutputConfiguration(JsonNode config) {
         this(
                 config == null ? null : uuid(config.path("outputId").asText(null)),
+                null,
+                true,
                 config == null ? null : config.get("primaryKeyColumns"),
                 config == null ? null : config.get("expectations")
         );

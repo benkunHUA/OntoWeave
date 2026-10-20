@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +19,8 @@ public interface DataConnectionRepository extends JpaRepository<DataConnectionEn
     Optional<DataConnectionEntity> findByConversationId(UUID conversationId);
 
     Optional<DataConnectionEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
+
+    List<DataConnectionEntity> findByIdInAndOwnerId(Collection<UUID> ids, UUID ownerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from DataConnectionEntity c where c.id = :id and c.ownerId = :ownerId")

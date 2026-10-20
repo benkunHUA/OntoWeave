@@ -8,6 +8,7 @@ import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
+import com.ontoweave.data.pipeline.graph.DraftNode;
 import com.ontoweave.data.pipeline.graph.InputSchema;
 import com.ontoweave.data.pipeline.graph.InputSchemaResolver;
 import com.ontoweave.data.pipeline.graph.OutputConfiguration;
@@ -22,9 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,7 +77,7 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
         Map<UUID, InputSchema> resolvedInputs = resolveInputs(ownerId, graph);
         List<PipelineOutputEntity> activeOutputs = outputs.findByPipelineIdAndArchivedAtIsNull(pipelineId);
         Set<UUID> outputIds = activeOutputs.stream().map(PipelineOutputEntity::getId).collect(Collectors.toSet());
-        Map<UUID, OutputConfiguration> outputConfigurations = outputConfigurations(outputIds);
+        Map<UUID, OutputConfiguration> outputConfigurations = outputConfigurations(activeOutputs);
 
         List<PipelineIssue> issues = validator.validate(
                 graph,
@@ -107,35 +108,38 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
     }
 
     private Map<UUID, InputSchema> resolveInputs(UUID ownerId, PipelineDraftGraph graph) {
-        Map<UUID, InputSchema> resolved = new LinkedHashMap<>();
-        graph.nodes().stream()
+        Set<UUID> datasetIds = graph.nodes().stream()
                 .filter(node -> "input".equals(node.type()))
-                .forEach(node -> {
-                    JsonNode config = node.config();
-                    if (config == null) {
-                        return;
-                    }
-                    String datasetKind = config.path("datasetKind").asText(null);
-                    UUID datasetId = uuid(config.path("datasetId").asText(null));
-                    if (datasetId == null || resolved.containsKey(datasetId)) {
-                        return;
-                    }
-                    Optional<InputSchema> schema = inputSchemas.resolve(ownerId, datasetKind, datasetId);
-                    schema.ifPresent(value -> resolved.put(datasetId, value));
-                });
-        return resolved;
+                .map(DraftNode::config)
+                .filter(config -> config != null
+                        && InputSchemaResolver.SYNC_DATASET_KIND.equals(config.path("datasetKind").asText()))
+                .map(config -> uuid(config.path("datasetId").asText(null)))
+                .filter(id -> id != null)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (datasetIds.isEmpty()) {
+            return Map.of();
+        }
+        return inputSchemas.resolveAll(ownerId, datasetIds);
     }
 
-    private Map<UUID, OutputConfiguration> outputConfigurations(Set<UUID> outputIds) {
+    private Map<UUID, OutputConfiguration> outputConfigurations(List<PipelineOutputEntity> activeOutputs) {
+        Set<UUID> outputIds = activeOutputs.stream()
+                .map(PipelineOutputEntity::getId)
+                .collect(Collectors.toSet());
         if (outputIds.isEmpty()) {
             return Map.of();
         }
+        Map<UUID, PipelineDatasetEntity> datasetsByOutput = datasets.findByOutputIdIn(outputIds).stream()
+                .collect(Collectors.toMap(PipelineDatasetEntity::getOutputId, dataset -> dataset));
         Map<UUID, OutputConfiguration> configurations = new LinkedHashMap<>();
-        for (PipelineDatasetEntity dataset : datasets.findByOutputIdIn(outputIds)) {
-            configurations.put(dataset.getOutputId(), new OutputConfiguration(
-                    dataset.getOutputId(),
-                    dataset.getPrimaryKeyColumns(),
-                    dataset.getExpectations()
+        for (PipelineOutputEntity output : activeOutputs) {
+            PipelineDatasetEntity dataset = datasetsByOutput.get(output.getId());
+            configurations.put(output.getId(), new OutputConfiguration(
+                    output.getId(),
+                    output.getNodeId(),
+                    dataset != null,
+                    dataset == null ? null : dataset.getPrimaryKeyColumns(),
+                    dataset == null ? null : dataset.getExpectations()
             ));
         }
         return configurations;

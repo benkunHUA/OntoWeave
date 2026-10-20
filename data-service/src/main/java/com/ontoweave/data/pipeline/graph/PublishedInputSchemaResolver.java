@@ -9,14 +9,18 @@ import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Component
 public class PublishedInputSchemaResolver implements InputSchemaResolver {
 
-    private static final String DATASET_KIND_SYNC = "sync";
     private static final String FIELD_NAME = "name";
     private static final String FIELD_TYPE = "type";
     private static final String FIELD_REQUIRED = "required";
@@ -37,24 +41,57 @@ public class PublishedInputSchemaResolver implements InputSchemaResolver {
 
     @Override
     public Optional<InputSchema> resolve(UUID ownerId, String datasetKind, UUID datasetId) {
-        if (ownerId == null || datasetId == null || !DATASET_KIND_SYNC.equals(datasetKind)) {
+        if (ownerId == null || datasetId == null || !SYNC_DATASET_KIND.equals(datasetKind)) {
             return Optional.empty();
         }
-        DatasetEntity dataset = datasets.findById(datasetId).orElse(null);
-        if (dataset == null || dataset.getCurrentVersionId() == null) {
-            return Optional.empty();
+        return Optional.ofNullable(resolveAll(ownerId, Set.of(datasetId)).get(datasetId));
+    }
+
+    @Override
+    public Map<UUID, InputSchema> resolveAll(UUID ownerId, Set<UUID> datasetIds) {
+        if (ownerId == null || datasetIds == null || datasetIds.isEmpty()) {
+            return Map.of();
         }
-        if (connections.findByIdAndOwnerId(dataset.getConnectionId(), ownerId).isEmpty()) {
-            return Optional.empty();
+        Map<UUID, DatasetEntity> datasetsById = new HashMap<>();
+        for (DatasetEntity dataset : datasets.findAllById(datasetIds)) {
+            if (dataset.getCurrentVersionId() != null) {
+                datasetsById.put(dataset.getId(), dataset);
+            }
         }
-        DatasetVersionEntity version = versions.findByIdAndDatasetId(
-                dataset.getCurrentVersionId(),
-                datasetId
-        ).orElse(null);
-        if (version == null || version.getPublishedAt() == null) {
-            return Optional.empty();
+        if (datasetsById.isEmpty()) {
+            return Map.of();
         }
-        if (version.getSchemaJson() == null) {
+        Set<UUID> connectionIds = datasetsById.values().stream()
+                .map(DatasetEntity::getConnectionId)
+                .collect(Collectors.toSet());
+        Set<UUID> visibleConnections = connections.findByIdInAndOwnerId(connectionIds, ownerId).stream()
+                .map(connection -> connection.getId())
+                .collect(Collectors.toSet());
+        Set<UUID> versionIds = datasetsById.values().stream()
+                .filter(dataset -> visibleConnections.contains(dataset.getConnectionId()))
+                .map(DatasetEntity::getCurrentVersionId)
+                .collect(Collectors.toSet());
+        if (versionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, DatasetVersionEntity> versionsById = new HashMap<>();
+        for (DatasetVersionEntity version : versions.findAllById(versionIds)) {
+            versionsById.put(version.getId(), version);
+        }
+        Map<UUID, InputSchema> resolved = new LinkedHashMap<>();
+        for (DatasetEntity dataset : datasetsById.values()) {
+            if (!visibleConnections.contains(dataset.getConnectionId())) {
+                continue;
+            }
+            DatasetVersionEntity version = versionsById.get(dataset.getCurrentVersionId());
+            schema(dataset, version).ifPresent(input -> resolved.put(dataset.getId(), input));
+        }
+        return resolved;
+    }
+
+    private Optional<InputSchema> schema(DatasetEntity dataset, DatasetVersionEntity version) {
+        if (version == null || !dataset.getId().equals(version.getDatasetId())
+                || version.getPublishedAt() == null || version.getSchemaJson() == null) {
             return Optional.empty();
         }
         JsonNode fieldsNode = version.getSchemaJson().path("fields");

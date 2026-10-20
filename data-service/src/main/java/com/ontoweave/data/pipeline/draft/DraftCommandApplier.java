@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.catalog.NodePortRole;
 import com.ontoweave.data.pipeline.catalog.PipelineNodeCatalog;
 
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.ontoweave.data.pipeline.draft.DraftCommandValidation.invalid;
@@ -137,6 +138,7 @@ final class DraftCommandApplier {
     private DraftMutation update(JsonNode definition, UpdateNode command) {
         ObjectNode root = root(definition);
         ObjectNode node = requireNode(root, command.nodeId());
+        String type = node.path(FIELD_TYPE).asText();
         if (command.name() == null && command.config() == null) {
             throw invalid("name 与 config 不能同时为空");
         }
@@ -145,10 +147,22 @@ final class DraftCommandApplier {
             node.put(FIELD_NAME, command.name().trim());
         }
         if (command.config() != null) {
-            String type = node.path(FIELD_TYPE).asText();
+            if ("output".equals(type)) {
+                requireUnchangedOutputBinding(node, command.config());
+            }
             node.set(FIELD_CONFIG, validateConfig(catalog, type, command.config()));
         }
         return new DraftMutation(root, OP_UPDATE_NODE, TARGET_NODE, command.nodeId());
+    }
+
+    private void requireUnchangedOutputBinding(ObjectNode node, JsonNode config) {
+        JsonNode currentId = node.path(FIELD_CONFIG).path(FIELD_OUTPUT_ID);
+        JsonNode nextId = config.path(FIELD_OUTPUT_ID);
+        String current = currentId.isTextual() ? currentId.asText() : null;
+        String next = nextId.isTextual() ? nextId.asText() : null;
+        if (!Objects.equals(current, next)) {
+            throw invalid("output 节点的 config.outputId 不能通过 update_node 修改");
+        }
     }
 
     private DraftMutation delete(JsonNode definition, DeleteNode command) {
