@@ -86,21 +86,21 @@ final class OutputValidator {
             List<PipelineIssue> issues
     ) {
         if (primaryKeys == null || !primaryKeys.isArray()) {
-            primaryKeyIssue(nodeId, "主键必须是数组", issues);
+            primaryKeyIssue(nodeId, null, "主键必须是数组", issues);
             return;
         }
         Set<String> seen = new HashSet<>();
         for (JsonNode value : primaryKeys) {
             if (!value.isTextual() || value.asText().isBlank()) {
-                primaryKeyIssue(nodeId, "主键字段必须是非空字符串", issues);
+                primaryKeyIssue(nodeId, null, "主键字段必须是非空字符串", issues);
                 continue;
             }
             String field = value.asText();
             if (!seen.add(field)) {
-                primaryKeyIssue(nodeId, "主键字段重复: " + field, issues);
+                primaryKeyIssue(nodeId, field, "主键字段重复: " + field, issues);
             }
             if (schema != null && field(schema, field) == null) {
-                primaryKeyIssue(nodeId, "主键字段不存在: " + field, issues);
+                primaryKeyIssue(nodeId, field, "主键字段不存在: " + field, issues);
             }
         }
     }
@@ -217,12 +217,17 @@ final class OutputValidator {
         }
     }
 
-    private void primaryKeyIssue(String nodeId, String message, List<PipelineIssue> issues) {
+    private void primaryKeyIssue(
+            String nodeId,
+            String field,
+            String message,
+            List<PipelineIssue> issues
+    ) {
         issues.add(issue(
                 PipelineIssueCodes.PRIMARY_KEY_INVALID,
                 PipelineIssueCodes.PHASE_SCHEMA,
                 nodeId,
-                null,
+                field,
                 message,
                 "修正主键配置"
         ));

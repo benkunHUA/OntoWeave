@@ -33,7 +33,8 @@ final class DraftStructureChecker {
             issues.add(issue(PipelineIssueCodes.CONFIG_INVALID, "草稿根必须是 JSON 对象"));
             return new StructureResult(Map.of(), List.of(), true);
         }
-        if (definition.path("schemaVersion").asInt(-1) != 1) {
+        JsonNode schemaVersion = definition.path("schemaVersion");
+        if (!schemaVersion.isIntegralNumber() || schemaVersion.asInt() != 1) {
             issues.add(issue(PipelineIssueCodes.CONFIG_INVALID, "schemaVersion 必须为 1"));
         }
         if (!definition.path("nodes").isArray() || !definition.path("edges").isArray()) {

@@ -10,6 +10,7 @@ import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputType;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 import java.util.UUID;
@@ -19,6 +20,8 @@ import static com.ontoweave.data.pipeline.draft.DraftConstants.CODE_OUTPUT_NAME_
 import static com.ontoweave.data.pipeline.draft.DraftConstants.WRITE_MODE_SNAPSHOT;
 
 public class PipelineOutputWriter {
+
+    private static final String DATASET_NAME_CONSTRAINT = "uq_pipeline_dataset_name";
 
     private final PipelineOutputRepository outputs;
     private final PipelineDatasetRepository datasets;
@@ -58,30 +61,31 @@ public class PipelineOutputWriter {
                     normalizedName
             );
             outputs.saveAndFlush(output);
-            datasets.saveAndFlush(new PipelineDatasetEntity(
+            saveDataset(new PipelineDatasetEntity(
                     UUID.randomUUID(),
                     output.getId(),
                     pipelineId,
                     normalizedName,
                     keys,
                     expected
-            ));
+            ), normalizedName);
             return output.getId();
         }
         requireDatasetType(output);
         output.rename(normalizedName);
         PipelineDatasetEntity dataset = datasets.findByOutputId(output.getId()).orElse(null);
         if (dataset == null) {
-            datasets.saveAndFlush(new PipelineDatasetEntity(
+            saveDataset(new PipelineDatasetEntity(
                     UUID.randomUUID(),
                     output.getId(),
                     pipelineId,
                     normalizedName,
                     keys,
                     expected
-            ));
+            ), normalizedName);
         } else {
             dataset.updateConfiguration(normalizedName, mode, keys, expected);
+            saveDataset(dataset, normalizedName);
         }
         return output.getId();
     }
@@ -90,13 +94,41 @@ public class PipelineOutputWriter {
         outputs.findByPipelineIdAndName(pipelineId, name)
                 .filter(existing -> !existing.getNodeId().equals(nodeId))
                 .ifPresent(existing -> {
-                    throw new ApiException(
-                            HttpStatus.CONFLICT,
-                            CODE_OUTPUT_NAME_CONFLICT,
-                            "输出名称已存在: " + name,
-                            java.util.Map.of("name", name)
-                    );
+                    throw outputNameConflict(name);
                 });
+    }
+
+    private void saveDataset(PipelineDatasetEntity dataset, String name) {
+        try {
+            datasets.saveAndFlush(dataset);
+        } catch (DataIntegrityViolationException error) {
+            if (!violatesNameConstraint(error)) {
+                throw error;
+            }
+            throw outputNameConflict(name);
+        }
+    }
+
+    private boolean violatesNameConstraint(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && message.contains(DATASET_NAME_CONSTRAINT)) {
+                return true;
+            }
+            Throwable cause = current.getCause();
+            current = cause == current ? null : cause;
+        }
+        return false;
+    }
+
+    private ApiException outputNameConflict(String name) {
+        return new ApiException(
+                HttpStatus.CONFLICT,
+                CODE_OUTPUT_NAME_CONFLICT,
+                "输出名称已存在: " + name,
+                java.util.Map.of("name", name)
+        );
     }
 
     private void requireDatasetType(PipelineOutputEntity output) {

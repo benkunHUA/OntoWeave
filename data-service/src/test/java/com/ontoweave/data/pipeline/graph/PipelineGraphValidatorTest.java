@@ -16,6 +16,7 @@ import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -151,6 +152,27 @@ class PipelineGraphValidatorTest {
     }
 
     @Test
+    void joinPrefixesOnlyCollidingRightFields() {
+        ObjectNode config = mapper.createObjectNode();
+        config.put("joinType", "left");
+        config.putArray("keys").addObject()
+                .put("left", "id")
+                .put("right", "id");
+
+        List<FieldSchema> output = new RelationalSchemaDeriver(FILTER.toString(), new ArrayList<>())
+                .join(
+                        config,
+                        List.of(new FieldSchema("id", "long", false),
+                                new FieldSchema("name", "string", true)),
+                        List.of(new FieldSchema("id", "long", false),
+                                new FieldSchema("dept", "string", true))
+                );
+
+        assertThat(output).extracting(FieldSchema::name)
+                .containsExactly("id", "name", "right_id", "dept");
+    }
+
+    @Test
     void reportsInvalidAggregationType() {
         UUID datasetId = UUID.randomUUID();
         ObjectNode config = mapper.createObjectNode();
@@ -210,6 +232,10 @@ class PipelineGraphValidatorTest {
                 Map.of(OUTPUT_ID, new OutputConfiguration(primaryKeyConfig))
         );
         assertThat(codes(primaryKeyIssues)).contains("PRIMARY_KEY_INVALID");
+        assertThat(primaryKeyIssues)
+                .filteredOn(issue -> issue.code().equals("PRIMARY_KEY_INVALID"))
+                .extracting(PipelineIssue::field)
+                .contains("missing");
 
         ObjectNode expectationConfig = mapper.createObjectNode();
         expectationConfig.putArray("primaryKeyColumns").add("id");
@@ -302,6 +328,24 @@ class PipelineGraphValidatorTest {
             assertThat(issue.phase()).isEqualTo("structure");
             assertThat(issue.blocking()).isTrue();
         });
+    }
+
+    @Test
+    void rejectsNonIntegralSchemaVersionInStructurePhase() {
+        for (JsonNode schemaVersion : List.of(
+                mapper.getNodeFactory().textNode("1"),
+                mapper.getNodeFactory().numberNode(1.5),
+                mapper.getNodeFactory().booleanNode(true)
+        )) {
+            ObjectNode draft = emptyDraft();
+            draft.set("schemaVersion", schemaVersion);
+
+            assertThat(validate(draft, Map.of())).anySatisfy(issue -> {
+                assertThat(issue.code()).isEqualTo("CONFIG_INVALID");
+                assertThat(issue.phase()).isEqualTo("structure");
+                assertThat(issue.message()).contains("schemaVersion");
+            });
+        }
     }
 
     @Test

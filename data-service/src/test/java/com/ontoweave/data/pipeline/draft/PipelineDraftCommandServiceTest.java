@@ -23,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
@@ -191,6 +192,55 @@ class PipelineDraftCommandServiceTest {
     }
 
     @Test
+    void rejectsNonIntegralSchemaVersionForCommands() {
+        PipelineDraftEntity textVersion = draft(4, draftWithSchemaVersion(
+                mapper.getNodeFactory().textNode("1")
+        ));
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(textVersion));
+        assertInvalidSchemaVersion();
+
+        PipelineDraftEntity decimalVersion = draft(4, draftWithSchemaVersion(
+                mapper.getNodeFactory().numberNode(1.5)
+        ));
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(decimalVersion));
+        assertInvalidSchemaVersion();
+
+        PipelineDraftEntity booleanVersion = draft(4, draftWithSchemaVersion(
+                mapper.getNodeFactory().booleanNode(true)
+        ));
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(booleanVersion));
+        assertInvalidSchemaVersion();
+
+        verify(drafts, never()).updateDefinition(any(), eq(4L), anyString(), anyString(), any());
+        verify(editRecorder, never()).recordSemanticEdit(any());
+        verify(outbox, never()).write(anyString(), any(), anyString(), any());
+    }
+
+    @Test
+    void rejectsSemanticCommandWithoutTurnId() {
+        AddNode command = new AddNode(
+                4,
+                operationId(4),
+                null,
+                NODE_ID,
+                "filter",
+                "Filter",
+                mapper.createObjectNode(),
+                position(1, 1)
+        );
+
+        assertThatThrownBy(() -> service.apply(PIPELINE_ID, OWNER_ID, command))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(400);
+                    assertThat(error.code()).isEqualTo("CONFIG_INVALID");
+                });
+
+        verify(drafts, never()).updateDefinition(any(), eq(4L), anyString(), anyString(), any());
+        verify(editRecorder, never()).recordSemanticEdit(any());
+        verify(outbox, never()).write(anyString(), any(), anyString(), any());
+    }
+
+    @Test
     void setOutputUpdatesExistingRowsWithoutDuplicateInsert() {
         ObjectNode definition = outputDraft("55555555-5555-4555-8555-555555555555");
         PipelineDraftEntity draft = draft(5, definition);
@@ -220,6 +270,7 @@ class PipelineDraftCommandServiceTest {
                 .isEqualTo(outputId.toString());
         verify(outputs, never()).save(any());
         verify(datasets, never()).save(any());
+        verify(datasets).saveAndFlush(dataset);
     }
 
     @Test
@@ -271,6 +322,52 @@ class PipelineDraftCommandServiceTest {
         assertThat(dataset.getValue().getExpectations()).isEmpty();
         assertThat(response.definition().path("nodes").get(0).path("config").path("outputId").asText())
                 .isNotBlank();
+    }
+
+    @Test
+    void setOutputMapsDatasetNameConstraintToOutputNameConflict() {
+        PipelineDraftEntity draft = draft(5, outputDraft(""));
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
+        when(outputs.findByPipelineIdAndNodeId(PIPELINE_ID, NODE_ID)).thenReturn(Optional.empty());
+        when(outputs.findByPipelineIdAndName(PIPELINE_ID, "orders")).thenReturn(Optional.empty());
+        when(datasets.saveAndFlush(any(PipelineDatasetEntity.class))).thenThrow(
+                new DataIntegrityViolationException(
+                        "duplicate key value violates unique constraint \"uq_pipeline_dataset_name\""
+                )
+        );
+
+        assertThatThrownBy(() -> service.apply(
+                PIPELINE_ID,
+                OWNER_ID,
+                setOutput(5, "orders", UUID.randomUUID())
+        )).isInstanceOfSatisfying(ApiException.class, error -> {
+            assertThat(error.status().value()).isEqualTo(409);
+            assertThat(error.code()).isEqualTo("OUTPUT_NAME_CONFLICT");
+        });
+
+        verify(drafts, never()).updateDefinition(any(), eq(5L), anyString(), anyString(), any());
+        verify(editRecorder, never()).recordSemanticEdit(any());
+        verify(outbox, never()).write(anyString(), any(), anyString(), any());
+    }
+
+    @Test
+    void setOutputDoesNotMaskOtherDatasetConstraintFailures() {
+        PipelineDraftEntity draft = draft(5, outputDraft(""));
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
+        when(outputs.findByPipelineIdAndNodeId(PIPELINE_ID, NODE_ID)).thenReturn(Optional.empty());
+        when(outputs.findByPipelineIdAndName(PIPELINE_ID, "orders")).thenReturn(Optional.empty());
+        when(datasets.saveAndFlush(any(PipelineDatasetEntity.class))).thenThrow(
+                new DataIntegrityViolationException(
+                        "violates foreign key constraint \"fk_pipeline_dataset_pipeline\""
+                )
+        );
+
+        assertThatThrownBy(() -> service.apply(
+                PIPELINE_ID,
+                OWNER_ID,
+                setOutput(5, "orders", UUID.randomUUID())
+        )).isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_pipeline_dataset_pipeline");
     }
 
     @Test
@@ -429,6 +526,20 @@ class PipelineDraftCommandServiceTest {
         definition.set("nodes", mapper.createArrayNode());
         definition.set("edges", mapper.createArrayNode());
         return definition;
+    }
+
+    private ObjectNode draftWithSchemaVersion(JsonNode schemaVersion) {
+        ObjectNode definition = emptyDraft();
+        definition.set("schemaVersion", schemaVersion);
+        return definition;
+    }
+
+    private void assertInvalidSchemaVersion() {
+        assertThatThrownBy(() -> service.apply(PIPELINE_ID, OWNER_ID, addNode(4)))
+                .isInstanceOfSatisfying(ApiException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(400);
+                    assertThat(error.code()).isEqualTo("CONFIG_INVALID");
+                });
     }
 
     private ObjectNode outputDraft(String outputId) {

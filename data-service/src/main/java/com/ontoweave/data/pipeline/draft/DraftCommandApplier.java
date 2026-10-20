@@ -214,7 +214,9 @@ final class DraftCommandApplier {
         if (root == null) {
             throw invalid("草稿必须是 schemaVersion=1 的对象");
         }
-        if (root.path(FIELD_SCHEMA_VERSION).asInt(-1) != SCHEMA_VERSION
+        JsonNode schemaVersion = root.path(FIELD_SCHEMA_VERSION);
+        if (!schemaVersion.isIntegralNumber()
+                || schemaVersion.asInt() != SCHEMA_VERSION
                 || !root.path(FIELD_NODES).isArray()
                 || !root.path(FIELD_EDGES).isArray()) {
             throw invalid("草稿必须是 schemaVersion=1 且包含 nodes/edges 数组");

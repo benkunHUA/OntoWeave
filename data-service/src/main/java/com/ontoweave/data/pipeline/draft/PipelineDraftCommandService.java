@@ -241,6 +241,9 @@ public class PipelineDraftCommandService {
         if (command.operationId() == null) {
             throw invalid("operationId 不能为空");
         }
+        if (command.turnId() == null) {
+            throw invalid("turnId 不能为空");
+        }
     }
 
     private void requirePipeline(UUID pipelineId, UUID ownerId) {
