@@ -189,6 +189,8 @@ def build_output(row: dict) -> dict:
     return {
         "id": row.get("id"),
         "output_id": row.get("outputId"),
+        "dataset_id": row.get("datasetId"),
+        "dataset_version_id": row.get("datasetVersionId"),
         "output_type": row.get("outputType"),
         "status": row.get("status"),
         "stage": row.get("stage"),

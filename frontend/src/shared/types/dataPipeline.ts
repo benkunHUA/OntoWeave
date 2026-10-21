@@ -206,6 +206,8 @@ export interface PipelinePreview {
 export interface PipelineBuildOutput {
   id: string
   output_id: string
+  dataset_id: string | null
+  dataset_version_id: string | null
   output_type: string
   status: string
   stage: string | null
@@ -268,14 +270,49 @@ export interface DatasetSchema {
   column_count: number
 }
 
+export interface PipelineSourceOutput {
+  output_id: string
+  name: string
+  version_number: number
+  row_count: number
+  published_at: string | null
+}
+
+export interface PipelineSourceBuild {
+  build_id: string
+  status: string
+  trigger: string
+  started_at: string | null
+  finished_at: string | null
+}
+
+export interface PipelineSourcePipelineVersion {
+  version_id: string
+  version_number: number
+  created_at: string | null
+}
+
+export interface PipelineSourceInput {
+  dataset_kind: string
+  dataset_id: string
+  dataset_version_id: string | null
+  dataset_version_number: number | null
+  schema_hash: string | null
+  dataset_name: string | null
+  connection_name: string | null
+  source_schema_name: string | null
+  source_table_name: string | null
+  metadata_status: string | null
+}
+
 export interface PipelineSource {
   pipeline_id: string
   dataset_id: string
   version_id: string | null
-  output: JsonObject
-  build: JsonObject | null
-  pipeline_version: JsonObject | null
-  inputs: JsonObject[]
+  output: PipelineSourceOutput
+  build: PipelineSourceBuild | null
+  pipeline_version: PipelineSourcePipelineVersion | null
+  inputs: PipelineSourceInput[]
 }
 
 export interface PipelineSchedule {

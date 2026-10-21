@@ -1,0 +1,87 @@
+/* ===== 输出数据集来源 ===== */
+
+.pipeline-source-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #202020;
+}
+
+.pipeline-source-panel h4 {
+  margin-top: 2px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.pipeline-source-summary,
+.pipeline-source-grid,
+.pipeline-source-inputs article {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.pipeline-source-summary span {
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9px;
+  background: var(--raised);
+}
+
+.pipeline-source-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pipeline-source-grid > div,
+.pipeline-source-inputs article {
+  display: grid;
+  gap: 2px;
+  padding: 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.pipeline-source-grid span,
+.pipeline-source-grid small,
+.pipeline-source-inputs p,
+.pipeline-source-note,
+.pipeline-source-loading {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.pipeline-source-grid strong,
+.pipeline-source-input-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-dim);
+  font-size: 10px;
+}
+
+.pipeline-source-inputs {
+  display: grid;
+  gap: 6px;
+}
+
+.pipeline-source-inputs > strong {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.pipeline-source-input-title em {
+  margin-left: auto;
+  color: var(--blue-ink);
+  font-style: normal;
+}
+
+.pipeline-source-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

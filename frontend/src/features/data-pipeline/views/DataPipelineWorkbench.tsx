@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useErrorToast } from '../../../shared/chat/hooks/useErrorToast'
 import type {
@@ -11,12 +11,17 @@ import type {
 } from '../../../shared/types'
 import { WorkbenchPaneLayout } from '../../../shared/workbench/WorkbenchPaneLayout'
 import { NodeConfigDrawer } from '../components/drawers/NodeConfigDrawer'
+import { BuildBar } from '../components/build/BuildBar'
+import { BuildDetailsDrawer } from '../components/build/BuildDetailsDrawer'
 import { PipelineCanvas } from '../components/PipelineCanvas'
 import { PipelineConversationPane } from '../components/PipelineConversationPane'
 import { PipelineListPane } from '../components/PipelineListPane'
+import { PreviewPanel } from '../components/preview/PreviewPanel'
+import { ScheduleDrawer } from '../components/schedule/ScheduleDrawer'
 import { usePipelineCommandQueue } from '../hooks/usePipelineCommandQueue'
 import { usePipelineConversation } from '../hooks/usePipelineConversation'
 import { usePipelineDraft } from '../hooks/usePipelineDraft'
+import { usePipelineExecutionUi } from '../hooks/usePipelineExecutionUi'
 import { usePipelineLayout } from '../hooks/usePipelineLayout'
 import { usePipelineList } from '../hooks/usePipelineList'
 import { DATA_PIPELINE_PATH, PIPELINE_LIST_WIDTH } from '../lib/constants'
@@ -47,13 +52,43 @@ export function DataPipelineWorkbench() {
   } = queue
   const { reload: reloadDraft, setCheck: setDraftCheck } = draftView
   const { create: createPipelineRecord } = list
+  const refreshList = list.refresh
+  const reloadDraftView = draftView.reload
   const layout = usePipelineLayout()
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
   const pipeline = useMemo<Pipeline | null>(
     () => list.items.find((item) => item.id === pipelineId) ?? null,
     [list.items, pipelineId],
   )
+  const handleBuildSucceeded = useCallback(() => {
+    void refreshList()
+    void reloadDraftView()
+  }, [refreshList, reloadDraftView])
+  const execution = usePipelineExecutionUi({
+    pipelineId,
+    draft: draftView.draft,
+    check: draftView.check,
+    onBuildSucceeded: handleBuildSucceeded,
+  })
+  const {
+    preview,
+    build,
+    outputs,
+    outputNames,
+    selectedNode,
+    selectedIssues,
+    previewNode,
+    focusField,
+    scheduleOpen,
+    setScheduleOpen,
+    selectNode,
+    openPreview,
+    openIssue,
+    openBuildDetails,
+    openSchedule,
+    closePanel,
+    closePreview,
+  } = execution
 
   const handleStateUpdate = useCallback(
     (event: StateUpdateEvent) => {
@@ -82,25 +117,6 @@ export function DataPipelineWorkbench() {
     navigate(`${DATA_PIPELINE_PATH}/${list.items[0].id}`, { replace: true })
   }, [list.isLoading, list.items, navigate, pipelineId])
 
-  useEffect(() => {
-    setSelectedNodeId(null)
-  }, [pipelineId])
-
-  const selectedNode = useMemo(
-    () => draftView.draft?.definition.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [draftView.draft, selectedNodeId],
-  )
-
-  useEffect(() => {
-    if (selectedNodeId && !selectedNode) setSelectedNodeId(null)
-  }, [selectedNode, selectedNodeId])
-
-  const selectedIssues = useMemo(() => {
-    if (!draftView.check || !selectedNode) return []
-    return [...draftView.check.blocking_issues, ...draftView.check.warnings]
-      .filter((issue) => issue.node_id === selectedNode.id)
-  }, [draftView.check, selectedNode])
-
   const addNode = useCallback(
     async (node: PipelineNode) => Boolean(await queueAddNode(node)),
     [queueAddNode],
@@ -127,10 +143,10 @@ export function DataPipelineWorkbench() {
   const deleteNode = useCallback(
     async (nodeId: string) => {
       const response = await queueDeleteNode(nodeId)
-      if (response) setSelectedNodeId(null)
+      if (response) closePanel()
       return response
     },
-    [queueDeleteNode],
+    [closePanel, queueDeleteNode],
   )
 
   const createPipeline = useCallback(
@@ -180,11 +196,21 @@ export function DataPipelineWorkbench() {
           draft={draftView.draft}
           catalog={draftView.catalog}
           check={draftView.check}
-          selectedNodeId={selectedNodeId}
+          selectedNodeId={selectedNode?.id ?? null}
           isWriting={queue.isWriting}
           hasConflict={queue.hasConflict}
           error={queue.error ?? draftView.error}
-          onSelectNode={setSelectedNodeId}
+          actions={<BuildBar
+            revision={draftView.draft?.revision ?? null}
+            outputs={outputs}
+            build={build.build}
+            isCreating={build.isLoading}
+            error={build.error}
+            onBuild={(revision) => void build.create(revision)}
+            onOpenDetails={openBuildDetails}
+            onOpenSchedule={openSchedule}
+          />}
+          onSelectNode={selectNode}
           onAddNode={addNode}
           onConnect={connectNodes}
           onDisconnect={disconnectNodes}
@@ -201,10 +227,45 @@ export function DataPipelineWorkbench() {
             issues={selectedIssues}
             isSaving={queue.isWriting}
             isReadOnly={queue.hasConflict}
-            onClose={() => setSelectedNodeId(null)}
+            focusField={focusField}
+            onClose={closePanel}
+            onPreview={openPreview}
             onSave={saveNode}
             onDelete={deleteNode}
             onSetOutput={queueSetOutput}
+          />
+        ) : null}
+        {previewNode ? (
+          <PreviewPanel
+            nodeName={previewNode.name}
+            draftRevision={draftView.draft?.revision ?? null}
+            preview={preview.preview}
+            state={preview.state}
+            error={preview.error}
+            isLoading={preview.isLoading}
+            onRefresh={() => void preview.run(previewNode.id)}
+            onClose={closePreview}
+            onSelectIssue={openIssue}
+          />
+        ) : null}
+        {build.detailsOpen ? (
+          <BuildDetailsDrawer
+            pipelineId={pipelineId ?? ''}
+            build={build.build}
+            outputNames={outputNames}
+            isLoading={build.isLoading}
+            error={build.error}
+            onClose={() => build.setDetailsOpen(false)}
+            onCancel={() => void build.cancel()}
+          />
+        ) : null}
+        {scheduleOpen ? (
+          <ScheduleDrawer
+            open
+            pipeline={pipeline}
+            hasDraftChanges={draftView.check?.stage === 'stale'}
+            onClose={() => setScheduleOpen(false)}
+            onOpenBuild={openBuildDetails}
           />
         ) : null}
       </div>}

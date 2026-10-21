@@ -8,6 +8,8 @@ import java.util.UUID;
 public record BuildOutputResponse(
         UUID id,
         UUID outputId,
+        UUID datasetId,
+        UUID datasetVersionId,
         String outputType,
         String status,
         String stage,

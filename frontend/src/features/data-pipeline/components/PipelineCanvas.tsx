@@ -11,7 +11,7 @@ import {
   type Edge,
   type Node,
 } from '@xyflow/react'
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import type {
   NodeCatalog,
   Pipeline,
@@ -56,6 +56,7 @@ interface PipelineCanvasProps {
   isWriting: boolean
   hasConflict: boolean
   error: string | null
+  actions?: ReactNode
   onSelectNode: (nodeId: string | null) => void
   onAddNode: (node: PipelineNode) => Promise<boolean>
   onConnect: (edge: PipelineEdge) => Promise<boolean>
@@ -75,6 +76,7 @@ function CanvasSurface(props: PipelineCanvasProps) {
     isWriting,
     hasConflict,
     error,
+    actions,
     onSelectNode,
     onAddNode,
     onConnect,
@@ -194,6 +196,7 @@ function CanvasSurface(props: PipelineCanvasProps) {
           </div>
         </div>
         <div className="pipeline-canvas-actions">
+          {actions}
           <button type="button" className="secondary-button" onClick={arrange} disabled={!draft || isWriting}>
             <LayoutGrid size={14} />
             {CANVAS_COPY.fit}

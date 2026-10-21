@@ -12,6 +12,8 @@ from pydantic import BaseModel
 class BuildOutputRead(BaseModel):
     id: uuid.UUID
     output_id: uuid.UUID
+    dataset_id: uuid.UUID | None = None
+    dataset_version_id: uuid.UUID | None = None
     output_type: str
     status: str
     stage: str | None = None

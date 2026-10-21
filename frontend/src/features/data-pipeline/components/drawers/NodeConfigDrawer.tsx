@@ -1,4 +1,4 @@
-import { CircleAlert, Info, Trash2, X } from 'lucide-react'
+import { CircleAlert, Eye, Info, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   JsonObject,
@@ -31,7 +31,9 @@ interface NodeConfigDrawerProps {
   issues: PipelineIssue[]
   isSaving: boolean
   isReadOnly?: boolean
+  focusField?: string | null
   onClose: () => void
+  onPreview?: (nodeId: string) => void
   onSave: (
     pipelineId: string,
     nodeId: string,
@@ -60,7 +62,9 @@ export function NodeConfigDrawer({
   issues,
   isSaving,
   isReadOnly = false,
+  focusField = null,
   onClose,
+  onPreview,
   onSave,
   onDelete,
   onSetOutput,
@@ -69,6 +73,7 @@ export function NodeConfigDrawer({
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [seenConfig, setSeenConfig] = useState(node.config)
   const dirtyRef = useRef(drawer.dirty)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
 
   if (drawer.nodeId !== node.id) {
     setSeenConfig(node.config)
@@ -101,6 +106,15 @@ export function NodeConfigDrawer({
     dirtyRef.current = drawer.dirty
   }, [drawer.dirty, saveNow])
   useEffect(() => () => flushRef.current(), [node.id, pipelineId])
+
+  useEffect(() => {
+    if (!focusField) return
+    const field = [...(bodyRef.current?.querySelectorAll<HTMLElement>('[data-config-field]') ?? [])]
+      .find((element) => element.dataset.configField === focusField)
+    const target = field?.querySelector<HTMLElement>('input, select, textarea, button')
+    target?.scrollIntoView?.({ block: 'center' })
+    target?.focus()
+  }, [focusField, node.id])
 
   function close() {
     saveNow()
@@ -145,7 +159,7 @@ export function NodeConfigDrawer({
         </button>
       </header>
 
-      <div className="pipeline-drawer__body">
+      <div className="pipeline-drawer__body" ref={bodyRef}>
         {!definition ? (
           <p className="pipeline-alert is-error">{NODE_CONFIG_COPY.unknownType}</p>
         ) : null}
@@ -165,7 +179,7 @@ export function NodeConfigDrawer({
         {orderedFields.map((field) => {
           const fieldIssues = sortedIssues.filter((issue) => issue.field === field)
           return (
-            <div key={field} className="pipeline-config-field">
+            <div key={field} className="pipeline-config-field" data-config-field={field}>
               <span>{fieldLabel(field)}</span>
               <ConfigField
                 field={field}
@@ -213,27 +227,43 @@ export function NodeConfigDrawer({
         <span className="pipeline-save-state">
           {isSaving ? NODE_CONFIG_COPY.saving : NODE_CONFIG_COPY.saved}
         </span>
-        {confirmDelete ? (
-          <div className="pipeline-delete-confirm">
-            <span>{NODE_CONFIG_COPY.deleteConfirm}</span>
-            <button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>
-              {NODE_CONFIG_COPY.cancel}
+        <div className="pipeline-drawer__actions">
+          {onPreview ? (
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={isReadOnly}
+              onClick={() => {
+                saveNow()
+                onPreview(node.id)
+              }}
+            >
+              <Eye size={14} />
+              {NODE_CONFIG_COPY.preview}
             </button>
-            <button type="button" className="danger-button" onClick={() => void onDelete(node.id)}>
+          ) : null}
+          {confirmDelete ? (
+            <div className="pipeline-delete-confirm">
+              <span>{NODE_CONFIG_COPY.deleteConfirm}</span>
+              <button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>
+                {NODE_CONFIG_COPY.cancel}
+              </button>
+              <button type="button" className="danger-button" onClick={() => void onDelete(node.id)}>
+                {NODE_CONFIG_COPY.delete}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="danger-button"
+              disabled={isReadOnly}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={14} />
               {NODE_CONFIG_COPY.delete}
             </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="danger-button"
-            disabled={isReadOnly}
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 size={14} />
-            {NODE_CONFIG_COPY.delete}
-          </button>
-        )}
+          )}
+        </div>
       </footer>
     </aside>
   )

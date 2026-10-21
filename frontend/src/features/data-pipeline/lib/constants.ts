@@ -14,6 +14,8 @@ export const NODE_HEIGHT = 82
 export const NODE_GAP_X = 96
 export const NODE_GAP_Y = 48
 export const CONFIG_SAVE_DELAY_MS = 400
+export const BUILD_POLL_INTERVAL_MS = 2_000
+export const BUILD_STORAGE_PREFIX = 'ontoweave.data-pipeline.build.'
 
 export const NODE_DRAG_MIME = 'application/ontoweave-pipeline-node'
 

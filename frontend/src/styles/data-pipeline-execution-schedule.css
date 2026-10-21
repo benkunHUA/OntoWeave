@@ -1,0 +1,88 @@
+/* ===== 调度抽屉 ===== */
+
+.pipeline-schedule-drawer {
+  width: min(440px, 94%);
+}
+
+.pipeline-schedule-drawer .pipeline-drawer__head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.pipeline-schedule-state {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.pipeline-schedule-state > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pipeline-schedule-state strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.pipeline-schedule-state span,
+.pipeline-schedule-state small {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.pipeline-schedule-actions {
+  flex-wrap: wrap;
+}
+
+.pipeline-schedule-runs {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.pipeline-schedule-runs h3 {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pipeline-schedule-runs article {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+}
+
+.pipeline-schedule-runs strong,
+.pipeline-schedule-runs small {
+  display: block;
+  font-size: 9px;
+}
+
+.pipeline-schedule-runs strong {
+  color: var(--ink-dim);
+}
+
+.pipeline-schedule-runs small {
+  margin-top: 2px;
+  color: var(--faint);
+}
+
+.pipeline-drawer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}

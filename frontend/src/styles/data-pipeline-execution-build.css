@@ -1,0 +1,211 @@
+/* ===== 构建操作与构建详情 ===== */
+
+.pipeline-build-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pipeline-build-bar__error {
+  max-width: 220px;
+  overflow: hidden;
+  color: var(--red);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-build-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.pipeline-build-status-button:hover {
+  color: var(--ink);
+  border-color: #4b4b4b;
+  background: var(--raised);
+}
+
+.pipeline-build-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  background: var(--raised);
+  white-space: nowrap;
+}
+
+.pipeline-build-status.is-running,
+.pipeline-build-status.is-queued {
+  color: var(--blue-ink);
+  background: var(--blue-soft);
+}
+
+.pipeline-build-status.is-succeeded {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.pipeline-build-status.is-failed {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.pipeline-build-status.is-canceled {
+  color: var(--amber-ink);
+  background: var(--amber-soft);
+}
+
+.pipeline-build-confirm {
+  display: grid;
+  gap: 12px;
+}
+
+.pipeline-build-confirm ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.pipeline-build-frozen-hint {
+  color: var(--amber-ink);
+}
+
+.pipeline-build-drawer {
+  width: min(560px, 96%);
+}
+
+.pipeline-build-overview {
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-soft);
+}
+
+.pipeline-build-overview > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.pipeline-build-overview small {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.pipeline-build-output {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-soft);
+}
+
+.pipeline-build-output > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pipeline-build-output > header strong,
+.pipeline-build-output > header small {
+  display: block;
+}
+
+.pipeline-build-output > header strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.pipeline-build-output > header small,
+.pipeline-build-output-meta {
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.pipeline-build-output-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pipeline-build-diagnostics {
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.pipeline-build-diagnostics > strong {
+  color: var(--muted);
+}
+
+.pipeline-build-diagnostics pre {
+  max-height: 130px;
+  margin: 0;
+  overflow: auto;
+  padding: 7px;
+  border-radius: 6px;
+  color: var(--ink-dim);
+  background: #1b1b1b;
+}
+
+.pipeline-expectations {
+  display: grid;
+  gap: 5px;
+}
+
+.pipeline-expectations > header,
+.pipeline-expectation > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pipeline-expectations > header {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.pipeline-expectation {
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.pipeline-expectation.is-failed {
+  border-color: rgba(255, 112, 112, 0.32);
+  background: var(--red-soft);
+}
+
+.pipeline-expectation strong,
+.pipeline-expectation span,
+.pipeline-expectation p,
+.pipeline-expectation small {
+  font-size: 9px;
+}
+
+.pipeline-expectation p,
+.pipeline-expectation small {
+  margin-top: 3px;
+  color: var(--faint);
+}
