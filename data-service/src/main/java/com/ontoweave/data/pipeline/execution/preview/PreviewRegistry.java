@@ -8,47 +8,70 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 final class PreviewRegistry {
 
     private final Duration releaseGrace;
+    private final Duration epochStateTtl;
+    private final LongSupplier clock;
     private final Object lock = new Object();
-    private final Map<UUID, Lease> activeByPipeline = new HashMap<>();
-    private final Map<UUID, Set<Lease>> drainingByPipeline = new HashMap<>();
+    private final Map<UUID, PreviewLease> activeByPipeline = new HashMap<>();
+    private final Map<UUID, Set<PreviewLease>> drainingByPipeline = new HashMap<>();
     private final Map<UUID, Integer> activeByOwner = new HashMap<>();
-    private final Map<UUID, Long> lastIssuedEpoch = new HashMap<>();
-    private final Map<UUID, Long> lastRegisteredEpoch = new HashMap<>();
-    private final Map<UUID, Long> buildCutoffEpoch = new HashMap<>();
+    private final Map<UUID, PreviewEpochState> epochStates = new HashMap<>();
 
     PreviewRegistry() {
-        this(PipelineExecutionLimits.PREVIEW_RELEASE_GRACE);
+        this(
+                PipelineExecutionLimits.PREVIEW_RELEASE_GRACE,
+                PipelineExecutionLimits.PREVIEW_EPOCH_STATE_TTL,
+                System::nanoTime
+        );
     }
 
     PreviewRegistry(Duration releaseGrace) {
+        this(releaseGrace, PipelineExecutionLimits.PREVIEW_EPOCH_STATE_TTL, System::nanoTime);
+    }
+
+    PreviewRegistry(Duration releaseGrace, Duration epochStateTtl, LongSupplier clock) {
         this.releaseGrace = releaseGrace;
+        this.epochStateTtl = epochStateTtl;
+        this.clock = clock;
     }
 
-    Lease register(UUID pipelineId, UUID ownerId) {
-        return register(pipelineId, ownerId, beginEpoch(pipelineId), releaseGrace);
-    }
-
-    Lease register(UUID pipelineId, UUID ownerId, Duration budget) {
-        return register(pipelineId, ownerId, beginEpoch(pipelineId), budget);
-    }
-
-    Lease register(UUID pipelineId, UUID ownerId, long epoch) {
-        return register(pipelineId, ownerId, epoch, releaseGrace);
-    }
-
-    long beginEpoch(UUID pipelineId) {
-        synchronized (lock) {
-            return lastIssuedEpoch.merge(pipelineId, 1L, Long::sum);
+    PreviewLease register(UUID pipelineId, UUID ownerId) {
+        try (PreviewEpochTicket ticket = beginEpoch(pipelineId)) {
+            return register(pipelineId, ownerId, ticket.epoch(), releaseGrace);
         }
     }
 
-    Lease register(UUID pipelineId, UUID ownerId, long epoch, Duration budget) {
+    PreviewLease register(UUID pipelineId, UUID ownerId, Duration budget) {
+        try (PreviewEpochTicket ticket = beginEpoch(pipelineId)) {
+            return register(pipelineId, ownerId, ticket.epoch(), budget);
+        }
+    }
+
+    PreviewLease register(UUID pipelineId, UUID ownerId, long epoch) {
+        return register(pipelineId, ownerId, epoch, releaseGrace);
+    }
+
+    PreviewEpochTicket beginEpoch(UUID pipelineId) {
+        long now = clock.getAsLong();
+        synchronized (lock) {
+            cleanup(now);
+            PreviewEpochState state = epochStates.computeIfAbsent(
+                    pipelineId, ignored -> new PreviewEpochState()
+            );
+            state.issued++;
+            state.pending++;
+            state.lastUsed = now;
+            long epoch = state.issued;
+            return new PreviewEpochTicket(epoch, () -> closeEpoch(pipelineId, state));
+        }
+    }
+
+    PreviewLease register(UUID pipelineId, UUID ownerId, long epoch, Duration budget) {
         long now = System.nanoTime();
         long graceDeadline = now + releaseGrace.toNanos();
         long budgetDeadline = now + budget.toNanos();
@@ -56,10 +79,12 @@ final class PreviewRegistry {
             throw new BudgetExceededException();
         }
         while (true) {
-            Lease existing;
+            PreviewLease existing;
             synchronized (lock) {
-                long registered = lastRegisteredEpoch.getOrDefault(pipelineId, 0L);
-                if (epoch < registered || epoch <= buildCutoffEpoch.getOrDefault(pipelineId, 0L)) {
+                long stateNow = clock.getAsLong();
+                cleanup(stateNow);
+                PreviewEpochState state = epochStates.get(pipelineId);
+                if (state == null || epoch < state.registered || epoch <= state.cutoff) {
                     throw PreviewErrorMapper.canceled();
                 }
                 existing = activeByPipeline.get(pipelineId);
@@ -68,13 +93,15 @@ final class PreviewRegistry {
                     if (ownerActive >= PipelineExecutionLimits.MAX_ACTIVE_PREVIEWS_PER_USER) {
                         throw PreviewErrorMapper.busy();
                     }
-                    Lease lease = new Lease();
+                    PreviewLease lease = new PreviewLease();
                     activeByPipeline.put(pipelineId, lease);
                     activeByOwner.put(ownerId, ownerActive + 1);
-                    lastRegisteredEpoch.put(pipelineId, epoch);
+                    state.registered = Math.max(state.registered, epoch);
+                    state.lastUsed = stateNow;
                     return lease;
                 }
                 existing.markCanceled();
+                state.lastUsed = stateNow;
                 lock.notifyAll();
             }
             existing.cancelTask();
@@ -83,10 +110,15 @@ final class PreviewRegistry {
     }
 
     void cancelForBuild(UUID pipelineId) {
-        Lease lease;
+        PreviewLease lease;
+        long now = clock.getAsLong();
         synchronized (lock) {
-            long cutoff = lastIssuedEpoch.getOrDefault(pipelineId, 0L);
-            buildCutoffEpoch.merge(pipelineId, cutoff, Math::max);
+            cleanup(now);
+            PreviewEpochState state = epochStates.get(pipelineId);
+            if (state != null) {
+                state.cutoff = Math.max(state.cutoff, state.issued);
+                state.lastUsed = now;
+            }
             lease = activeByPipeline.get(pipelineId);
             if (lease != null) {
                 lease.markCanceled();
@@ -118,18 +150,22 @@ final class PreviewRegistry {
         }
     }
 
-    void taskFinished(UUID pipelineId, UUID ownerId, Lease lease) {
+    void taskFinished(UUID pipelineId, UUID ownerId, PreviewLease lease) {
+        long now = clock.getAsLong();
         synchronized (lock) {
             lease.markFinished();
             if (activeByPipeline.remove(pipelineId, lease)) {
                 decrementOwner(ownerId);
             }
             removeDraining(pipelineId, lease);
+            touch(pipelineId, now);
+            cleanup(now);
             lock.notifyAll();
         }
     }
 
-    void unregister(UUID pipelineId, UUID ownerId, Lease lease) {
+    void unregister(UUID pipelineId, UUID ownerId, PreviewLease lease) {
+        long now = clock.getAsLong();
         synchronized (lock) {
             if (activeByPipeline.remove(pipelineId, lease)) {
                 decrementOwner(ownerId);
@@ -138,12 +174,43 @@ final class PreviewRegistry {
                             .add(lease);
                 }
             }
+            touch(pipelineId, now);
+            cleanup(now);
             lock.notifyAll();
         }
     }
 
-    private void removeDraining(UUID pipelineId, Lease lease) {
-        Set<Lease> draining = drainingByPipeline.get(pipelineId);
+    private void closeEpoch(UUID pipelineId, PreviewEpochState state) {
+        long now = clock.getAsLong();
+        synchronized (lock) {
+            if (epochStates.get(pipelineId) == state) {
+                if (state.pending > 0) {
+                    state.pending--;
+                }
+                state.lastUsed = now;
+            }
+            cleanup(now);
+        }
+    }
+
+    private void touch(UUID pipelineId, long now) {
+        PreviewEpochState state = epochStates.get(pipelineId);
+        if (state != null) {
+            state.lastUsed = now;
+        }
+    }
+
+    private void cleanup(long now) {
+        epochStates.entrySet().removeIf(entry -> {
+            PreviewEpochState state = entry.getValue();
+            return state.pending == 0
+                    && now - state.lastUsed > epochStateTtl.toNanos()
+                    && !hasActiveOrDraining(entry.getKey());
+        });
+    }
+
+    private void removeDraining(UUID pipelineId, PreviewLease lease) {
+        Set<PreviewLease> draining = drainingByPipeline.get(pipelineId);
         if (draining == null) {
             return;
         }
@@ -154,7 +221,7 @@ final class PreviewRegistry {
     }
 
     private boolean hasActiveOrDraining(UUID pipelineId) {
-        Set<Lease> draining = drainingByPipeline.get(pipelineId);
+        Set<PreviewLease> draining = drainingByPipeline.get(pipelineId);
         return activeByPipeline.containsKey(pipelineId) || (draining != null && !draining.isEmpty());
     }
 
@@ -174,12 +241,31 @@ final class PreviewRegistry {
         }
     }
 
+    int epochStateCount() {
+        synchronized (lock) {
+            return epochStates.size();
+        }
+    }
+
+    boolean hasEpochState(UUID pipelineId) {
+        synchronized (lock) {
+            return epochStates.containsKey(pipelineId);
+        }
+    }
+
+    int pendingRequests(UUID pipelineId) {
+        synchronized (lock) {
+            PreviewEpochState state = epochStates.get(pipelineId);
+            return state == null ? 0 : state.pending;
+        }
+    }
+
     boolean awaitCancellationRequested(UUID pipelineId, Duration timeout) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
         synchronized (lock) {
             while (true) {
-                Lease lease = activeByPipeline.get(pipelineId);
-                if (lease != null && lease.canceled) {
+                PreviewLease lease = activeByPipeline.get(pipelineId);
+                if (lease != null && lease.isCanceled()) {
                     return true;
                 }
                 long remaining = deadline - System.nanoTime();
@@ -193,7 +279,7 @@ final class PreviewRegistry {
 
     private void awaitRelease(
             UUID pipelineId,
-            Lease lease,
+            PreviewLease lease,
             long graceDeadline,
             long budgetDeadline
     ) {
@@ -222,69 +308,4 @@ final class PreviewRegistry {
     static final class BudgetExceededException extends RuntimeException {
     }
 
-    static final class Lease {
-
-        private volatile Future<?> future;
-        private volatile boolean canceled;
-        private volatile boolean detached;
-        private volatile boolean finished;
-
-        boolean isCanceled() {
-            return canceled;
-        }
-
-        boolean isStopped() {
-            return canceled || detached;
-        }
-
-        boolean isFinished() {
-            return finished;
-        }
-
-        boolean hasTask() {
-            return future != null;
-        }
-
-        void attach(Future<?> future) {
-            boolean cancel;
-            synchronized (this) {
-                this.future = future;
-                cancel = isStopped();
-            }
-            if (cancel) {
-                future.cancel(true);
-            }
-        }
-
-        void cancelTask() {
-            Future<?> current;
-            synchronized (this) {
-                current = future;
-            }
-            if (current != null) {
-                current.cancel(true);
-            }
-        }
-
-        void markCanceled() {
-            synchronized (this) {
-                canceled = true;
-            }
-        }
-
-        void markFinished() {
-            finished = true;
-        }
-
-        void detach() {
-            Future<?> current;
-            synchronized (this) {
-                detached = true;
-                current = future;
-            }
-            if (current != null) {
-                current.cancel(true);
-            }
-        }
-    }
 }

@@ -42,11 +42,15 @@ final class PreviewStageExecutor {
         checks.validateRevision(pipelineId, ownerId, revision);
     }
 
+    void assertOwned(UUID pipelineId, UUID ownerId) {
+        checks.assertOwned(pipelineId, ownerId);
+    }
+
     PreviewComputation compute(
             UUID pipelineId,
             UUID ownerId,
             PreviewRequest request,
-            PreviewRegistry.Lease lease,
+            PreviewLease lease,
             PreviewDeadline deadline
     ) {
         ensureActive(lease);
@@ -113,7 +117,7 @@ final class PreviewStageExecutor {
         );
     }
 
-    private void ensureActive(PreviewRegistry.Lease lease) {
+    private void ensureActive(PreviewLease lease) {
         if (lease.isStopped()) {
             throw PreviewErrorMapper.canceled();
         }

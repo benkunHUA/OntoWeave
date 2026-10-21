@@ -13,6 +13,7 @@ public final class PipelineExecutionLimits {
     public static final long PREVIEW_WORKER_KEEP_ALIVE_SECONDS = 60;
     public static final Duration PREVIEW_TIMEOUT = Duration.ofSeconds(20);
     public static final Duration PREVIEW_RELEASE_GRACE = Duration.ofSeconds(5);
+    public static final Duration PREVIEW_EPOCH_STATE_TTL = Duration.ofMinutes(10);
 
     private PipelineExecutionLimits() {
     }

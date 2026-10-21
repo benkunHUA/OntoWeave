@@ -102,10 +102,22 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     @Override
     public PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request) {
         PreviewDeadline deadline = PreviewDeadline.start(timeout);
-        long epoch = registry.beginEpoch(pipelineId);
+        stages.assertOwned(pipelineId, ownerId);
+        try (PreviewEpochTicket ticket = registry.beginEpoch(pipelineId)) {
+            return previewOwned(pipelineId, ownerId, request, deadline, ticket.epoch());
+        }
+    }
+
+    private PreviewResponse previewOwned(
+            UUID pipelineId,
+            UUID ownerId,
+            PreviewRequest request,
+            PreviewDeadline deadline,
+            long epoch
+    ) {
         validateRevision(pipelineId, ownerId, request.draftRevision(), deadline);
         ensureBudget(deadline);
-        PreviewRegistry.Lease lease;
+        PreviewLease lease;
         try {
             lease = registry.register(pipelineId, ownerId, epoch, deadline.remaining());
         } catch (PreviewRegistry.BudgetExceededException error) {
@@ -186,7 +198,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             UUID pipelineId,
             UUID ownerId,
             PreviewRequest request,
-            PreviewRegistry.Lease lease,
+            PreviewLease lease,
             PreviewDeadline deadline
     ) {
         return stages.compute(pipelineId, ownerId, request, lease, deadline);
@@ -194,7 +206,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
 
     private PreviewStageExecutor.PreviewComputation await(
             Future<PreviewStageExecutor.PreviewComputation> future,
-            PreviewRegistry.Lease lease,
+            PreviewLease lease,
             PreviewDeadline deadline
     ) {
         Duration remaining = remaining(deadline);
@@ -234,7 +246,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     private Future<PreviewStageExecutor.PreviewComputation> submitTracked(
             UUID pipelineId,
             UUID ownerId,
-            PreviewRegistry.Lease lease,
+            PreviewLease lease,
             Callable<PreviewStageExecutor.PreviewComputation> computation
     ) {
         AtomicBoolean started = new AtomicBoolean();
@@ -262,7 +274,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         return task;
     }
 
-    private void ensureActive(PreviewRegistry.Lease lease) {
+    private void ensureActive(PreviewLease lease) {
         if (lease.isStopped()) {
             throw PreviewErrorMapper.canceled();
         }

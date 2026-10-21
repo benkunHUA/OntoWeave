@@ -65,6 +65,12 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
 
     @Override
     @Transactional(readOnly = true)
+    public void assertOwned(UUID pipelineId, UUID ownerId) {
+        requireOwned(pipelineId, ownerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public void validateRevision(UUID pipelineId, UUID ownerId, long revision) {
         validated(pipelineId, ownerId, revision);
     }
@@ -110,14 +116,18 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
     }
 
     private ValidatedPipeline validated(UUID pipelineId, UUID ownerId, long revision) {
-        PipelineEntity pipeline = pipelines.findByIdAndOwnerId(pipelineId, ownerId)
-                .orElseThrow(() -> notFound());
+        PipelineEntity pipeline = requireOwned(pipelineId, ownerId);
         PipelineDraftEntity draft = drafts.findById(pipelineId)
                 .orElseThrow(() -> notFound());
         if (draft.getRevision() != revision) {
             throw revisionConflict();
         }
         return new ValidatedPipeline(pipeline, draft);
+    }
+
+    private PipelineEntity requireOwned(UUID pipelineId, UUID ownerId) {
+        return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
+                .orElseThrow(() -> notFound());
     }
 
     private Map<UUID, InputSchema> resolveInputs(UUID ownerId, PipelineDraftGraph graph) {

@@ -29,9 +29,9 @@ class PreviewRegistryTest {
         UUID pipelineId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
-        PreviewRegistry.Lease old = registry.register(pipelineId, ownerId);
+        PreviewLease old = registry.register(pipelineId, ownerId);
 
-        Future<PreviewRegistry.Lease> replacement = callers.submit(
+        Future<PreviewLease> replacement = callers.submit(
                 () -> registry.register(pipelineId, ownerId)
         );
         assertThat(registry.awaitCancellationRequested(pipelineId, Duration.ofSeconds(1))).isTrue();
@@ -39,7 +39,7 @@ class PreviewRegistryTest {
         assertThat(replacement).isNotDone();
 
         registry.unregister(pipelineId, ownerId, old);
-        PreviewRegistry.Lease current = replacement.get(1, TimeUnit.SECONDS);
+        PreviewLease current = replacement.get(1, TimeUnit.SECONDS);
         registry.unregister(pipelineId, ownerId, current);
     }
 
@@ -48,9 +48,9 @@ class PreviewRegistryTest {
         UUID pipelineId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofMillis(50));
-        PreviewRegistry.Lease old = registry.register(pipelineId, ownerId);
+        PreviewLease old = registry.register(pipelineId, ownerId);
         try {
-            Future<PreviewRegistry.Lease> replacement = callers.submit(
+            Future<PreviewLease> replacement = callers.submit(
                     () -> registry.register(pipelineId, ownerId, Duration.ofSeconds(1))
             );
             assertThat(registry.awaitCancellationRequested(pipelineId, Duration.ofSeconds(1))).isTrue();
@@ -87,7 +87,10 @@ class PreviewRegistryTest {
         UUID pipelineId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
-        long oldEpoch = registry.beginEpoch(pipelineId);
+        long oldEpoch;
+        try (PreviewEpochTicket ticket = registry.beginEpoch(pipelineId)) {
+            oldEpoch = ticket.epoch();
+        }
         registry.cancelForBuild(pipelineId);
 
         assertThatThrownBy(() -> registry.register(pipelineId, ownerId, oldEpoch))
@@ -96,10 +99,12 @@ class PreviewRegistryTest {
                     assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED");
                 });
 
-        PreviewRegistry.Lease current = registry.register(
-                pipelineId, ownerId, registry.beginEpoch(pipelineId)
-        );
-        registry.unregister(pipelineId, ownerId, current);
+        try (PreviewEpochTicket ticket = registry.beginEpoch(pipelineId)) {
+            PreviewLease current = registry.register(
+                    pipelineId, ownerId, ticket.epoch()
+            );
+            registry.unregister(pipelineId, ownerId, current);
+        }
     }
 
     @Test
@@ -107,7 +112,7 @@ class PreviewRegistryTest {
         UUID pipelineId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
-        PreviewRegistry.Lease lease = registry.register(pipelineId, ownerId);
+        PreviewLease lease = registry.register(pipelineId, ownerId);
 
         assertThat(registry.awaitReleased(pipelineId, Duration.ofMillis(20))).isFalse();
 
@@ -120,9 +125,13 @@ class PreviewRegistryTest {
         UUID pipelineId = UUID.randomUUID();
         UUID ownerId = UUID.randomUUID();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
-        long oldEpoch = registry.beginEpoch(pipelineId);
-        long newEpoch = registry.beginEpoch(pipelineId);
-        PreviewRegistry.Lease current = registry.register(pipelineId, ownerId, newEpoch);
+        long oldEpoch;
+        try (PreviewEpochTicket ticket = registry.beginEpoch(pipelineId)) {
+            oldEpoch = ticket.epoch();
+        }
+        PreviewEpochTicket newTicket = registry.beginEpoch(pipelineId);
+        long newEpoch = newTicket.epoch();
+        PreviewLease current = registry.register(pipelineId, ownerId, newEpoch);
         try {
             assertThatThrownBy(() -> registry.register(pipelineId, ownerId, oldEpoch))
                     .isInstanceOfSatisfying(ApiException.class, exception -> {
@@ -133,6 +142,7 @@ class PreviewRegistryTest {
             assertThat(registry.hasActiveLease(pipelineId)).isTrue();
         } finally {
             registry.unregister(pipelineId, ownerId, current);
+            newTicket.close();
         }
     }
 }
