@@ -17,6 +17,19 @@ public interface PipelineDraftRepository extends JpaRepository<PipelineDraftEnti
     @Query("select d from PipelineDraftEntity d where d.pipelineId = :pipelineId")
     Optional<PipelineDraftEntity> findByIdForUpdate(@Param("pipelineId") UUID pipelineId);
 
+    @Modifying
+    @Query(value = """
+            INSERT INTO data.pipeline_draft
+                (pipeline_id, definition, revision, updated_by_type, updated_by_id, updated_at)
+            VALUES (:pipelineId, CAST(:definition AS jsonb), 0, 'user', :ownerId, now())
+            ON CONFLICT DO NOTHING
+            """, nativeQuery = true)
+    int insertIfAbsent(
+            @Param("pipelineId") UUID pipelineId,
+            @Param("definition") String definition,
+            @Param("ownerId") UUID ownerId
+    );
+
     @Modifying(flushAutomatically = true)
     @Query(value = """
             UPDATE data.pipeline_draft

@@ -13,4 +13,10 @@ public interface PipelineDatasetRepository extends JpaRepository<PipelineDataset
     Optional<PipelineDatasetEntity> findByOutputId(UUID outputId);
 
     List<PipelineDatasetEntity> findByOutputIdIn(Collection<UUID> outputIds);
+
+    Optional<PipelineDatasetEntity> findByIdAndPipelineId(UUID id, UUID pipelineId);
+
+    List<PipelineDatasetEntity> findByPipelineIdAndArchivedAtIsNull(UUID pipelineId);
+
+    List<PipelineDatasetEntity> findByIdIn(Collection<UUID> ids);
 }

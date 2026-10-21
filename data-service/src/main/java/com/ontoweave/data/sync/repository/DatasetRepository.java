@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 import jakarta.persistence.LockModeType;
 
@@ -17,6 +18,8 @@ public interface DatasetRepository extends JpaRepository<DatasetEntity, UUID> {
     List<DatasetEntity> findByConnectionIdOrderByCreatedAtAsc(UUID connectionId);
 
     Optional<DatasetEntity> findByIdAndConnectionId(UUID id, UUID connectionId);
+
+    List<DatasetEntity> findByIdIn(Collection<UUID> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from DatasetEntity d where d.id = :id")

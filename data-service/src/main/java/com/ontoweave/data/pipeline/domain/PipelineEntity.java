@@ -84,6 +84,18 @@ public class PipelineEntity {
         return name;
     }
 
+    public void rename(String name) {
+        this.name = name;
+    }
+
+    public void archive() {
+        if (status == PipelineStatus.ARCHIVED) {
+            return;
+        }
+        this.status = PipelineStatus.ARCHIVED;
+        this.archivedAt = Instant.now();
+    }
+
     public PipelineStatus getStatus() {
         return status;
     }

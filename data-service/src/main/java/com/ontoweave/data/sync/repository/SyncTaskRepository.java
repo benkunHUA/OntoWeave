@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 public interface SyncTaskRepository extends JpaRepository<SyncTaskEntity, UUID> {
 
@@ -24,4 +25,6 @@ public interface SyncTaskRepository extends JpaRepository<SyncTaskEntity, UUID> 
     );
 
     Optional<SyncTaskEntity> findByIdAndConnectionId(UUID id, UUID connectionId);
+
+    List<SyncTaskEntity> findByDatasetIdIn(Collection<UUID> datasetIds);
 }

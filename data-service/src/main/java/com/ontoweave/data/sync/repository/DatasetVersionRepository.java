@@ -8,12 +8,15 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 public interface DatasetVersionRepository extends JpaRepository<DatasetVersionEntity, UUID> {
 
     Optional<DatasetVersionEntity> findTopByDatasetIdOrderByVersionNumberDesc(UUID datasetId);
 
     Optional<DatasetVersionEntity> findByIdAndDatasetId(UUID id, UUID datasetId);
+
+    List<DatasetVersionEntity> findByIdIn(Collection<UUID> ids);
 
     Optional<DatasetVersionEntity> findByDatasetIdAndIcebergTableAndIcebergSnapshotId(
             UUID datasetId,
