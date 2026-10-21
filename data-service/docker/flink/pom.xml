@@ -9,16 +9,21 @@
   <version>0.1.0</version>
   <packaging>pom</packaging>
 
+  <properties>
+    <iceberg.version>1.10.1</iceberg.version>
+    <hadoop.version>3.3.4</hadoop.version>
+  </properties>
+
   <dependencies>
     <dependency>
       <groupId>org.apache.iceberg</groupId>
       <artifactId>iceberg-flink-runtime-1.20</artifactId>
-      <version>1.10.1</version>
+      <version>${iceberg.version}</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
       <artifactId>hadoop-common</artifactId>
-      <version>3.3.4</version>
+      <version>${hadoop.version}</version>
       <exclusions>
         <exclusion>
           <groupId>commons-cli</groupId>

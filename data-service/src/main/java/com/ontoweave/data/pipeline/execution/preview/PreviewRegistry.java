@@ -4,7 +4,9 @@ import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -14,6 +16,7 @@ final class PreviewRegistry {
     private final Duration releaseGrace;
     private final Object lock = new Object();
     private final Map<UUID, Lease> activeByPipeline = new HashMap<>();
+    private final Map<UUID, Set<Lease>> drainingByPipeline = new HashMap<>();
     private final Map<UUID, Integer> activeByOwner = new HashMap<>();
     private final Map<UUID, Long> lastIssuedEpoch = new HashMap<>();
     private final Map<UUID, Long> lastRegisteredEpoch = new HashMap<>();
@@ -85,20 +88,21 @@ final class PreviewRegistry {
             long cutoff = lastIssuedEpoch.getOrDefault(pipelineId, 0L);
             buildCutoffEpoch.merge(pipelineId, cutoff, Math::max);
             lease = activeByPipeline.get(pipelineId);
-            if (lease == null) {
-                lock.notifyAll();
-                return;
+            if (lease != null) {
+                lease.markCanceled();
             }
-            lease.markCanceled();
             lock.notifyAll();
         }
-        lease.cancelTask();
+        if (lease != null) {
+            lease.cancelTask();
+        }
+        awaitReleased(pipelineId, releaseGrace);
     }
 
     boolean awaitReleased(UUID pipelineId, Duration timeout) {
         long deadline = System.nanoTime() + timeout.toNanos();
         synchronized (lock) {
-            while (activeByPipeline.containsKey(pipelineId)) {
+            while (hasActiveOrDraining(pipelineId)) {
                 long remaining = deadline - System.nanoTime();
                 if (remaining <= 0) {
                     return false;
@@ -114,14 +118,48 @@ final class PreviewRegistry {
         }
     }
 
-    void unregister(UUID pipelineId, UUID ownerId, Lease lease) {
+    void taskFinished(UUID pipelineId, UUID ownerId, Lease lease) {
         synchronized (lock) {
-            if (!activeByPipeline.remove(pipelineId, lease)) {
-                return;
+            lease.markFinished();
+            if (activeByPipeline.remove(pipelineId, lease)) {
+                decrementOwner(ownerId);
             }
-            activeByOwner.computeIfPresent(ownerId, (key, count) -> count <= 1 ? null : count - 1);
+            removeDraining(pipelineId, lease);
             lock.notifyAll();
         }
+    }
+
+    void unregister(UUID pipelineId, UUID ownerId, Lease lease) {
+        synchronized (lock) {
+            if (activeByPipeline.remove(pipelineId, lease)) {
+                decrementOwner(ownerId);
+                if (lease.hasTask() && !lease.isFinished()) {
+                    drainingByPipeline.computeIfAbsent(pipelineId, ignored -> new HashSet<>())
+                            .add(lease);
+                }
+            }
+            lock.notifyAll();
+        }
+    }
+
+    private void removeDraining(UUID pipelineId, Lease lease) {
+        Set<Lease> draining = drainingByPipeline.get(pipelineId);
+        if (draining == null) {
+            return;
+        }
+        draining.remove(lease);
+        if (draining.isEmpty()) {
+            drainingByPipeline.remove(pipelineId);
+        }
+    }
+
+    private boolean hasActiveOrDraining(UUID pipelineId) {
+        Set<Lease> draining = drainingByPipeline.get(pipelineId);
+        return activeByPipeline.containsKey(pipelineId) || (draining != null && !draining.isEmpty());
+    }
+
+    private void decrementOwner(UUID ownerId) {
+        activeByOwner.computeIfPresent(ownerId, (key, count) -> count <= 1 ? null : count - 1);
     }
 
     boolean hasActiveLease(UUID pipelineId) {
@@ -189,6 +227,7 @@ final class PreviewRegistry {
         private volatile Future<?> future;
         private volatile boolean canceled;
         private volatile boolean detached;
+        private volatile boolean finished;
 
         boolean isCanceled() {
             return canceled;
@@ -196,6 +235,14 @@ final class PreviewRegistry {
 
         boolean isStopped() {
             return canceled || detached;
+        }
+
+        boolean isFinished() {
+            return finished;
+        }
+
+        boolean hasTask() {
+            return future != null;
         }
 
         void attach(Future<?> future) {
@@ -223,6 +270,10 @@ final class PreviewRegistry {
             synchronized (this) {
                 canceled = true;
             }
+        }
+
+        void markFinished() {
+            finished = true;
         }
 
         void detach() {

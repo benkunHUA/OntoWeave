@@ -24,7 +24,7 @@ final class RelationalSchemaDeriver extends SchemaDeriverSupport {
             return null;
         }
         JsonNode keys = config.path("keys");
-        if (!keys.isArray()) {
+        if (!keys.isArray() || keys.isEmpty()) {
             incomplete("keys");
             return null;
         }
@@ -116,6 +116,8 @@ final class RelationalSchemaDeriver extends SchemaDeriverSupport {
     private void validateJoinKey(String name, List<FieldSchema> schema, String side) {
         if (name == null || name.isBlank()) {
             incomplete(side);
+        } else if (FieldNameRules.rejectReserved(nodeId, name, issues)) {
+            return;
         } else if (field(schema, name) == null) {
             fieldNotFound(name);
         }

@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -53,6 +54,7 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
     @Override
     public FlinkExecutionResult execute(LogicalPlan plan, int outputLimit, Duration timeout) {
         UUID executionId = UUID.randomUUID();
+        long deadlineNanos = System.nanoTime() + timeout.toNanos();
         TableResult result = null;
         try {
             CompiledTablePlan compiled = compiler.compile(plan);
@@ -66,12 +68,16 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                     result,
                     compiled.hiddenErrorColumns(),
                     outputLimit + 1,
+                    deadlineNanos,
                     scanLimit
             );
         } catch (InterruptedException error) {
             cancel(executionId);
             Thread.currentThread().interrupt();
             throw PipelineExecutionException.unlocated(error);
+        } catch (CancellationException error) {
+            cancel(executionId);
+            throw error;
         } catch (TimeoutException error) {
             cancel(executionId);
             throw new FlinkPreviewTimeoutException("Flink preview execution timed out");
@@ -108,6 +114,7 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
             TableResult result,
             List<CompiledTablePlan.HiddenErrorColumn> hiddenColumns,
             int limit,
+            long deadlineNanos,
             ScanLimitAssessment scanLimit
     ) {
         ResolvedSchema schema = result.getResolvedSchema();
@@ -127,7 +134,18 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
         List<PreviewIssue> errors = new ArrayList<>();
         try (CloseableIterator<Row> iterator = result.collect()) {
             int rowNumber = 0;
-            while (iterator.hasNext() && rows.size() < limit) {
+            while (rows.size() < limit) {
+                if (Thread.currentThread().isInterrupted()) {
+                    cancel(executionId);
+                    throw new CancellationException("Flink preview collection interrupted");
+                }
+                if (System.nanoTime() >= deadlineNanos) {
+                    cancel(executionId);
+                    throw new FlinkPreviewTimeoutException("Flink preview collection timed out");
+                }
+                if (!iterator.hasNext()) {
+                    break;
+                }
                 Row row = iterator.next();
                 rowNumber++;
                 Map<String, Object> values = new LinkedHashMap<>();
@@ -140,6 +158,8 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                 rows.add(values);
                 issue(row, rowNumber, names, hiddenColumns, errors);
             }
+        } catch (FlinkPreviewTimeoutException | CancellationException error) {
+            throw error;
         } catch (Exception error) {
             throw new IllegalStateException("Unable to collect Flink preview rows", error);
         }

@@ -21,7 +21,11 @@ final class PreviewWorkerPool {
                 PipelineExecutionLimits.PREVIEW_WORKER_KEEP_ALIVE_SECONDS,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(),
-                task -> new Thread(task, "preview-worker-" + SEQUENCE.incrementAndGet())
+                task -> {
+                    Thread thread = new Thread(task, "preview-worker-" + SEQUENCE.incrementAndGet());
+                    thread.setDaemon(true);
+                    return thread;
+                }
         );
     }
 }

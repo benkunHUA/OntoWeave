@@ -116,6 +116,29 @@ class PipelinePreviewServiceTest {
     }
 
     @Test
+    void propagatesDirectReaderTruncationEvenWhenRowsFitTheResponseLimit() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(inputPlan(NODE_ID, input, 4L));
+        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+                .thenReturn(Optional.of(new IcebergPreview(
+                        List.of(new PreviewColumn("id", "long", false)),
+                        rows(1),
+                        true
+                )));
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        PreviewResponse response = service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        );
+
+        assertThat(response.rows()).hasSize(1);
+        assertThat(response.truncated()).isTrue();
+        assertThat(response.truncationReason()).isEqualTo("OUTPUT_ROW_LIMIT");
+    }
+
+    @Test
     void transformNodeUsesFlinkAndStripsExecutorIssues() {
         ResolvedInput input = input(100L);
         PreviewIssue issue = new PreviewIssue(

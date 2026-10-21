@@ -18,6 +18,7 @@ public final class PipelineIssueCodes {
     public static final String DUPLICATE_FIELD = "DUPLICATE_FIELD";
     public static final String AGGREGATION_INVALID = "AGGREGATION_INVALID";
     public static final String CONFIG_INVALID = "CONFIG_INVALID";
+    public static final String INVALID_FIELD_NAME = "INVALID_FIELD_NAME";
     public static final String NODE_TYPE_UNKNOWN = "NODE_TYPE_UNKNOWN";
 
     public static final String PHASE_STRUCTURE = "structure";

@@ -22,11 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -135,6 +137,59 @@ class ProcessFlinkTableExecutorTest {
         assertThat(result.errors()).singleElement()
                 .extracting(issue -> issue.rowNumber())
                 .isNull();
+    }
+
+    @Test
+    void stopsCollectingWhenTheExecutionDeadlineExpires() throws Exception {
+        LogicalPlan plan = transformPlan();
+        CompiledTablePlan compiled = compiledWithIterator(infiniteRowIterator("value"));
+        when(compiler.compile(any())).thenReturn(compiled);
+        when(scanLimits.evaluate(plan)).thenReturn(new ScanLimitAssessment(false, true));
+
+        assertThatThrownBy(() -> executor.execute(plan, 500, Duration.ofMillis(10)))
+                .isInstanceOf(FlinkPreviewTimeoutException.class);
+    }
+
+    private CompiledTablePlan compiledWithIterator(CloseableIterator<Row> iterator) {
+        Table table = mock(Table.class);
+        when(table.limit(anyInt(), anyInt())).thenReturn(table);
+        TableResult result = mock(TableResult.class);
+        when(table.execute()).thenReturn(result);
+        when(result.getJobClient()).thenReturn(Optional.empty());
+        when(result.getResolvedSchema()).thenReturn(ResolvedSchema.physical(
+                new String[]{"parsed"},
+                new DataType[]{DataTypes.STRING()}
+        ));
+        when(result.collect()).thenReturn(iterator);
+        return new CompiledTablePlan(
+                mock(org.apache.flink.table.api.bridge.java.StreamTableEnvironment.class),
+                table,
+                List.of()
+        );
+    }
+
+    private CloseableIterator<Row> infiniteRowIterator(String value) {
+        return new CloseableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(2);
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            public Row next() {
+                return Row.of(value);
+            }
+
+            @Override
+            public void close() {
+            }
+        };
     }
 
     private CompiledTablePlan compiled(CompiledTablePlan.HiddenErrorColumn hidden) {

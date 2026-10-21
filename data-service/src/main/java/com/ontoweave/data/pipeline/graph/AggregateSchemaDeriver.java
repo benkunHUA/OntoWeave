@@ -23,7 +23,7 @@ final class AggregateSchemaDeriver extends SchemaDeriverSupport {
             return null;
         }
         JsonNode aggregations = config.path("aggregations");
-        if (!aggregations.isArray()) {
+        if (!aggregations.isArray() || aggregations.isEmpty()) {
             incomplete("aggregations");
             return null;
         }
@@ -36,6 +36,9 @@ final class AggregateSchemaDeriver extends SchemaDeriverSupport {
             String field = group.asText(null);
             if (field == null || field.isBlank()) {
                 incomplete("groupBy");
+                continue;
+            }
+            if (FieldNameRules.rejectReserved(nodeId, field, issues)) {
                 continue;
             }
             FieldSchema source = field(input, field);
@@ -64,6 +67,12 @@ final class AggregateSchemaDeriver extends SchemaDeriverSupport {
         String field = aggregation.path("field").asText(null);
         if (op == null || outputField == null || outputField.isBlank()) {
             incomplete("aggregations");
+            return;
+        }
+        if (FieldNameRules.rejectReserved(nodeId, outputField, issues)) {
+            return;
+        }
+        if (field != null && FieldNameRules.rejectReserved(nodeId, field, issues)) {
             return;
         }
         if (!names.add(outputField)) {

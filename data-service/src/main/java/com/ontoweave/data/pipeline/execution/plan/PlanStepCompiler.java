@@ -1,6 +1,7 @@
 package com.ontoweave.data.pipeline.execution.plan;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.ontoweave.data.pipeline.PreviewColumnNames;
 import com.ontoweave.data.pipeline.execution.flink.PipelineExecutionException;
 import org.apache.flink.table.api.ApiExpression;
 import org.apache.flink.table.api.Expressions;
@@ -85,6 +86,7 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep select(CompiledStep input, LogicalPlanNode.SelectColumns select) {
+        select.columns().forEach(this::requireUserField);
         List<String> schemaColumns = input.table().getResolvedSchema().getColumnNames();
         Set<String> selected = new LinkedHashSet<>(select.columns());
         Set<String> hidden = HiddenColumns.names(schemaColumns);
@@ -96,6 +98,9 @@ final class PlanStepCompiler {
                 }
             }
         } else if (selected.isEmpty()) {
+            if ("include".equals(select.mode())) {
+                throw new IllegalArgumentException("Select include requires at least one column");
+            }
             columns.addAll(schemaColumns);
         } else {
             for (String column : select.columns()) {
@@ -112,6 +117,10 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep rename(CompiledStep input, LogicalPlanNode.RenameColumns rename) {
+        rename.renames().forEach(column -> {
+            requireUserField(column.from());
+            requireUserField(column.to());
+        });
         Expression[] renames = rename.renames().stream()
                 .map(column -> Expressions.$(column.from()).as(column.to()))
                 .toArray(Expression[]::new);
@@ -126,6 +135,7 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep derive(PlanStep step, CompiledStep input, LogicalPlanNode.DeriveColumn derive) {
+        requireUserField(derive.outputField());
         JsonNode expressionNode = derive.expression();
         FlinkExpressionCompiler.CompiledExpression compiled = expressions.compile(expressionNode);
         List<ApiExpression> columns = new ArrayList<>();
@@ -143,6 +153,7 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep deduplicate(CompiledStep input, LogicalPlanNode.Deduplicate deduplicate) {
+        deduplicate.columns().forEach(this::requireUserField);
         List<String> visible = input.table().getResolvedSchema().getColumnNames().stream()
                 .filter(column -> !column.startsWith(HiddenColumns.PREFIX))
                 .toList();
@@ -174,6 +185,10 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep join(CompiledStep left, CompiledStep right, LogicalPlanNode.Join join) {
+        join.keys().forEach(key -> {
+            requireUserField(key.left());
+            requireUserField(key.right());
+        });
         Table aliasedLeft = left.table().as(JOIN_ALIAS_LEFT);
         Table aliasedRight = right.table().as(JOIN_ALIAS_RIGHT);
         ApiExpression condition = joinCondition(join);
@@ -237,6 +252,14 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep aggregate(CompiledStep input, LogicalPlanNode.Aggregate aggregate) {
+        if (aggregate.aggregations().isEmpty()) {
+            throw new IllegalArgumentException("Aggregate requires at least one aggregation");
+        }
+        aggregate.groupBy().forEach(this::requireUserField);
+        aggregate.aggregations().forEach(aggregation -> {
+            requireUserField(aggregation.field());
+            requireUserField(aggregation.outputField());
+        });
         List<Expression> selected = new ArrayList<>();
         for (String field : aggregate.groupBy()) {
             selected.add(Expressions.$(field));
@@ -288,5 +311,11 @@ final class PlanStepCompiler {
                 HiddenColumns.original(sequence),
                 true
         );
+    }
+
+    private void requireUserField(String name) {
+        if (PreviewColumnNames.isReserved(name)) {
+            throw new IllegalArgumentException("Field name uses a reserved preview prefix: " + name);
+        }
     }
 }

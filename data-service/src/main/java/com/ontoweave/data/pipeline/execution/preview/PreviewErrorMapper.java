@@ -42,7 +42,7 @@ final class PreviewErrorMapper {
                     details
             );
         }
-        log.error("unexpected preview execution failure", cause);
+        log.error("unexpected preview execution failure: {}", cause.getClass().getName());
         return new ApiException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",

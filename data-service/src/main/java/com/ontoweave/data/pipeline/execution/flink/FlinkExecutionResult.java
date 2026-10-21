@@ -11,6 +11,7 @@ public record FlinkExecutionResult(
         UUID executionId,
         List<PreviewColumn> columns,
         List<Map<String, Object>> rows,
+        // null means no real source-row metric is available; never infer from DataFile counts.
         Long scannedRows,
         boolean scanLimited,
         List<PreviewIssue> errors,

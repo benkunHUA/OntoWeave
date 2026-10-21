@@ -51,6 +51,7 @@ class FlinkExpressionCompilerTest {
         assertThat(compiled.failures().get(0).flag().asSummaryString())
                 .contains("isTrue(is_a)");
         assertThat(compiled.failures().get(1).flag().asSummaryString())
+                .contains("not(isTrue(is_a))")
                 .contains("isTrue(is_b)");
         assertThat(compiled.failures().get(2).flag().asSummaryString())
                 .contains("not(isTrue(is_a))")

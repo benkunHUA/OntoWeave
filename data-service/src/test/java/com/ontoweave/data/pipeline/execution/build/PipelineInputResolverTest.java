@@ -7,7 +7,9 @@ import com.ontoweave.data.connection.domain.ConnectionKind;
 import com.ontoweave.data.connection.domain.DataConnectionEntity;
 import com.ontoweave.data.connection.repository.DataConnectionRepository;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
+import com.ontoweave.data.pipeline.domain.PipelineEntity;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
+import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
 import com.ontoweave.data.sync.domain.SyncMode;
@@ -16,6 +18,7 @@ import com.ontoweave.data.sync.domain.VersionSource;
 import com.ontoweave.data.sync.repository.DatasetRepository;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import com.ontoweave.data.sync.repository.SyncTaskRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyIterable;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PipelineInputResolverTest {
@@ -39,14 +43,34 @@ class PipelineInputResolverTest {
     private static final UUID OWNER_ID = UUID.randomUUID();
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private final PipelineRepository pipelines = mock(PipelineRepository.class);
     private final PipelineDraftRepository drafts = mock(PipelineDraftRepository.class);
     private final DatasetRepository datasets = mock(DatasetRepository.class);
     private final DatasetVersionRepository versions = mock(DatasetVersionRepository.class);
     private final DataConnectionRepository connections = mock(DataConnectionRepository.class);
     private final SyncTaskRepository tasks = mock(SyncTaskRepository.class);
     private final PipelineInputResolver resolver = new PublishedPipelineInputResolver(
-            drafts, datasets, versions, connections, tasks
+            pipelines, drafts, datasets, versions, connections, tasks
     );
+
+    @BeforeEach
+    void ownsPipeline() {
+        when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(mock(PipelineEntity.class)));
+    }
+
+
+    @Test
+    void rejectsDirectResolutionWhenPipelineBelongsToAnotherOwner() {
+        when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resolver.resolve(PIPELINE_ID, OWNER_ID, REVISION))
+                .isInstanceOfSatisfying(ApiException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(exception.code()).isEqualTo("NOT_FOUND");
+                });
+        verifyNoInteractions(drafts, datasets, versions, connections, tasks);
+    }
 
     @Test
     void resolvesPublishedVersionWithFrozenSnapshotAndDisplaySnapshot() {

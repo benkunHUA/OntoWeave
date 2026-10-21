@@ -1,5 +1,6 @@
 package com.ontoweave.data.pipeline.execution.plan;
 
+import com.ontoweave.data.pipeline.PreviewColumnNames;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
@@ -11,7 +12,7 @@ public record CompiledTablePlan(
         List<HiddenErrorColumn> hiddenErrorColumns
 ) {
 
-    public static final String HIDDEN_PREFIX = "__ontoweave_preview_";
+    public static final String HIDDEN_PREFIX = PreviewColumnNames.HIDDEN_PREFIX;
 
     public CompiledTablePlan {
         hiddenErrorColumns = hiddenErrorColumns == null ? List.of() : List.copyOf(hiddenErrorColumns);

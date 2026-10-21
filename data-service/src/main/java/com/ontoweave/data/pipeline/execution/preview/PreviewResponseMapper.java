@@ -23,7 +23,8 @@ final class PreviewResponseMapper {
             long elapsedMs
     ) {
         int returnedRows = Math.min(result.rows().size(), PipelineExecutionLimits.OUTPUT_ROW_LIMIT);
-        boolean truncated = result.rows().size() > PipelineExecutionLimits.OUTPUT_ROW_LIMIT;
+        boolean truncated = result.truncated()
+                || result.rows().size() > PipelineExecutionLimits.OUTPUT_ROW_LIMIT;
         String truncationReason = truncated
                 ? "OUTPUT_ROW_LIMIT"
                 : result.scanLimited() ? "SCAN_ROW_LIMIT" : null;
@@ -53,6 +54,7 @@ final class PreviewResponseMapper {
             List<Map<String, Object>> rows,
             Long scannedRows,
             boolean scanLimited,
+            boolean truncated,
             List<PreviewIssue> errors,
             List<PreviewIssue> warnings
     ) {

@@ -94,6 +94,7 @@ final class PreviewStageExecutor {
                     preview.rows(),
                     null,
                     false,
+                    preview.truncated(),
                     List.of(),
                     List.of()
             );
@@ -106,6 +107,7 @@ final class PreviewStageExecutor {
                 result.rows(),
                 result.scannedRows(),
                 result.scanLimited(),
+                false,
                 result.errors(),
                 result.warnings()
         );

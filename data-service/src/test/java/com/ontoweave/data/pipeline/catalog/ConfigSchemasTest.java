@@ -98,6 +98,10 @@ class ConfigSchemasTest {
         assertInvalid(catalog.require("filter"), "{\"condition\":{}}");
         assertInvalid(catalog.require("derive_column"), "{\"expression\":{}}");
         assertInvalid(catalog.require("select_columns"), "{\"mode\":\"other\"}");
+        assertInvalid(catalog.require("select_columns"), "{\"mode\":\"include\",\"columns\":[]}");
+        assertInvalid(catalog.require("join"), "{\"joinType\":\"left\",\"keys\":[]}");
+        assertInvalid(catalog.require("aggregate"),
+                "{\"groupBy\":[],\"aggregations\":[]}");
     }
 
     @Test

@@ -116,24 +116,26 @@ final class FlinkExpressionCompiler {
         JsonNode branches = expression.path("branches");
         List<CompiledExpression> whens = new ArrayList<>();
         List<CompiledExpression> thens = new ArrayList<>();
+        List<ApiExpression> matchedConditions = new ArrayList<>();
         for (int index = 0; index < branches.size(); index++) {
             whens.add(compile(branches.get(index).path("when")));
             thens.add(compile(branches.get(index).path("then")));
         }
-        ApiExpression noBranchMatched = null;
-        for (CompiledExpression when : whens) {
-            ApiExpression unmatched = when.expression().isTrue().not();
-            noBranchMatched = noBranchMatched == null ? unmatched : noBranchMatched.and(unmatched);
-        }
+        ApiExpression priorUnmatched = null;
         List<CastFailure> failures = new ArrayList<>();
         for (int index = 0; index < whens.size(); index++) {
-            failures.addAll(whens.get(index).failures());
-            failures.addAll(guarded(thens.get(index).failures(), whens.get(index).expression().isTrue()));
+            ApiExpression matched = whens.get(index).expression().isTrue();
+            matchedConditions.add(matched);
+            failures.addAll(guarded(whens.get(index).failures(), priorUnmatched));
+            ApiExpression branchGuard = priorUnmatched == null ? matched : priorUnmatched.and(matched);
+            failures.addAll(guarded(thens.get(index).failures(), branchGuard));
+            ApiExpression unmatched = matched.not();
+            priorUnmatched = priorUnmatched == null ? unmatched : priorUnmatched.and(unmatched);
         }
-        failures.addAll(guarded(otherwise.failures(), noBranchMatched));
+        failures.addAll(guarded(otherwise.failures(), priorUnmatched));
         for (int index = branches.size() - 1; index >= 0; index--) {
             result = Expressions.ifThenElse(
-                    whens.get(index).expression(),
+                    matchedConditions.get(index),
                     thens.get(index).expression(),
                     result
             );

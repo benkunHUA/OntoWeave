@@ -246,6 +246,9 @@ final class ExpressionTypeResolver {
             incomplete(fieldPath);
             return Optional.empty();
         }
+        if (FieldNameRules.rejectReserved(nodeId, name, issues)) {
+            return Optional.empty();
+        }
         Optional<FieldSchema> field = fields.stream()
                 .filter(candidate -> candidate.name().equals(name))
                 .findFirst();

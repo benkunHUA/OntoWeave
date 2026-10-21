@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FlinkLiteralTableEnvironmentTest {
 
@@ -45,5 +46,38 @@ class FlinkLiteralTableEnvironmentTest {
                         "DATE NOT NULL",
                         "TIMESTAMP(3) NOT NULL"
                 );
+    }
+
+    @Test
+    void preservesParameterizedTypesForNullAndNonNullLiterals() {
+        TableEnvironment environment = TableEnvironment.create(EnvironmentSettings.inBatchMode());
+        Table table = environment.fromValues(Row.of(1)).select(
+                literals.literal(mapper.valueToTree(new BigDecimal("7.25")), "decimal(10,2)")
+                        .as("amount"),
+                literals.literal(mapper.nullNode(), "decimal(10,2)").as("nullable_amount"),
+                literals.literal(mapper.getNodeFactory().textNode("2026-10-21T09:30:00.123456"),
+                        "timestamp(6)").as("created_at"),
+                literals.literal(mapper.nullNode(), "timestamp(6)").as("nullable_created_at"),
+                literals.literal(mapper.getNodeFactory().textNode("abc"), "varchar(5)").as("code"),
+                literals.literal(mapper.getNodeFactory().textNode("abc"), "char(3)").as("fixed")
+        );
+
+        assertThat(table.getResolvedSchema().getColumnDataTypes())
+                .extracting(Object::toString)
+                .containsExactly(
+                        "DECIMAL(10, 2) NOT NULL",
+                        "DECIMAL(10, 2)",
+                        "TIMESTAMP(6) NOT NULL",
+                        "TIMESTAMP(6)",
+                        "VARCHAR(5) NOT NULL",
+                        "CHAR(3) NOT NULL"
+                );
+    }
+
+    @Test
+    void rejectsUnknownDeclaredLiteralType() {
+        assertThatThrownBy(() -> literals.literal(mapper.valueToTree(1), "uuid"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("uuid");
     }
 }

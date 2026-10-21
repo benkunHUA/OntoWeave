@@ -7,7 +7,10 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.CancellationException;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -37,5 +40,14 @@ class IcebergSnapshotMetricsTest {
         } finally {
             logger.detachAppender(appender);
         }
+    }
+
+    @Test
+    void propagatesCancellationInsteadOfTreatingItAsMetadataUnavailable() {
+        doThrow(new CancellationException("preview canceled"))
+                .when(catalogs).withTable(anyString(), anyString(), any());
+
+        assertThatThrownBy(() -> metrics.recordCount("ontoweave", "sales", "orders", 100L))
+                .isInstanceOf(CancellationException.class);
     }
 }

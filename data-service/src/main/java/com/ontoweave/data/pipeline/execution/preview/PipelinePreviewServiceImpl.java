@@ -19,9 +19,11 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class PipelinePreviewServiceImpl implements PipelinePreviewService {
@@ -113,7 +115,9 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         try {
             ensureActive(lease);
             ensureBudget(deadline);
-            future = submit(() -> compute(pipelineId, ownerId, request, lease, deadline));
+            future = submitTracked(pipelineId, ownerId, lease, () -> compute(
+                    pipelineId, ownerId, request, lease, deadline
+            ));
             lease.attach(future);
             PreviewStageExecutor.PreviewComputation computation = await(future, lease, deadline);
             ensureActive(lease);
@@ -225,6 +229,37 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         } catch (RejectedExecutionException error) {
             throw PreviewErrorMapper.busy();
         }
+    }
+
+    private Future<PreviewStageExecutor.PreviewComputation> submitTracked(
+            UUID pipelineId,
+            UUID ownerId,
+            PreviewRegistry.Lease lease,
+            Callable<PreviewStageExecutor.PreviewComputation> computation
+    ) {
+        AtomicBoolean started = new AtomicBoolean();
+        FutureTask<PreviewStageExecutor.PreviewComputation> task =
+                new FutureTask<>(() -> {
+                    started.set(true);
+                    try {
+                        return computation.call();
+                    } finally {
+                        registry.taskFinished(pipelineId, ownerId, lease);
+                    }
+                }) {
+                    @Override
+                    protected void done() {
+                        if (!started.get()) {
+                            registry.taskFinished(pipelineId, ownerId, lease);
+                        }
+                    }
+                };
+        try {
+            workers.execute(task);
+        } catch (RejectedExecutionException error) {
+            throw PreviewErrorMapper.busy();
+        }
+        return task;
     }
 
     private void ensureActive(PreviewRegistry.Lease lease) {

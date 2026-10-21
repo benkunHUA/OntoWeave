@@ -82,6 +82,7 @@ final class NodeSchemaDeriver {
             ));
             return null;
         }
+        FieldNameRules.rejectReservedFields(node.id().toString(), schema.fields(), issues);
         return schema.fields();
     }
 

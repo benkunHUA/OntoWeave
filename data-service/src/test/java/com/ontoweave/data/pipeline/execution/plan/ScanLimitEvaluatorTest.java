@@ -27,6 +27,7 @@ class ScanLimitEvaluatorTest {
 
         assertThat(assessment.scanLimited()).isTrue();
         assertThat(assessment.metadataAvailable()).isTrue();
+        assertThat(assessment.knownInputRows()).isEqualTo(50_001L);
     }
 
     @Test
@@ -51,6 +52,7 @@ class ScanLimitEvaluatorTest {
 
         assertThat(assessment.scanLimited()).isFalse();
         assertThat(assessment.metadataAvailable()).isFalse();
+        assertThat(assessment.knownInputRows()).isNull();
     }
 
     private LogicalPlan plan(int scanLimit) {

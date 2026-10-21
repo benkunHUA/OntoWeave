@@ -11,6 +11,7 @@ import com.ontoweave.data.pipeline.graph.DraftNode;
 import com.ontoweave.data.pipeline.graph.InputSchemaResolver;
 import com.ontoweave.data.pipeline.graph.PipelineDraftGraph;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
+import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
@@ -36,6 +37,7 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
 
     private static final String DATASET_KIND = "sync";
 
+    private final PipelineRepository pipelines;
     private final PipelineDraftRepository drafts;
     private final DatasetRepository datasets;
     private final DatasetVersionRepository versions;
@@ -43,12 +45,14 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
     private final SyncTaskRepository tasks;
 
     public PublishedPipelineInputResolver(
+            PipelineRepository pipelines,
             PipelineDraftRepository drafts,
             DatasetRepository datasets,
             DatasetVersionRepository versions,
             DataConnectionRepository connections,
             SyncTaskRepository tasks
     ) {
+        this.pipelines = pipelines;
         this.drafts = drafts;
         this.datasets = datasets;
         this.versions = versions;
@@ -59,6 +63,8 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
     @Override
     @Transactional(readOnly = true)
     public List<ResolvedInput> resolve(UUID pipelineId, UUID ownerId, long draftRevision) {
+        pipelines.findByIdAndOwnerId(pipelineId, ownerId)
+                .orElseThrow(() -> notFound("流程不存在"));
         PipelineDraftEntity draft = drafts.findById(pipelineId)
                 .orElseThrow(() -> notFound("流程或草稿不存在"));
         if (draft.getRevision() != draftRevision) {

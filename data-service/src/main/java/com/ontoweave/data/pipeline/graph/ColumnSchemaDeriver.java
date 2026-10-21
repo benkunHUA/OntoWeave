@@ -32,9 +32,16 @@ final class ColumnSchemaDeriver {
         }
         List<String> names = strings(columns);
         if ("include".equals(mode)) {
+            if (names.isEmpty()) {
+                incomplete(node.id().toString(), null, "columns", issues);
+                return null;
+            }
             List<FieldSchema> output = new ArrayList<>();
             Set<String> seen = new HashSet<>();
             for (String name : names) {
+                if (FieldNameRules.rejectReserved(node.id().toString(), name, issues)) {
+                    continue;
+                }
                 FieldSchema field = field(input, name);
                 if (field == null) {
                     fieldNotFound(node.id().toString(), name, issues);
@@ -49,6 +56,9 @@ final class ColumnSchemaDeriver {
         if ("exclude".equals(mode)) {
             Set<String> namesToRemove = new HashSet<>(names);
             for (String name : names) {
+                if (FieldNameRules.rejectReserved(node.id().toString(), name, issues)) {
+                    continue;
+                }
                 if (field(input, name) == null) {
                     fieldNotFound(node.id().toString(), name, issues);
                 }
@@ -81,6 +91,10 @@ final class ColumnSchemaDeriver {
                 incomplete(node.id().toString(), null, "renames", issues);
                 continue;
             }
+            if (FieldNameRules.rejectReserved(node.id().toString(), from, issues)
+                    || FieldNameRules.rejectReserved(node.id().toString(), to, issues)) {
+                continue;
+            }
             if (field(input, from) == null) {
                 fieldNotFound(node.id().toString(), from, issues);
                 continue;
@@ -110,6 +124,9 @@ final class ColumnSchemaDeriver {
         JsonNode expression = config.path("expression");
         if (outputField == null || !expression.isObject()) {
             incomplete(node.id().toString(), null, "outputField", issues);
+            return null;
+        }
+        if (FieldNameRules.rejectReserved(node.id().toString(), outputField, issues)) {
             return null;
         }
         if (input == null) {
@@ -164,6 +181,9 @@ final class ColumnSchemaDeriver {
             return null;
         }
         for (String name : strings(columns)) {
+            if (FieldNameRules.rejectReserved(node.id().toString(), name, issues)) {
+                continue;
+            }
             if (field(input, name) == null) {
                 fieldNotFound(node.id().toString(), name, issues);
             }

@@ -61,7 +61,9 @@ final class ConfigSchemaDefinitions {
         ObjectNode schema = rootSchema();
         ObjectNode properties = properties(schema);
         properties.set("mode", enumString("include", "exclude"));
-        properties.set("columns", stringArray());
+        ObjectNode columns = stringArray();
+        columns.put("minItems", 1);
+        properties.set("columns", columns);
         return schema;
     }
 
@@ -83,7 +85,9 @@ final class ConfigSchemaDefinitions {
         ObjectNode schema = rootSchema();
         ObjectNode properties = properties(schema);
         properties.set("joinType", enumString("left", "right", "inner", "full"));
-        properties.set("keys", arrayOfObjects("left", "right"));
+        ObjectNode keys = arrayOfObjects("left", "right");
+        keys.put("minItems", 1);
+        properties.set("keys", keys);
         return schema;
     }
 
@@ -92,6 +96,7 @@ final class ConfigSchemaDefinitions {
         ObjectNode properties = properties(schema);
         properties.set("groupBy", stringArray());
         ObjectNode aggregation = arrayOfObjects("op", "outputField");
+        aggregation.put("minItems", 1);
         ObjectNode aggregationProperties = properties((ObjectNode) aggregation.path("items"));
         aggregationProperties.set("op", enumString("count", "sum", "min", "max", "avg"));
         aggregationProperties.set("field", string());

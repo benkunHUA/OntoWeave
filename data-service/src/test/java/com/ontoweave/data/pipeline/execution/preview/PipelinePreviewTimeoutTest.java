@@ -119,10 +119,12 @@ class PipelinePreviewTimeoutTest {
 
         try {
             assertTimeoutReleasesLease(service, firstReadStarted);
+            assertThat(registry.awaitReleased(PIPELINE_ID, Duration.ofMillis(50))).isFalse();
             assertThat(service.preview(PIPELINE_ID, OWNER_ID, request()).rows()).hasSize(1);
         } finally {
             releaseFirstRead.countDown();
         }
+        assertThat(registry.awaitReleased(PIPELINE_ID, Duration.ofSeconds(1))).isTrue();
     }
 
     private void assertTimeoutReleasesLease(

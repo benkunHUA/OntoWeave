@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 
 @Component
 public class IcebergSnapshotMetrics {
@@ -23,6 +24,8 @@ public class IcebergSnapshotMetrics {
     public Optional<Long> recordCount(String catalog, String namespace, String table, long snapshotId) {
         try {
             return catalogs.withTable(namespace, table, current -> recordCount(current, snapshotId));
+        } catch (CancellationException error) {
+            throw error;
         } catch (RuntimeException error) {
             log.warn(
                     "unable to read iceberg snapshot metrics for {}.{}.{} snapshot {}",
