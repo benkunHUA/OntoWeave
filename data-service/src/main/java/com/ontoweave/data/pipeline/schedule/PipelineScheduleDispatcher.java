@@ -95,14 +95,7 @@ public class PipelineScheduleDispatcher {
                     PipelineScheduleConstants.MESSAGE_VERSION_NOT_FOUND, Instant.now());
         }
 
-        List<ResolvedInput> resolved;
-        try {
-            resolved = inputs.resolve(version);
-        } catch (RuntimeException error) {
-            return finish(run, PipelineScheduleRunStatus.FAILED,
-                    PipelineScheduleConstants.REASON_DISPATCH_FAILED,
-                    PipelineScheduleConstants.MESSAGE_INPUT_RESOLUTION_FAILED, Instant.now());
-        }
+        List<ResolvedInput> resolved = inputs.resolve(version);
         String logicHash = ScheduleLogicHash.compute(version.getDefinitionHash(), resolved);
         run.evaluate(logicHash, PipelineResolvedInputs.toJson(json, resolved));
         if (unchanged(pipeline.getId(), version.getId(), logicHash)) {
@@ -132,9 +125,7 @@ public class PipelineScheduleDispatcher {
             if (PipelineBuildConstants.CODE_ACTIVE.equals(error.code())) {
                 return pending(schedule, run, logicHash, resolved);
             }
-            return finish(run, PipelineScheduleRunStatus.FAILED,
-                    PipelineScheduleConstants.REASON_DISPATCH_FAILED,
-                    error.getMessage(), Instant.now());
+            throw error;
         }
     }
 

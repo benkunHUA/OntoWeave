@@ -15,7 +15,7 @@ import java.util.UUID;
 @Table(name = "pipeline_schedule", schema = "data")
 public class PipelineScheduleEntity {
 
-    private static final String TIME_TRIGGER = "time";
+    public static final String TRIGGER_TYPE_TIME = "time";
 
     @Id
     private UUID id;
@@ -75,7 +75,7 @@ public class PipelineScheduleEntity {
         this.pipelineId = pipelineId;
         this.name = name;
         this.status = PipelineScheduleStatus.ACTIVE;
-        this.triggerType = TIME_TRIGGER;
+        this.triggerType = TRIGGER_TYPE_TIME;
         this.cronExpression = cronExpression;
         this.timezone = timezone;
         this.nextRunAt = Objects.requireNonNull(nextRunAt, "nextRunAt");
@@ -163,10 +163,11 @@ public class PipelineScheduleEntity {
         this.name = name;
         this.cronExpression = cronExpression;
         this.timezone = timezone;
-        this.nextRunAt = nextRunAt;
-        this.status = PipelineScheduleStatus.ACTIVE;
-        this.pausedAt = null;
-        this.pausedBy = null;
+        if (this.status == PipelineScheduleStatus.ACTIVE) {
+            this.nextRunAt = nextRunAt;
+        } else {
+            this.nextRunAt = null;
+        }
     }
 
     public void pause(UUID actorId, Instant now) {
@@ -186,10 +187,12 @@ public class PipelineScheduleEntity {
 
     public void advance(Instant nextRunAt, Instant dueAt) {
         this.nextRunAt = nextRunAt;
-        this.lastRunAt = dueAt;
+        recordRun(dueAt);
     }
 
     public void recordRun(Instant dueAt) {
-        this.lastRunAt = dueAt;
+        if (dueAt != null && (lastRunAt == null || dueAt.isAfter(lastRunAt))) {
+            this.lastRunAt = dueAt;
+        }
     }
 }

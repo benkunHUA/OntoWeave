@@ -39,6 +39,22 @@ class CronScheduleCalculatorTest {
     }
 
     @Test
+    void schedulesBothRepeatedOneThirtyTriggersWithStableSubsecondInputs() {
+        Instant first = Instant.parse("2026-11-01T05:30:00Z");
+        Instant second = Instant.parse("2026-11-01T06:30:00Z");
+
+        assertThat(calculator.next("30 1 * * *", "America/New_York", first)).isEqualTo(second);
+        assertThat(calculator.next(
+                "30 1 * * *", "America/New_York", first.plusMillis(500)
+        )).isEqualTo(second);
+        assertThat(calculator.next(
+                "30 1 * * *", "America/New_York", first.plusSeconds(1)
+        )).isEqualTo(second);
+        assertThat(calculator.next("30 1 * * *", "America/New_York", second))
+                .isEqualTo(Instant.parse("2026-11-02T06:30:00Z"));
+    }
+
+    @Test
     void resumesAfterDowntimeAtTheMostRecentMissedTriggerOnly() {
         Instant firstDue = Instant.parse("2026-03-07T10:00:00Z");
         Instant now = Instant.parse("2026-03-07T10:05:30Z");

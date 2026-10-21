@@ -50,7 +50,7 @@ class PipelineScheduleServiceTest {
 
     @Test
     void putCreatesAnActiveUtcScheduleFromTheRequestedTimeZone() {
-        when(schedules.findByPipelineId(pipelineId)).thenReturn(Optional.empty());
+        when(schedules.lockByPipelineId(pipelineId)).thenReturn(Optional.empty());
 
         ScheduleResponse response = service.put(
                 pipelineId, ownerId, new ScheduleRequest("0 9 * * *", "Asia/Shanghai", "morning")

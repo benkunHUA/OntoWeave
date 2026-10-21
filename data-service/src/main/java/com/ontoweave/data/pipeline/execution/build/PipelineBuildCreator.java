@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.domain.PipelineBuildEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity;
-import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineOutputType;
 import com.ontoweave.data.pipeline.domain.PipelineOutputStatus;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
@@ -24,10 +23,6 @@ import java.util.UUID;
 
 @Service
 public class PipelineBuildCreator {
-
-    private static final List<PipelineBuildStatus> ACTIVE_STATUSES = List.of(
-            PipelineBuildStatus.QUEUED, PipelineBuildStatus.RUNNING
-    );
 
     private final PipelineRepository pipelines;
     private final PipelineBuildRepository builds;
@@ -74,7 +69,9 @@ public class PipelineBuildCreator {
         if (existing.isPresent()) {
             return existing.get();
         }
-        if (builds.existsByPipelineIdAndStatusIn(candidate.getPipelineId(), ACTIVE_STATUSES)) {
+        if (builds.existsByPipelineIdAndStatusIn(
+                candidate.getPipelineId(), PipelineBuildConstants.ACTIVE_STATUSES
+        )) {
             throw activeBuild();
         }
         builds.saveAndFlush(candidate);

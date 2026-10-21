@@ -9,6 +9,8 @@ public class PipelineScheduleProperties {
     private long pollIntervalMs = 15_000L;
     private long initialDelayMs = 15_000L;
     private int maxPerPoll = 100;
+    private int scanThreads = 1;
+    private int scanQueueCapacity = 1;
     private int executorThreads = 2;
     private int executorQueueCapacity = 20;
 
@@ -42,6 +44,22 @@ public class PipelineScheduleProperties {
 
     public void setMaxPerPoll(int maxPerPoll) {
         this.maxPerPoll = maxPerPoll;
+    }
+
+    public int getScanThreads() {
+        return scanThreads;
+    }
+
+    public void setScanThreads(int scanThreads) {
+        this.scanThreads = scanThreads;
+    }
+
+    public int getScanQueueCapacity() {
+        return scanQueueCapacity;
+    }
+
+    public void setScanQueueCapacity(int scanQueueCapacity) {
+        this.scanQueueCapacity = scanQueueCapacity;
     }
 
     public int getExecutorThreads() {

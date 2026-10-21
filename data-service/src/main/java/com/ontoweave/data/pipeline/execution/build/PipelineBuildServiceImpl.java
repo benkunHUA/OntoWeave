@@ -27,10 +27,6 @@ import java.util.UUID;
 @Service
 public class PipelineBuildServiceImpl implements PipelineBuildService {
 
-    private static final List<PipelineBuildStatus> ACTIVE_STATUSES = List.of(
-            PipelineBuildStatus.QUEUED, PipelineBuildStatus.RUNNING
-    );
-
     private final PipelineRepository pipelines;
     private final PipelineVersionRepository versions;
     private final PipelineCheckService checks;
@@ -172,7 +168,9 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         if (existing.isPresent()) {
             return response(existing.get());
         }
-        if (builds.existsByPipelineIdAndStatusIn(pipelineId, ACTIVE_STATUSES)) {
+        if (builds.existsByPipelineIdAndStatusIn(
+                pipelineId, PipelineBuildConstants.ACTIVE_STATUSES
+        )) {
             throw activeBuild();
         }
         throw error;
@@ -193,7 +191,9 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     private void requireNoActiveBuild(UUID pipelineId) {
-        if (builds.existsByPipelineIdAndStatusIn(pipelineId, ACTIVE_STATUSES)) {
+        if (builds.existsByPipelineIdAndStatusIn(
+                pipelineId, PipelineBuildConstants.ACTIVE_STATUSES
+        )) {
             throw activeBuild();
         }
     }

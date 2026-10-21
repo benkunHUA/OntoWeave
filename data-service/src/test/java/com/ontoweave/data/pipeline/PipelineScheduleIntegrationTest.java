@@ -50,6 +50,11 @@ class PipelineScheduleIntegrationTest extends PipelineScheduleIntegrationTestSup
                 .isEqualTo(Instant.parse("2026-03-07T10:06:00Z"));
         assertThat(instant("SELECT last_run_at FROM data.pipeline_schedule WHERE id = ?", scheduleId))
                 .isEqualTo(Instant.parse("2026-03-07T10:05:00Z"));
+        assertThat(pendingCount(scheduleId)).isEqualTo(1);
+        assertThat(instant("""
+                SELECT scheduled_for FROM data.pipeline_schedule_run
+                WHERE schedule_id = ? AND status = 'pending'
+                """, scheduleId)).isEqualTo(Instant.parse("2026-03-07T10:05:00Z"));
         assertThat(claimer.claimDue(now, 100)).isEmpty();
     }
 

@@ -33,6 +33,16 @@ public interface PipelineScheduleRunRepository extends JpaRepository<PipelineSch
     );
 
     @Query(value = """
+            SELECT r.* FROM data.pipeline_schedule_run r
+            JOIN data.pipeline_schedule s ON s.id = r.schedule_id
+            WHERE r.status = 'pending' AND s.status = 'active'
+            ORDER BY r.scheduled_for, r.id
+            FOR UPDATE OF s, r SKIP LOCKED
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<PipelineScheduleRunEntity> lockPending(@Param("limit") int limit);
+
+    @Query(value = """
             SELECT * FROM data.pipeline_schedule_run
             WHERE pipeline_id = :pipelineId
             ORDER BY scheduled_for DESC, id DESC

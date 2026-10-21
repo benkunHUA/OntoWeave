@@ -62,7 +62,7 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
             Instant nextRunAt = cron.next(request.cronExpression(), request.timezone(), Instant.now());
             String name = blank(request.name())
                     ? PipelineScheduleConstants.DEFAULT_NAME : request.name().trim();
-            PipelineScheduleEntity schedule = schedules.findByPipelineId(pipelineId)
+            PipelineScheduleEntity schedule = schedules.lockByPipelineId(pipelineId)
                     .map(existing -> {
                         existing.updateDefinition(name, request.cronExpression().trim(),
                                 request.timezone().trim(), nextRunAt);

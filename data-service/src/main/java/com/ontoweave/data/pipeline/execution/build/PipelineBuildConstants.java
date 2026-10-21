@@ -1,5 +1,9 @@
 package com.ontoweave.data.pipeline.execution.build;
 
+import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
+
+import java.util.List;
+
 public final class PipelineBuildConstants {
 
     public static final String EVENT_SUCCEEDED = "pipeline.build.succeeded";
@@ -15,6 +19,10 @@ public final class PipelineBuildConstants {
     public static final String CODE_CANCELED = "BUILD_CANCELED";
     public static final String CODE_EXPECTATION_FAILED = "EXPECTATION_FAILED";
     public static final String CODE_NOT_FOUND = "NOT_FOUND";
+    public static final List<PipelineBuildStatus> ACTIVE_STATUSES = List.of(
+            PipelineBuildStatus.QUEUED,
+            PipelineBuildStatus.RUNNING
+    );
 
     private PipelineBuildConstants() {
     }

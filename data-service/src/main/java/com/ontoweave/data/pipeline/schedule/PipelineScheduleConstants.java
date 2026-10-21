@@ -1,21 +1,19 @@
 package com.ontoweave.data.pipeline.schedule;
 
 import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
+import com.ontoweave.data.pipeline.execution.build.PipelineBuildConstants;
 
 import java.util.List;
 
 public final class PipelineScheduleConstants {
 
-    public static final String TRIGGER_TIME = "time";
     public static final String REASON_NO_CHANGE = "NO_CHANGE";
     public static final String REASON_SCHEDULE_PAUSED = "SCHEDULE_PAUSED";
     public static final String REASON_NOT_PUBLISHED = "SCHEDULE_NOT_PUBLISHED";
-    public static final String REASON_DISPATCH_FAILED = "SCHEDULE_DISPATCH_FAILED";
     public static final String MESSAGE_NO_CHANGE = "流程版本与输入未发生变化";
     public static final String MESSAGE_PAUSED = "调度已暂停";
     public static final String MESSAGE_NOT_PUBLISHED = "流程没有已发布版本";
     public static final String MESSAGE_VERSION_NOT_FOUND = "当前发布版本不存在";
-    public static final String MESSAGE_INPUT_RESOLUTION_FAILED = "解析输入版本失败";
     public static final String ERROR_PIPELINE_NOT_FOUND = "流程不存在";
     public static final String ERROR_SCHEDULE_NOT_FOUND = "调度不存在";
     public static final String ERROR_DISPATCH_INCOMPLETE = "调度运行参数不完整";
@@ -27,10 +25,8 @@ public final class PipelineScheduleConstants {
             PipelineBuildStatus.FAILED,
             PipelineBuildStatus.CANCELED
     );
-    public static final List<PipelineBuildStatus> ACTIVE_STATUSES = List.of(
-            PipelineBuildStatus.QUEUED,
-            PipelineBuildStatus.RUNNING
-    );
+    public static final List<PipelineBuildStatus> ACTIVE_STATUSES =
+            PipelineBuildConstants.ACTIVE_STATUSES;
 
     private PipelineScheduleConstants() {
     }

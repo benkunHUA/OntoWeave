@@ -34,6 +34,9 @@ class PipelineScheduleWorkerTest {
         when(claimer.claimDue(any(), anyInt())).thenReturn(List.of(
                 new PipelineScheduleClaimer.DueSchedule(schedule, dueAt)
         ));
+        when(claimer.claimPending(anyInt())).thenReturn(List.of(
+                new PipelineScheduleClaimer.PendingSchedule(schedule, dueAt)
+        ));
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicReference<String> threadName = new AtomicReference<>();
@@ -53,6 +56,37 @@ class PipelineScheduleWorkerTest {
             assertThat(elapsedMillis).isLessThan(1_000);
             assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
             assertThat(threadName.get()).startsWith("pipeline-schedule-");
+        } finally {
+            release.countDown();
+            worker.shutdown();
+        }
+    }
+
+    @Test
+    void pollReturnsImmediatelyWhileClaimingRunsOnTheDedicatedScanThread() throws Exception {
+        properties.setExecutorThreads(1);
+        properties.setExecutorQueueCapacity(1);
+        properties.setMaxPerPoll(1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        AtomicReference<String> threadName = new AtomicReference<>();
+        when(claimer.claimDue(any(), anyInt())).thenAnswer(invocation -> {
+            threadName.set(Thread.currentThread().getName());
+            started.countDown();
+            release.await(10, TimeUnit.SECONDS);
+            return List.of();
+        });
+        when(claimer.claimPending(anyInt())).thenReturn(List.of());
+        PipelineScheduleWorker worker = new PipelineScheduleWorker(claimer, service, properties);
+
+        try {
+            long before = System.nanoTime();
+            worker.poll();
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
+
+            assertThat(elapsedMillis).isLessThan(1_000);
+            assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(threadName.get()).startsWith("pipeline-schedule-scan-");
         } finally {
             release.countDown();
             worker.shutdown();
