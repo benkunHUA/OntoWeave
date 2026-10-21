@@ -62,7 +62,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
 
     @Override
     public BuildResponse enqueue(UUID pipelineId, UUID ownerId, CreateBuildRequest request) {
-        requireOwned(pipelineId, ownerId);
+        requireActiveOwned(pipelineId, ownerId);
         requireOperation(request);
         Optional<PipelineBuildEntity> existing = builds
                 .findByPipelineIdAndOperationId(pipelineId, request.operationId());
@@ -139,7 +139,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     @Override
     @Transactional(readOnly = true)
     public BuildResponse get(UUID pipelineId, UUID buildId, UUID ownerId) {
-        requireOwned(pipelineId, ownerId);
+        requireReadableOwned(pipelineId, ownerId);
         PipelineBuildEntity build = builds.findByIdAndPipelineId(buildId, pipelineId)
                 .orElseThrow(() -> notFound("构建不存在"));
         return response(build);
@@ -148,7 +148,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     @Override
     @Transactional
     public void requestCancel(UUID pipelineId, UUID buildId, UUID ownerId) {
-        requireOwned(pipelineId, ownerId);
+        requireActiveOwned(pipelineId, ownerId);
         PipelineBuildEntity build = builds.lockByIdAndPipelineId(buildId, pipelineId)
                 .orElseThrow(() -> notFound("构建不存在"));
         if (build.getStatus() != PipelineBuildStatus.QUEUED
@@ -184,7 +184,14 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         );
     }
 
-    private void requireOwned(UUID pipelineId, UUID ownerId) {
+    private void requireReadableOwned(UUID pipelineId, UUID ownerId) {
+        if (pipelineId == null || ownerId == null
+                || pipelines.findByIdAndOwnerId(pipelineId, ownerId).isEmpty()) {
+            throw notFound("流程不存在");
+        }
+    }
+
+    private void requireActiveOwned(UUID pipelineId, UUID ownerId) {
         if (pipelineId == null || ownerId == null) {
             throw notFound("流程不存在");
         }

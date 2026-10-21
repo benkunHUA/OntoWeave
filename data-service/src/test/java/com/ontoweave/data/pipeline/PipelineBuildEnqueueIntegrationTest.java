@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -122,6 +123,29 @@ class PipelineBuildEnqueueIntegrationTest extends PipelineBuildIntegrationTestSu
                 java.time.OffsetDateTime.class,
                 buildId
         )).isNull();
+    }
+
+    @Test
+    void archivedPipelineCanStillReadBuildDetail() throws Exception {
+        UUID versionId = insertVersion(
+                pipelineId, 1, mapper.createObjectNode(), mapper.createArrayNode()
+        );
+        UUID buildId = insertBuild(
+                pipelineId, versionId, PipelineBuildStatus.QUEUED, UUID.randomUUID()
+        );
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'archived', archived_at = now() WHERE id = ?",
+                pipelineId
+        );
+
+        mvc.perform(get("/internal/v1/pipelines/{pipelineId}/builds/{buildId}", pipelineId, buildId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(buildId.toString()))
+                .andExpect(jsonPath("$.pipelineId").value(pipelineId.toString()))
+                .andExpect(jsonPath("$.pipelineVersionId").value(versionId.toString()))
+                .andExpect(jsonPath("$.status").value("queued"));
     }
 
     @Test
