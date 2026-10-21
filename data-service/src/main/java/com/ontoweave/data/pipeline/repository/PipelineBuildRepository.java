@@ -57,6 +57,15 @@ public interface PipelineBuildRepository extends JpaRepository<PipelineBuildEnti
             @Param("status") PipelineBuildStatus status
     );
 
+    @Modifying(flushAutomatically = true)
+    @Transactional
+    @Query("""
+            update PipelineBuildEntity b
+            set b.logUri = :logUri, b.updatedAt = CURRENT_TIMESTAMP
+            where b.id = :id and b.logUri is null
+            """)
+    int updateLogUriIfAbsent(@Param("id") UUID id, @Param("logUri") String logUri);
+
     @Query(value = """
             SELECT * FROM data.pipeline_build
             WHERE status = 'running'

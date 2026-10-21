@@ -6,7 +6,6 @@ export interface NodeConfigDrawerState {
   config: JsonObject
   dirty: boolean
 }
-
 export function drawerStateFor(node: PipelineNode): NodeConfigDrawerState {
   return {
     nodeId: node.id,
@@ -43,8 +42,4 @@ export function applyDraftResponse(
     ...state,
     config: { ...state.config, ...updated.config },
   }
-}
-
-export function configForSave(state: NodeConfigDrawerState): JsonObject {
-  return { ...state.config }
 }

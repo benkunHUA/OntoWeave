@@ -200,10 +200,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
     }
 
     private void recordEngineJob(UUID buildId, UUID outputId, String engineJobId, String logUri) {
-        buildOutputs.findByBuildIdAndOutputId(buildId, outputId).ifPresent(row -> {
-            row.recordEngineJob(engineJobId, logUri);
-            buildOutputs.save(row);
-        });
+        buildOutputs.updateEngineJobAndLogUri(buildId, outputId, engineJobId, logUri);
     }
 
     WrittenSnapshot snapshot(

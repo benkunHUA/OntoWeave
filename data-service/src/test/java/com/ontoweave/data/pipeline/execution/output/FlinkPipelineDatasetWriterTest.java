@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +46,42 @@ import static org.mockito.Mockito.when;
 class FlinkPipelineDatasetWriterTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void recordsEngineJobWithAnAtomicRepositoryUpdate() {
+        UUID buildId = UUID.randomUUID();
+        UUID outputId = UUID.randomUUID();
+        PipelineBuildOutputRepository buildOutputs = mock(PipelineBuildOutputRepository.class);
+        FlinkPipelineDatasetWriter writer = new FlinkPipelineDatasetWriter(
+                mock(PipelineOutputRepository.class),
+                buildOutputs,
+                mock(PipelineDatasetRepository.class),
+                mock(PipelinePlanCompiler.class),
+                mock(OutputSchemaBaseline.class),
+                mock(HadoopCatalogFactory.class),
+                properties(),
+                mapper,
+                Duration.ofSeconds(1)
+        );
+
+        ReflectionTestUtils.invokeMethod(
+                writer,
+                "recordEngineJob",
+                buildId,
+                outputId,
+                "job-1",
+                "http://localhost:8081/#/job/job-1/exceptions"
+        );
+
+        verify(buildOutputs).updateEngineJobAndLogUri(
+                buildId,
+                outputId,
+                "job-1",
+                "http://localhost:8081/#/job/job-1/exceptions"
+        );
+        verify(buildOutputs, never()).findByBuildIdAndOutputId(any(), any());
+        verify(buildOutputs, never()).save(any());
+    }
 
     @Test
     void buildSnapshotsCarryNoRowsAndWriterHasNoPreviewReaderDependency() throws Exception {

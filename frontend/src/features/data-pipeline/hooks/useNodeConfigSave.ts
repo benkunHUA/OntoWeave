@@ -126,7 +126,7 @@ export function useNodeConfigSave({
     if (!state.dirty || isReadOnly || !state.name.trim()) return
     const timer = window.setTimeout(() => void flush(), delayMs)
     return () => window.clearTimeout(timer)
-  }, [delayMs, flush, isReadOnly, state.dirty, state.name])
+  }, [delayMs, flush, isReadOnly, state.config, state.dirty, state.name])
 
   useEffect(() => {
     const entry = currentRef.current

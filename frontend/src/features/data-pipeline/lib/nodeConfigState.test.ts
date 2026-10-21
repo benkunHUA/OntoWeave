@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { PipelineDraftResponse, PipelineNode } from '../../../shared/types'
 import {
   applyDraftResponse,
-  configForSave,
   drawerStateFor,
   resetForNode,
   syncExternalConfig,
@@ -43,7 +42,7 @@ describe('node config drawer state', () => {
     expect(state.dirty).toBe(true)
 
     state = { ...state, name: 'Orders renamed', dirty: true }
-    expect(configForSave(state)).toEqual({
+    expect(state.config).toEqual({
       outputId: '00000000-0000-4000-8000-000000000099',
     })
   })

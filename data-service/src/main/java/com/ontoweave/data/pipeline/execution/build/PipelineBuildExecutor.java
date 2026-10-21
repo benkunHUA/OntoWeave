@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.domain.PipelineBuildEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStage;
-import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputStatus;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
@@ -43,8 +42,9 @@ public class PipelineBuildExecutor {
     private final ExpectationChecker expectations;
     private final PipelinePublisher publisher;
     private final PipelinePreviewService previews;
-    private final PipelineBuildBranchCleaner branchCleaner;
     private final ObjectMapper mapper;
+    private final PipelineBuildLogPersistence logs;
+    private final PipelineBuildTerminalWriter terminal;
 
     public PipelineBuildExecutor(
             PipelineBuildRepository builds,
@@ -56,8 +56,9 @@ public class PipelineBuildExecutor {
             ExpectationChecker expectations,
             PipelinePublisher publisher,
             PipelinePreviewService previews,
-            PipelineBuildBranchCleaner branchCleaner,
-            ObjectMapper mapper
+            ObjectMapper mapper,
+            PipelineBuildLogPersistence logs,
+            PipelineBuildTerminalWriter terminal
     ) {
         this.builds = builds;
         this.buildOutputs = buildOutputs;
@@ -68,8 +69,9 @@ public class PipelineBuildExecutor {
         this.expectations = expectations;
         this.publisher = publisher;
         this.previews = previews;
-        this.branchCleaner = branchCleaner;
         this.mapper = mapper;
+        this.logs = logs;
+        this.terminal = terminal;
     }
 
     public void execute(UUID buildId) {
@@ -78,24 +80,24 @@ public class PipelineBuildExecutor {
             return;
         }
         if (build.getCancelRequestedAt() != null) {
-            cancel(build);
+            terminal.cancel(build);
             return;
         }
         if (!releasePreview(build)) {
-            fail(build, PipelineBuildConstants.CODE_PREVIEW_BUSY, "预览资源未在限期内释放");
+            terminal.fail(build, PipelineBuildConstants.CODE_PREVIEW_BUSY, "预览资源未在限期内释放");
             return;
         }
         try {
             executeOutputs(build);
         } catch (PipelineBuildException error) {
             if (cancelRequested(build)) {
-                cancel(build);
+                terminal.cancel(build);
             } else {
-                fail(build, error.errorCode(), error.getMessage());
+                terminal.fail(build, error.errorCode(), error.getMessage());
             }
         } catch (RuntimeException error) {
             log.error("pipeline build execution failed {}", buildId, error);
-            fail(build, PipelineBuildConstants.CODE_EXECUTION_FAILED, "构建执行失败");
+            terminal.fail(build, PipelineBuildConstants.CODE_EXECUTION_FAILED, "构建执行失败");
         }
     }
 
@@ -118,13 +120,13 @@ public class PipelineBuildExecutor {
         List<PipelineFrozenOutput> frozen = PipelineFrozenOutput.from(version.getOutputs(), mapper);
         for (PipelineFrozenOutput output : frozen) {
             if (cancelRequested(build)) {
-                cancel(build);
+                terminal.cancel(build);
                 return;
             }
             executeOutput(build, version, output, resolved);
         }
         if (cancelRequested(build)) {
-            cancel(build);
+            terminal.cancel(build);
             return;
         }
         updateStage(build.getId(), PipelineBuildStage.PUBLISHING);
@@ -165,16 +167,18 @@ public class PipelineBuildExecutor {
             snapshot = writer.write(build.getId(), frozen.outputId(), plan, branch);
             if (snapshot.engineJobId() != null) {
                 row.recordEngineJob(snapshot.engineJobId(), snapshot.logUri());
+                logs.recordOutputEngineJob(
+                        build.getId(), frozen.outputId(), snapshot.engineJobId(), snapshot.logUri()
+                );
             }
             if (snapshot.logUri() != null && !snapshot.logUri().isBlank()
                     && build.getLogUri() == null) {
-                build.recordLogUri(snapshot.logUri());
-                builds.save(build);
+                logs.recordBuildLogUri(build, snapshot.logUri());
             }
             row.updateStage(PipelineBuildStage.CHECKING_EXPECTATIONS);
             buildOutputs.save(row);
             if (cancelRequested(build)) {
-                cancel(build);
+                terminal.cancel(build);
                 return;
             }
             List<ExpectationResult> results = expectations.check(
@@ -204,10 +208,9 @@ public class PipelineBuildExecutor {
             buildOutputs.save(row);
         } catch (PipelineBuildException error) {
             if (cancelRequested(build)) {
-                cancel(build);
+                terminal.cancel(build);
                 return;
             }
-            carryOutputLogUri(build, frozen.outputId());
             if (row.getStatus() != PipelineOutputStatus.FAILED) {
                 row.markFailed(
                         PipelineBuildStage.FINISHED,
@@ -224,10 +227,9 @@ public class PipelineBuildExecutor {
             throw error;
         } catch (RuntimeException error) {
             if (cancelRequested(build)) {
-                cancel(build);
+                terminal.cancel(build);
                 return;
             }
-            carryOutputLogUri(build, frozen.outputId());
             if (row.getStatus() != PipelineOutputStatus.FAILED) {
                 row.markFailed(
                         PipelineBuildStage.FINISHED,
@@ -252,71 +254,7 @@ public class PipelineBuildExecutor {
         return current.getCancelRequestedAt() != null;
     }
 
-    private void cancel(PipelineBuildEntity build) {
-        PipelineBuildEntity current = builds.findById(build.getId()).orElse(build);
-        if (terminal(current.getStatus())) {
-            return;
-        }
-        try {
-            writer.cancel(build.getId());
-        } catch (RuntimeException error) {
-            log.warn("failed to cancel engine job for build {}", build.getId(), error);
-            return;
-        }
-        Instant now = Instant.now();
-        for (PipelineBuildOutputEntity row : buildOutputs.findByBuildIdOrderByCreatedAtAsc(current.getId())) {
-            if (row.getStatus() == PipelineOutputStatus.RUNNING
-                    || row.getStatus() == PipelineOutputStatus.QUEUED) {
-                carryOutputLogUri(current, row.getOutputId());
-                row.markCanceled(now);
-                buildOutputs.save(row);
-            }
-        }
-        current.markCanceled(now);
-        builds.save(current);
-        branchCleaner.cleanup(current.getId());
-    }
-
     private void updateStage(UUID buildId, PipelineBuildStage stage) {
         builds.updateStage(buildId, stage, com.ontoweave.data.pipeline.domain.PipelineBuildStatus.RUNNING);
-    }
-
-    private void carryOutputLogUri(PipelineBuildEntity build, UUID outputId) {
-        if (build.getLogUri() != null && !build.getLogUri().isBlank()) return;
-        buildOutputs.findByBuildIdAndOutputId(build.getId(), outputId)
-                .map(PipelineBuildOutputEntity::getLogUri)
-                .filter(uri -> uri != null && !uri.isBlank())
-                .ifPresent(uri -> {
-                    build.recordLogUri(uri);
-                    builds.save(build);
-                });
-    }
-
-    private void fail(PipelineBuildEntity build, String code, String message) {
-        PipelineBuildEntity current = builds.findById(build.getId()).orElse(build);
-        if (terminal(current.getStatus())) {
-            return;
-        }
-        Instant now = Instant.now();
-        for (PipelineBuildOutputEntity row
-                : buildOutputs.findByBuildIdOrderByCreatedAtAsc(current.getId())) {
-            if (row.getStatus() == PipelineOutputStatus.RUNNING
-                    || row.getStatus() == PipelineOutputStatus.QUEUED) {
-                row.markFailed(
-                        PipelineBuildStage.FINISHED, code, message,
-                        row.getResult(), row.getStats(), now
-                );
-                buildOutputs.save(row);
-            }
-        }
-        current.markFailed(code, message, now);
-        builds.save(current);
-        branchCleaner.cleanup(current.getId());
-    }
-
-    private boolean terminal(PipelineBuildStatus status) {
-        return status == PipelineBuildStatus.SUCCEEDED
-                || status == PipelineBuildStatus.FAILED
-                || status == PipelineBuildStatus.CANCELED;
     }
 }

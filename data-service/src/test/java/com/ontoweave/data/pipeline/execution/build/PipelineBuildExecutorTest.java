@@ -64,9 +64,13 @@ class PipelineBuildExecutorTest {
     private final PipelinePublisher publisher = mock(PipelinePublisher.class);
     private final PipelinePreviewService previews = mock(PipelinePreviewService.class);
     private final PipelineBuildBranchCleaner branchCleaner = mock(PipelineBuildBranchCleaner.class);
+    private final PipelineBuildLogPersistence logs = new PipelineBuildLogPersistence(builds, buildOutputs);
+    private final PipelineBuildTerminalWriter terminal = new PipelineBuildTerminalWriter(
+            builds, buildOutputs, writer, branchCleaner, logs
+    );
     private final PipelineBuildExecutor executor = new PipelineBuildExecutor(
             builds, buildOutputs, versions, outputs, plans, writer,
-            expectations, publisher, previews, branchCleaner, mapper
+            expectations, publisher, previews, mapper, logs, terminal
     );
 
     @Test
@@ -217,6 +221,9 @@ class PipelineBuildExecutorTest {
         );
         whenBuildReady(build, version, row, output);
         when(plans.buildForBuild(eq(version), anyList(), eq(NODE_ID.toString()))).thenReturn(plan);
+        when(buildOutputs.findLogUriByBuildIdAndOutputId(BUILD_ID, OUTPUT_ID)).thenReturn(Optional.of(
+                "http://localhost:8081/#/job/failed-job/exceptions"
+        ));
         when(writer.write(eq(BUILD_ID), eq(OUTPUT_ID), eq(plan), eq("build_" + BUILD_ID)))
                 .thenAnswer(invocation -> {
                     row.recordEngineJob(

@@ -37,6 +37,20 @@ const definition: NodeDefinition = {
   ui_schema: { fields: { condition: { widget: 'condition-tree' } } },
 }
 
+const textNode: PipelineNode = {
+  id: '00000000-0000-4000-8000-000000000003',
+  type: 'filter',
+  name: 'Text filter',
+  config: { pattern: 'initial' },
+  position: { x: 200, y: 0 },
+}
+
+const textDefinition: NodeDefinition = {
+  ...definition,
+  config_schema: { type: 'object', properties: { pattern: { type: 'string' } } },
+  ui_schema: { fields: { pattern: { widget: 'text' } } },
+}
+
 function draft(revision: number): PipelineDraftResponse {
   return {
     pipeline_id: 'pipeline-a',
@@ -128,6 +142,42 @@ describe('NodeConfigDrawer pending save flush', () => {
       'Filter edited',
       nodeA.config,
     )
+  })
+
+  it('restarts the debounce for consecutive config edits and saves only the latest', async () => {
+    const onSave = vi.fn().mockResolvedValue(draft(2))
+    render(
+      <NodeConfigDrawer
+        pipelineId="pipeline-a"
+        revision={1}
+        node={textNode}
+        definition={textDefinition}
+        issues={[]}
+        isSaving={false}
+        onClose={() => undefined}
+        onSave={onSave}
+        onDelete={() => null}
+        onSetOutput={() => null}
+      />,
+    )
+
+    fireEvent.change(screen.getByDisplayValue('initial'), { target: { value: 'first' } })
+    act(() => vi.advanceTimersByTime(200))
+    fireEvent.change(screen.getByDisplayValue('first'), { target: { value: 'latest' } })
+    act(() => vi.advanceTimersByTime(399))
+
+    expect(onSave).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(1))
+    expect(onSave).toHaveBeenCalledTimes(1)
+    expect(onSave).toHaveBeenCalledWith(
+      'pipeline-a',
+      textNode.id,
+      'Text filter',
+      { pattern: 'latest' },
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
   })
 
   it('flushes the old node to its own pipeline when switching nodes', () => {

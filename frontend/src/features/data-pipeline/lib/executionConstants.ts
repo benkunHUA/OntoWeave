@@ -91,6 +91,14 @@ export const SOURCE_COPY = {
   logMissing: '日志尚未持久化',
 } as const
 
+export const OUTPUT_BUILD_COPY = {
+  ariaLabel: '最近构建',
+  title: '最近构建',
+  missingOutput: '最近构建未包含此输出',
+  elapsed: '耗时',
+  log: '打开构建日志',
+} as const
+
 export const OUTPUT_DATASET_COPY = {
   title: '输出数据集详情',
   datasetId: '数据集 ID',
