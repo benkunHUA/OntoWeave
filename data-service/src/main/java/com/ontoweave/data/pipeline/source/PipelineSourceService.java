@@ -1,7 +1,6 @@
 package com.ontoweave.data.pipeline.source;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.api.dto.SourceBuild;
 import com.ontoweave.data.pipeline.api.dto.SourceInput;
 import com.ontoweave.data.pipeline.api.dto.SourceOutput;
@@ -19,7 +18,6 @@ import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetVersionRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,10 +29,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.ontoweave.data.pipeline.service.PipelineErrors.notFound;
+
 @Service
 public class PipelineSourceService {
-
-    private static final String CODE_NOT_FOUND = "NOT_FOUND";
 
     private final PipelineRepository pipelines;
     private final PipelineDatasetRepository datasets;
@@ -66,31 +64,31 @@ public class PipelineSourceService {
     public SourceResponse get(UUID pipelineId, UUID datasetId, UUID versionId, UUID ownerId) {
         requirePipeline(pipelineId, ownerId);
         PipelineDatasetEntity dataset = datasets.findByIdAndPipelineId(datasetId, pipelineId)
-                .orElseThrow(this::datasetNotFound);
+                .orElseThrow(() -> notFound("输出数据集不存在"));
         UUID selectedVersionId = versionId == null ? dataset.getCurrentVersionId() : versionId;
         if (selectedVersionId == null) {
-            throw datasetVersionNotFound();
+            throw notFound("数据集版本不存在或未发布");
         }
         PipelineDatasetVersionEntity version = datasetVersions
                 .findByIdAndDatasetId(selectedVersionId, datasetId)
                 .filter(item -> item.getPublishedAt() != null)
-                .orElseThrow(this::datasetVersionNotFound);
+                .orElseThrow(() -> notFound("数据集版本不存在或未发布"));
         PipelineBuildOutputEntity buildOutput = buildOutputs.findById(version.getBuildOutputId())
                 .filter(item -> Objects.equals(item.getOutputId(), dataset.getOutputId()))
-                .orElseThrow(this::sourceNotFound);
+                .orElseThrow(() -> notFound("来源信息不存在"));
         PipelineBuildEntity build = builds.findById(buildOutput.getBuildId())
                 .filter(item -> Objects.equals(item.getPipelineId(), pipelineId))
-                .orElseThrow(this::sourceNotFound);
+                .orElseThrow(() -> notFound("来源信息不存在"));
         PipelineVersionEntity pipelineVersion = pipelineVersions
                 .findByIdAndPipelineId(build.getPipelineVersionId(), pipelineId)
-                .orElseThrow(this::sourceNotFound);
+                .orElseThrow(() -> notFound("来源信息不存在"));
 
         List<ResolvedSourceInput> resolvedInputs = parseResolvedInputs(build.getResolvedInputs());
         Map<DatasetRef, DatasetMetadata> metadata = resolvedInputs.isEmpty()
                 ? Map.of()
                 : metadataQuery.batchLoad(
-                        resolvedInputs.stream().map(ResolvedSourceInput::ref).toList(),
-                        ownerId
+                        ownerId,
+                        resolvedInputs.stream().map(ResolvedSourceInput::ref).toList()
                 );
         List<SourceInput> inputs = resolvedInputs.stream()
                 .map(input -> toSourceInput(input, metadata.get(input.ref())))
@@ -125,9 +123,10 @@ public class PipelineSourceService {
 
     private void requirePipeline(UUID pipelineId, UUID ownerId) {
         if (pipelineId == null || ownerId == null) {
-            throw pipelineNotFound();
+            throw notFound("流程不存在");
         }
-        pipelines.findByIdAndOwnerId(pipelineId, ownerId).orElseThrow(this::pipelineNotFound);
+        pipelines.findByIdAndOwnerId(pipelineId, ownerId)
+                .orElseThrow(() -> notFound("流程不存在"));
     }
 
     private List<ResolvedSourceInput> parseResolvedInputs(JsonNode resolvedInputs) {
@@ -137,9 +136,10 @@ public class PipelineSourceService {
         Map<DatasetRef, ResolvedSourceInput> unique = new LinkedHashMap<>();
         for (JsonNode item : resolvedInputs) {
             ResolvedSourceInput parsed = parseResolvedInput(item);
-            if (parsed != null) {
-                unique.putIfAbsent(parsed.ref(), parsed);
+            if (parsed == null) {
+                return List.of();
             }
+            unique.putIfAbsent(parsed.ref(), parsed);
         }
         return new ArrayList<>(unique.values());
     }
@@ -151,11 +151,12 @@ public class PipelineSourceService {
         String kind = text(item, "datasetKind");
         UUID datasetId = uuid(text(item, "datasetId"));
         UUID datasetVersionId = uuid(text(item, "datasetVersionId"));
-        if (kind == null || datasetId == null || datasetVersionId == null) {
+        String schemaHash = text(item, "schemaHash");
+        if (kind == null || kind.isBlank() || datasetId == null || datasetVersionId == null
+                || schemaHash == null || schemaHash.isBlank()) {
             return null;
         }
         Integer versionNumber = integer(item, "datasetVersionNumber");
-        String schemaHash = text(item, "schemaHash");
         DisplaySnapshot snapshot = parseSnapshot(item.path("displaySnapshot"));
         return new ResolvedSourceInput(
                 new DatasetRef(kind, datasetId),
@@ -250,19 +251,4 @@ public class PipelineSourceService {
         return value == null ? null : value.name().toLowerCase(Locale.ROOT);
     }
 
-    private ApiException pipelineNotFound() {
-        return new ApiException(HttpStatus.NOT_FOUND, CODE_NOT_FOUND, "流程不存在");
-    }
-
-    private ApiException datasetNotFound() {
-        return new ApiException(HttpStatus.NOT_FOUND, CODE_NOT_FOUND, "输出数据集不存在");
-    }
-
-    private ApiException datasetVersionNotFound() {
-        return new ApiException(HttpStatus.NOT_FOUND, CODE_NOT_FOUND, "数据集版本不存在或未发布");
-    }
-
-    private ApiException sourceNotFound() {
-        return new ApiException(HttpStatus.NOT_FOUND, CODE_NOT_FOUND, "来源信息不存在");
-    }
 }

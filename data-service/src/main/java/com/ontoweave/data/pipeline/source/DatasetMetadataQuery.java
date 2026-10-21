@@ -2,10 +2,12 @@ package com.ontoweave.data.pipeline.source;
 
 import com.ontoweave.data.connection.domain.DataConnectionEntity;
 import com.ontoweave.data.connection.repository.DataConnectionRepository;
+import com.ontoweave.data.pipeline.domain.PipelineEntity;
 import com.ontoweave.data.pipeline.domain.PipelineDatasetEntity;
 import com.ontoweave.data.pipeline.domain.PipelineDatasetVersionEntity;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetVersionRepository;
+import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
 import com.ontoweave.data.sync.domain.SyncTaskEntity;
@@ -21,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -35,6 +38,7 @@ public class DatasetMetadataQuery {
     private final DatasetVersionRepository datasetVersions;
     private final SyncTaskRepository syncTasks;
     private final DataConnectionRepository connections;
+    private final PipelineRepository pipelines;
     private final PipelineDatasetRepository pipelineDatasets;
     private final PipelineDatasetVersionRepository pipelineDatasetVersions;
 
@@ -43,6 +47,7 @@ public class DatasetMetadataQuery {
             DatasetVersionRepository datasetVersions,
             SyncTaskRepository syncTasks,
             DataConnectionRepository connections,
+            PipelineRepository pipelines,
             PipelineDatasetRepository pipelineDatasets,
             PipelineDatasetVersionRepository pipelineDatasetVersions
     ) {
@@ -50,16 +55,13 @@ public class DatasetMetadataQuery {
         this.datasetVersions = datasetVersions;
         this.syncTasks = syncTasks;
         this.connections = connections;
+        this.pipelines = pipelines;
         this.pipelineDatasets = pipelineDatasets;
         this.pipelineDatasetVersions = pipelineDatasetVersions;
     }
 
-    public Map<DatasetRef, DatasetMetadata> batchLoad(List<DatasetRef> refs) {
-        return batchLoad(refs, null);
-    }
-
     @Transactional(readOnly = true)
-    public Map<DatasetRef, DatasetMetadata> batchLoad(List<DatasetRef> refs, UUID ownerId) {
+    public Map<DatasetRef, DatasetMetadata> batchLoad(UUID ownerId, List<DatasetRef> refs) {
         LinkedHashSet<DatasetRef> unique = new LinkedHashSet<>();
         if (refs != null) {
             refs.stream().filter(Objects::nonNull).forEach(unique::add);
@@ -74,7 +76,7 @@ public class DatasetMetadataQuery {
             result.putAll(loadSync(syncRefs, ownerId));
         }
         if (!pipelineRefs.isEmpty()) {
-            result.putAll(loadPipeline(pipelineRefs));
+            result.putAll(loadPipeline(pipelineRefs, ownerId));
         }
         unique.stream().filter(ref -> !result.containsKey(ref))
                 .forEach(ref -> result.put(ref, DatasetMetadata.missing()));
@@ -99,7 +101,7 @@ public class DatasetMetadataQuery {
                 .map(DatasetEntity::getConnectionId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<UUID, DataConnectionEntity> visibleConnections = ownerId == null || connectionIds.isEmpty()
+        Map<UUID, DataConnectionEntity> visibleConnections = connectionIds.isEmpty()
                 ? Map.of()
                 : connections.findByIdInAndOwnerId(connectionIds, ownerId).stream()
                         .collect(Collectors.toMap(DataConnectionEntity::getId, Function.identity()));
@@ -137,10 +139,19 @@ public class DatasetMetadataQuery {
         return result;
     }
 
-    private Map<DatasetRef, DatasetMetadata> loadPipeline(List<DatasetRef> refs) {
+    private Map<DatasetRef, DatasetMetadata> loadPipeline(List<DatasetRef> refs, UUID ownerId) {
         List<UUID> ids = refs.stream().map(DatasetRef::datasetId).toList();
         Map<UUID, PipelineDatasetEntity> datasetById = pipelineDatasets.findByIdIn(ids).stream()
                 .collect(Collectors.toMap(PipelineDatasetEntity::getId, Function.identity()));
+        Collection<UUID> pipelineIds = datasetById.values().stream()
+                .map(PipelineDatasetEntity::getPipelineId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<UUID> visiblePipelineIds = pipelineIds.isEmpty()
+                ? Set.of()
+                : pipelines.findByIdInAndOwnerId(pipelineIds, ownerId).stream()
+                        .map(PipelineEntity::getId)
+                        .collect(Collectors.toSet());
         Collection<UUID> versionIds = datasetById.values().stream()
                 .map(PipelineDatasetEntity::getCurrentVersionId)
                 .filter(Objects::nonNull)
@@ -154,6 +165,10 @@ public class DatasetMetadataQuery {
             PipelineDatasetEntity dataset = datasetById.get(ref.datasetId());
             if (dataset == null) {
                 result.put(ref, DatasetMetadata.missing());
+                continue;
+            }
+            if (!visiblePipelineIds.contains(dataset.getPipelineId())) {
+                result.put(ref, DatasetMetadata.restricted());
                 continue;
             }
             PipelineDatasetVersionEntity version = dataset.getCurrentVersionId() == null

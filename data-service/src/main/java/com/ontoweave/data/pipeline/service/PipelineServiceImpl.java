@@ -16,7 +16,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.EMPTY_DRAFT;
-import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.MAX_NAME_LENGTH;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.bindingConflict;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.notFound;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
@@ -42,7 +41,7 @@ public class PipelineServiceImpl implements PipelineService {
     @Transactional
     public PipelineCreateResult create(CreatePipelineRequest request, UUID operationId) {
         requireCreateRequest(request);
-        String name = requireName(request.name(), "流程名称");
+        String name = PipelineNames.require(request.name());
         PipelineEntity existing = pipelines.findById(request.pipelineId()).orElse(null);
         if (existing != null) {
             requireSameBinding(existing, request.ownerId(), request.conversationId());
@@ -97,7 +96,7 @@ public class PipelineServiceImpl implements PipelineService {
     @Transactional
     public PipelineResponse rename(UUID pipelineId, UUID ownerId, String name) {
         PipelineEntity pipeline = required(pipelineId, ownerId);
-        pipeline.rename(requireName(name, "流程名称"));
+        pipeline.rename(PipelineNames.require(name));
         PipelineEntity saved = pipelines.saveAndFlush(pipeline);
         return response(saved);
     }
@@ -147,20 +146,6 @@ public class PipelineServiceImpl implements PipelineService {
         }
         return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
                 .orElseThrow(() -> notFound("流程不存在"));
-    }
-
-    private String requireName(String value, String field) {
-        if (value == null) {
-            throw validation(field + "不能为空");
-        }
-        String name = value.trim();
-        if (name.isEmpty()) {
-            throw validation(field + "不能为空");
-        }
-        if (name.length() > MAX_NAME_LENGTH) {
-            throw validation(field + "不能超过 " + MAX_NAME_LENGTH + " 个字符");
-        }
-        return name;
     }
 
     private PipelineResponse response(PipelineEntity pipeline) {

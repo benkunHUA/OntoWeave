@@ -27,7 +27,6 @@ import static com.ontoweave.data.pipeline.service.PipelineErrors.notFound;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.outputIncomplete;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.ACTOR_TYPE_USER;
-import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.MAX_NAME_LENGTH;
 
 @Service
 class PipelineCopyService {
@@ -53,14 +52,16 @@ class PipelineCopyService {
         if (request == null || request.pipelineId() == null || request.conversationId() == null) {
             throw validation("pipelineId 和 conversationId 不能为空");
         }
-        String name = request.name() == null ? source.getName() : requireName(request.name());
+        String name = PipelineNames.require(request.name() == null ? source.getName() : request.name());
         PipelineDraftEntity sourceDraft = drafts.findById(source.getId())
                 .orElseThrow(() -> notFound("草稿不存在"));
         List<PipelineOutputEntity> sourceOutputs = outputs
                 .findByPipelineIdAndArchivedAtIsNull(source.getId());
         Map<UUID, PipelineDatasetEntity> datasetsByOutput = sourceOutputs.isEmpty()
                 ? Map.of()
-                : datasets.findByOutputIdIn(sourceOutputs.stream().map(PipelineOutputEntity::getId).toList())
+                : datasets.findByOutputIdInAndArchivedAtIsNull(
+                                sourceOutputs.stream().map(PipelineOutputEntity::getId).toList()
+                        )
                         .stream()
                         .collect(Collectors.toMap(PipelineDatasetEntity::getOutputId, Function.identity()));
         if (sourceOutputs.stream().anyMatch(output -> !datasetsByOutput.containsKey(output.getId()))) {
@@ -107,17 +108,6 @@ class PipelineCopyService {
                 ACTOR_TYPE_USER,
                 ownerId
         ));
-    }
-
-    private String requireName(String value) {
-        String name = value.trim();
-        if (name.isEmpty()) {
-            throw validation("流程名称不能为空");
-        }
-        if (name.length() > MAX_NAME_LENGTH) {
-            throw validation("流程名称不能超过 " + MAX_NAME_LENGTH + " 个字符");
-        }
-        return name;
     }
 
     private JsonNode rewriteOutputIds(JsonNode definition, Map<UUID, UUID> outputIds) {

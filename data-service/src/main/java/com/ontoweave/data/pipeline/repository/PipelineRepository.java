@@ -9,10 +9,13 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Collection;
 
 public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> {
 
     Optional<PipelineEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
+
+    List<PipelineEntity> findByIdInAndOwnerId(Collection<UUID> ids, UUID ownerId);
 
     Optional<PipelineEntity> findByConversationId(UUID conversationId);
 

@@ -8,21 +8,21 @@ import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_OUTPUT_INCOMPLETE;
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_VALIDATION_ERROR;
 
-final class PipelineErrors {
+public final class PipelineErrors {
 
-    static ApiException validation(String message) {
+    public static ApiException validation(String message) {
         return new ApiException(HttpStatus.BAD_REQUEST, CODE_VALIDATION_ERROR, message);
     }
 
-    static ApiException notFound(String message) {
+    public static ApiException notFound(String message) {
         return new ApiException(HttpStatus.NOT_FOUND, CODE_NOT_FOUND, message);
     }
 
-    static ApiException bindingConflict() {
+    public static ApiException bindingConflict() {
         return new ApiException(HttpStatus.CONFLICT, CODE_BINDING_CONFLICT, "流程绑定冲突");
     }
 
-    static ApiException outputIncomplete() {
+    public static ApiException outputIncomplete() {
         return new ApiException(
                 HttpStatus.CONFLICT,
                 CODE_OUTPUT_INCOMPLETE,
