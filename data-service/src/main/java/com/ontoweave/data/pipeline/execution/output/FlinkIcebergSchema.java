@@ -54,6 +54,7 @@ public final class FlinkIcebergSchema {
 
     public static void apply(Table table, ResolvedSchema schema) {
         table.refresh();
+        boolean hasSnapshots = table.snapshots().iterator().hasNext();
         org.apache.iceberg.UpdateSchema update = null;
         List<String> names = schema.getColumnNames();
         for (int index = 0; index < names.size(); index++) {
@@ -66,7 +67,11 @@ public final class FlinkIcebergSchema {
             Types.NestedField existing = table.schema().findField(name);
             if (existing == null) {
                 update = update == null ? table.updateSchema() : update;
-                update.addColumn(name, type);
+                if (!dataType.getLogicalType().isNullable() && !hasSnapshots) {
+                    update.allowIncompatibleChanges().addRequiredColumn(name, type);
+                } else {
+                    update.addColumn(name, type);
+                }
             } else {
                 if (!existing.type().equals(type)) {
                     String existingType = existing.type().toString();
@@ -84,12 +89,6 @@ public final class FlinkIcebergSchema {
                     }
                 }
                 boolean plannedRequired = !dataType.getLogicalType().isNullable();
-                if (plannedRequired && existing.isOptional()) {
-                    throw new PipelineBuildException(
-                            PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED,
-                            "物理表字段不能从可空收窄为必填: " + name
-                    );
-                }
                 if (!plannedRequired && existing.isRequired()) {
                     update = update == null ? table.updateSchema() : update;
                     update.makeColumnOptional(name);
