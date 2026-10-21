@@ -1,12 +1,17 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import '@xyflow/react/dist/style.css'
 import '../styles/app.css'
 import '../styles/action.css'
 import '../styles/dialog.css'
 import '../styles/drawer.css'
 import '../styles/data-connection.css'
 import '../styles/data-connection-context.css'
+import '../styles/data-pipeline.css'
+import '../styles/data-pipeline-canvas.css'
+import '../styles/data-pipeline-nodes.css'
+import '../styles/data-pipeline-config.css'
 import { HomePage } from '../features/home/views/HomePage'
 import { queryClient } from '../shared/query/client'
 
@@ -22,6 +27,12 @@ const DataConnectionWorkbench = lazy(() =>
   })),
 )
 
+const DataPipelineWorkbench = lazy(() =>
+  import('../features/data-pipeline/views/DataPipelineWorkbench').then((module) => ({
+    default: module.DataPipelineWorkbench,
+  })),
+)
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -33,6 +44,8 @@ export default function App() {
             <Route path="/modeling/:conversationId" element={<ModelingPage />} />
             <Route path="/data-connections" element={<DataConnectionWorkbench />} />
             <Route path="/data-connections/:connectionId" element={<DataConnectionWorkbench />} />
+            <Route path="/pipelines" element={<DataPipelineWorkbench />} />
+            <Route path="/pipelines/:pipelineId" element={<DataPipelineWorkbench />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>
         </Suspense>

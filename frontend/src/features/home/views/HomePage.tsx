@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Database, Network, Plus } from 'lucide-react'
+import { ArrowRight, Clock3, Database, Network, Plus, Workflow } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConversation, listConversations } from '../../../shared/api'
@@ -78,6 +78,24 @@ export function HomePage() {
           <span className="feature-card__body">
             <strong>数据连接</strong>
             <span>接入 MySQL，选择数据表并持续同步到数据集</span>
+          </span>
+          <span className="feature-card__action">
+            进入
+            <ArrowRight size={17} />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="feature-card"
+          onClick={() => navigate('/pipelines')}
+        >
+          <span className="feature-card__icon">
+            <Workflow size={30} />
+          </span>
+          <span className="feature-card__body">
+            <strong>数据整理</strong>
+            <span>把已同步的数据集组合成可重复执行的清洗流程</span>
           </span>
           <span className="feature-card__action">
             进入

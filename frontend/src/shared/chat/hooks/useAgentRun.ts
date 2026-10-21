@@ -8,6 +8,7 @@ import type {
 import { streamAgentRun } from '../../../shared/api'
 import { newId, userMessage } from '../lib/chatMessages'
 import { reduceBlocks, type PendingInterrupt } from '../lib/messageBlocks'
+import { resolveTurnId } from '../lib/turnId'
 import type { ChatMessages } from './useChatMessages'
 import type { ReportError } from './useErrorToast'
 
@@ -39,9 +40,11 @@ export function useAgentRun({
   const [isRunning, setIsRunning] = useState(false)
   const [interrupt, setInterrupt] = useState<PendingInterrupt | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const turnIdRef = useRef<string | null>(null)
 
   const run = useCallback(
-    async (conversationId: string, body: AgentRunInput) => {
+    async (conversationId: string, body: AgentRunInput, turnId: string) => {
+      turnIdRef.current = turnId
       let activeId = newId()
       chat.append(conversationId, {
         id: activeId,
@@ -98,7 +101,7 @@ export function useAgentRun({
       }
 
       try {
-        await streamAgentRun(conversationId, body, handleEvent, controller.signal)
+        await streamAgentRun(conversationId, body, handleEvent, controller.signal, turnId)
       } catch (reason) {
         if (!controller.signal.aborted) {
           report(reason, '运行失败')
@@ -119,18 +122,24 @@ export function useAgentRun({
       if (!trimmed) return
       if (interrupt) {
         if (!interrupt.freeText) return
+        const turnId = resolveTurnId(turnIdRef.current, true)
         chat.append(conversationId, userMessage(trimmed))
-        await run(conversationId, {
-          answer:
-            interrupt.freeText.wrap === 'respond'
-              ? { decisions: [{ type: 'respond', message: trimmed }] }
-              : trimmed,
-          display: trimmed,
-        })
+        await run(
+          conversationId,
+          {
+            answer:
+              interrupt.freeText.wrap === 'respond'
+                ? { decisions: [{ type: 'respond', message: trimmed }] }
+                : trimmed,
+            display: trimmed,
+          },
+          turnId,
+        )
         return
       }
+      const turnId = resolveTurnId(turnIdRef.current, false)
       chat.append(conversationId, userMessage(trimmed))
-      await run(conversationId, { text: trimmed })
+      await run(conversationId, { text: trimmed }, turnId)
     },
     [chat, interrupt, run],
   )
@@ -138,8 +147,9 @@ export function useAgentRun({
   /** 用户点了中断卡片上的选项。 */
   const answer = useCallback(
     async (conversationId: string, option: InterruptOption) => {
+      const turnId = resolveTurnId(turnIdRef.current, true)
       chat.append(conversationId, userMessage(option.label))
-      await run(conversationId, { answer: option.answer, display: option.label })
+      await run(conversationId, { answer: option.answer, display: option.label }, turnId)
     },
     [chat, run],
   )

@@ -1,0 +1,96 @@
+/* ===== 画布空态与流程节点 ===== */
+
+.pipeline-canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(300px, 80%);
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  text-align: center;
+  background: rgba(26, 26, 26, 0.7);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.pipeline-canvas-empty strong {
+  display: block;
+  color: var(--ink-dim);
+  font-size: 14px;
+}
+
+.pipeline-canvas-empty p {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pipeline-node {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #3b3b3b;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #292929, #222222);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+.pipeline-node.is-selected {
+  border-color: var(--blue);
+  box-shadow:
+    0 0 0 1px rgba(59, 123, 255, 0.45),
+    0 10px 26px rgba(0, 0, 0, 0.42);
+}
+
+.pipeline-node__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pipeline-node__icon {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--blue-ink);
+  background: var(--blue-soft);
+}
+
+.pipeline-node__name {
+  overflow: hidden;
+  color: #f1f1f1;
+  font-size: 13px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-node__type {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-node .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  border: 2px solid #1b1b1b;
+  background: #6f8fc9;
+}
+
+.pipeline-node .react-flow__handle:hover {
+  background: var(--blue-hi);
+}

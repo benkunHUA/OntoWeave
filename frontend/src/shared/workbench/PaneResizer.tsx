@@ -6,7 +6,7 @@ interface PaneResizerProps {
   onPointerDown: (event: PointerEvent<HTMLDivElement>) => void
 }
 
-/** 右栏拖拽把手：具体宽度由 useContextPaneWidth 管。 */
+/** 工作台分栏把手；具体宽度由 useWorkbenchPaneWidth 管。 */
 export function PaneResizer({ dragging, ariaLabel, onPointerDown }: PaneResizerProps) {
   return (
     <div

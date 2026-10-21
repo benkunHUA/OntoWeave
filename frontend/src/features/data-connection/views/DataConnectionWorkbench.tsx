@@ -9,9 +9,9 @@ import {
 } from '../../../shared/api'
 import { useErrorToast } from '../../../shared/chat/hooks/useErrorToast'
 import type { SyncTaskSelection } from '../../../shared/types'
+import { WorkbenchPaneLayout } from '../../../shared/workbench/WorkbenchPaneLayout'
 import { ConnectionListPane } from '../components/ConnectionListPane'
 import { ConversationPane } from '../components/ConversationPane'
-import { PaneResizer } from '../components/PaneResizer'
 import { ContextPanel } from '../components/context/ContextPanel'
 import { useDataConnectionConversation } from '../hooks/useDataConnectionConversation'
 import { useDataConnectionList } from '../hooks/useDataConnectionList'
@@ -155,17 +155,24 @@ export function DataConnectionWorkbench() {
   const connection = stateView.state?.connection
 
   return (
-    <main className="data-connection-page" style={panes.styleVars}>
-      <ConnectionListPane
+    <WorkbenchPaneLayout
+      pageClassName="data-connection-page"
+      dividerClassName="data-connection-divider"
+      leftWidth={280}
+      rightWidth={panes.width}
+      dragging={panes.dragging}
+      resizerLabel="拖拽调整数据连接详情栏宽度"
+      onStartResize={panes.startResize}
+      styleVars={panes.styleVars}
+      left={<ConnectionListPane
         connections={list.items}
         activeId={connection?.id ?? null}
         isCreating={isCreating}
         onCreate={() => void createConnection()}
         onSelect={(item) => openConnection(item.id)}
         onHome={() => navigate('/')}
-      />
-      <div className="data-connection-divider" />
-      <ConversationPane
+      />}
+      center={<ConversationPane
         title={connection?.name ?? ''}
         messages={conversation.messages}
         events={conversation.events}
@@ -179,13 +186,8 @@ export function DataConnectionWorkbench() {
         onAbort={conversation.agent.abort}
         onExplain={(summary) => conversation.send(`请解释这次操作失败的原因：${summary}`)}
         onOpenDataset={setSelectedDatasetId}
-      />
-      <PaneResizer
-        dragging={panes.dragging}
-        ariaLabel="拖拽调整数据连接详情栏宽度"
-        onPointerDown={panes.startResize}
-      />
-      <ContextPanel
+      />}
+      right={<ContextPanel
         key={connection?.id ?? 'empty'}
         state={stateView.state}
         tables={stateView.tables}
@@ -202,7 +204,7 @@ export function DataConnectionWorkbench() {
         onTestConnection={testConnection}
         onSaveTasks={persistTasks}
         onStopRun={(runId) => void stopRun(runId)}
-      />
-    </main>
+      />}
+    />
   )
 }

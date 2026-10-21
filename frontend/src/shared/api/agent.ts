@@ -11,12 +11,15 @@ export async function streamAgentRun(
   body: AgentRunInput,
   onEvent: (event: AgentEvent) => void,
   signal?: AbortSignal,
+  turnId?: string,
 ): Promise<void> {
   const isResume = 'answer' in body
   const suffix = isResume ? 'resume' : 'messages'
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (turnId) headers['X-Turn-Id'] = turnId
   const response = await fetch(apiUrl(`/conversations/${conversationId}/${suffix}`), {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify(
       isResume ? { answer: body.answer, text: body.display } : { text: body.text },
     ),

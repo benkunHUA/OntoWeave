@@ -8,6 +8,7 @@ function event(overrides: Partial<ConversationEvent>): ConversationEvent {
     event_id: crypto.randomUUID(),
     operation_id: 'op-1',
     run_id: null,
+    turn_id: null,
     event_type: 'sync.run.queued',
     summary: '事件',
     payload: {},

@@ -1,4 +1,5 @@
 import type { ViewSpec } from './view'
+import type { PipelineCheckResult } from './dataPipeline'
 
 export type ToolStatus = 'running' | 'ok' | 'error'
 
@@ -99,6 +100,10 @@ export type AgentEvent =
       ops?: Array<{ op: string; kind?: string }>
       view?: ViewSpec
       dataConnection?: unknown
+      pipelineId?: string
+      draftRevision?: number | null
+      check?: PipelineCheckResult | null
+      loadError?: string | null
     }
   | { v: number; type: 'run.error'; message?: string }
   | { v: number; type: 'run.end'; messageId?: string; paused: boolean }
