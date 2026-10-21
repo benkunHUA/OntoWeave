@@ -1,0 +1,13 @@
+package com.ontoweave.data.pipeline.execution.build;
+
+import java.util.UUID;
+
+public record DisplaySnapshot(
+        String datasetName,
+        Integer datasetVersionNumber,
+        UUID connectionId,
+        String connectionName,
+        String sourceSchemaName,
+        String sourceTableName
+) {
+}

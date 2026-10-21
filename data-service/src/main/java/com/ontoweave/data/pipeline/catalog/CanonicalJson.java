@@ -13,12 +13,12 @@ import java.util.List;
 
 import static com.ontoweave.data.pipeline.catalog.SchemaNodes.JSON;
 
-final class CanonicalJson {
+public final class CanonicalJson {
 
     private CanonicalJson() {
     }
 
-    static JsonNode canonicalize(JsonNode node) {
+    public static JsonNode canonicalize(JsonNode node) {
         if (node.isObject()) {
             ObjectNode sorted = JSON.createObjectNode();
             List<String> names = new ArrayList<>();
@@ -34,7 +34,7 @@ final class CanonicalJson {
         return node;
     }
 
-    static String sha256(JsonNode node) {
+    public static String sha256(JsonNode node) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(JSON.writeValueAsBytes(canonicalize(node)));
