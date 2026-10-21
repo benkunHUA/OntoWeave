@@ -25,10 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -303,7 +300,7 @@ class PipelineBuildQueueIntegrationTest extends PipelineBuildIntegrationTestSupp
         );
 
         service.requestCancel(pipelineId, buildId, ownerId);
-        queue.heartbeat(buildId);
+        assertThat(queue.heartbeat(buildId)).isTrue();
         executor.execute(buildId);
 
         assertThat(status(buildId)).isEqualTo("canceled");
@@ -311,11 +308,11 @@ class PipelineBuildQueueIntegrationTest extends PipelineBuildIntegrationTestSupp
                 "SELECT status FROM data.pipeline_build_output WHERE build_id = ?", String.class, buildId
         )).isEqualTo("canceled");
         assertUnpublished(pipelineId, output.datasetId());
-        verify(writer, times(2)).cancel(buildId);
+        verify(writer, times(1)).cancel(buildId);
     }
 
     @Test
-    void heartbeatRetriesFlinkCancellationAndStillRefreshesItsTimestamp() {
+    void heartbeatRefreshesTimestampAndReportsCancellationWithoutCallingFlink() {
         UUID ownerId = UUID.randomUUID();
         UUID pipelineId = insertPipeline(ownerId);
         UUID versionId = insertVersion(
@@ -326,21 +323,16 @@ class PipelineBuildQueueIntegrationTest extends PipelineBuildIntegrationTestSupp
                 pipelineId, versionId, PipelineBuildStatus.RUNNING, UUID.randomUUID(),
                 stale, stale, Instant.now()
         );
-        doThrow(new IllegalStateException("flink unavailable"))
-                .doNothing()
-                .when(writer).cancel(buildId);
-
-        assertThatThrownBy(() -> queue.heartbeat(buildId))
-                .isInstanceOf(IllegalStateException.class);
+        assertThat(queue.heartbeat(buildId)).isTrue();
         assertThat(jdbc.queryForObject(
                 "SELECT heartbeat_at > now() - interval '1 minute' FROM data.pipeline_build WHERE id = ?",
                 Boolean.class,
                 buildId
         )).isTrue();
 
-        queue.heartbeat(buildId);
+        assertThat(queue.heartbeat(buildId)).isTrue();
 
-        verify(writer, times(2)).cancel(buildId);
+        verify(writer, never()).cancel(buildId);
     }
 
     @Test

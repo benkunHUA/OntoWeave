@@ -67,21 +67,33 @@ public final class FlinkIcebergSchema {
             if (existing == null) {
                 update = update == null ? table.updateSchema() : update;
                 update.addColumn(name, type);
-            } else if (!existing.type().equals(type)) {
-                String existingType = existing.type().toString();
-                String plannedType = type.toString();
-                if (OutputSchemaCompatibility.widenable(plannedType, existingType)) {
-                    continue;
+            } else {
+                if (!existing.type().equals(type)) {
+                    String existingType = existing.type().toString();
+                    String plannedType = type.toString();
+                    if (!OutputSchemaCompatibility.widenable(plannedType, existingType)) {
+                        if (!OutputSchemaCompatibility.widenable(existingType, plannedType)) {
+                            throw new PipelineBuildException(
+                                    PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED,
+                                    "物理表字段类型与计划不兼容: " + name
+                                            + " (" + existingType + " -> " + plannedType + ")"
+                            );
+                        }
+                        update = update == null ? table.updateSchema() : update;
+                        update.updateColumn(name, type);
+                    }
                 }
-                if (!OutputSchemaCompatibility.widenable(existingType, plannedType)) {
+                boolean plannedRequired = !dataType.getLogicalType().isNullable();
+                if (plannedRequired && existing.isOptional()) {
                     throw new PipelineBuildException(
                             PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED,
-                            "物理表字段类型与计划不兼容: " + name
-                                    + " (" + existingType + " -> " + plannedType + ")"
+                            "物理表字段不能从可空收窄为必填: " + name
                     );
                 }
-                update = update == null ? table.updateSchema() : update;
-                update.updateColumn(name, type);
+                if (!plannedRequired && existing.isRequired()) {
+                    update = update == null ? table.updateSchema() : update;
+                    update.makeColumnOptional(name);
+                }
             }
         }
         if (update != null) {

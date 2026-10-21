@@ -67,6 +67,45 @@ class FlinkIcebergSchemaTest {
         }
     }
 
+    @Test
+    void relaxesPublishedRequiredColumnsToOptionalInThePhysicalTable() throws Exception {
+        try (InMemoryCatalog catalog = catalog()) {
+            Table table = catalog.createTable(
+                    TableIdentifier.of("pipeline", "orders"),
+                    new org.apache.iceberg.Schema(
+                            Types.NestedField.required(1, "id", Types.IntegerType.get())
+                    )
+            );
+
+            FlinkIcebergSchema.apply(table, schema(
+                    new String[]{"id"},
+                    new DataType[]{DataTypes.INT()}
+            ));
+
+            table.refresh();
+            assertThat(table.schema().findField("id").isOptional()).isTrue();
+        }
+    }
+
+    @Test
+    void rejectsNarrowingPhysicalOptionalColumnsToRequired() throws Exception {
+        try (InMemoryCatalog catalog = catalog()) {
+            Table table = catalog.createTable(
+                    TableIdentifier.of("pipeline", "orders"),
+                    new org.apache.iceberg.Schema(
+                            Types.NestedField.optional(1, "id", Types.IntegerType.get())
+                    )
+            );
+
+            assertThatThrownBy(() -> FlinkIcebergSchema.apply(table, schema(
+                    new String[]{"id"},
+                    new DataType[]{DataTypes.INT().notNull()}
+            ))).isInstanceOfSatisfying(PipelineBuildException.class, error ->
+                    assertThat(error.errorCode())
+                            .isEqualTo(PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED));
+        }
+    }
+
     private ResolvedSchema schema(String[] names, DataType[] types) {
         return ResolvedSchema.physical(names, types);
     }

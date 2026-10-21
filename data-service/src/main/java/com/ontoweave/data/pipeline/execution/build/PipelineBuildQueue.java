@@ -5,7 +5,6 @@ import com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStage;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineOutputStatus;
-import com.ontoweave.data.pipeline.execution.output.PipelineDatasetWriter;
 import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
 import com.ontoweave.data.sync.flink.FlinkRestClient;
@@ -24,7 +23,6 @@ public class PipelineBuildQueue {
 
     private final PipelineBuildRepository builds;
     private final PipelineBuildOutputRepository outputs;
-    private final PipelineDatasetWriter writer;
     private final FlinkRestClient flink;
     private final PipelineBuildHeartbeat heartbeat;
     private final PipelineBuildRecovery recovery;
@@ -33,7 +31,6 @@ public class PipelineBuildQueue {
     public PipelineBuildQueue(
             PipelineBuildRepository builds,
             PipelineBuildOutputRepository outputs,
-            PipelineDatasetWriter writer,
             FlinkRestClient flink,
             PipelineBuildHeartbeat heartbeat,
             PipelineBuildRecovery recovery,
@@ -41,7 +38,6 @@ public class PipelineBuildQueue {
     ) {
         this.builds = builds;
         this.outputs = outputs;
-        this.writer = writer;
         this.flink = flink;
         this.heartbeat = heartbeat;
         this.recovery = recovery;
@@ -77,10 +73,8 @@ public class PipelineBuildQueue {
         return null;
     }
 
-    public void heartbeat(UUID buildId) {
-        if (heartbeat.mark(buildId)) {
-            writer.cancel(buildId);
-        }
+    public boolean heartbeat(UUID buildId) {
+        return heartbeat.mark(buildId);
     }
 
     public int recoverLost(Duration timeout) {

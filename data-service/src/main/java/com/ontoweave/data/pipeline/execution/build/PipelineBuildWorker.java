@@ -1,5 +1,6 @@
 package com.ontoweave.data.pipeline.execution.build;
 
+import com.ontoweave.data.pipeline.execution.output.PipelineDatasetWriter;
 import jakarta.annotation.PreDestroy;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -7,11 +8,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,22 +36,27 @@ public class PipelineBuildWorker {
 
     private final PipelineBuildQueue queue;
     private final PipelineBuildExecutor buildExecutor;
+    private final PipelineDatasetWriter writer;
     private final PipelineBuildProperties properties;
     private final Semaphore slots;
     private final ThreadPoolExecutor workers;
     private final java.util.concurrent.ExecutorService recovery;
+    private final ExecutorService cancellations;
     private final ScheduledExecutorService heartbeats;
     private final ConcurrentMap<UUID, ScheduledFuture<?>> active = new ConcurrentHashMap<>();
+    private final Set<UUID> canceling = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean recovering = new AtomicBoolean();
     private volatile boolean shutdown;
 
     public PipelineBuildWorker(
             PipelineBuildQueue queue,
             PipelineBuildExecutor buildExecutor,
+            PipelineDatasetWriter writer,
             PipelineBuildProperties properties
     ) {
         this.queue = queue;
         this.buildExecutor = buildExecutor;
+        this.writer = writer;
         this.properties = properties;
         int threads = Math.max(1, properties.getExecutorThreads());
         int capacity = Math.max(0, properties.getExecutorQueueCapacity());
@@ -67,6 +75,10 @@ public class PipelineBuildWorker {
             thread.setDaemon(true);
             return thread;
         });
+        this.cancellations = Executors.newFixedThreadPool(
+                Math.max(1, properties.getCancelThreads()),
+                new CancelThreadFactory()
+        );
         this.heartbeats = Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "pipeline-build-heartbeat");
             thread.setDaemon(true);
@@ -158,11 +170,35 @@ public class PipelineBuildWorker {
         }
     }
 
-    private void heartbeat(UUID buildId) {
+    void heartbeat(UUID buildId) {
+        boolean cancellationRequested;
         try {
-            queue.heartbeat(buildId);
+            cancellationRequested = queue.heartbeat(buildId);
         } catch (RuntimeException ignored) {
             // A failed heartbeat is retried by recovery; it must not stop the build thread.
+            return;
+        }
+        if (cancellationRequested) {
+            requestCancellation(buildId);
+        }
+    }
+
+    private void requestCancellation(UUID buildId) {
+        if (shutdown || !canceling.add(buildId)) {
+            return;
+        }
+        try {
+            cancellations.execute(() -> {
+                try {
+                    writer.cancel(buildId);
+                } catch (RuntimeException ignored) {
+                    // The next heartbeat retries cancellation after this attempt releases the slot.
+                } finally {
+                    canceling.remove(buildId);
+                }
+            });
+        } catch (RejectedExecutionException error) {
+            canceling.remove(buildId);
         }
     }
 
@@ -170,6 +206,7 @@ public class PipelineBuildWorker {
     public void shutdown() {
         shutdown = true;
         recovery.shutdownNow();
+        cancellations.shutdownNow();
         workers.shutdownNow();
         heartbeats.shutdownNow();
         active.keySet().forEach(this::finish);
@@ -182,6 +219,18 @@ public class PipelineBuildWorker {
         @Override
         public Thread newThread(Runnable runnable) {
             Thread thread = new Thread(runnable, "pipeline-build-" + sequence.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        }
+    }
+
+    private static final class CancelThreadFactory implements java.util.concurrent.ThreadFactory {
+
+        private final AtomicInteger sequence = new AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable runnable) {
+            Thread thread = new Thread(runnable, "pipeline-build-cancel-" + sequence.incrementAndGet());
             thread.setDaemon(true);
             return thread;
         }

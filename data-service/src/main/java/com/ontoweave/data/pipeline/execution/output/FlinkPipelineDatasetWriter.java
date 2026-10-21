@@ -21,6 +21,7 @@ import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkCatalogFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -45,6 +46,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
     private final Duration cancelTimeout;
     private final ConcurrentMap<UUID, JobClient> jobs = new ConcurrentHashMap<>();
 
+    @Autowired
     public FlinkPipelineDatasetWriter(
             PipelineOutputRepository outputs,
             PipelineBuildOutputRepository buildOutputs,

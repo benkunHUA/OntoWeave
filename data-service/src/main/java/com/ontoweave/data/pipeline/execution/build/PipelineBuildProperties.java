@@ -15,6 +15,7 @@ public class PipelineBuildProperties {
     private int maxPerPoll = 10;
     private int executorThreads = 2;
     private int executorQueueCapacity = 20;
+    private int cancelThreads = 2;
 
     public boolean isWorkerEnabled() {
         return workerEnabled;
@@ -78,5 +79,13 @@ public class PipelineBuildProperties {
 
     public void setExecutorQueueCapacity(int executorQueueCapacity) {
         this.executorQueueCapacity = executorQueueCapacity;
+    }
+
+    public int getCancelThreads() {
+        return cancelThreads;
+    }
+
+    public void setCancelThreads(int cancelThreads) {
+        this.cancelThreads = cancelThreads;
     }
 }

@@ -78,3 +78,4 @@ ontoweave:
       max-per-poll: ${PIPELINE_BUILD_MAX_PER_POLL:10}
       executor-threads: ${PIPELINE_BUILD_EXECUTOR_THREADS:2}
       executor-queue-capacity: ${PIPELINE_BUILD_EXECUTOR_QUEUE_CAPACITY:20}
+      cancel-threads: ${PIPELINE_BUILD_CANCEL_THREADS:2}
