@@ -5,12 +5,9 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,10 +18,6 @@ class FlinkLiteralTableEnvironmentTest {
 
     @Test
     void literalsMaterializeWithMatchingJavaTypes() {
-        Assumptions.assumeTrue(
-                Runtime.version().feature() <= 21,
-                "Flink table planner smoke test is skipped on this newer JDK; CI runs it on Java 17"
-        );
         TableEnvironment environment = TableEnvironment.create(EnvironmentSettings.inBatchMode());
         Table table = environment.fromValues(Row.of(1)).select(
                 literals.literal(mapper.valueToTree((byte) 7), "tinyint").as("tiny"),
@@ -34,8 +27,8 @@ class FlinkLiteralTableEnvironmentTest {
                 literals.literal(mapper.valueToTree(7.5f), "float").as("single"),
                 literals.literal(mapper.valueToTree(7.5d), "double").as("double"),
                 literals.literal(mapper.valueToTree(new BigDecimal("7.25")), "decimal").as("decimal"),
-                literals.literal(mapper.valueToTree(LocalDate.of(2026, 10, 21)), "date").as("date"),
-                literals.literal(mapper.valueToTree(LocalDateTime.of(2026, 10, 21, 9, 30)), "timestamp")
+                literals.literal(mapper.getNodeFactory().textNode("2026-10-21"), "date").as("date"),
+                literals.literal(mapper.getNodeFactory().textNode("2026-10-21T09:30:00"), "timestamp")
                         .as("timestamp")
         );
 
