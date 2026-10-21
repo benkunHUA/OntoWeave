@@ -110,7 +110,8 @@ public class PipelineSourceService {
                         lower(build.getStatus()),
                         lower(build.getTriggerType()),
                         build.getStartedAt(),
-                        build.getFinishedAt()
+                        build.getFinishedAt(),
+                        build.getLogUri()
                 ),
                 new SourcePipelineVersion(
                         pipelineVersion.getId(),

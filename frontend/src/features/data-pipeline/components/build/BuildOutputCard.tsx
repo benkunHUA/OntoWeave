@@ -16,9 +16,10 @@ interface BuildOutputCardProps {
   pipelineId: string
   output: PipelineBuildOutput
   name: string | undefined
+  onOpenBuild?: (buildId: string) => void
 }
 
-export function BuildOutputCard({ pipelineId, output, name }: BuildOutputCardProps) {
+export function BuildOutputCard({ pipelineId, output, name, onOpenBuild }: BuildOutputCardProps) {
   const [datasetOpen, setDatasetOpen] = useState(false)
   const published = Boolean(output.dataset_id && output.dataset_version_id)
   return (
@@ -60,6 +61,7 @@ export function BuildOutputCard({ pipelineId, output, name }: BuildOutputCardPro
           output={output}
           name={name ?? `输出 ${shortId(output.output_id)}`}
           onClose={() => setDatasetOpen(false)}
+          onOpenBuild={onOpenBuild}
         />
       ) : null}
     </article>

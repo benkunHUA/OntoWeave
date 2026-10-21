@@ -56,6 +56,7 @@ class SourceBuildRead(BaseModel):
     trigger: str
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    log_uri: str | None = None
 
 
 class SourcePipelineVersionRead(BaseModel):

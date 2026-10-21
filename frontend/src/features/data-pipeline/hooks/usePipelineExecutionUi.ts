@@ -31,8 +31,10 @@ export function usePipelineExecutionUi({
   const [panel, setPanel] = useState<PipelinePanelState>(closePipelinePanel())
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const handledBuild = useRef<string | null>(null)
+  const panelIntent = useRef(0)
   const preview = usePipelinePreview({ pipelineId, draftRevision: draft?.revision ?? null })
   const build = usePipelineBuild(pipelineId)
+  const requestBuild = build.create
   const closePreviewState = preview.close
   const runPreview = preview.run
   const openStoredBuild = build.open
@@ -79,6 +81,7 @@ export function usePipelineExecutionUi({
   }, [build.build, onBuildSucceeded])
 
   const selectNode = useCallback((nodeId: string | null) => {
+    panelIntent.current += 1
     if (!nodeId) {
       setPanel((current) => current.mode === 'config' ? closePipelinePanel() : current)
       return
@@ -90,6 +93,7 @@ export function usePipelineExecutionUi({
   }, [closePreviewState, setBuildDetailsOpen])
 
   const openPreview = useCallback((nodeId: string, revision?: number) => {
+    panelIntent.current += 1
     setBuildDetailsOpen(false)
     setScheduleOpen(false)
     setPanel((current) => openPreviewPanel(current, nodeId))
@@ -98,6 +102,7 @@ export function usePipelineExecutionUi({
 
   const openIssue = useCallback((issue: PipelinePreviewIssue) => {
     if (!issue.node_id) return
+    panelIntent.current += 1
     const nodeId = issue.node_id
     closePreviewState()
     setBuildDetailsOpen(false)
@@ -106,6 +111,7 @@ export function usePipelineExecutionUi({
   }, [closePreviewState, setBuildDetailsOpen])
 
   const openBuildDetails = useCallback((buildId: string) => {
+    panelIntent.current += 1
     closePreviewState()
     setPanel(closePipelinePanel())
     setScheduleOpen(false)
@@ -113,6 +119,7 @@ export function usePipelineExecutionUi({
   }, [closePreviewState, openStoredBuild])
 
   const openSchedule = useCallback(() => {
+    panelIntent.current += 1
     closePreviewState()
     setPanel(closePipelinePanel())
     setBuildDetailsOpen(false)
@@ -124,6 +131,17 @@ export function usePipelineExecutionUi({
     closePreviewState()
     setPanel(closePipelinePanel())
   }, [closePreviewState])
+
+  const createBuild = useCallback(async (revision: number) => {
+    const intent = ++panelIntent.current
+    closePreviewState()
+    setPanel(closePipelinePanel())
+    setScheduleOpen(false)
+    setBuildDetailsOpen(false)
+    const created = await requestBuild(revision)
+    if (created && panelIntent.current === intent) setBuildDetailsOpen(true)
+    return created
+  }, [closePreviewState, requestBuild, setBuildDetailsOpen])
 
   return {
     preview,
@@ -141,6 +159,7 @@ export function usePipelineExecutionUi({
     openIssue,
     openBuildDetails,
     openSchedule,
+    createBuild,
     closePanel,
     closePreview,
   }

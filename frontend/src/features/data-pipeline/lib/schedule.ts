@@ -1,4 +1,5 @@
 import type { Pipeline } from '../../../shared/types'
+import { formatDuration } from './format'
 
 const REASON_LABELS: Record<string, string> = {
   NO_CHANGE: '输入和逻辑未变化，已跳过',
@@ -31,6 +32,20 @@ export function scheduleRunLabel({
 export function scheduleRunStatusLabel(status: string | null | undefined): string {
   if (!status) return '未知状态'
   return RUN_STATUS_LABELS[status] ?? status
+}
+
+export function scheduleRunTimingLabel(run: {
+  status: string
+  started_at: string | null
+  finished_at: string | null
+}): string | null {
+  if (run.started_at && run.finished_at) {
+    const duration = formatDuration(run.started_at, run.finished_at)
+    return duration ? `耗时 ${duration}` : null
+  }
+  if (run.status === 'ignored') return '已跳过，未执行'
+  if (run.status === 'failed') return '未开始执行即失败'
+  return null
 }
 
 export function triggerTypeLabel(trigger: string | null | undefined): string {

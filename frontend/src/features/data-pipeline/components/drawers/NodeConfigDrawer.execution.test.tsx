@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   NodeDefinition,
+  PipelineBuild,
   PipelineDraftResponse,
   PipelineNode,
 } from '../../../../shared/types'
@@ -28,6 +29,55 @@ const definition: NodeDefinition = {
     properties: { condition: { type: 'object' } },
   },
   ui_schema: { fields: { condition: { widget: 'condition-tree' } } },
+}
+
+const outputNode: PipelineNode = {
+  id: '00000000-0000-4000-8000-000000000099',
+  type: 'output',
+  name: 'Orders output',
+  config: { outputId: 'output-1' },
+  position: { x: 200, y: 0 },
+}
+
+const outputDefinition: NodeDefinition = {
+  type: 'output',
+  version: 1,
+  label: '输出',
+  category: 'output',
+  ports: [],
+  config_schema: { type: 'object', properties: {} },
+  ui_schema: { fields: {} },
+}
+
+const latestBuild: PipelineBuild = {
+  id: 'build-1',
+  pipeline_id: 'pipeline-1',
+  pipeline_version_id: 'version-1',
+  status: 'succeeded',
+  stage: 'finished',
+  trigger: 'manual',
+  error_code: null,
+  error_message: null,
+  log_uri: 'https://flink.example/#/job/job-1/exceptions',
+  started_at: '2026-10-21T10:00:00Z',
+  finished_at: '2026-10-21T10:01:00Z',
+  outputs: [{
+    id: 'build-output-1',
+    output_id: 'output-1',
+    dataset_id: 'dataset-1',
+    dataset_version_id: 'dataset-version-1',
+    output_type: 'dataset',
+    status: 'succeeded',
+    stage: 'finished',
+    engine_job_id: 'job-1',
+    log_uri: 'https://flink.example/#/job/job-1/exceptions',
+    error_code: null,
+    error_message: null,
+    result: null,
+    stats: { rowCount: 12 },
+    started_at: '2026-10-21T10:00:00Z',
+    finished_at: '2026-10-21T10:01:00Z',
+  }],
 }
 
 afterEach(cleanup)
@@ -151,5 +201,28 @@ describe('NodeConfigDrawer execution actions', () => {
     fireEvent.click(screen.getByRole('button', { name: '预览' }))
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(onPreview).toHaveBeenCalledWith(node.id, 11))
+  })
+
+  it('shows the latest build for an output node and opens its details', () => {
+    const onOpenBuildDetails = vi.fn()
+    render(<NodeConfigDrawer
+      pipelineId="pipeline-1"
+      revision={7}
+      node={outputNode}
+      definition={outputDefinition}
+      issues={[]}
+      isSaving={false}
+      latestBuild={latestBuild}
+      onClose={() => undefined}
+      onSave={() => null}
+      onDelete={() => null}
+      onSetOutput={() => null}
+      onOpenBuildDetails={onOpenBuildDetails}
+    />)
+
+    expect(screen.getByText('最近构建')).toBeTruthy()
+    expect(screen.getByText('构建成功')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '查看构建详情' }))
+    expect(onOpenBuildDetails).toHaveBeenCalledWith('build-1')
   })
 })

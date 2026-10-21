@@ -5,6 +5,7 @@ import {
   undoPipelineTurn,
 } from '../../../shared/api'
 import { HttpError } from '../../../shared/api/client'
+import { httpErrorText } from '../../../shared/api/errors'
 import type {
   JsonObject,
   PipelineDraftCommand,
@@ -89,7 +90,7 @@ export function usePipelineCommandQueue({
             await reloadRef.current()
             return null
           }
-          setError(reason instanceof Error ? reason.message : '保存失败')
+          setError(httpErrorText(reason, '保存失败'))
           return null
         } finally {
           if (isActive()) setIsWriting(false)

@@ -104,6 +104,7 @@ function schedule(pipelineId: string): PipelineSchedule {
 
 beforeEach(() => {
   window.localStorage.clear()
+  api.createPipelineBuild.mockReset()
   api.cancelPipelinePreview.mockReset()
   api.cancelPipelinePreview.mockResolvedValue(undefined)
   api.getPipelineBuild.mockReset()
@@ -385,5 +386,77 @@ describe('execution hook generation isolation', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not reopen build details when schedule opens while creation is pending', async () => {
+    const pending = deferred<PipelineBuild>()
+    api.createPipelineBuild.mockReturnValue(pending.promise)
+    const draft: PipelineDraftResponse = {
+      pipeline_id: 'pipeline-a',
+      revision: 3,
+      definition: { schemaVersion: 1, nodes: [], edges: [] },
+    }
+    const { result } = renderHook(() => usePipelineExecutionUi({
+      pipelineId: 'pipeline-a',
+      draft,
+      check: null,
+      onBuildSucceeded: () => undefined,
+    }))
+
+    let created!: Promise<PipelineBuild | null>
+    act(() => {
+      created = result.current.createBuild(3)
+    })
+    await waitFor(() => expect(api.createPipelineBuild).toHaveBeenCalledTimes(1))
+    act(() => result.current.openSchedule())
+
+    act(() => pending.resolve(build('pipeline-a')))
+    await act(async () => {
+      await created
+    })
+
+    expect(result.current.scheduleOpen).toBe(true)
+    expect(result.current.build.detailsOpen).toBe(false)
+  })
+
+  it('does not reopen build details when configuration opens while creation is pending', async () => {
+    const pending = deferred<PipelineBuild>()
+    api.createPipelineBuild.mockReturnValue(pending.promise)
+    const draft: PipelineDraftResponse = {
+      pipeline_id: 'pipeline-a',
+      revision: 3,
+      definition: {
+        schemaVersion: 1,
+        nodes: [{
+          id: 'node-a',
+          type: 'filter',
+          name: 'Filter',
+          config: {},
+          position: { x: 0, y: 0 },
+        }],
+        edges: [],
+      },
+    }
+    const { result } = renderHook(() => usePipelineExecutionUi({
+      pipelineId: 'pipeline-a',
+      draft,
+      check: null,
+      onBuildSucceeded: () => undefined,
+    }))
+
+    let created!: Promise<PipelineBuild | null>
+    act(() => {
+      created = result.current.createBuild(3)
+    })
+    await waitFor(() => expect(api.createPipelineBuild).toHaveBeenCalledTimes(1))
+    act(() => result.current.selectNode('node-a'))
+
+    act(() => pending.resolve(build('pipeline-a')))
+    await act(async () => {
+      await created
+    })
+
+    expect(result.current.selectedNode?.id).toBe('node-a')
+    expect(result.current.build.detailsOpen).toBe(false)
   })
 })

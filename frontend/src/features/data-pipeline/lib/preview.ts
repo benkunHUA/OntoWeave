@@ -53,13 +53,18 @@ function issue(value: Record<string, unknown>): PipelinePreviewIssue {
   }
 }
 
+export function normalizePreviewIssues(value: unknown): PipelinePreviewIssue[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map(issue)
+}
+
 function issuesFrom(details: Record<string, unknown>, fallbackMessage: string): PipelinePreviewIssue[] {
   const issues = [details.issues, details.blockingIssues]
     .find((value) => Array.isArray(value)) as unknown[] | undefined
   if (issues?.length) {
-    return issues
-      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-      .map(issue)
+    return normalizePreviewIssues(issues)
   }
   if (!('nodeId' in details || 'portId' in details || 'field' in details)) return []
   return [issue({
@@ -96,7 +101,7 @@ export function previewRequestError(reason: unknown): PreviewRequestError {
       issues: issuesFrom(info.details, info.message),
     }
   }
-  return { kind: 'unknown', message: info.message, issues: info.issues as PipelinePreviewIssue[] }
+  return { kind: 'unknown', message: info.message, issues: normalizePreviewIssues(info.issues) }
 }
 
 export function previewTruncationLabel(

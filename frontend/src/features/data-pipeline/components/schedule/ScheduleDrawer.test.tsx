@@ -95,7 +95,10 @@ describe('ScheduleDrawer', () => {
 
   it('confirms pause and explains skipped schedule runs', async () => {
     api.getPipelineSchedule.mockResolvedValue(schedule)
-    api.listPipelineScheduleRuns.mockResolvedValue([run])
+    api.listPipelineScheduleRuns.mockResolvedValue([
+      run,
+      { ...run, id: 'run-2', status: 'failed', reason_code: 'BUILD_FAILED' },
+    ])
     api.pausePipelineSchedule.mockResolvedValue({ ...schedule, status: 'paused' })
 
     render(<ScheduleDrawer
@@ -113,6 +116,8 @@ describe('ScheduleDrawer', () => {
     />)
 
     expect(await screen.findByText('输入和逻辑未变化，已跳过')).toBeTruthy()
+    expect(screen.getByText('已跳过，未执行')).toBeTruthy()
+    expect(screen.getByText('未开始执行即失败')).toBeTruthy()
     expect(screen.getAllByText(/时间触发/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/Asia\/Shanghai/).length).toBeGreaterThan(0)
     expect(screen.getByDisplayValue('Asia/Shanghai').getAttribute('list'))

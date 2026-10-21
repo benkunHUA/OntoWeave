@@ -164,7 +164,12 @@ public class PipelineBuildExecutor {
             String branch = PipelineBuildConstants.BRANCH_PREFIX + build.getId();
             snapshot = writer.write(build.getId(), frozen.outputId(), plan, branch);
             if (snapshot.engineJobId() != null) {
-                row.recordEngineJob(snapshot.engineJobId());
+                row.recordEngineJob(snapshot.engineJobId(), snapshot.logUri());
+            }
+            if (snapshot.logUri() != null && !snapshot.logUri().isBlank()
+                    && build.getLogUri() == null) {
+                build.recordLogUri(snapshot.logUri());
+                builds.save(build);
             }
             row.updateStage(PipelineBuildStage.CHECKING_EXPECTATIONS);
             buildOutputs.save(row);
@@ -202,6 +207,7 @@ public class PipelineBuildExecutor {
                 cancel(build);
                 return;
             }
+            carryOutputLogUri(build, frozen.outputId());
             if (row.getStatus() != PipelineOutputStatus.FAILED) {
                 row.markFailed(
                         PipelineBuildStage.FINISHED,
@@ -221,6 +227,7 @@ public class PipelineBuildExecutor {
                 cancel(build);
                 return;
             }
+            carryOutputLogUri(build, frozen.outputId());
             if (row.getStatus() != PipelineOutputStatus.FAILED) {
                 row.markFailed(
                         PipelineBuildStage.FINISHED,
@@ -260,6 +267,7 @@ public class PipelineBuildExecutor {
         for (PipelineBuildOutputEntity row : buildOutputs.findByBuildIdOrderByCreatedAtAsc(current.getId())) {
             if (row.getStatus() == PipelineOutputStatus.RUNNING
                     || row.getStatus() == PipelineOutputStatus.QUEUED) {
+                carryOutputLogUri(current, row.getOutputId());
                 row.markCanceled(now);
                 buildOutputs.save(row);
             }
@@ -271,6 +279,17 @@ public class PipelineBuildExecutor {
 
     private void updateStage(UUID buildId, PipelineBuildStage stage) {
         builds.updateStage(buildId, stage, com.ontoweave.data.pipeline.domain.PipelineBuildStatus.RUNNING);
+    }
+
+    private void carryOutputLogUri(PipelineBuildEntity build, UUID outputId) {
+        if (build.getLogUri() != null && !build.getLogUri().isBlank()) return;
+        buildOutputs.findByBuildIdAndOutputId(build.getId(), outputId)
+                .map(PipelineBuildOutputEntity::getLogUri)
+                .filter(uri -> uri != null && !uri.isBlank())
+                .ifPresent(uri -> {
+                    build.recordLogUri(uri);
+                    builds.save(build);
+                });
     }
 
     private void fail(PipelineBuildEntity build, String code, String message) {

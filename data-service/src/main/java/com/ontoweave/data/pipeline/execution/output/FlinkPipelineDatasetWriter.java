@@ -123,11 +123,13 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         TableResult result = compiled.table().executeInsert(sink, true);
         JobClient client = result.getJobClient().orElse(null);
         String engineJobId = null;
+        String logUri = null;
         if (client != null) {
             engineJobId = client.getJobID().toString();
+            logUri = FlinkJobLogUri.forJob(properties.flinkRestUrl(), engineJobId);
             jobs.put(buildId, client);
             try {
-                recordEngineJob(buildId, outputId, engineJobId);
+                recordEngineJob(buildId, outputId, engineJobId, logUri);
             } catch (RuntimeException error) {
                 jobs.remove(buildId);
                 try {
@@ -197,9 +199,9 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         jobs.remove(buildId, client);
     }
 
-    private void recordEngineJob(UUID buildId, UUID outputId, String engineJobId) {
+    private void recordEngineJob(UUID buildId, UUID outputId, String engineJobId, String logUri) {
         buildOutputs.findByBuildIdAndOutputId(buildId, outputId).ifPresent(row -> {
-            row.recordEngineJob(engineJobId);
+            row.recordEngineJob(engineJobId, logUri);
             buildOutputs.save(row);
         });
     }
@@ -234,7 +236,8 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 longValue(summary.get("total-file-size-bytes")),
                 table.location(),
                 Instant.ofEpochMilli(snapshot.timestampMillis()),
-                engineJobId
+                engineJobId,
+                FlinkJobLogUri.forJob(properties.flinkRestUrl(), engineJobId)
         );
     }
 

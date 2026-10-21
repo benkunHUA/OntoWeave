@@ -9,11 +9,12 @@ import type {
   PipelineCheckResult,
   PipelineDraftResponse,
 } from '../../../shared/types'
+import { httpErrorText } from '../../../shared/api/errors'
 import { normalizeDraftResponse } from '../lib/draft'
 import { usePipelineGeneration } from './usePipelineGeneration'
 
 function reportError(reason: unknown): string {
-  return reason instanceof Error ? reason.message : '读取流程失败'
+  return httpErrorText(reason, '读取流程失败')
 }
 
 export function usePipelineDraft(pipelineId: string | undefined) {

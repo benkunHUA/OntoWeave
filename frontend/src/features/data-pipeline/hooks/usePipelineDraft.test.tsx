@@ -7,6 +7,7 @@ import type {
   PipelineCheckResult,
   PipelineDraftResponse,
 } from '../../../shared/types'
+import { HttpError } from '../../../shared/api/client'
 import { usePipelineDraft } from './usePipelineDraft'
 
 const api = vi.hoisted(() => ({
@@ -88,5 +89,15 @@ describe('usePipelineDraft pipeline generations', () => {
     act(() => draftB.resolve(draft('pipeline-b', 7)))
     await waitFor(() => expect(result.current.draft?.pipeline_id).toBe('pipeline-b'))
     expect(result.current.draft?.revision).toBe(7)
+  })
+
+  it('shows the structured server message when draft loading fails', async () => {
+    api.getPipelineDraft.mockRejectedValue(new HttpError(
+      422,
+      '{"code":"DRAFT_BLOCKED","message":"草稿不可读取"}',
+    ))
+    const { result } = renderHook(() => usePipelineDraft('pipeline-a'))
+
+    await waitFor(() => expect(result.current.error).toBe('草稿不可读取'))
   })
 })

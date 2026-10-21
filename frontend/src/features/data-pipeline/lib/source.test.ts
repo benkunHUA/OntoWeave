@@ -19,13 +19,14 @@ function input(overrides: Partial<PipelineSourceInput>): PipelineSourceInput {
 }
 
 describe('source input visibility', () => {
-  it('hides connection and source table for restricted metadata', () => {
+  it('hides the dataset name, connection and source table for restricted metadata', () => {
     const view = sourceInputView(input({ metadata_status: 'restricted' }))
 
     expect(view.showConnection).toBe(false)
     expect(view.connection).toBeNull()
     expect(view.sourceTable).toBeNull()
-    expect(view.title).toBe('demo.orders')
+    expect(view.title).toBe('dataset-1')
+    expect(view.note).toBe('元数据无权限')
   })
 
   it('shows the dataset id and unavailable note for missing metadata', () => {

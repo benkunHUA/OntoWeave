@@ -26,6 +26,7 @@ const source: PipelineSource = {
     trigger: 'manual',
     started_at: '2026-10-21T10:00:00Z',
     finished_at: '2026-10-21T10:02:00Z',
+    log_uri: 'https://flink.example/#/job/build-job/exceptions',
   },
   pipeline_version: {
     version_id: 'pipeline-version-1',
@@ -158,6 +159,29 @@ describe('BuildDetailsDrawer', () => {
     fireEvent.click(button)
     await waitFor(() => expect(onCancel).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(screen.getByText(/已发送取消请求/)).toBeTruthy())
+  })
+
+  it('closes only the nested output dialog on Escape', async () => {
+    const onClose = vi.fn()
+    render(<BuildDetailsDrawer
+      pipelineId="pipeline-1"
+      build={build}
+      outputNames={{}}
+      isLoading={false}
+      error={null}
+      onClose={onClose}
+      onCancel={async () => true}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: '查看输出数据集' }))
+    expect(screen.getByText('输出数据集详情')).toBeTruthy()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByText('输出数据集详情')).toBeNull())
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('uses the output log URI when the worker persisted one', () => {

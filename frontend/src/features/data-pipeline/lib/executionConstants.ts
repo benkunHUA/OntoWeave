@@ -39,7 +39,6 @@ export const PREVIEW_COPY = {
   currentDraft: '基于当前草稿',
   stale: '草稿已修改，预览已过期',
   loading: '正在执行预览…',
-  nonFull: '非全量结果',
   inputs: '输入版本',
   errors: '预览错误',
   noRows: '没有返回行',
@@ -61,8 +60,6 @@ export const SCHEDULE_COPY = {
   save: '保存修改',
   pause: '暂停调度',
   resume: '恢复调度',
-  active: '已启用',
-  paused: '已暂停',
   confirmCreate: '确认创建',
   confirmSave: '确认保存',
   confirmPause: '确认暂停',
@@ -75,12 +72,7 @@ export const SCHEDULE_COPY = {
   saveBody: '保存后将按新配置计算下一次运行，不会补跑历史触发。',
   pauseBody: '暂停会清理待执行触发，但不会取消正在运行的构建。',
   resumeBody: '恢复后从现在开始计算下一次运行，不会补跑暂停期间。',
-  noPublishedVersion: '首次构建后才能定时运行',
-  draftUsesPublished: '调度仍使用已发布版本',
   buildLink: '查看构建',
-  timezoneLabel: '时区',
-  triggerTime: '时间触发',
-  triggerManual: '手动触发',
 } as const
 
 export const SOURCE_COPY = {
@@ -92,12 +84,15 @@ export const SOURCE_COPY = {
   noInputs: '没有记录直接输入',
   loading: '正在读取来源…',
   missing: '元数据不可用',
-  restricted: '元数据权限受限',
+  restricted: '元数据无权限',
+  buildUnavailable: '构建信息不可用',
+  buildDetails: '查看构建详情',
+  buildLog: '打开构建日志',
+  logMissing: '日志尚未持久化',
 } as const
 
 export const OUTPUT_DATASET_COPY = {
   title: '输出数据集详情',
-  output: '输出节点',
   datasetId: '数据集 ID',
   datasetVersionId: '数据版本 ID',
   close: '关闭',

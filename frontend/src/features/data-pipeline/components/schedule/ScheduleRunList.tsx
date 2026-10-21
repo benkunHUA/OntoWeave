@@ -1,10 +1,11 @@
 import { ExternalLink } from 'lucide-react'
 import type { PipelineScheduleRun } from '../../../../shared/types'
 import { SCHEDULE_COPY } from '../../lib/executionConstants'
-import { formatDateTime, formatDuration } from '../../lib/format'
+import { formatDateTime } from '../../lib/format'
 import {
   scheduleRunLabel,
   scheduleRunStatusLabel,
+  scheduleRunTimingLabel,
   triggerTypeLabel,
 } from '../../lib/schedule'
 
@@ -26,8 +27,8 @@ export function ScheduleRunList({ runs, timeZone, onOpenBuild }: ScheduleRunList
             <small>
               {formatDateTime(run.scheduled_for, timeZone)} · {timeZone} · {triggerTypeLabel(run.trigger_type)} · {scheduleRunStatusLabel(run.status)}
             </small>
-            {run.finished_at ? (
-              <small>耗时 {formatDuration(run.started_at ?? run.scheduled_for, run.finished_at)}</small>
+            {scheduleRunTimingLabel(run) ? (
+              <small>{scheduleRunTimingLabel(run)}</small>
             ) : null}
           </div>
           {run.build_id ? (

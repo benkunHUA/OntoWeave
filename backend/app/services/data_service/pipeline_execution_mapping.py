@@ -108,6 +108,7 @@ def source_build(row: dict | None) -> dict | None:
         "trigger": row.get("trigger"),
         "started_at": row.get("startedAt"),
         "finished_at": row.get("finishedAt"),
+        "log_uri": row.get("logUri"),
     }
 
 

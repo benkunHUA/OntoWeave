@@ -140,4 +140,18 @@ describe('usePipelineCommandQueue pipeline generations', () => {
 
     expect(setDraft).toHaveBeenLastCalledWith(draft('pipeline-b', 8))
   })
+
+  it('surfaces structured 422 errors instead of raw response JSON', async () => {
+    api.applyPipelineDraftCommand.mockRejectedValue(new HttpError(
+      422,
+      '{"code":"COMMAND_INVALID","message":"节点配置不合法","details":{"field":"condition"}}',
+    ))
+    const { result } = renderQueue('pipeline-a', draft('pipeline-a', 3))
+
+    await act(async () => {
+      await result.current.updateNode('node-1', 'A', {})
+    })
+
+    expect(result.current.error).toBe('节点配置不合法')
+  })
 })

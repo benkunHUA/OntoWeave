@@ -17,6 +17,7 @@ public record WrittenSnapshot(
         long byteSize,
         String storagePath,
         Instant committedAt,
-        String engineJobId
+        String engineJobId,
+        String logUri
 ) {
 }

@@ -62,3 +62,28 @@ def test_non_dataset_output_keeps_identity_null():
     mapped = pipeline_mapping.build(row)
     assert mapped["outputs"][0]["dataset_id"] is None
     assert mapped["outputs"][0]["dataset_version_id"] is None
+
+
+def test_output_source_build_exposes_log_uri():
+    mapped = pipeline_mapping.output_sources(
+        {
+            "pipelineId": str(uuid.uuid4()),
+            "datasetId": str(uuid.uuid4()),
+            "versionId": str(uuid.uuid4()),
+            "output": {
+                "outputId": str(uuid.uuid4()),
+                "name": "orders_clean",
+                "versionNumber": 3,
+                "rowCount": 12,
+            },
+            "build": {
+                "buildId": str(uuid.uuid4()),
+                "status": "succeeded",
+                "trigger": "manual",
+                "logUri": "http://flink:8081/#/job/job-1/exceptions",
+            },
+            "inputs": [],
+        }
+    )
+
+    assert mapped["build"]["log_uri"] == "http://flink:8081/#/job/job-1/exceptions"

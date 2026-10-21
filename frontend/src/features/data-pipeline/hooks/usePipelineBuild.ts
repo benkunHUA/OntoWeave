@@ -138,8 +138,6 @@ export function usePipelineBuild(pipelineId: string | undefined) {
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
       setBuild(next)
       storeBuild(pipelineId, next.id)
-      detailsTokenRef.current += 1
-      setDetailsOpen(true)
       return next
     } catch (reason) {
       if (isCurrent(pipelineId, token) && requestRef.current === requestToken) {

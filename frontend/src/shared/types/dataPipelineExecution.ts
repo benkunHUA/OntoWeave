@@ -96,6 +96,7 @@ export interface PipelineSourceBuild {
   trigger: string
   started_at: string | null
   finished_at: string | null
+  log_uri: string | null
 }
 
 export interface PipelineSourcePipelineVersion {

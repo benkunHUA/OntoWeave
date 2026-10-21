@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listPipelineInputDatasets } from '../../../../../shared/api'
+import { httpErrorText } from '../../../../../shared/api/errors'
 import type { InputDataset } from '../../../../../shared/types'
 
 interface DatasetPickerFieldProps {
@@ -18,7 +19,7 @@ export function DatasetPickerField({ value, onChange }: DatasetPickerFieldProps)
         if (active) setDatasets(page.items)
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : '读取数据集失败')
+        if (active) setError(httpErrorText(reason, '读取数据集失败'))
       })
     return () => {
       active = false

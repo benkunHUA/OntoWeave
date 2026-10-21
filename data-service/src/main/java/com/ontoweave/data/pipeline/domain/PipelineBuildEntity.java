@@ -216,6 +216,10 @@ public class PipelineBuildEntity {
         }
     }
 
+    public void recordLogUri(String logUri) {
+        this.logUri = logUri;
+    }
+
     public void markSucceeded(Instant now) {
         this.status = PipelineBuildStatus.SUCCEEDED;
         this.stage = PipelineBuildStage.FINISHED;

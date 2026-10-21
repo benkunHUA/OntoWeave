@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
 
 export type DialogIconTone = 'default' | 'danger'
 
@@ -30,6 +31,7 @@ export function DialogShell({
   footer,
   children,
 }: DialogShellProps) {
+  useEscapeClose(true, onClose)
   const iconClassName =
     iconTone === 'danger' ? 'view-dialog__icon view-dialog__icon--danger' : 'view-dialog__icon'
 

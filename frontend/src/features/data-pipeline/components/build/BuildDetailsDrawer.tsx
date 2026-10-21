@@ -18,6 +18,7 @@ interface BuildDetailsDrawerProps {
   error: string | null
   onClose: () => void
   onCancel: () => Promise<boolean>
+  onOpenBuild?: (buildId: string) => void
 }
 
 export function BuildDetailsDrawer({
@@ -28,6 +29,7 @@ export function BuildDetailsDrawer({
   error,
   onClose,
   onCancel,
+  onOpenBuild,
 }: BuildDetailsDrawerProps) {
   const [cancelState, setCancelState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -109,6 +111,7 @@ export function BuildDetailsDrawer({
                 pipelineId={pipelineId}
                 output={output}
                 name={outputNames[output.output_id]}
+                onOpenBuild={onOpenBuild}
               />
             ))}
           </>

@@ -10,12 +10,14 @@ interface OutputSourcePanelProps {
   pipelineId: string
   datasetId: string
   datasetVersionId: string | null
+  onOpenBuild?: (buildId: string) => void
 }
 
 export function OutputSourcePanel({
   pipelineId,
   datasetId,
   datasetVersionId,
+  onOpenBuild,
 }: OutputSourcePanelProps) {
   const { source, isLoading, error } = useOutputSources({
     pipelineId,
@@ -46,8 +48,20 @@ export function OutputSourcePanel({
             <span>{SOURCE_COPY.build}</span>
             <strong>{shortId(source.build.build_id)} · {buildStatusLabel(source.build.status)}</strong>
             <small>{formatDateTime(source.build.finished_at ?? source.build.started_at)}</small>
+            <div className="pipeline-source-build-actions">
+              {onOpenBuild ? (
+                <button type="button" className="text-button" onClick={() => onOpenBuild(source.build!.build_id)}>
+                  {SOURCE_COPY.buildDetails}
+                </button>
+              ) : null}
+              {source.build.log_uri ? (
+                <a className="pipeline-build-log-link" href={source.build.log_uri} target="_blank" rel="noreferrer">
+                  {SOURCE_COPY.buildLog}
+                </a>
+              ) : <small>{SOURCE_COPY.logMissing}</small>}
+            </div>
           </div>
-        ) : null}
+        ) : <p className="pipeline-source-note">{SOURCE_COPY.buildUnavailable}</p>}
         {source.pipeline_version ? (
           <div>
             <span>{SOURCE_COPY.pipelineVersion}</span>

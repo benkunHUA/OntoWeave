@@ -49,6 +49,9 @@ class PipelineSourceServiceTest extends PipelineSourceServiceTestSupport {
 
         SourceResponse response = service.get(pipelineId, datasetId, sourceVersionId, ownerId);
 
+        assertThat(response.build().logUri())
+                .isEqualTo("http://flink:8081/#/job/job-1/exceptions");
+
         assertThat(response.inputs()).singleElement().satisfies(input -> {
             assertThat(input.datasetVersionId()).isEqualTo(inputVersionId);
             assertThat(input.datasetVersionNumber()).isEqualTo(12);

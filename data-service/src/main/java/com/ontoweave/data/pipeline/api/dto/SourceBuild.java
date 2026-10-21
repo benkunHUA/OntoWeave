@@ -8,6 +8,7 @@ public record SourceBuild(
         String status,
         String trigger,
         Instant startedAt,
-        Instant finishedAt
+        Instant finishedAt,
+        String logUri
 ) {
 }

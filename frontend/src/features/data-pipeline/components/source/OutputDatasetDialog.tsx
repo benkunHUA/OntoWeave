@@ -10,6 +10,7 @@ interface OutputDatasetDialogProps {
   output: PipelineBuildOutput
   name: string
   onClose: () => void
+  onOpenBuild?: (buildId: string) => void
 }
 
 export function OutputDatasetDialog({
@@ -17,6 +18,7 @@ export function OutputDatasetDialog({
   output,
   name,
   onClose,
+  onOpenBuild,
 }: OutputDatasetDialogProps) {
   if (!output.dataset_id || !output.dataset_version_id) return null
   return (
@@ -36,6 +38,10 @@ export function OutputDatasetDialog({
           pipelineId={pipelineId}
           datasetId={output.dataset_id}
           datasetVersionId={output.dataset_version_id}
+          onOpenBuild={onOpenBuild ? (buildId) => {
+            onClose()
+            onOpenBuild(buildId)
+          } : undefined}
         />
       </div>
     </DialogShell>

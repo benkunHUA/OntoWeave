@@ -176,6 +176,65 @@ class PipelineBuildExecutorTest {
         verify(publisher, never()).publish(any());
     }
 
+    @Test
+    void recordsSubmittedEngineLogUriOnBuildAndOutput() {
+        PipelineBuildEntity build = build();
+        PipelineVersionEntity version = version();
+        PipelineBuildOutputEntity row = buildOutput();
+        PipelineOutputEntity output = new PipelineOutputEntity(
+                OUTPUT_ID, PIPELINE_ID, NODE_ID, PipelineOutputType.DATASET, "orders_out"
+        );
+        LogicalPlan plan = LogicalPlan.of(
+                new PlanStep(NODE_ID.toString(), "dataset", new LogicalPlanNode.Union(), List.of()),
+                version.getSourceDraftRevision(), NODE_ID.toString(), Map.of()
+        );
+        whenBuildReady(build, version, row, output);
+        when(plans.buildForBuild(eq(version), anyList(), eq(NODE_ID.toString()))).thenReturn(plan);
+        when(writer.write(eq(BUILD_ID), eq(OUTPUT_ID), eq(plan), eq("build_" + BUILD_ID)))
+                .thenReturn(snapshot());
+        when(expectations.check(any(), any())).thenReturn(List.of());
+
+        executor.execute(BUILD_ID);
+
+        assertThat(row.getEngineJobId()).isEqualTo("engine-job-1");
+        assertThat(row.getLogUri())
+                .isEqualTo("http://localhost:8081/#/job/engine-job-1/exceptions");
+        assertThat(build.getLogUri())
+                .isEqualTo("http://localhost:8081/#/job/engine-job-1/exceptions");
+    }
+
+    @Test
+    void carriesEngineLogUriToFailedBuild() {
+        PipelineBuildEntity build = build();
+        PipelineVersionEntity version = version();
+        PipelineBuildOutputEntity row = buildOutput();
+        PipelineOutputEntity output = new PipelineOutputEntity(
+                OUTPUT_ID, PIPELINE_ID, NODE_ID, PipelineOutputType.DATASET, "orders_out"
+        );
+        LogicalPlan plan = LogicalPlan.of(
+                new PlanStep(NODE_ID.toString(), "dataset", new LogicalPlanNode.Union(), List.of()),
+                version.getSourceDraftRevision(), NODE_ID.toString(), Map.of()
+        );
+        whenBuildReady(build, version, row, output);
+        when(plans.buildForBuild(eq(version), anyList(), eq(NODE_ID.toString()))).thenReturn(plan);
+        when(writer.write(eq(BUILD_ID), eq(OUTPUT_ID), eq(plan), eq("build_" + BUILD_ID)))
+                .thenAnswer(invocation -> {
+                    row.recordEngineJob(
+                            "failed-job",
+                            "http://localhost:8081/#/job/failed-job/exceptions"
+                    );
+                    throw new PipelineBuildException(
+                            PipelineBuildConstants.CODE_EXECUTION_FAILED, "job failed"
+                    );
+                });
+
+        executor.execute(BUILD_ID);
+
+        assertThat(build.getStatus()).isEqualTo(PipelineBuildStatus.FAILED);
+        assertThat(build.getLogUri())
+                .isEqualTo("http://localhost:8081/#/job/failed-job/exceptions");
+    }
+
     private void whenBuildReady(
             PipelineBuildEntity build,
             PipelineVersionEntity version,
@@ -237,7 +296,8 @@ class PipelineBuildExecutorTest {
         return new WrittenSnapshot(
                 DATASET_ID, "ontoweave", "pipeline_outputs", "orders_out",
                 "build_" + BUILD_ID, 101L, schema, 2L, 128L, "/tmp/orders_out",
-                Instant.now(), "engine-job-1"
+                Instant.now(), "engine-job-1",
+                "http://localhost:8081/#/job/engine-job-1/exceptions"
         );
     }
 }

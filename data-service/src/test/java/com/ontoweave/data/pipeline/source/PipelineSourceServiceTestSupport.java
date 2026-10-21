@@ -104,6 +104,7 @@ abstract class PipelineSourceServiceTestSupport {
         when(build.getTriggerType()).thenReturn(PipelineBuildTrigger.MANUAL);
         when(build.getStartedAt()).thenReturn(Instant.parse("2026-10-20T10:00:00Z"));
         when(build.getFinishedAt()).thenReturn(Instant.parse("2026-10-20T10:01:00Z"));
+        when(build.getLogUri()).thenReturn("http://flink:8081/#/job/job-1/exceptions");
         when(build.getResolvedInputs()).thenReturn(resolvedInputs);
         when(builds.findById(buildId)).thenReturn(Optional.of(build));
 

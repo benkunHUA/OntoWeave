@@ -92,6 +92,30 @@ describe('previewRequestError', () => {
       message: '金额无法解析',
     })
   })
+
+  it('normalizes snake_case issues from non-422 responses', () => {
+    const error = new HttpError(500, JSON.stringify({
+      code: 'PREVIEW_FAILED',
+      message: '预览服务失败',
+      issues: [{
+        code: 'ROW_TOO_LARGE',
+        node_id: 'node-4',
+        port_id: 'out',
+        row_number: 8,
+        original_value: 'x'.repeat(100),
+      }],
+    }))
+
+    const mapped = previewRequestError(error)
+
+    expect(mapped.issues[0]).toMatchObject({
+      code: 'ROW_TOO_LARGE',
+      node_id: 'node-4',
+      port_id: 'out',
+      row_number: 8,
+      original_value: 'x'.repeat(100),
+    })
+  })
 })
 
 describe('previewTruncationLabel', () => {

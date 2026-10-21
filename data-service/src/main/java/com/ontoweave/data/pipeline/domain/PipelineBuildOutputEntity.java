@@ -178,7 +178,14 @@ public class PipelineBuildOutputEntity {
     }
 
     public void recordEngineJob(String engineJobId) {
+        recordEngineJob(engineJobId, null);
+    }
+
+    public void recordEngineJob(String engineJobId, String logUri) {
         this.engineJobId = engineJobId;
+        if (logUri != null && !logUri.isBlank()) {
+            this.logUri = logUri;
+        }
     }
 
     public void markSucceeded(PipelineBuildStage stage, JsonNode result, JsonNode stats, Instant now) {

@@ -5,10 +5,11 @@ import {
   listPipelines,
   renamePipeline,
 } from '../../../shared/api'
+import { httpErrorText } from '../../../shared/api/errors'
 import type { Pipeline } from '../../../shared/types'
 
 function reportError(reason: unknown): string {
-  return reason instanceof Error ? reason.message : '操作失败'
+  return httpErrorText(reason, '操作失败')
 }
 
 export function usePipelineList() {

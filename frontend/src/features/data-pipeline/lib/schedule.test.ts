@@ -3,6 +3,7 @@ import type { Pipeline } from '../../../shared/types'
 import {
   scheduleRunLabel,
   scheduleRunStatusLabel,
+  scheduleRunTimingLabel,
   scheduleVersionHint,
   triggerTypeLabel,
 } from './schedule'
@@ -79,5 +80,23 @@ describe('schedule labels', () => {
       .toContain('01:00')
     expect(formatDateTime('2026-10-21T01:00:00Z', 'Not/AZone'))
       .toBe('2026-10-21T01:00:00Z')
+  })
+
+  it('only shows duration when both start and finish exist', () => {
+    expect(scheduleRunTimingLabel({
+      status: 'dispatched',
+      started_at: '2026-10-21T01:00:00Z',
+      finished_at: '2026-10-21T01:00:07Z',
+    })).toBe('耗时 7.0 秒')
+    expect(scheduleRunTimingLabel({
+      status: 'ignored',
+      started_at: null,
+      finished_at: '2026-10-21T01:00:07Z',
+    })).toBe('已跳过，未执行')
+    expect(scheduleRunTimingLabel({
+      status: 'failed',
+      started_at: null,
+      finished_at: '2026-10-21T01:00:07Z',
+    })).toBe('未开始执行即失败')
   })
 })

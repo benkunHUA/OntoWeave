@@ -90,6 +90,7 @@ export function DataPipelineWorkbench() {
     openIssue,
     openBuildDetails,
     openSchedule,
+    createBuild,
     closePanel,
     closePreview,
   } = execution
@@ -218,7 +219,7 @@ export function DataPipelineWorkbench() {
             isCreating={build.isLoading}
             error={build.error}
             onPrepareBuild={prepareBuild}
-            onBuild={(revision) => void build.create(revision)}
+            onBuild={(revision) => void createBuild(revision)}
             onOpenDetails={openBuildDetails}
             onOpenSchedule={openSchedule}
           />}
@@ -247,6 +248,8 @@ export function DataPipelineWorkbench() {
             onSave={saveNode}
             onDelete={deleteNode}
             onSetOutput={queueSetOutput}
+            latestBuild={build.build}
+            onOpenBuildDetails={openBuildDetails}
           />
         ) : null}
         {previewNode ? (
@@ -271,6 +274,7 @@ export function DataPipelineWorkbench() {
             error={build.error}
             onClose={() => build.setDetailsOpen(false)}
             onCancel={build.cancel}
+            onOpenBuild={openBuildDetails}
           />
         ) : null}
         {scheduleOpen ? (

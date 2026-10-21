@@ -86,3 +86,20 @@
   justify-content: flex-end;
   gap: 6px;
 }
+
+.pipeline-schedule-drawer {
+  width: min(520px, 96%);
+}
+
+@media (max-width: 760px) {
+  .pipeline-schedule-drawer,
+  .pipeline-build-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .pipeline-schedule-actions,
+  .pipeline-build-drawer__foot {
+    flex-wrap: wrap;
+  }
+}

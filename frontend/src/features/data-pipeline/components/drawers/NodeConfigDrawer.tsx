@@ -1,7 +1,6 @@
 import { CircleAlert, Eye, Info, Trash2, X } from 'lucide-react'
 import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -10,26 +9,27 @@ import {
 import type {
   JsonObject,
   NodeDefinition,
+  PipelineBuild,
   PipelineDraftResponse,
   PipelineIssue,
   PipelineNode,
 } from '../../../../shared/types'
 import {
-  CONFIG_SAVE_DELAY_MS,
   FIELD_LABELS,
   ISSUE_COPY,
   NODE_CONFIG_COPY,
 } from '../../lib/constants'
 import { ConfigField } from './fields/ConfigField'
+import { OutputBuildStatus } from './OutputBuildStatus'
 import { OutputSelect } from './fields/OutputSelect'
 import type { OutputDraftInput } from '../../lib/outputCommand'
 import {
   applyDraftResponse,
-  configForSave,
   drawerStateFor,
   resetForNode,
   syncExternalConfig,
 } from '../../lib/nodeConfigState'
+import { useNodeConfigSave } from '../../hooks/useNodeConfigSave'
 
 interface NodeConfigDrawerProps {
   pipelineId: string
@@ -53,6 +53,8 @@ interface NodeConfigDrawerProps {
     nodeId: string,
     output: OutputDraftInput,
   ) => Promise<PipelineDraftResponse | null> | null
+  latestBuild?: PipelineBuild | null
+  onOpenBuildDetails?: (buildId: string) => void
 }
 
 export interface NodeConfigDrawerHandle {
@@ -81,14 +83,22 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
   onSave,
   onDelete,
   onSetOutput,
+  latestBuild = null,
+  onOpenBuildDetails,
 }, ref) {
   const [drawer, setDrawer] = useState(() => drawerStateFor(node))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [seenConfig, setSeenConfig] = useState(node.config)
-  const dirtyRef = useRef(drawer.dirty)
-  const revisionRef = useRef(revision)
-  const savePromiseRef = useRef<Promise<number | null> | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const save = useNodeConfigSave({
+    pipelineId,
+    nodeId: node.id,
+    revision,
+    isReadOnly,
+    state: drawer,
+    setState: setDrawer,
+    onSave,
+  })
 
   if (drawer.nodeId !== node.id) {
     setSeenConfig(node.config)
@@ -98,53 +108,7 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
     if (!drawer.dirty) setDrawer((current) => syncExternalConfig(current, node))
   }
 
-  useEffect(() => {
-    revisionRef.current = revision
-  }, [revision])
-
-  const saveNow = useCallback((): Promise<number | null> => {
-    if (savePromiseRef.current) return savePromiseRef.current
-    if (isReadOnly) return Promise.resolve(null)
-    if (!dirtyRef.current) return Promise.resolve(revisionRef.current)
-    const trimmedName = drawer.name.trim()
-    if (!trimmedName) return Promise.resolve(null)
-    dirtyRef.current = false
-    setDrawer((current) => current.nodeId === node.id
-      ? { ...current, dirty: false }
-      : current)
-    const promise = Promise.resolve(onSave(pipelineId, node.id, trimmedName, configForSave(drawer)))
-      .then((response) => {
-        if (!response) {
-          dirtyRef.current = true
-          setDrawer((current) => current.nodeId === node.id
-            ? { ...current, dirty: true }
-            : current)
-          return null
-        }
-        revisionRef.current = response.revision
-        return response.revision
-      })
-      .finally(() => {
-        savePromiseRef.current = null
-      })
-    savePromiseRef.current = promise
-    return promise
-  }, [drawer, isReadOnly, node.id, onSave, pipelineId])
-
-  useImperativeHandle(ref, () => ({ flush: saveNow }), [saveNow])
-
-  useEffect(() => {
-    if (!drawer.dirty || isReadOnly || !drawer.name.trim()) return
-    const timer = window.setTimeout(() => void saveNow(), CONFIG_SAVE_DELAY_MS)
-    return () => window.clearTimeout(timer)
-  }, [drawer.dirty, drawer.name, isReadOnly, saveNow])
-
-  const flushRef = useRef(saveNow)
-  useEffect(() => {
-    flushRef.current = saveNow
-    dirtyRef.current = drawer.dirty
-  }, [drawer.dirty, saveNow])
-  useEffect(() => () => void flushRef.current(), [node.id, pipelineId])
+  useImperativeHandle(ref, () => ({ flush: save.flush }), [save.flush])
 
   useEffect(() => {
     if (!focusField) return
@@ -155,8 +119,8 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
     target?.focus()
   }, [focusField, node.id])
 
-  function close() {
-    void saveNow()
+  async function close() {
+    await save.flush()
     onClose()
   }
 
@@ -167,7 +131,6 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
   const sortedIssues = sortIssues(issues)
 
   function updateField(field: string, value: unknown) {
-    dirtyRef.current = true
     setDrawer((current) => ({
       ...current,
       config: { ...current.config, [field]: value },
@@ -178,10 +141,9 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
   async function setOutput(nodeId: string, output: OutputDraftInput) {
     const response = await onSetOutput(nodeId, output)
     if (!response) return null
-    revisionRef.current = response.revision
+    save.setRevision(response.revision)
     setDrawer((current) => {
       const next = applyDraftResponse(current, node.id, response)
-      dirtyRef.current = next.dirty
       return next
     })
     return response
@@ -194,7 +156,7 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
           <span className="eyebrow">{NODE_CONFIG_COPY.title}</span>
           <h2>{definition?.label ?? node.type}</h2>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" onClick={close} aria-label="关闭">
+        <button type="button" className="icon-button icon-button--quiet" onClick={() => void close()} aria-label="关闭">
           <X size={16} />
         </button>
       </header>
@@ -209,7 +171,6 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
             value={drawer.name}
             disabled={isReadOnly}
             onChange={(event) => {
-              dirtyRef.current = true
               setDrawer((current) => ({ ...current, name: event.target.value, dirty: true }))
             }}
           />
@@ -238,14 +199,21 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
         })}
 
         {isOutput && definition ? (
-          <OutputSelect
-            nodeId={node.id}
-            defaultName={node.name}
-            outputId={typeof drawer.config.outputId === 'string' ? drawer.config.outputId : null}
-            isReadOnly={isReadOnly}
-            isSaving={isSaving}
-            onSetOutput={setOutput}
-          />
+          <>
+            <OutputSelect
+              nodeId={node.id}
+              defaultName={node.name}
+              outputId={typeof drawer.config.outputId === 'string' ? drawer.config.outputId : null}
+              isReadOnly={isReadOnly}
+              isSaving={isSaving}
+              onSetOutput={setOutput}
+            />
+            <OutputBuildStatus
+              build={latestBuild}
+              outputId={typeof drawer.config.outputId === 'string' ? drawer.config.outputId : null}
+              onOpenBuildDetails={onOpenBuildDetails}
+            />
+          </>
         ) : null}
 
         <section className="pipeline-issue-list">
@@ -274,7 +242,7 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
               className="secondary-button"
               disabled={isReadOnly}
               onClick={() => {
-                void saveNow().then((savedRevision) => {
+                void save.flush().then((savedRevision) => {
                   if (savedRevision !== null) onPreview(node.id, savedRevision)
                 })
               }}
