@@ -63,6 +63,42 @@ class PipelinePublicationIntegrationTest extends PipelineBuildIntegrationTestSup
         assertThat(jdbc.queryForObject(
                 "SELECT event_type FROM data.outbox_event", String.class
         )).isEqualTo("pipeline.build.succeeded");
+        var event = readEvent();
+        assertThat(event.path("conversationId").asText()).isEqualTo(
+                jdbc.queryForObject(
+                        "SELECT conversation_id::text FROM data.pipeline WHERE id = ?",
+                        String.class, fixture.pipelineId()
+                )
+        );
+    }
+
+    @Test
+    void successfulPublishAfterArchiveKeepsPipelineArchivedAndDoesNotMoveItsPointer() {
+        PublicationFixture fixture = fixture();
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'archived', archived_at = now() WHERE id = ?",
+                fixture.pipelineId()
+        );
+
+        publisher.publish(fixture.buildId());
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM data.pipeline_build WHERE id = ?", String.class, fixture.buildId()
+        )).isEqualTo("succeeded");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM data.pipeline WHERE id = ?", String.class, fixture.pipelineId()
+        )).isEqualTo("archived");
+        assertThat(jdbc.queryForObject(
+                "SELECT current_version_id FROM data.pipeline WHERE id = ?",
+                UUID.class, fixture.pipelineId()
+        )).isEqualTo(fixture.previousPipelineVersionId());
+        for (PublishedOutput output : fixture.outputs()) {
+            assertThat(jdbc.queryForObject(
+                    "SELECT current_version_id FROM data.pipeline_dataset WHERE id = ?",
+                    UUID.class, output.datasetId()
+            )).isNotEqualTo(output.previousVersionId());
+        }
+        assertThat(readEvent().path("conversationId").asText()).isNotBlank();
     }
 
     @Test
@@ -178,6 +214,16 @@ class PipelinePublicationIntegrationTest extends PipelineBuildIntegrationTestSup
     private void dropFailingOutboxTrigger() {
         jdbc.execute("DROP TRIGGER IF EXISTS test_fail_outbox_insert ON data.outbox_event");
         jdbc.execute("DROP FUNCTION IF EXISTS data.test_fail_outbox_insert()");
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode readEvent() {
+        try {
+            return mapper.readTree(jdbc.queryForObject(
+                    "SELECT payload::text FROM data.outbox_event", String.class
+            ));
+        } catch (Exception error) {
+            throw new AssertionError(error);
+        }
     }
 
     private record PublicationFixture(

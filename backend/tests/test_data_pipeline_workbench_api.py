@@ -2,6 +2,8 @@ import uuid
 
 from pipeline_test_fakes import API, BUILD_ID, DATASET_ID, NOW, PIPELINE_ID, TURN_ID
 
+from app.errors import UnprocessableEntityError
+
 
 def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_client):
     assert (
@@ -99,3 +101,43 @@ def test_schedule_routes_map_camel_case(pipeline_client, fake_pipeline_client):
     ).json()
     assert runs[0]["scheduled_for"] == NOW
     assert runs[0]["trigger_type"] == "scheduled"
+
+
+def test_java_422_keeps_blocking_issues_for_preview_and_build(
+    pipeline_client, fake_pipeline_client, monkeypatch
+):
+    details = {
+        "issues": [
+            {
+                "code": "NODE_CONFIG_INCOMPLETE",
+                "phase": "config",
+                "blocking": True,
+                "message": "缺少名称",
+            }
+        ]
+    }
+
+    def reject(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise UnprocessableEntityError(
+            "流程未就绪（PIPELINE_NOT_READY）",
+            code="PIPELINE_NOT_READY",
+            details=details,
+        )
+
+    monkeypatch.setattr(fake_pipeline_client, "preview_node", reject)
+    monkeypatch.setattr(fake_pipeline_client, "create_build", reject)
+
+    preview = pipeline_client.post(
+        f"{API}/{PIPELINE_ID}/previews",
+        json={"draft_revision": 3, "node_id": str(uuid.uuid4())},
+    )
+    assert preview.status_code == 422
+    assert preview.json()["details"] == details
+    assert preview.json()["code"] == "PIPELINE_NOT_READY"
+
+    build = pipeline_client.post(
+        f"{API}/{PIPELINE_ID}/builds",
+        json={"draft_revision": 3, "operation_id": str(uuid.uuid4())},
+    )
+    assert build.status_code == 422
+    assert build.json()["details"]["issues"][0]["code"] == "NODE_CONFIG_INCOMPLETE"

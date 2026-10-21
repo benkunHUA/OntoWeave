@@ -19,6 +19,7 @@ from app.errors import (
     InvalidRequestError,
     InvariantViolationError,
     NotFoundError,
+    UnprocessableEntityError,
 )
 from app.services.data_service.pipeline_client import PipelineDataServiceMixin
 
@@ -319,6 +320,12 @@ class DataServiceClient(PipelineDataServiceMixin):
             body = {}
         code = body.get("code") if isinstance(body, dict) else None
         message = body.get("message") if isinstance(body, dict) else None
+        details = body.get("details") if isinstance(body, dict) else None
+        if not isinstance(details, dict):
+            details = {}
+        issues = body.get("issues") if isinstance(body, dict) else None
+        if issues is not None and "issues" not in details:
+            details = {**details, "issues": issues}
         text = message or response.text or "数据服务请求失败"
         suffix = f"（{code}）" if code else ""
         if response.status_code == 404:
@@ -327,4 +334,10 @@ class DataServiceClient(PipelineDataServiceMixin):
             raise InvalidRequestError(f"{text}{suffix}")
         if response.status_code == 409:
             raise InvariantViolationError(f"{text}{suffix}")
+        if response.status_code == 422:
+            raise UnprocessableEntityError(
+                f"{text}{suffix}",
+                code=code,
+                details=details,
+            )
         raise DataServiceUnavailableError(f"{text}{suffix}")

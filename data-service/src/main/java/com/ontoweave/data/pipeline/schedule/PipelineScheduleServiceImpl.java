@@ -9,6 +9,7 @@ import com.ontoweave.data.pipeline.execution.build.PipelineBuildConstants;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.repository.PipelineScheduleRepository;
 import com.ontoweave.data.pipeline.repository.PipelineScheduleRunRepository;
+import com.ontoweave.data.pipeline.service.PipelineErrors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,7 +55,7 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
     @Override
     @Transactional
     public ScheduleResponse put(UUID pipelineId, UUID ownerId, ScheduleRequest request) {
-        requireOwned(pipelineId, ownerId);
+        requireActiveOwned(pipelineId, ownerId);
         if (request == null || blank(request.cronExpression()) || blank(request.timezone())) {
             throw invalid(PipelineScheduleConstants.ERROR_CRON_REQUIRED);
         }
@@ -82,7 +83,7 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
     @Override
     @Transactional
     public ScheduleResponse pause(UUID pipelineId, UUID ownerId) {
-        requireOwned(pipelineId, ownerId);
+        requireActiveOwned(pipelineId, ownerId);
         PipelineScheduleEntity schedule = schedules.lockByPipelineId(pipelineId)
                 .orElseThrow(() -> notFound(PipelineScheduleConstants.ERROR_SCHEDULE_NOT_FOUND));
         Instant now = Instant.now();
@@ -100,7 +101,7 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
     @Override
     @Transactional
     public ScheduleResponse resume(UUID pipelineId, UUID ownerId) {
-        requireOwned(pipelineId, ownerId);
+        requireActiveOwned(pipelineId, ownerId);
         PipelineScheduleEntity schedule = schedules.lockByPipelineId(pipelineId)
                 .orElseThrow(() -> notFound(PipelineScheduleConstants.ERROR_SCHEDULE_NOT_FOUND));
         try {
@@ -137,6 +138,21 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
                 .orElseThrow(() -> notFound(PipelineScheduleConstants.ERROR_PIPELINE_NOT_FOUND));
     }
 
+    private PipelineEntity requireActiveOwned(UUID pipelineId, UUID ownerId) {
+        if (pipelineId == null || ownerId == null) {
+            throw notFound(PipelineScheduleConstants.ERROR_PIPELINE_NOT_FOUND);
+        }
+        PipelineEntity pipeline = pipelines.lockActiveByIdAndOwnerId(pipelineId, ownerId)
+                .orElse(null);
+        if (pipeline != null) {
+            return pipeline;
+        }
+        if (pipelines.findByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
+            throw PipelineErrors.archived();
+        }
+        throw notFound(PipelineScheduleConstants.ERROR_PIPELINE_NOT_FOUND);
+    }
+
     private boolean blank(String value) {
         return value == null || value.isBlank();
     }
@@ -148,4 +164,5 @@ public class PipelineScheduleServiceImpl implements PipelineScheduleService {
     private ApiException notFound(String message) {
         return new ApiException(HttpStatus.NOT_FOUND, PipelineBuildConstants.CODE_NOT_FOUND, message);
     }
+
 }

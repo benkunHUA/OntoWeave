@@ -67,6 +67,7 @@ public class PipelineScheduleDispatcher {
         if (requested == null || requested.getId() == null || dueAt == null) {
             throw new IllegalArgumentException(PipelineScheduleConstants.ERROR_DISPATCH_INCOMPLETE);
         }
+        PipelineEntity pipeline = pipelines.lockById(requested.getPipelineId()).orElse(null);
         PipelineScheduleEntity schedule = schedules.lockById(requested.getId())
                 .orElseThrow(() -> new IllegalArgumentException(
                         PipelineScheduleConstants.ERROR_SCHEDULE_NOT_FOUND));
@@ -80,8 +81,17 @@ public class PipelineScheduleDispatcher {
                     PipelineScheduleConstants.MESSAGE_PAUSED, Instant.now());
         }
 
-        PipelineEntity pipeline = pipelines.findById(schedule.getPipelineId()).orElse(null);
-        if (pipeline == null || pipeline.getCurrentVersionId() == null) {
+        if (pipeline == null) {
+            return finish(run, PipelineScheduleRunStatus.FAILED,
+                    PipelineScheduleConstants.REASON_NOT_PUBLISHED,
+                    PipelineScheduleConstants.MESSAGE_NOT_PUBLISHED, Instant.now());
+        }
+        if (pipeline.getArchivedAt() != null) {
+            return finish(run, PipelineScheduleRunStatus.IGNORED,
+                    PipelineScheduleConstants.REASON_PIPELINE_ARCHIVED,
+                    PipelineScheduleConstants.MESSAGE_PIPELINE_ARCHIVED, Instant.now());
+        }
+        if (pipeline.getCurrentVersionId() == null) {
             return finish(run, PipelineScheduleRunStatus.FAILED,
                     PipelineScheduleConstants.REASON_NOT_PUBLISHED,
                     PipelineScheduleConstants.MESSAGE_NOT_PUBLISHED, Instant.now());

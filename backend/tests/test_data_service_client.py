@@ -9,6 +9,7 @@ from app.errors import (
     InvalidRequestError,
     InvariantViolationError,
     NotFoundError,
+    UnprocessableEntityError,
 )
 from app.services.data_service.client import DataServiceClient
 
@@ -86,6 +87,25 @@ def test_transport_error_is_unavailable(monkeypatch):
 
     with pytest.raises(DataServiceUnavailableError, match="数据服务不可用"):
         client.get_state(uuid.uuid4(), owner_id=uuid.uuid4())
+
+
+def test_422_preserves_code_and_details():
+    details = {"issues": [{"code": "NODE_CONFIG_INCOMPLETE", "message": "缺少名称"}]}
+
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(
+            422,
+            json={"code": "PIPELINE_NOT_READY", "message": "流程未就绪", "details": details},
+        )
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(UnprocessableEntityError) as caught:
+        client.preview_node(uuid.uuid4(), owner_id=uuid.uuid4(), payload={})
+
+    assert caught.value.code == "PIPELINE_NOT_READY"
+    assert caught.value.details == details
+    assert "流程未就绪" in str(caught.value)
 
 
 def test_pipeline_client_uses_documented_paths(monkeypatch):

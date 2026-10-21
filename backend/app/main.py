@@ -15,6 +15,7 @@ from app.errors import (
     InvalidTransitionError,
     InvariantViolationError,
     NotFoundError,
+    UnprocessableEntityError,
 )
 from app.logging_config import configure_logging
 from app.middleware import RequestContextMiddleware
@@ -103,6 +104,19 @@ def _create_app(
             status_code=503,
             content={"error": "data_service_unavailable", "message": str(exc)},
         )
+
+    @app.exception_handler(UnprocessableEntityError)
+    async def _unprocessable(_: Request, exc: UnprocessableEntityError) -> JSONResponse:
+        logger.warning("data service rejected request: %s", exc)
+        content: dict[str, object] = {
+            "error": "unprocessable_entity",
+            "message": str(exc),
+        }
+        if exc.code is not None:
+            content["code"] = exc.code
+        if exc.details:
+            content["details"] = exc.details
+        return JSONResponse(status_code=422, content=content)
 
     @app.exception_handler(InvalidTransitionError)
     async def _invalid(_: Request, exc: InvalidTransitionError) -> JSONResponse:

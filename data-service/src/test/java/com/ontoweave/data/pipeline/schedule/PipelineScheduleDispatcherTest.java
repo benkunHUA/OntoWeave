@@ -70,7 +70,7 @@ class PipelineScheduleDispatcherTest {
                 pipeline.getOwnerId()
         );
         when(schedules.lockById(schedule.getId())).thenReturn(Optional.of(schedule));
-        when(pipelines.findById(pipelineId)).thenReturn(Optional.of(pipeline));
+        when(pipelines.lockById(pipelineId)).thenReturn(Optional.of(pipeline));
         when(versions.findByIdAndPipelineId(versionId, pipelineId)).thenReturn(Optional.of(version));
         when(inputs.resolve(version)).thenReturn(List.of());
         when(runs.findByScheduleIdAndScheduledFor(schedule.getId(), dueAt))

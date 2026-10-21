@@ -44,6 +44,8 @@ class PipelineScheduleServiceTest {
         ownerId = UUID.randomUUID();
         pipeline = new PipelineEntity(pipelineId, ownerId, UUID.randomUUID(), "pipeline");
         when(pipelines.findByIdAndOwnerId(pipelineId, ownerId)).thenReturn(Optional.of(pipeline));
+        when(pipelines.lockActiveByIdAndOwnerId(pipelineId, ownerId))
+                .thenReturn(Optional.of(pipeline));
         when(schedules.save(any(PipelineScheduleEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -98,6 +100,23 @@ class PipelineScheduleServiceTest {
     void rejectsRequestsForAnotherOwner() {
         assertThatThrownBy(() -> service.get(pipelineId, UUID.randomUUID()))
                 .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void archivedPipelineRejectsScheduleWrites() {
+        pipeline.archive();
+        when(pipelines.lockActiveByIdAndOwnerId(pipelineId, ownerId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.put(
+                pipelineId, ownerId, new ScheduleRequest("0 9 * * *", "UTC", "archived")
+        )).isInstanceOfSatisfying(ApiException.class, error ->
+                assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED"));
+        assertThatThrownBy(() -> service.pause(pipelineId, ownerId))
+                .isInstanceOfSatisfying(ApiException.class, error ->
+                        assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED"));
+        assertThatThrownBy(() -> service.resume(pipelineId, ownerId))
+                .isInstanceOfSatisfying(ApiException.class, error ->
+                        assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED"));
     }
 
     private PipelineScheduleEntity schedule(Instant nextRunAt) {

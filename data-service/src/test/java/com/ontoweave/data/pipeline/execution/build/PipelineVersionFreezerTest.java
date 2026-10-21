@@ -2,6 +2,7 @@ package com.ontoweave.data.pipeline.execution.build;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.domain.PipelineDatasetEntity;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
@@ -20,11 +21,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PipelineVersionFreezerTest {
@@ -53,7 +56,8 @@ class PipelineVersionFreezerTest {
         PipelineDatasetEntity dataset = dataset(output);
         PipelineVersionEntity existing = version(3, "sha-256");
         ResolvedInput input = resolvedInput();
-        when(pipelines.lockById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
+        when(pipelines.lockActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(pipeline));
         when(drafts.findByIdForUpdate(PIPELINE_ID)).thenReturn(Optional.of(draft));
         when(outputs.findByPipelineIdAndArchivedAtIsNull(PIPELINE_ID)).thenReturn(List.of(output));
         when(datasets.findByOutputIdIn(anyCollection())).thenReturn(List.of(dataset));
@@ -77,7 +81,8 @@ class PipelineVersionFreezerTest {
         PipelineDatasetEntity dataset = dataset(output);
         PipelineVersionEntity latest = version(3, "old");
         ResolvedInput input = resolvedInput();
-        when(pipelines.lockById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
+        when(pipelines.lockActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(pipeline));
         when(drafts.findByIdForUpdate(PIPELINE_ID)).thenReturn(Optional.of(draft));
         when(outputs.findByPipelineIdAndArchivedAtIsNull(PIPELINE_ID)).thenReturn(List.of(output));
         when(datasets.findByOutputIdIn(anyCollection())).thenReturn(List.of(dataset));
@@ -97,6 +102,20 @@ class PipelineVersionFreezerTest {
         assertThat(frozen.version().getOutputs()).hasSize(1);
         assertThat(frozen.version().getInputRefs()).hasSize(1);
         assertThat(frozen.resolvedInputs()).containsExactly(input);
+    }
+
+    @Test
+    void archivedPipelineCannotBeFrozen() {
+        PipelineEntity archived = pipeline();
+        when(pipelines.lockActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.empty());
+        when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(archived));
+
+        assertThatThrownBy(() -> freezer.freeze(PIPELINE_ID, OWNER_ID, REVISION))
+                .isInstanceOfSatisfying(ApiException.class, error ->
+                        assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED"));
+        verifyNoInteractions(drafts, versions);
     }
 
     private PipelineEntity pipeline() {

@@ -8,6 +8,7 @@ import com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineDatasetEntity;
 import com.ontoweave.data.pipeline.domain.PipelineDatasetVersionEntity;
+import com.ontoweave.data.pipeline.domain.PipelineEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputStatus;
 import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
@@ -75,6 +76,10 @@ public class PipelinePublicationTransaction {
                     "存在未成功的输出，不能发布"
             );
         }
+        PipelineEntity pipeline = pipelines.lockById(build.getPipelineId())
+                .orElseThrow(() -> new PipelineBuildException(
+                        PipelineBuildConstants.CODE_PUBLISH_FAILED, "流程不存在"
+                ));
 
         Instant now = Instant.now();
         List<PublishedDataset> published = new ArrayList<>();
@@ -123,7 +128,8 @@ public class PipelinePublicationTransaction {
             ));
         }
 
-        if (pipelines.activateVersion(build.getPipelineId(), build.getPipelineVersionId()) != 1) {
+        if (pipeline.getArchivedAt() == null
+                && pipelines.activateVersion(build.getPipelineId(), build.getPipelineVersionId()) != 1) {
             throw new PipelineBuildException(
                     PipelineBuildConstants.CODE_PUBLISH_FAILED, "流程不存在"
             );
@@ -137,6 +143,7 @@ public class PipelinePublicationTransaction {
                 Map.of(
                         "buildId", buildId,
                         "pipelineId", build.getPipelineId(),
+                        "conversationId", pipeline.getConversationId(),
                         "pipelineVersionId", build.getPipelineVersionId(),
                         "outputs", outputPayloads
                 )

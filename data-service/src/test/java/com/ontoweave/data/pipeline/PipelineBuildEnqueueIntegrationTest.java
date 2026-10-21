@@ -25,6 +25,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -74,6 +75,22 @@ class PipelineBuildEnqueueIntegrationTest extends PipelineBuildIntegrationTestSu
 
         assertThat(count("data.pipeline_build")).isEqualTo(1);
         assertThat(count("data.pipeline_build_output")).isEqualTo(1);
+    }
+
+    @Test
+    void archivedPipelineCannotEnqueueAnotherBuild() {
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'archived', archived_at = now() WHERE id = ?",
+                pipelineId
+        );
+
+        assertThatThrownBy(() -> service.enqueue(
+                pipelineId, ownerId, new CreateBuildRequest(REVISION, UUID.randomUUID())
+        )).isInstanceOfSatisfying(ApiException.class, error -> {
+            assertThat(error.status().value()).isEqualTo(409);
+            assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED");
+        });
+        assertThat(count("data.pipeline_build")).isZero();
     }
 
     @Test

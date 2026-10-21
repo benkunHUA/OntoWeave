@@ -216,3 +216,39 @@ def test_real_pipeline_event_payload_persists_conversation_and_turn(session_fact
     client = TestClient(_create_app(session_factory, enable_agent_checkpoints=False))
     body = client.get(f"/api/v1/conversations/{conversation_id}/events").json()
     assert body[0]["turn_id"] == str(turn_id)
+
+
+def test_real_build_succeeded_payload_persists_event(session_factory):
+    conversation_id = uuid.uuid4()
+    pipeline_id = uuid.uuid4()
+    build_id = uuid.uuid4()
+    with session_factory() as session:
+        session.add(
+            conversation.Conversation(
+                id=conversation_id,
+                owner_id=OWNER_ID,
+                kind=ConversationKind.DATA_PIPELINE.value,
+                resource_id=pipeline_id,
+            )
+        )
+        session.commit()
+
+    envelope = _envelope(
+        "pipeline.build.succeeded",
+        {
+            "buildId": str(build_id),
+            "pipelineId": str(pipeline_id),
+            "conversationId": str(conversation_id),
+            "pipelineVersionId": str(uuid.uuid4()),
+            "outputs": [{"outputId": str(uuid.uuid4()), "datasetVersionId": str(uuid.uuid4())}],
+        },
+    )
+    assert conversation_event.ingest_envelope(session_factory, envelope) is True
+
+    with session_factory() as session:
+        rows = conversation_event.list_recent_events(session, conversation_id)
+    assert len(rows) == 1
+    assert rows[0].event_type == "pipeline.build.succeeded"
+    assert rows[0].turn_id is None
+    assert rows[0].payload["conversationId"] == str(conversation_id)
+    assert rows[0].payload["buildId"] == str(build_id)

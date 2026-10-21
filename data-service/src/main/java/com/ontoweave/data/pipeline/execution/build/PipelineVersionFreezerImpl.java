@@ -18,6 +18,7 @@ import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
+import com.ontoweave.data.pipeline.service.PipelineErrors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,9 +68,14 @@ public class PipelineVersionFreezerImpl implements PipelineVersionFreezer {
     @Override
     @Transactional
     public FrozenBuild freeze(UUID pipelineId, UUID ownerId, long draftRevision) {
-        PipelineEntity pipeline = pipelines.lockById(pipelineId)
-                .filter(value -> value.getOwnerId().equals(ownerId))
-                .orElseThrow(() -> notFound("流程不存在"));
+        PipelineEntity pipeline = pipelines.lockActiveByIdAndOwnerId(pipelineId, ownerId)
+                .orElse(null);
+        if (pipeline == null) {
+            if (pipelines.findByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
+                throw PipelineErrors.archived();
+            }
+            throw notFound("流程不存在");
+        }
         PipelineDraftEntity draft = drafts.findByIdForUpdate(pipelineId)
                 .orElseThrow(() -> notFound("流程草稿不存在"));
         if (draft.getRevision() != draftRevision) {

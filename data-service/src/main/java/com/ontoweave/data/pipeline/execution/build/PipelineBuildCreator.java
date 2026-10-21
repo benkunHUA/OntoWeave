@@ -11,6 +11,7 @@ import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
+import com.ontoweave.data.pipeline.service.PipelineErrors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -61,8 +62,12 @@ public class PipelineBuildCreator {
             PipelineBuildEntity candidate,
             PipelineVersionEntity version
     ) {
-        pipelines.lockById(candidate.getPipelineId())
-                .orElseThrow(() -> notFound("流程不存在"));
+        if (pipelines.lockActiveById(candidate.getPipelineId()).isEmpty()) {
+            if (pipelines.existsById(candidate.getPipelineId())) {
+                throw PipelineErrors.archived();
+            }
+            throw notFound("流程不存在");
+        }
         Optional<PipelineBuildEntity> existing = builds.findByPipelineIdAndOperationId(
                 candidate.getPipelineId(), candidate.getOperationId()
         );

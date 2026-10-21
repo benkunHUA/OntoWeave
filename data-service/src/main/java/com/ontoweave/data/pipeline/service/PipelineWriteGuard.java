@@ -34,7 +34,7 @@ public class PipelineWriteGuard {
 
     public LockedPipeline lockWritableWithDraft(UUID pipelineId, UUID ownerId) {
         PipelineEntity pipeline = lockOwned(pipelineId, ownerId);
-        if (pipeline.getStatus() == PipelineStatus.ARCHIVED) {
+        if (pipeline.getArchivedAt() != null || pipeline.getStatus() == PipelineStatus.ARCHIVED) {
             throw archived();
         }
         return new LockedPipeline(pipeline, lockDraft(pipelineId));

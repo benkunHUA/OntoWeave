@@ -52,6 +52,8 @@ class PipelinePublisherTest {
     void publishesAllOutputsAndSwitchesPointersInOneTransaction() {
         Fixture fixture = fixture();
         when(builds.lockById(fixture.buildId())).thenReturn(Optional.of(fixture.build()));
+        when(pipelines.lockById(fixture.pipeline().getId()))
+                .thenReturn(Optional.of(fixture.pipeline()));
         when(buildOutputs.findByBuildIdOrderByCreatedAtAsc(fixture.buildId()))
                 .thenReturn(List.of(fixture.outputA(), fixture.outputB()));
         when(datasets.findByOutputId(fixture.outputA().getOutputId()))
@@ -128,6 +130,8 @@ class PipelinePublisherTest {
     void refusesToPublishWhenADatasetPointerCannotBeSwitched() {
         Fixture fixture = fixture();
         when(builds.lockById(fixture.buildId())).thenReturn(Optional.of(fixture.build()));
+        when(pipelines.lockById(fixture.pipeline().getId()))
+                .thenReturn(Optional.of(fixture.pipeline()));
         when(buildOutputs.findByBuildIdOrderByCreatedAtAsc(fixture.buildId()))
                 .thenReturn(List.of(fixture.outputA()));
         when(datasets.findByOutputId(fixture.outputA().getOutputId()))

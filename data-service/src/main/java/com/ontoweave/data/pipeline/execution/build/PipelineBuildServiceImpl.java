@@ -13,6 +13,7 @@ import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
+import com.ontoweave.data.pipeline.service.PipelineErrors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -109,7 +110,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
                 || command.pipelineVersionId() == null || command.operationId() == null) {
             throw invalid("调度构建参数不完整");
         }
-        pipelines.findById(command.pipelineId()).orElseThrow(() -> notFound("流程不存在"));
+        requireActivePipeline(command.pipelineId());
         Optional<PipelineBuildEntity> existing = builds
                 .findByPipelineIdAndOperationId(command.pipelineId(), command.operationId());
         if (existing.isPresent()) {
@@ -184,10 +185,26 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     private void requireOwned(UUID pipelineId, UUID ownerId) {
-        if (pipelineId == null || ownerId == null
-                || pipelines.findByIdAndOwnerId(pipelineId, ownerId).isEmpty()) {
+        if (pipelineId == null || ownerId == null) {
             throw notFound("流程不存在");
         }
+        if (pipelines.findActiveByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
+            return;
+        }
+        if (pipelines.findByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
+            throw PipelineErrors.archived();
+        }
+        throw notFound("流程不存在");
+    }
+
+    private void requireActivePipeline(UUID pipelineId) {
+        if (pipelines.findActiveById(pipelineId).isPresent()) {
+            return;
+        }
+        if (pipelines.existsById(pipelineId)) {
+            throw PipelineErrors.archived();
+        }
+        throw notFound("流程不存在");
     }
 
     private void requireNoActiveBuild(UUID pipelineId) {

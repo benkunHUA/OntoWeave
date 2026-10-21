@@ -9,9 +9,11 @@ public final class PipelineScheduleConstants {
 
     public static final String REASON_NO_CHANGE = "NO_CHANGE";
     public static final String REASON_SCHEDULE_PAUSED = "SCHEDULE_PAUSED";
+    public static final String REASON_PIPELINE_ARCHIVED = "PIPELINE_ARCHIVED";
     public static final String REASON_NOT_PUBLISHED = "SCHEDULE_NOT_PUBLISHED";
     public static final String MESSAGE_NO_CHANGE = "流程版本与输入未发生变化";
     public static final String MESSAGE_PAUSED = "调度已暂停";
+    public static final String MESSAGE_PIPELINE_ARCHIVED = "流程已归档";
     public static final String MESSAGE_NOT_PUBLISHED = "流程没有已发布版本";
     public static final String MESSAGE_VERSION_NOT_FOUND = "当前发布版本不存在";
     public static final String ERROR_PIPELINE_NOT_FOUND = "流程不存在";

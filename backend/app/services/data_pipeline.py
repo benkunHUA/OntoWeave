@@ -18,6 +18,7 @@ from app.schemas.data_pipeline import PipelineCopy, PipelineCreate
 from app.services import conversation
 from app.services.data_service import mapping
 from app.services.data_service.client import DataServiceClient
+from app.services.operation_lock import operation_lock
 from app.vocabulary import ConversationKind
 
 PIPELINE_NAMESPACE = uuid.NAMESPACE_URL
@@ -89,25 +90,26 @@ def _create_with_java(
     payload: PipelineCreate,
     invoke,
 ) -> dict:
-    pipeline_id, conversation_id = pipeline_ids(owner_id, operation_id)
-    conv, created = _ensure_conversation(
-        session,
-        owner_id=owner_id,
-        pipeline_id=pipeline_id,
-        conversation_id=conversation_id,
-        title=payload.name,
-    )
-    # Java 必须能在内部接口里查到会话；先提交，超出请求级事务也保留可重试记录。
-    session.commit()
-    try:
-        row = invoke(pipeline_id, conv.id)
-    except _JAVA_4XX:
-        if created:
-            conversation.delete_conversation(session, conv.id, owner_id=owner_id)
-            session.commit()
-        raise
-    # 超时 / 5xx 直接上抛：会话已提交，同一 operation_id 重试会复用。
-    return mapping.pipeline(row)
+    with operation_lock(session, "data-pipeline", owner_id, operation_id):
+        pipeline_id, conversation_id = pipeline_ids(owner_id, operation_id)
+        conv, created = _ensure_conversation(
+            session,
+            owner_id=owner_id,
+            pipeline_id=pipeline_id,
+            conversation_id=conversation_id,
+            title=payload.name,
+        )
+        # Java 必须能在内部接口里查到会话；先提交，超出请求级事务也保留可重试记录。
+        session.commit()
+        try:
+            row = invoke(pipeline_id, conv.id)
+        except _JAVA_4XX:
+            if created:
+                conversation.delete_conversation(session, conv.id, owner_id=owner_id)
+                session.commit()
+            raise
+        # 超时 / 5xx 直接上抛：会话已提交，同一 operation_id 重试会复用。
+        return mapping.pipeline(row)
 
 
 def create_pipeline(

@@ -24,5 +24,6 @@ def validate_conversation(
 ) -> Conversation:
     """确认会话存在、归属正确，并且有可用的 Agent 定义。"""
     conv = conversation.get_conversation(session, conversation_id, owner_id=owner_id)
+    conversation.ensure_writable(conv)
     get_definition(conv.kind)
     return conv

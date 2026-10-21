@@ -197,3 +197,70 @@ def test_concurrent_create_converges_on_the_unique_conversation(engine) -> None:
                 )
             )
             session.commit()
+
+
+def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(engine) -> None:
+    factory = build_session_factory(engine)
+    owner = uuid.uuid4()
+    operation = uuid.uuid4()
+    pipeline_id, conversation_id = pipeline_ids(owner, operation)
+    start = threading.Barrier(2)
+    java_entered = threading.Event()
+    reused_succeeded = threading.Event()
+
+    class _RaceClient:
+        def __init__(self, *, fail: bool) -> None:
+            self.fail = fail
+
+        def create_pipeline(self, *, owner_id, payload, operation_id=None):  # noqa: ANN001, ARG002
+            if self.fail:
+                java_entered.set()
+                # 给复用请求足够时间命中旧实现；有操作锁时它会等 A 结束再新建。
+                reused_succeeded.wait(timeout=2)
+                raise InvalidRequestError("名称不合法")
+            java_entered.wait(timeout=5)
+            with factory() as check:
+                assert check.get(Conversation, uuid.UUID(payload["conversationId"])) is not None
+            reused_succeeded.set()
+            return _pipeline_row(
+                uuid.UUID(payload["pipelineId"]), uuid.UUID(payload["conversationId"])
+            )
+
+    def run(*, fail: bool):
+        with factory() as session:
+            start.wait(timeout=5)
+            return create_pipeline(
+                session,
+                owner_id=owner,
+                client=_RaceClient(fail=fail),
+                payload=PipelineCreate(name="并发补偿"),
+                operation_id=operation,
+            )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            failed = pool.submit(run, fail=True)
+            succeeded = pool.submit(run, fail=False)
+            with pytest.raises(InvalidRequestError):
+                failed.result(timeout=10)
+            assert succeeded.result(timeout=10)["id"] == str(pipeline_id)
+
+        with factory() as session:
+            rows = list(
+                session.scalars(
+                    select(Conversation).where(
+                        Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                        Conversation.resource_id == pipeline_id,
+                    )
+                )
+            )
+        assert [row.id for row in rows] == [conversation_id]
+    finally:
+        with factory() as session:
+            session.execute(
+                delete(Conversation).where(
+                    Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                    Conversation.resource_id == pipeline_id,
+                )
+            )
+            session.commit()

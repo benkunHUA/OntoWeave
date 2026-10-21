@@ -6,14 +6,18 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.Collection;
 
 public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> {
 
     Optional<PipelineEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
+
+    Optional<PipelineEntity> findActiveById(UUID id);
+
+    Optional<PipelineEntity> findActiveByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<PipelineEntity> findByIdInAndOwnerId(Collection<UUID> ids, UUID ownerId);
 
@@ -54,11 +58,28 @@ public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> 
     @Query(value = "SELECT * FROM data.pipeline WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<PipelineEntity> lockById(@Param("id") UUID id);
 
+    @Query(value = """
+            SELECT * FROM data.pipeline
+            WHERE id = :id AND archived_at IS NULL
+            FOR UPDATE
+            """, nativeQuery = true)
+    Optional<PipelineEntity> lockActiveById(@Param("id") UUID id);
+
+    @Query(value = """
+            SELECT * FROM data.pipeline
+            WHERE id = :id AND owner_id = :ownerId AND archived_at IS NULL
+            FOR UPDATE
+            """, nativeQuery = true)
+    Optional<PipelineEntity> lockActiveByIdAndOwnerId(
+            @Param("id") UUID id,
+            @Param("ownerId") UUID ownerId
+    );
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
             UPDATE data.pipeline
             SET current_version_id = :versionId, status = 'active', updated_at = now()
-            WHERE id = :pipelineId
+            WHERE id = :pipelineId AND archived_at IS NULL
             """, nativeQuery = true)
     int activateVersion(@Param("pipelineId") UUID pipelineId, @Param("versionId") UUID versionId);
 }

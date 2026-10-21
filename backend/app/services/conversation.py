@@ -57,7 +57,7 @@ def get_conversation(
     return conv
 
 
-def _ensure_writable(conv: Conversation) -> None:
+def ensure_writable(conv: Conversation) -> None:
     if conv.archived_at is not None:
         raise InvariantViolationError(f"conversation {conv.id} is archived")
 
@@ -99,7 +99,7 @@ def rename_conversation(
     owner_id: uuid.UUID | None = None,
 ) -> Conversation:
     conv = get_conversation(session, conversation_id, owner_id=owner_id)
-    _ensure_writable(conv)
+    ensure_writable(conv)
     normalized = title.strip()
     if not normalized:
         raise InvariantViolationError("conversation title must not be empty")
@@ -129,7 +129,7 @@ def delete_conversation(
     具体口径见 `app.services.graph_cleanup`。其它资源会话只删会话与消息。
     """
     conv = get_conversation(session, conversation_id, owner_id=owner_id)
-    _ensure_writable(conv)
+    ensure_writable(conv)
     graph_row = None
     if conv.kind == ConversationKind.MODELING:
         graph_id = conv.resource_id
@@ -193,7 +193,7 @@ def add_message(
     kind: str = "message",
     blocks: list[dict] | None = None,
 ) -> ConversationMessage:
-    _ensure_writable(get_conversation(session, conversation_id))
+    ensure_writable(get_conversation(session, conversation_id))
     message = ConversationMessage(
         conversation_id=conversation_id,
         role=role,
@@ -222,7 +222,7 @@ def resolve_tool_block(
     下一轮才出现，而那一轮并没有对应的起始块。状态必须回填到上一轮那条消息里，
     否则前端刷新后还是「等待你的判断」，一直转圈。
     """
-    _ensure_writable(get_conversation(session, conversation_id))
+    ensure_writable(get_conversation(session, conversation_id))
     rows = session.scalars(
         select(ConversationMessage)
         .where(ConversationMessage.conversation_id == conversation_id)
