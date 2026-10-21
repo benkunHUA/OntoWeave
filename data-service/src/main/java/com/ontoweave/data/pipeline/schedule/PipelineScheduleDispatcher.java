@@ -135,10 +135,6 @@ public class PipelineScheduleDispatcher {
             return finish(run, PipelineScheduleRunStatus.FAILED,
                     PipelineScheduleConstants.REASON_DISPATCH_FAILED,
                     error.getMessage(), Instant.now());
-        } catch (RuntimeException error) {
-            return finish(run, PipelineScheduleRunStatus.FAILED,
-                    PipelineScheduleConstants.REASON_DISPATCH_FAILED,
-                    PipelineScheduleConstants.MESSAGE_DISPATCH_FAILED, Instant.now());
         }
     }
 

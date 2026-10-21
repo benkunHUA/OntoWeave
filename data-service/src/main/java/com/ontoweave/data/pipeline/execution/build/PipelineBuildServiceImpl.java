@@ -16,6 +16,7 @@ import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -103,6 +104,10 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     @Override
+    @Transactional(
+            propagation = Propagation.REQUIRED,
+            noRollbackFor = ApiException.class
+    )
     public UUID enqueueScheduled(EnqueueScheduledBuild command) {
         if (command == null || command.pipelineId() == null
                 || command.pipelineVersionId() == null || command.operationId() == null) {
@@ -131,11 +136,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
                 json.createObjectNode()
         );
         build.updateLogicHash(command.logicHash());
-        try {
-            return creator.create(build, version).getId();
-        } catch (DataIntegrityViolationException error) {
-            return recoverConflict(command.pipelineId(), command.operationId(), error).id();
-        }
+        return creator.createInCurrentTransaction(build, version).getId();
     }
 
     @Override

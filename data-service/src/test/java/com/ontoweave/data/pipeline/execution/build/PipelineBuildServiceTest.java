@@ -18,6 +18,7 @@ import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
@@ -146,7 +147,9 @@ class PipelineBuildServiceTest {
                 .thenReturn(Optional.of(version));
         when(builds.findByPipelineIdAndOperationId(PIPELINE_ID, OPERATION_ID)).thenReturn(Optional.empty());
         when(builds.existsByPipelineIdAndStatusIn(any(), anyList())).thenReturn(false);
-        when(creator.create(any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)))
+        when(creator.createInCurrentTransaction(
+                any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)
+        ))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         UUID buildId = service.enqueueScheduled(new EnqueueScheduledBuild(
@@ -160,6 +163,28 @@ class PipelineBuildServiceTest {
 
         assertThat(buildId).isNotNull();
         verifyNoInteractions(checks, freezer);
+        verify(creator).createInCurrentTransaction(
+                any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)
+        );
+        verify(creator, never()).create(any(PipelineBuildEntity.class), any(PipelineVersionEntity.class));
+    }
+
+    @Test
+    void scheduledBuildDoesNotSwallowDatabaseConflicts() {
+        PipelineVersionEntity version = version();
+        when(pipelines.findById(PIPELINE_ID)).thenReturn(Optional.of(mock(PipelineEntity.class)));
+        when(versions.findByIdAndPipelineId(version.getId(), PIPELINE_ID))
+                .thenReturn(Optional.of(version));
+        when(builds.findByPipelineIdAndOperationId(PIPELINE_ID, OPERATION_ID)).thenReturn(Optional.empty());
+        when(builds.existsByPipelineIdAndStatusIn(any(), anyList())).thenReturn(false);
+        when(creator.createInCurrentTransaction(
+                any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)
+        )).thenThrow(new DataIntegrityViolationException("conflict"));
+
+        assertThatThrownBy(() -> service.enqueueScheduled(new EnqueueScheduledBuild(
+                PIPELINE_ID, version.getId(), OWNER_ID, OPERATION_ID, List.of(), "logic-hash"
+        ))).isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("conflict");
     }
 
     @Test

@@ -48,6 +48,24 @@ public class PipelineBuildCreator {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PipelineBuildEntity create(PipelineBuildEntity candidate, PipelineVersionEntity version) {
+        return createInternal(candidate, version);
+    }
+
+    @Transactional(
+            propagation = Propagation.MANDATORY,
+            noRollbackFor = ApiException.class
+    )
+    public PipelineBuildEntity createInCurrentTransaction(
+            PipelineBuildEntity candidate,
+            PipelineVersionEntity version
+    ) {
+        return createInternal(candidate, version);
+    }
+
+    private PipelineBuildEntity createInternal(
+            PipelineBuildEntity candidate,
+            PipelineVersionEntity version
+    ) {
         pipelines.lockById(candidate.getPipelineId())
                 .orElseThrow(() -> notFound("流程不存在"));
         Optional<PipelineBuildEntity> existing = builds.findByPipelineIdAndOperationId(

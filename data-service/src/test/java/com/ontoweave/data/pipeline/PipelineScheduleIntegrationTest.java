@@ -3,12 +3,19 @@ package com.ontoweave.data.pipeline;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineScheduleEntity;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
+import com.ontoweave.data.pipeline.execution.build.EnqueueScheduledBuild;
+import com.ontoweave.data.pipeline.execution.build.PipelineBuildService;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
 import com.ontoweave.data.pipeline.schedule.PipelineScheduleClaimer;
 import com.ontoweave.data.pipeline.schedule.ScheduleLogicHash;
 import com.ontoweave.data.pipeline.schedule.ScheduleOperationIds;
 import com.ontoweave.data.pipeline.schedule.ScheduleRunResponse;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,6 +27,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 class PipelineScheduleIntegrationTest extends PipelineScheduleIntegrationTestSupport {
+
+    @Autowired
+    private PlatformTransactionManager transactions;
+
+    @Autowired
+    private PipelineBuildService buildService;
 
     @Test
     void concurrentClaimersAdvanceEachDueScheduleExactlyOnce() throws Exception {
@@ -61,6 +74,69 @@ class PipelineScheduleIntegrationTest extends PipelineScheduleIntegrationTestSup
         assertThat(jdbc.queryForObject(
                 "SELECT operation_id FROM data.pipeline_build", UUID.class
         )).isEqualTo(ScheduleOperationIds.forRun(scheduleId, dueAt));
+    }
+
+    @Test
+    void dispatchRollsBackBuildOutputsAndRunWhenTheCallerTransactionFails() {
+        UUID pipelineId = insertPipeline(ownerId);
+        OutputFixture output = insertOutput(pipelineId, "orders");
+        ArrayNode outputs = mapper.createArrayNode();
+        ObjectNode frozen = outputs.addObject();
+        frozen.put("outputId", output.outputId().toString());
+        frozen.put("nodeId", output.nodeId().toString());
+        frozen.put("outputType", "dataset");
+        frozen.put("name", "orders");
+        frozen.put("writeMode", "snapshot");
+        frozen.set("primaryKeyColumns", mapper.createArrayNode());
+        frozen.set("expectations", mapper.createArrayNode());
+        UUID versionId = insertVersion(
+                pipelineId, 1, mapper.createObjectNode(), outputs
+        );
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'active', current_version_id = ? WHERE id = ?",
+                versionId, pipelineId
+        );
+        Instant dueAt = Instant.parse("2026-03-07T10:00:00Z");
+        UUID scheduleId = insertSchedule(pipelineId, dueAt);
+
+        assertThatThrownBy(() -> new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            ScheduleRunResponse run = schedules.dispatch(schedule(scheduleId), dueAt);
+            assertThat(run.status()).isEqualTo("dispatched");
+            assertThat(count("data.pipeline_build")).isEqualTo(1);
+            assertThat(count("data.pipeline_build_output")).isEqualTo(1);
+            throw new IllegalStateException("force rollback");
+        })).isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("force rollback");
+
+        assertThat(count("data.pipeline_build")).isZero();
+        assertThat(count("data.pipeline_build_output")).isZero();
+        assertThat(count("data.pipeline_schedule_run")).isZero();
+    }
+
+    @Test
+    void activeBuildConflictDoesNotPoisonTheCallerTransaction() {
+        PublishedPipeline published = publishedPipeline();
+        insertBuild(
+                published.pipelineId(), published.versionId(), PipelineBuildStatus.QUEUED, UUID.randomUUID()
+        );
+        EnqueueScheduledBuild command = new EnqueueScheduledBuild(
+                published.pipelineId(), published.versionId(), ownerId, UUID.randomUUID(),
+                List.of(), "logic-hash"
+        );
+
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            assertThatThrownBy(() -> buildService.enqueueScheduled(command))
+                    .hasMessageContaining("流程已有排队或运行中的构建");
+            jdbc.update(
+                    "UPDATE data.pipeline SET name = 'transaction-still-usable' WHERE id = ?",
+                    published.pipelineId()
+            );
+        });
+
+        assertThat(jdbc.queryForObject(
+                "SELECT name FROM data.pipeline WHERE id = ?", String.class, published.pipelineId()
+        )).isEqualTo("transaction-still-usable");
+        assertThat(count("data.pipeline_build")).isEqualTo(1);
     }
 
     @Test

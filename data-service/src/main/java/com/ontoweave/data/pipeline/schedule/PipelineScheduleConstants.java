@@ -16,7 +16,6 @@ public final class PipelineScheduleConstants {
     public static final String MESSAGE_NOT_PUBLISHED = "流程没有已发布版本";
     public static final String MESSAGE_VERSION_NOT_FOUND = "当前发布版本不存在";
     public static final String MESSAGE_INPUT_RESOLUTION_FAILED = "解析输入版本失败";
-    public static final String MESSAGE_DISPATCH_FAILED = "派发调度构建失败";
     public static final String ERROR_PIPELINE_NOT_FOUND = "流程不存在";
     public static final String ERROR_SCHEDULE_NOT_FOUND = "调度不存在";
     public static final String ERROR_DISPATCH_INCOMPLETE = "调度运行参数不完整";
