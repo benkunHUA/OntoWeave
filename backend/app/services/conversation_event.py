@@ -49,6 +49,30 @@ def _conversation_id(session: Session, payload: dict) -> uuid.UUID | None:
     return found.id if found is not None else None
 
 
+def _event_insert(
+    *,
+    conversation_id: uuid.UUID,
+    event_id: uuid.UUID,
+    event_type: str,
+    summary: str,
+    payload: dict,
+    operation_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
+    turn_id: uuid.UUID | None = None,
+) -> Any:
+    return pg_insert(ConversationEvent).values(
+        id=uuid.uuid4(),
+        conversation_id=conversation_id,
+        event_id=event_id,
+        operation_id=operation_id,
+        run_id=run_id,
+        turn_id=turn_id,
+        event_type=event_type,
+        summary=summary,
+        payload=payload,
+    )
+
+
 def append_event(
     session: Session,
     *,
@@ -63,22 +87,49 @@ def append_event(
 ) -> bool:
     """按 `event_id` 幂等写入；返回是否真的新增了一条。"""
     statement = (
-        pg_insert(ConversationEvent)
-        .values(
-            id=uuid.uuid4(),
+        _event_insert(
             conversation_id=conversation_id,
             event_id=event_id,
-            operation_id=operation_id,
-            run_id=run_id,
-            turn_id=turn_id,
             event_type=event_type,
             summary=summary,
             payload=payload,
+            operation_id=operation_id,
+            run_id=run_id,
+            turn_id=turn_id,
         )
         .on_conflict_do_nothing(index_elements=[ConversationEvent.event_id])
         .returning(ConversationEvent.id)
     )
     return session.execute(statement).scalar_one_or_none() is not None
+
+
+def upsert_event(
+    session: Session,
+    *,
+    conversation_id: uuid.UUID,
+    event_id: uuid.UUID,
+    event_type: str,
+    summary: str,
+    payload: dict,
+    operation_id: uuid.UUID | None = None,
+    run_id: uuid.UUID | None = None,
+    turn_id: uuid.UUID | None = None,
+) -> None:
+    """仅用于每轮可合并事件；同一 event_id 更新汇总、载荷与 turn_id。"""
+    statement = _event_insert(
+        conversation_id=conversation_id,
+        event_id=event_id,
+        event_type=event_type,
+        summary=summary,
+        payload=payload,
+        operation_id=operation_id,
+        run_id=run_id,
+        turn_id=turn_id,
+    ).on_conflict_do_update(
+        index_elements=[ConversationEvent.event_id],
+        set_={"summary": summary, "payload": payload, "turn_id": turn_id},
+    )
+    session.execute(statement)
 
 
 def ingest_envelope(

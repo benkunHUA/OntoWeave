@@ -66,6 +66,26 @@ class PipelineApiDraftIntegrationTest extends PipelineApiTestSupport {
     }
 
     @Test
+    void acceptsAddNodeWithoutPositionAndAssignsDefaultCoordinates() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
+        ObjectNode body = (ObjectNode) objectMapper.readTree(addNodeBody(0, UUID.randomUUID()));
+        ((ObjectNode) body.path("node")).remove("position");
+
+        JsonNode added = json(mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        JsonNode position = added.path("definition").path("nodes").get(0).path("position");
+        assertThat(position.path("x").asInt()).isZero();
+        assertThat(position.path("y").asInt()).isZero();
+    }
+
+    @Test
     void rejectsUnknownDraftCommandType() throws Exception {
         UUID ownerId = UUID.randomUUID();
         UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");

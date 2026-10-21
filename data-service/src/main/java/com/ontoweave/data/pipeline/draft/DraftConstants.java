@@ -19,6 +19,10 @@ public final class DraftConstants {
     public static final String FIELD_TARGET_PORT = "targetPort";
     public static final String FIELD_OUTPUT_ID = "outputId";
 
+    public static final double DEFAULT_NODE_POSITION_X = 0;
+    public static final double DEFAULT_NODE_POSITION_Y = 0;
+    public static final double NODE_HORIZONTAL_SPACING = 240;
+
     public static final String WRITE_MODE_SNAPSHOT = "snapshot";
 
     public static final String EVENT_AGGREGATE_TYPE = "pipeline";

@@ -32,6 +32,10 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
         assertThat(response.definition().path("nodes")).hasSize(1);
         assertThat(response.definition().path("nodes").get(0).path("id").asText())
                 .isEqualTo(NODE_ID.toString());
+        assertThat(response.definition().path("nodes").get(0).path("position").path("x").asInt())
+                .isEqualTo(1);
+        assertThat(response.definition().path("nodes").get(0).path("position").path("y").asInt())
+                .isEqualTo(2);
 
         ArgumentCaptor<PipelineEditRecorder.SemanticEdit> edit =
                 ArgumentCaptor.forClass(PipelineEditRecorder.SemanticEdit.class);
@@ -49,6 +53,40 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
         assertThat(event.path("operationId").asText()).isEqualTo(operationId(4).toString());
         assertThat(event.path("turnId").asText()).isEqualTo(turnId(4).toString());
         assertThat(event.path("opType").asText()).isEqualTo("add_node");
+    }
+
+    @Test
+    void assignsDefaultPositionWhenAddingToEmptyDraft() {
+        lockDraft(4, emptyDraft());
+        when(drafts.updateDefinition(eq(PIPELINE_ID), eq(4L), anyString(), eq("user"), eq(OWNER_ID)))
+                .thenReturn(1);
+        AddNode command = new AddNode(
+                4L, operationId(4), turnId(4), UUID.randomUUID(), "filter", "Filter",
+                mapper.createObjectNode(), null
+        );
+
+        DraftResponse response = service.apply(PIPELINE_ID, OWNER_ID, command);
+
+        JsonNode position = response.definition().path("nodes").get(0).path("position");
+        assertThat(position.path("x").asInt()).isZero();
+        assertThat(position.path("y").asInt()).isZero();
+    }
+
+    @Test
+    void assignsPositionToRightOfExistingNodeWhenOmitted() {
+        lockDraft(4, draftWithNode(position(100, 200)));
+        when(drafts.updateDefinition(eq(PIPELINE_ID), eq(4L), anyString(), eq("user"), eq(OWNER_ID)))
+                .thenReturn(1);
+        AddNode command = new AddNode(
+                4L, operationId(4), turnId(4), UUID.randomUUID(), "filter", "Filter",
+                mapper.createObjectNode(), null
+        );
+
+        DraftResponse response = service.apply(PIPELINE_ID, OWNER_ID, command);
+
+        JsonNode position = response.definition().path("nodes").get(1).path("position");
+        assertThat(position.path("x").asInt()).isEqualTo(340);
+        assertThat(position.path("y").asInt()).isEqualTo(200);
     }
 
     @Test

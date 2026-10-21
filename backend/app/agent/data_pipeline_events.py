@@ -13,6 +13,7 @@ from app.services import conversation_event
 TURN_EVENT_TYPE = "pipeline.agent.turn"
 QUESTION_EVENT_TYPE = "pipeline.agent.question"
 TURN_EVENT_SUMMARY = "本轮数据整理已完成"
+TURN_EVENT_LOAD_ERROR_SUMMARY = "本轮数据整理未能读取最新状态"
 QUESTION_EVENT_SUMMARY = "数据整理助手已提问"
 
 _NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "ontoweave:data-pipeline-agent-events")
@@ -31,12 +32,12 @@ def record_turn(
     draft_revision: int | None,
     load_error: str | None,
 ) -> bool:
-    return conversation_event.append_event(
+    conversation_event.upsert_event(
         session,
         conversation_id=conversation_id,
         event_id=_event_id(TURN_EVENT_TYPE, conversation_id, turn_id),
         event_type=TURN_EVENT_TYPE,
-        summary=TURN_EVENT_SUMMARY,
+        summary=TURN_EVENT_LOAD_ERROR_SUMMARY if load_error else TURN_EVENT_SUMMARY,
         turn_id=turn_id,
         payload={
             "pipelineId": str(pipeline_id),
@@ -45,6 +46,7 @@ def record_turn(
             "loadError": load_error,
         },
     )
+    return True
 
 
 def record_question(

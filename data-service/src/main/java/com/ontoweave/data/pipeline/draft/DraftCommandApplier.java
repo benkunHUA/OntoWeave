@@ -45,10 +45,12 @@ final class DraftCommandApplier {
 
     private final PipelineNodeCatalog catalog;
     private final ObjectMapper mapper;
+    private final DraftNodePositioner positioner;
 
     DraftCommandApplier(PipelineNodeCatalog catalog, ObjectMapper mapper) {
         this.catalog = catalog;
         this.mapper = mapper;
+        this.positioner = new DraftNodePositioner(mapper);
     }
 
     DraftMutation apply(JsonNode definition, DraftCommand command) {
@@ -126,8 +128,8 @@ final class DraftCommandApplier {
         node.put(FIELD_TYPE, type);
         node.put(FIELD_NAME, command.name().trim());
         node.set(FIELD_CONFIG, validateConfig(catalog, type, command.config()));
-        node.set(FIELD_POSITION, requirePosition(command.position()));
         ArrayNode nodes = root.withArray(FIELD_NODES);
+        node.set(FIELD_POSITION, positioner.resolve(nodes, command.position()));
         if (findNode(nodes, command.nodeId()).isPresent()) {
             throw invalid("节点已存在: " + command.nodeId());
         }

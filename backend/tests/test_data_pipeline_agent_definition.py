@@ -259,6 +259,57 @@ def test_build_state_update_appends_one_idempotent_turn_event(session, monkeypat
     assert rows[0].payload["loadError"] is None
 
 
+def test_build_state_update_upserts_turn_event_with_final_state(session, monkeypatch):
+    client = FakePipelineClient()
+    current_revision = {"value": 3}
+
+    def get_draft(pipeline_id, *, owner_id):  # noqa: ARG001
+        return {
+            "pipelineId": str(pipeline_id),
+            "revision": current_revision["value"],
+            "definition": {"nodes": []},
+        }
+
+    monkeypatch.setattr(client, "get_draft", get_draft)
+    monkeypatch.setattr(
+        "app.agent.definitions.data_pipeline.DataServiceClient", lambda settings: client
+    )
+    owner = uuid.uuid4()
+    conv = _conversation(session, owner)
+    definition = DataPipelineAgentDefinition()
+    prepared = definition.prepare_run(session, conversation=conv, owner_id=owner)
+    turn_id = uuid.uuid4()
+    run = replace(prepared, turn_id=turn_id)
+
+    first = definition.build_state_update(session, Settings(), run)
+    current_revision["value"] = 9
+    second = definition.build_state_update(session, Settings(), run)
+
+    def fail(*_args, **_kwargs):
+        raise DataServiceUnavailableError("java down")
+
+    monkeypatch.setattr(client, "get_draft", fail)
+    third = definition.build_state_update(session, Settings(), run)
+
+    rows = list(
+        session.scalars(
+            select(ConversationEvent).where(
+                ConversationEvent.conversation_id == conv.id,
+                ConversationEvent.event_type == "pipeline.agent.turn",
+            )
+        )
+    )
+    assert first["draftRevision"] == 3
+    assert second["draftRevision"] == 9
+    assert third["draftRevision"] is None
+    assert third["loadError"] == "java down"
+    assert len(rows) == 1
+    assert rows[0].turn_id == turn_id
+    assert rows[0].payload["draftRevision"] is None
+    assert rows[0].payload["loadError"] == "java down"
+    assert rows[0].summary == "本轮数据整理未能读取最新状态"
+
+
 def test_build_state_update_degrades_when_latest_read_fails(session, monkeypatch):
     client = FakePipelineClient()
     monkeypatch.setattr(
