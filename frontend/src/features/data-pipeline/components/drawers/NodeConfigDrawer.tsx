@@ -1,8 +1,9 @@
 import { CircleAlert, Info, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type {
   JsonObject,
   NodeDefinition,
+  PipelineDraftResponse,
   PipelineIssue,
   PipelineNode,
 } from '../../../../shared/types'
@@ -15,6 +16,13 @@ import {
 import { ConfigField } from './fields/ConfigField'
 import { OutputSelect } from './fields/OutputSelect'
 import type { OutputDraftInput } from '../../lib/outputCommand'
+import {
+  applyDraftResponse,
+  configForSave,
+  drawerStateFor,
+  resetForNode,
+  syncExternalConfig,
+} from '../../lib/nodeConfigState'
 
 interface NodeConfigDrawerProps {
   node: PipelineNode
@@ -25,7 +33,10 @@ interface NodeConfigDrawerProps {
   onClose: () => void
   onSave: (nodeId: string, name: string, config: JsonObject) => Promise<unknown> | null
   onDelete: (nodeId: string) => Promise<unknown> | null
-  onSetOutput: (nodeId: string, output: OutputDraftInput) => Promise<unknown> | null
+  onSetOutput: (
+    nodeId: string,
+    output: OutputDraftInput,
+  ) => Promise<PipelineDraftResponse | null> | null
 }
 
 function fieldLabel(field: string): string {
@@ -47,26 +58,31 @@ export function NodeConfigDrawer({
   onDelete,
   onSetOutput,
 }: NodeConfigDrawerProps) {
-  const [name, setName] = useState(node.name)
-  const [config, setConfig] = useState<JsonObject>({ ...node.config })
+  const [drawer, setDrawer] = useState(() => drawerStateFor(node))
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const dirtyRef = useRef(false)
+  const [seenConfig, setSeenConfig] = useState(node.config)
+
+  if (drawer.nodeId !== node.id) {
+    setSeenConfig(node.config)
+    setDrawer((current) => resetForNode(current, node))
+  } else if (seenConfig !== node.config) {
+    setSeenConfig(node.config)
+    if (!drawer.dirty) setDrawer((current) => syncExternalConfig(current, node))
+  }
 
   const saveNow = useCallback(() => {
-    if (!dirtyRef.current || isReadOnly) return
-    const trimmedName = name.trim()
+    if (!drawer.dirty || isReadOnly) return
+    const trimmedName = drawer.name.trim()
     if (!trimmedName) return
-    dirtyRef.current = false
-    void onSave(node.id, trimmedName, config)
-  }, [config, isReadOnly, name, node.id, onSave])
+    setDrawer((current) => ({ ...current, dirty: false }))
+    void onSave(node.id, trimmedName, configForSave(drawer))
+  }, [drawer, isReadOnly, node.id, onSave])
 
   useEffect(() => {
-    if (!dirtyRef.current || isReadOnly) return
-    const trimmedName = name.trim()
-    if (!trimmedName) return
+    if (!drawer.dirty || isReadOnly || !drawer.name.trim()) return
     const timer = window.setTimeout(saveNow, CONFIG_SAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
-  }, [isReadOnly, name, saveNow])
+  }, [drawer.dirty, drawer.name, isReadOnly, saveNow])
 
   function close() {
     saveNow()
@@ -80,8 +96,18 @@ export function NodeConfigDrawer({
   const sortedIssues = sortIssues(issues)
 
   function updateField(field: string, value: unknown) {
-    dirtyRef.current = true
-    setConfig((current) => ({ ...current, [field]: value }))
+    setDrawer((current) => ({
+      ...current,
+      config: { ...current.config, [field]: value },
+      dirty: true,
+    }))
+  }
+
+  async function setOutput(nodeId: string, output: OutputDraftInput) {
+    const response = await onSetOutput(nodeId, output)
+    if (!response) return null
+    setDrawer((current) => applyDraftResponse(current, node.id, response))
+    return response
   }
 
   return (
@@ -103,14 +129,13 @@ export function NodeConfigDrawer({
         <label className="pipeline-config-field">
           <span>{NODE_CONFIG_COPY.name}</span>
           <input
-            value={name}
+            value={drawer.name}
             disabled={isReadOnly}
             onChange={(event) => {
-              dirtyRef.current = true
-              setName(event.target.value)
+              setDrawer((current) => ({ ...current, name: event.target.value, dirty: true }))
             }}
           />
-          {!name.trim() ? <small className="pipeline-field-error">{NODE_CONFIG_COPY.invalidName}</small> : null}
+          {!drawer.name.trim() ? <small className="pipeline-field-error">{NODE_CONFIG_COPY.invalidName}</small> : null}
         </label>
 
         {orderedFields.map((field) => {
@@ -122,7 +147,7 @@ export function NodeConfigDrawer({
                 field={field}
                 widget={widgets[field]?.widget ?? 'text'}
                 schema={properties[field]}
-                value={config[field]}
+                value={drawer.config[field]}
                 onChange={(value) => updateField(field, value)}
               />
               {fieldIssues.map((issue) => (
@@ -138,10 +163,10 @@ export function NodeConfigDrawer({
           <OutputSelect
             nodeId={node.id}
             defaultName={node.name}
-            outputId={typeof config.outputId === 'string' ? config.outputId : null}
+            outputId={typeof drawer.config.outputId === 'string' ? drawer.config.outputId : null}
             isReadOnly={isReadOnly}
             isSaving={isSaving}
-            onSetOutput={onSetOutput}
+            onSetOutput={setOutput}
           />
         ) : null}
 
