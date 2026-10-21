@@ -198,4 +198,50 @@ public class PipelineBuildEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void markRunning(PipelineBuildStage stage, Instant now) {
+        this.status = PipelineBuildStatus.RUNNING;
+        this.stage = stage;
+        this.startedAt = now;
+        this.heartbeatAt = now;
+    }
+
+    public void heartbeat(Instant now) {
+        this.heartbeatAt = now;
+    }
+
+    public void requestCancel(Instant now) {
+        if (cancelRequestedAt == null) {
+            cancelRequestedAt = now;
+        }
+    }
+
+    public void markSucceeded(Instant now) {
+        this.status = PipelineBuildStatus.SUCCEEDED;
+        this.stage = PipelineBuildStage.FINISHED;
+        this.finishedAt = now;
+        this.heartbeatAt = now;
+        this.errorCode = null;
+        this.errorMessage = null;
+    }
+
+    public void markFailed(String errorCode, String errorMessage, Instant now) {
+        this.status = PipelineBuildStatus.FAILED;
+        this.stage = PipelineBuildStage.FINISHED;
+        this.finishedAt = now;
+        this.heartbeatAt = now;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+    }
+
+    public void markCanceled(Instant now) {
+        this.status = PipelineBuildStatus.CANCELED;
+        this.stage = PipelineBuildStage.FINISHED;
+        this.finishedAt = now;
+        this.heartbeatAt = now;
+    }
+
+    public void updateLogicHash(String logicHash) {
+        this.logicHash = logicHash;
+    }
 }

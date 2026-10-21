@@ -6,6 +6,7 @@ import com.ontoweave.data.connection.domain.DataConnectionEntity;
 import com.ontoweave.data.connection.repository.DataConnectionRepository;
 import com.ontoweave.data.pipeline.catalog.CanonicalJson;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
+import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.graph.DraftNode;
 import com.ontoweave.data.pipeline.graph.InputSchemaResolver;
@@ -70,7 +71,22 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
         if (draft.getRevision() != draftRevision) {
             throw new PipelineRevisionConflict();
         }
-        PipelineDraftGraph graph = PipelineDraftGraph.from(draft.getDefinition());
+        return resolveDefinition(draft.getDefinition(), ownerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ResolvedInput> resolve(PipelineVersionEntity version) {
+        if (version == null || version.getCreatedBy() == null) {
+            throw notFound("流程版本不存在");
+        }
+        pipelines.findByIdAndOwnerId(version.getPipelineId(), version.getCreatedBy())
+                .orElseThrow(() -> notFound("流程不存在"));
+        return resolveDefinition(version.getDefinition(), version.getCreatedBy());
+    }
+
+    private List<ResolvedInput> resolveDefinition(JsonNode definition, UUID ownerId) {
+        PipelineDraftGraph graph = PipelineDraftGraph.from(definition);
         List<DraftNode> inputNodes = graph.nodes().stream()
                 .filter(node -> "input".equals(node.type()))
                 .toList();

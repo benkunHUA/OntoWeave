@@ -3,6 +3,7 @@ package com.ontoweave.data.pipeline.execution.plan;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
+import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.execution.build.PipelineInputResolver;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
@@ -48,7 +49,28 @@ public class PreviewPlanBuilder {
         if (draft.getRevision() != revision) {
             throw new PipelineRevisionConflict();
         }
-        PipelineDraftGraph graph = PipelineDraftGraph.from(draft.getDefinition());
+        return plan(
+                draft.getDefinition(),
+                revision,
+                nodeId,
+                inputResolver.resolve(pipelineId, ownerId, revision)
+        );
+    }
+
+    public LogicalPlan build(PipelineVersionEntity version, List<ResolvedInput> resolvedInputs, String nodeId) {
+        if (version == null) {
+            throw notFound("流程版本不存在");
+        }
+        return plan(version.getDefinition(), version.getSourceDraftRevision(), nodeId, resolvedInputs);
+    }
+
+    private LogicalPlan plan(
+            JsonNode definition,
+            long revision,
+            String nodeId,
+            List<ResolvedInput> resolvedInputs
+    ) {
+        PipelineDraftGraph graph = PipelineDraftGraph.from(definition);
         Map<UUID, DraftNode> nodes = new LinkedHashMap<>();
         for (DraftNode node : graph.nodes()) {
             nodes.put(node.id(), node);
@@ -60,7 +82,7 @@ public class PreviewPlanBuilder {
         }
 
         Map<UUID, ResolvedInput> inputsByDataset = new HashMap<>();
-        for (ResolvedInput input : inputResolver.resolve(pipelineId, ownerId, revision)) {
+        for (ResolvedInput input : resolvedInputs) {
             inputsByDataset.put(input.datasetId(), input);
         }
         Map<UUID, List<DraftEdge>> incoming = incoming(graph.edges());

@@ -53,4 +53,12 @@ public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> 
 
     @Query(value = "SELECT * FROM data.pipeline WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<PipelineEntity> lockById(@Param("id") UUID id);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE data.pipeline
+            SET current_version_id = :versionId, status = 'active', updated_at = now()
+            WHERE id = :pipelineId
+            """, nativeQuery = true)
+    int activateVersion(@Param("pipelineId") UUID pipelineId, @Param("versionId") UUID versionId);
 }

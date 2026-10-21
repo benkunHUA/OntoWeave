@@ -8,6 +8,7 @@ import com.ontoweave.data.connection.domain.DataConnectionEntity;
 import com.ontoweave.data.connection.repository.DataConnectionRepository;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
+import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import com.ontoweave.data.sync.domain.DatasetEntity;
@@ -141,6 +142,43 @@ class PipelineInputResolverTest {
                     assertThat(exception.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
                     assertThat(exception.code()).isEqualTo("INPUT_VERSION_UNRESOLVED");
                 });
+    }
+
+    @Test
+    void resolvesFrozenVersionUsingItsDefinitionAndCreatorOwner() {
+        UUID datasetId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        UUID connectionId = UUID.randomUUID();
+        PipelineVersionEntity frozen = new PipelineVersionEntity(
+                UUID.randomUUID(),
+                PIPELINE_ID,
+                2,
+                definition(datasetId.toString()),
+                mapper.createArrayNode(),
+                "definition-hash",
+                mapper.createArrayNode(),
+                REVISION,
+                OWNER_ID
+        );
+        when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(mock(PipelineEntity.class)));
+        when(datasets.findAllById(anyIterable()))
+                .thenReturn(List.of(dataset(datasetId, connectionId, versionId)));
+        when(versions.findAllById(anyIterable()))
+                .thenReturn(List.of(version(datasetId, versionId)));
+        when(connections.findAllById(anyIterable()))
+                .thenReturn(List.of(new DataConnectionEntity(
+                        connectionId, OWNER_ID, UUID.randomUUID(), "prod-mysql", ConnectionKind.MYSQL
+                )));
+        when(tasks.findByDatasetIdIn(anyCollection()))
+                .thenReturn(List.of(task(datasetId, connectionId)));
+
+        List<ResolvedInput> resolved = resolver.resolve(frozen);
+
+        assertThat(resolved).singleElement().satisfies(input -> {
+            assertThat(input.datasetId()).isEqualTo(datasetId);
+            assertThat(input.datasetVersionId()).isEqualTo(versionId);
+        });
     }
 
     private PipelineDraftEntity draft(UUID datasetId) {

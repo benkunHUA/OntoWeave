@@ -159,4 +159,12 @@ public class PipelineDatasetVersionEntity {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    public void markPublished(Instant now) {
+        this.publishedAt = now;
+    }
+
+    public void attachStoragePath(String storagePath) {
+        this.storagePath = storagePath;
+    }
 }

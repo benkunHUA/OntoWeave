@@ -166,4 +166,49 @@ public class PipelineBuildOutputEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void markRunning(PipelineBuildStage stage, Instant now) {
+        this.status = PipelineOutputStatus.RUNNING;
+        this.stage = stage;
+        this.startedAt = now;
+    }
+
+    public void updateStage(PipelineBuildStage stage) {
+        this.stage = stage;
+    }
+
+    public void recordEngineJob(String engineJobId) {
+        this.engineJobId = engineJobId;
+    }
+
+    public void markSucceeded(PipelineBuildStage stage, JsonNode result, JsonNode stats, Instant now) {
+        this.status = PipelineOutputStatus.SUCCEEDED;
+        this.stage = stage;
+        this.result = result;
+        this.stats = stats;
+        this.finishedAt = now;
+    }
+
+    public void markFailed(
+            PipelineBuildStage stage,
+            String errorCode,
+            String errorMessage,
+            JsonNode result,
+            JsonNode stats,
+            Instant now
+    ) {
+        this.status = PipelineOutputStatus.FAILED;
+        this.stage = stage;
+        this.errorCode = errorCode;
+        this.errorMessage = errorMessage;
+        this.result = result;
+        this.stats = stats;
+        this.finishedAt = now;
+    }
+
+    public void markCanceled(Instant now) {
+        this.status = PipelineOutputStatus.CANCELED;
+        this.stage = PipelineBuildStage.FINISHED;
+        this.finishedAt = now;
+    }
 }

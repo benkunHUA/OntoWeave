@@ -143,4 +143,8 @@ public class PipelineDatasetEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void activateVersion(UUID versionId) {
+        this.currentVersionId = versionId;
+    }
 }

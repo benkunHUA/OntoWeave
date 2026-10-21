@@ -115,4 +115,11 @@ public class PipelineEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void activateVersion(UUID versionId) {
+        this.currentVersionId = versionId;
+        if (status == PipelineStatus.DRAFT) {
+            this.status = PipelineStatus.ACTIVE;
+        }
+    }
 }

@@ -13,4 +13,9 @@ public interface PipelineDatasetVersionRepository extends JpaRepository<Pipeline
     Optional<PipelineDatasetVersionEntity> findByIdAndDatasetId(UUID id, UUID datasetId);
 
     List<PipelineDatasetVersionEntity> findByIdIn(Collection<UUID> ids);
+
+    Optional<PipelineDatasetVersionEntity> findByBuildOutputId(UUID buildOutputId);
+
+    Optional<PipelineDatasetVersionEntity> findTopByDatasetIdOrderByVersionNumberDesc(UUID datasetId);
+
 }
