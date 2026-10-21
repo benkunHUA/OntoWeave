@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class PipelineBuildServiceImpl implements PipelineBuildService {
@@ -151,6 +152,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         requireActiveOwned(pipelineId, ownerId);
         PipelineBuildEntity build = builds.lockByIdAndPipelineId(buildId, pipelineId)
                 .orElseThrow(() -> notFound("构建不存在"));
+        requireActiveLocked(pipelineId, ownerId);
         if (build.getStatus() != PipelineBuildStatus.QUEUED
                 && build.getStatus() != PipelineBuildStatus.RUNNING) {
             return;
@@ -192,10 +194,30 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     private void requireActiveOwned(UUID pipelineId, UUID ownerId) {
+        requireActive(
+                pipelineId,
+                ownerId,
+                () -> pipelines.findByIdAndOwnerIdAndArchivedAtIsNull(pipelineId, ownerId)
+        );
+    }
+
+    private void requireActiveLocked(UUID pipelineId, UUID ownerId) {
+        requireActive(
+                pipelineId,
+                ownerId,
+                () -> pipelines.lockActiveByIdAndOwnerId(pipelineId, ownerId)
+        );
+    }
+
+    private void requireActive(
+            UUID pipelineId,
+            UUID ownerId,
+            Supplier<Optional<PipelineEntity>> activeLookup
+    ) {
         if (pipelineId == null || ownerId == null) {
             throw notFound("流程不存在");
         }
-        if (pipelines.findByIdAndOwnerIdAndArchivedAtIsNull(pipelineId, ownerId).isPresent()) {
+        if (activeLookup.get().isPresent()) {
             return;
         }
         if (pipelines.findByIdAndOwnerId(pipelineId, ownerId).isPresent()) {

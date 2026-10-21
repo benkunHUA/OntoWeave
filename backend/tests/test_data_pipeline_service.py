@@ -3,7 +3,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import create_engine, delete, select, update
 
 from app.db import build_session_factory
 from app.errors import (
@@ -45,6 +45,15 @@ class _CreateClient:
         with self.session_factory() as check:
             row = check.get(Conversation, uuid.UUID(payload["conversationId"]))
             self.conversation_visible = row is not None
+        return _pipeline_row(
+            uuid.UUID(payload["pipelineId"]),
+            uuid.UUID(payload["conversationId"]),
+            payload["name"],
+        )
+
+
+class _NoLookupClient:
+    def create_pipeline(self, *, owner_id, payload, operation_id=None):  # noqa: ANN001, ARG002
         return _pipeline_row(
             uuid.UUID(payload["pipelineId"]),
             uuid.UUID(payload["conversationId"]),
@@ -279,6 +288,95 @@ def test_concurrent_create_converges_on_the_unique_conversation(engine) -> None:
             session.commit()
 
 
+def test_operation_lock_keeps_small_pool_for_same_operation(engine) -> None:
+    limited = create_engine(engine.url, pool_size=2, max_overflow=0, pool_timeout=3, future=True)
+    factory = build_session_factory(limited)
+    owner = uuid.uuid4()
+    operation = uuid.uuid4()
+    pipeline_id, conversation_id = pipeline_ids(owner, operation)
+    barrier = threading.Barrier(2)
+
+    def run() -> dict:
+        with factory() as session:
+            barrier.wait(timeout=5)
+            return create_pipeline(
+                session,
+                owner_id=owner,
+                client=_NoLookupClient(),
+                payload=PipelineCreate(name="小连接池同操作"),
+                operation_id=operation,
+            )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [future.result(timeout=15) for future in [pool.submit(run), pool.submit(run)]]
+
+        assert {item["id"] for item in results} == {str(pipeline_id)}
+        with factory() as session:
+            rows = list(
+                session.scalars(
+                    select(Conversation).where(
+                        Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                        Conversation.resource_id == pipeline_id,
+                    )
+                )
+            )
+        assert [row.id for row in rows] == [conversation_id]
+    finally:
+        with factory() as session:
+            session.execute(delete(Conversation).where(Conversation.resource_id == pipeline_id))
+            session.commit()
+        limited.dispose()
+
+
+def test_operation_lock_keeps_small_pool_for_different_operations(engine) -> None:
+    limited = create_engine(engine.url, pool_size=2, max_overflow=0, pool_timeout=3, future=True)
+    factory = build_session_factory(limited)
+    owner = uuid.uuid4()
+    operations = [uuid.uuid4(), uuid.uuid4()]
+    expected = [pipeline_ids(owner, operation) for operation in operations]
+    barrier = threading.Barrier(2)
+
+    def run(operation: uuid.UUID) -> dict:
+        with factory() as session:
+            barrier.wait(timeout=5)
+            return create_pipeline(
+                session,
+                owner_id=owner,
+                client=_NoLookupClient(),
+                payload=PipelineCreate(name="小连接池不同操作"),
+                operation_id=operation,
+            )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [
+                future.result(timeout=15)
+                for future in [pool.submit(run, operation) for operation in operations]
+            ]
+
+        assert {item["id"] for item in results} == {str(pipeline_id) for pipeline_id, _ in expected}
+        with factory() as session:
+            rows = list(
+                session.scalars(
+                    select(Conversation).where(
+                        Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                        Conversation.resource_id.in_([pipeline_id for pipeline_id, _ in expected]),
+                    )
+                )
+            )
+        assert {row.resource_id for row in rows} == {pipeline_id for pipeline_id, _ in expected}
+    finally:
+        with factory() as session:
+            session.execute(
+                delete(Conversation).where(
+                    Conversation.resource_id.in_([pipeline_id for pipeline_id, _ in expected])
+                )
+            )
+            session.commit()
+        limited.dispose()
+
+
 def test_concurrent_ensure_conversation_uses_savepoint_and_keeps_transaction_usable(
     engine, monkeypatch
 ) -> None:
@@ -353,9 +451,8 @@ def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(e
     owner = uuid.uuid4()
     operation = uuid.uuid4()
     pipeline_id, conversation_id = pipeline_ids(owner, operation)
-    start = threading.Barrier(2)
-    java_entered = threading.Event()
-    reused_succeeded = threading.Event()
+    first_entered_java = threading.Event()
+    retry_succeeded = threading.Event()
 
     class _RaceClient:
         def __init__(self, *, fail: bool) -> None:
@@ -363,21 +460,19 @@ def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(e
 
         def create_pipeline(self, *, owner_id, payload, operation_id=None):  # noqa: ANN001, ARG002
             if self.fail:
-                java_entered.set()
-                # 给复用请求足够时间命中旧实现；有操作锁时它会等 A 结束再新建。
-                reused_succeeded.wait(timeout=2)
+                first_entered_java.set()
+                # 无锁实现会立即复用并成功；有锁实现会等 A 失败释放后才新建。
+                retry_succeeded.wait(timeout=2)
                 raise InvalidRequestError("名称不合法")
-            java_entered.wait(timeout=5)
             with factory() as check:
                 assert check.get(Conversation, uuid.UUID(payload["conversationId"])) is not None
-            reused_succeeded.set()
+            retry_succeeded.set()
             return _pipeline_row(
                 uuid.UUID(payload["pipelineId"]), uuid.UUID(payload["conversationId"])
             )
 
     def run(*, fail: bool):
         with factory() as session:
-            start.wait(timeout=5)
             return create_pipeline(
                 session,
                 owner_id=owner,
@@ -389,6 +484,7 @@ def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(e
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
             failed = pool.submit(run, fail=True)
+            assert first_entered_java.wait(timeout=5) is True
             succeeded = pool.submit(run, fail=False)
             with pytest.raises(InvalidRequestError):
                 failed.result(timeout=10)

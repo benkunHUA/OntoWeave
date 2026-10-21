@@ -62,6 +62,8 @@ class PipelineBuildServiceTest {
                 .thenReturn(Optional.of(pipeline));
         when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
                 .thenReturn(Optional.of(pipeline));
+        when(pipelines.lockActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(pipeline));
     }
 
     @Test
