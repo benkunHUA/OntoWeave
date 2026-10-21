@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JsonObject, NodeDefinition, PipelineNode } from '../../../../shared/types'
 import { NodeConfigDrawer } from './NodeConfigDrawer'
@@ -56,9 +57,37 @@ function drawer(
   )
 }
 
+function ClosingDrawer({ onSave }: {
+  onSave: (
+    pipelineId: string,
+    nodeId: string,
+    name: string,
+    config: JsonObject,
+  ) => Promise<unknown> | null
+}) {
+  const [open, setOpen] = useState(true)
+  if (!open) return null
+  return (
+    <NodeConfigDrawer
+      pipelineId="pipeline-a"
+      node={nodeA}
+      definition={definition}
+      issues={[]}
+      isSaving={false}
+      onClose={() => setOpen(false)}
+      onSave={onSave}
+      onDelete={() => null}
+      onSetOutput={() => null}
+    />
+  )
+}
+
 describe('NodeConfigDrawer pending save flush', () => {
   beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
 
   it('flushes an edit before the debounce when unmounted', () => {
     const onSave = vi.fn()
@@ -92,5 +121,15 @@ describe('NodeConfigDrawer pending save flush', () => {
       nodeA.config,
     )
     expect(second).not.toHaveBeenCalled()
+  })
+
+  it('saves exactly once when closing closes the drawer', () => {
+    const onSave = vi.fn()
+    render(<ClosingDrawer onSave={onSave} />)
+
+    fireEvent.change(screen.getByDisplayValue('Filter A'), { target: { value: 'Filter edited' } })
+    fireEvent.click(screen.getByLabelText('关闭'))
+
+    expect(onSave).toHaveBeenCalledTimes(1)
   })
 })

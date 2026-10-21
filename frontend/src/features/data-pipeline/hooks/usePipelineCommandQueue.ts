@@ -72,11 +72,11 @@ export function usePipelineCommandQueue({
       const runGeneration = generation
       const runPipeline = pipelineId
       const isActive: IsActive = () => isCurrent(runPipeline, runGeneration)
-      const baseRevision = runPipeline
-        ? revisionsRef.current.get(runPipeline) ?? 0
-        : 0
       const task = tailRef.current.then(async () => {
         if (haltedRef.current) return null
+        const baseRevision = runPipeline
+          ? revisionsRef.current.get(runPipeline) ?? 0
+          : 0
         setIsWriting(true)
         try {
           const result = await operation(baseRevision, isActive)

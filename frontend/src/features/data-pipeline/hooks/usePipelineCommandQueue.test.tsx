@@ -79,6 +79,37 @@ describe('usePipelineCommandQueue pipeline generations', () => {
     expect(result.current.hasConflict).toBe(false)
   })
 
+  it('reads base revision inside the serialized tail for consecutive writes', async () => {
+    const first = deferred<PipelineDraftResponse>()
+    const second = deferred<PipelineDraftResponse>()
+    api.applyPipelineDraftCommand
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+
+    const { result } = renderQueue('pipeline-a', draft('pipeline-a', 5))
+
+    let firstWrite!: Promise<unknown>
+    let secondWrite!: Promise<unknown>
+    act(() => {
+      firstWrite = result.current.updateNode('node-1', 'First', {})
+      secondWrite = result.current.updateNode('node-2', 'Second', {})
+    })
+
+    await waitFor(() => expect(api.applyPipelineDraftCommand).toHaveBeenCalledTimes(1))
+    expect(api.applyPipelineDraftCommand.mock.calls[0][1].base_revision).toBe(5)
+
+    act(() => first.resolve(draft('pipeline-a', 6)))
+    await waitFor(() => expect(api.applyPipelineDraftCommand).toHaveBeenCalledTimes(2))
+    expect(api.applyPipelineDraftCommand.mock.calls[1][1].base_revision).toBe(6)
+
+    act(() => second.resolve(draft('pipeline-a', 7)))
+    await act(async () => {
+      await firstWrite
+      await secondWrite
+    })
+    expect(result.current.hasConflict).toBe(false)
+  })
+
   it('starts pipeline B commands without waiting for a deferred A command', async () => {
     const pendingA = deferred<PipelineDraftResponse>()
     api.applyPipelineDraftCommand

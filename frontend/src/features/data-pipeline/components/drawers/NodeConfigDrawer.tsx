@@ -68,6 +68,7 @@ export function NodeConfigDrawer({
   const [drawer, setDrawer] = useState(() => drawerStateFor(node))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [seenConfig, setSeenConfig] = useState(node.config)
+  const dirtyRef = useRef(drawer.dirty)
 
   if (drawer.nodeId !== node.id) {
     setSeenConfig(node.config)
@@ -78,9 +79,10 @@ export function NodeConfigDrawer({
   }
 
   const saveNow = useCallback(() => {
-    if (!drawer.dirty || isReadOnly) return
+    if (!dirtyRef.current || isReadOnly) return
     const trimmedName = drawer.name.trim()
     if (!trimmedName) return
+    dirtyRef.current = false
     setDrawer((current) => current.nodeId === node.id
       ? { ...current, dirty: false }
       : current)
@@ -96,7 +98,8 @@ export function NodeConfigDrawer({
   const flushRef = useRef(saveNow)
   useEffect(() => {
     flushRef.current = saveNow
-  }, [saveNow])
+    dirtyRef.current = drawer.dirty
+  }, [drawer.dirty, saveNow])
   useEffect(() => () => flushRef.current(), [node.id, pipelineId])
 
   function close() {
@@ -111,6 +114,7 @@ export function NodeConfigDrawer({
   const sortedIssues = sortIssues(issues)
 
   function updateField(field: string, value: unknown) {
+    dirtyRef.current = true
     setDrawer((current) => ({
       ...current,
       config: { ...current.config, [field]: value },
@@ -121,7 +125,11 @@ export function NodeConfigDrawer({
   async function setOutput(nodeId: string, output: OutputDraftInput) {
     const response = await onSetOutput(nodeId, output)
     if (!response) return null
-    setDrawer((current) => applyDraftResponse(current, node.id, response))
+    setDrawer((current) => {
+      const next = applyDraftResponse(current, node.id, response)
+      dirtyRef.current = next.dirty
+      return next
+    })
     return response
   }
 
@@ -147,6 +155,7 @@ export function NodeConfigDrawer({
             value={drawer.name}
             disabled={isReadOnly}
             onChange={(event) => {
+              dirtyRef.current = true
               setDrawer((current) => ({ ...current, name: event.target.value, dirty: true }))
             }}
           />
