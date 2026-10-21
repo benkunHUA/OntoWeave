@@ -3,14 +3,18 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.db import build_session_factory
-from app.errors import DataServiceUnavailableError, InvalidRequestError
+from app.errors import (
+    DataServiceUnavailableError,
+    InvalidRequestError,
+    UnprocessableEntityError,
+)
 from app.models import Conversation
 from app.schemas.data_pipeline import PipelineCreate
 from app.services import conversation
-from app.services.data_pipeline import create_pipeline, pipeline_ids
+from app.services.data_pipeline import _ensure_conversation, create_pipeline, pipeline_ids
 from app.vocabulary import ConversationKind
 
 
@@ -113,6 +117,82 @@ def test_create_pipeline_4xx_deletes_only_the_conversation_it_created(session_fa
         assert session.get(Conversation, conversation_id) is None
 
 
+def test_create_pipeline_422_deletes_only_the_conversation_it_created(
+    session_factory,
+) -> None:
+    owner = uuid.uuid4()
+    operation = uuid.uuid4()
+    pipeline_id, conversation_id = pipeline_ids(owner, operation)
+    client = _CreateClient(
+        session_factory,
+        failure=UnprocessableEntityError(
+            "blocking issues", code="PIPELINE_NOT_READY", details={"issues": []}
+        ),
+    )
+
+    with session_factory() as session, pytest.raises(UnprocessableEntityError):
+        create_pipeline(
+            session,
+            owner_id=owner,
+            client=client,
+            payload=PipelineCreate(name="不可构建"),
+            operation_id=operation,
+        )
+
+    with session_factory() as session:
+        assert (
+            conversation.find_conversation_by_resource(
+                session,
+                kind=ConversationKind.DATA_PIPELINE.value,
+                resource_id=pipeline_id,
+                owner_id=owner,
+            )
+            is None
+        )
+        assert session.get(Conversation, conversation_id) is None
+
+
+def test_retry_422_reuses_the_conversation_created_by_an_earlier_attempt(
+    session_factory,
+) -> None:
+    owner = uuid.uuid4()
+    operation = uuid.uuid4()
+    pipeline_id, conversation_id = pipeline_ids(owner, operation)
+
+    with session_factory() as session, pytest.raises(DataServiceUnavailableError):
+        create_pipeline(
+            session,
+            owner_id=owner,
+            client=_CreateClient(session_factory, failure=DataServiceUnavailableError("超时")),
+            payload=PipelineCreate(name="先超时"),
+            operation_id=operation,
+        )
+
+    with session_factory() as session, pytest.raises(UnprocessableEntityError):
+        create_pipeline(
+            session,
+            owner_id=owner,
+            client=_CreateClient(
+                session_factory,
+                failure=UnprocessableEntityError("blocking issues", code="PIPELINE_NOT_READY"),
+            ),
+            payload=PipelineCreate(name="再校验失败"),
+            operation_id=operation,
+        )
+
+    with session_factory() as session:
+        assert session.get(Conversation, conversation_id) is not None
+        rows = list(
+            session.scalars(
+                select(Conversation).where(
+                    Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                    Conversation.resource_id == pipeline_id,
+                )
+            )
+        )
+    assert [row.id for row in rows] == [conversation_id]
+
+
 def test_create_pipeline_timeout_keeps_conversation_and_retry_reuses_it(session_factory) -> None:
     owner = uuid.uuid4()
     operation = uuid.uuid4()
@@ -188,6 +268,75 @@ def test_concurrent_create_converges_on_the_unique_conversation(engine) -> None:
                 )
             )
         assert [row.id for row in rows] == [conversation_id]
+    finally:
+        with factory() as session:
+            session.execute(
+                delete(Conversation).where(
+                    Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                    Conversation.resource_id == pipeline_id,
+                )
+            )
+            session.commit()
+
+
+def test_concurrent_ensure_conversation_uses_savepoint_and_keeps_transaction_usable(
+    engine, monkeypatch
+) -> None:
+    factory = build_session_factory(engine)
+    owner = uuid.uuid4()
+    operation = uuid.uuid4()
+    pipeline_id, conversation_id = pipeline_ids(owner, operation)
+    barrier = threading.Barrier(2)
+    original_find = conversation.find_conversation_by_resource
+    forced_missing = threading.local()
+
+    def force_both_inserts_to_race(session, **kwargs):  # noqa: ANN001, ANN003
+        if not getattr(forced_missing, "done", False):
+            forced_missing.done = True
+            return None
+        return original_find(session, **kwargs)
+
+    monkeypatch.setattr(conversation, "find_conversation_by_resource", force_both_inserts_to_race)
+
+    def run() -> tuple[uuid.UUID, bool]:
+        with factory() as session:
+            barrier.wait(timeout=5)
+            conv, created = _ensure_conversation(
+                session,
+                owner_id=owner,
+                pipeline_id=pipeline_id,
+                conversation_id=conversation_id,
+                title="并发收敛",
+            )
+            if not created:
+                session.execute(
+                    update(Conversation)
+                    .where(Conversation.id == conv.id)
+                    .values(title="冲突后仍可写")
+                )
+            session.commit()
+            return conv.id, created
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = [future.result(timeout=10) for future in [pool.submit(run), pool.submit(run)]]
+
+        assert [conversation_id, conversation_id] == [item[0] for item in results]
+        assert sorted(item[1] for item in results) == [False, True]
+        with factory() as session:
+            rows = list(
+                session.scalars(
+                    select(Conversation).where(
+                        Conversation.kind == ConversationKind.DATA_PIPELINE.value,
+                        Conversation.resource_id == pipeline_id,
+                    )
+                )
+            )
+            title = session.scalar(
+                select(Conversation.title).where(Conversation.id == conversation_id)
+            )
+        assert [row.id for row in rows] == [conversation_id]
+        assert title == "冲突后仍可写"
     finally:
         with factory() as session:
             session.execute(

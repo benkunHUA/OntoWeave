@@ -12,6 +12,7 @@ from app.errors import (
     InvalidRequestError,
     InvariantViolationError,
     NotFoundError,
+    UnprocessableEntityError,
 )
 from app.models import Conversation
 from app.schemas.data_pipeline import PipelineCopy, PipelineCreate
@@ -22,7 +23,12 @@ from app.services.operation_lock import operation_lock
 from app.vocabulary import ConversationKind
 
 PIPELINE_NAMESPACE = uuid.NAMESPACE_URL
-_JAVA_4XX = (InvalidRequestError, InvariantViolationError, NotFoundError)
+_JAVA_4XX = (
+    InvalidRequestError,
+    InvariantViolationError,
+    NotFoundError,
+    UnprocessableEntityError,
+)
 
 
 def pipeline_ids(owner_id: uuid.UUID, operation_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:

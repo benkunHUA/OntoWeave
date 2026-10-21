@@ -5,6 +5,7 @@ import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.check.PipelineCheckResult;
 import com.ontoweave.data.pipeline.check.PipelineCheckService;
 import com.ontoweave.data.pipeline.check.PipelineStage;
+import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.execution.build.BuildResponse;
 import com.ontoweave.data.pipeline.execution.build.CreateBuildRequest;
 import com.ontoweave.data.pipeline.execution.build.PipelineBuildService;
@@ -91,6 +92,36 @@ class PipelineBuildEnqueueIntegrationTest extends PipelineBuildIntegrationTestSu
             assertThat(error.code()).isEqualTo("PIPELINE_ARCHIVED");
         });
         assertThat(count("data.pipeline_build")).isZero();
+    }
+
+    @Test
+    void archivedPipelineCannotCancelBuildAndLeavesBuildUntouched() throws Exception {
+        UUID versionId = insertVersion(
+                pipelineId, 1, mapper.createObjectNode(), mapper.createArrayNode()
+        );
+        UUID buildId = insertBuild(
+                pipelineId, versionId, PipelineBuildStatus.RUNNING, UUID.randomUUID()
+        );
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'archived', archived_at = now() WHERE id = ?",
+                pipelineId
+        );
+
+        mvc.perform(post("/internal/v1/pipelines/{pipelineId}/builds/{buildId}/cancel",
+                                pipelineId, buildId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PIPELINE_ARCHIVED"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM data.pipeline_build WHERE id = ?", String.class, buildId
+        )).isEqualTo("running");
+        assertThat(jdbc.queryForObject(
+                "SELECT cancel_requested_at FROM data.pipeline_build WHERE id = ?",
+                java.time.OffsetDateTime.class,
+                buildId
+        )).isNull();
     }
 
     @Test

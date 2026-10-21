@@ -15,9 +15,9 @@ public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> 
 
     Optional<PipelineEntity> findByIdAndOwnerId(UUID id, UUID ownerId);
 
-    Optional<PipelineEntity> findActiveById(UUID id);
+    Optional<PipelineEntity> findByIdAndArchivedAtIsNull(UUID id);
 
-    Optional<PipelineEntity> findActiveByIdAndOwnerId(UUID id, UUID ownerId);
+    Optional<PipelineEntity> findByIdAndOwnerIdAndArchivedAtIsNull(UUID id, UUID ownerId);
 
     List<PipelineEntity> findByIdInAndOwnerId(Collection<UUID> ids, UUID ownerId);
 

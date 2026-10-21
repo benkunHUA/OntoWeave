@@ -58,7 +58,7 @@ class PipelineBuildServiceTest {
     @BeforeEach
     void ownsPipeline() {
         PipelineEntity pipeline = mock(PipelineEntity.class);
-        when(pipelines.findActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+        when(pipelines.findByIdAndOwnerIdAndArchivedAtIsNull(PIPELINE_ID, OWNER_ID))
                 .thenReturn(Optional.of(pipeline));
         when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
                 .thenReturn(Optional.of(pipeline));
@@ -145,7 +145,8 @@ class PipelineBuildServiceTest {
     void scheduledBuildUsesVersionAndResolvedInputsWithoutDraftValidation() {
         PipelineVersionEntity version = version();
         ResolvedInput input = resolvedInput();
-        when(pipelines.findActiveById(PIPELINE_ID)).thenReturn(Optional.of(mock(PipelineEntity.class)));
+        when(pipelines.findByIdAndArchivedAtIsNull(PIPELINE_ID))
+                .thenReturn(Optional.of(mock(PipelineEntity.class)));
         when(versions.findByIdAndPipelineId(version.getId(), PIPELINE_ID))
                 .thenReturn(Optional.of(version));
         when(builds.findByPipelineIdAndOperationId(PIPELINE_ID, OPERATION_ID)).thenReturn(Optional.empty());
@@ -175,7 +176,8 @@ class PipelineBuildServiceTest {
     @Test
     void scheduledBuildDoesNotSwallowDatabaseConflicts() {
         PipelineVersionEntity version = version();
-        when(pipelines.findActiveById(PIPELINE_ID)).thenReturn(Optional.of(mock(PipelineEntity.class)));
+        when(pipelines.findByIdAndArchivedAtIsNull(PIPELINE_ID))
+                .thenReturn(Optional.of(mock(PipelineEntity.class)));
         when(versions.findByIdAndPipelineId(version.getId(), PIPELINE_ID))
                 .thenReturn(Optional.of(version));
         when(builds.findByPipelineIdAndOperationId(PIPELINE_ID, OPERATION_ID)).thenReturn(Optional.empty());

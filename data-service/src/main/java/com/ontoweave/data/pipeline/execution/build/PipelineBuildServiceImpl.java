@@ -188,7 +188,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         if (pipelineId == null || ownerId == null) {
             throw notFound("流程不存在");
         }
-        if (pipelines.findActiveByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
+        if (pipelines.findByIdAndOwnerIdAndArchivedAtIsNull(pipelineId, ownerId).isPresent()) {
             return;
         }
         if (pipelines.findByIdAndOwnerId(pipelineId, ownerId).isPresent()) {
@@ -198,7 +198,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     private void requireActivePipeline(UUID pipelineId) {
-        if (pipelines.findActiveById(pipelineId).isPresent()) {
+        if (pipelines.findByIdAndArchivedAtIsNull(pipelineId).isPresent()) {
             return;
         }
         if (pipelines.existsById(pipelineId)) {

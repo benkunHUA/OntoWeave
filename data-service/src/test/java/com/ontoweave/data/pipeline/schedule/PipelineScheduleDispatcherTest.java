@@ -143,6 +143,24 @@ class PipelineScheduleDispatcherTest {
         verify(buildService, never()).enqueueScheduled(any());
     }
 
+    @Test
+    void archivedPipelineIsIgnoredWithoutCreatingABuild() {
+        PipelineEntity archived = new PipelineEntity(
+                pipelineId, UUID.randomUUID(), UUID.randomUUID(), "archived"
+        );
+        archived.activateVersion(versionId);
+        archived.archive();
+        when(pipelines.lockById(pipelineId)).thenReturn(Optional.of(archived));
+
+        var run = dispatcher.dispatch(schedule, dueAt);
+
+        assertThat(run.status()).isEqualTo("ignored");
+        assertThat(run.reasonCode()).isEqualTo(PipelineScheduleConstants.REASON_PIPELINE_ARCHIVED);
+        assertThat(run.buildId()).isNull();
+        verify(buildService, never()).enqueueScheduled(any());
+        verify(inputs, never()).resolve(any());
+    }
+
     private PipelineBuildEntity build(PipelineBuildStatus status, String hash) {
         PipelineBuildEntity build = new PipelineBuildEntity(
                 UUID.randomUUID(), pipelineId, versionId, status, PipelineBuildTrigger.SCHEDULE,
