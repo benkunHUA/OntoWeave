@@ -12,7 +12,6 @@ EVENT_LIMIT_DEFAULT = 10
 EVENT_LIMIT_MAX = 50
 DATASET_LIMIT_DEFAULT = 20
 DATASET_LIMIT_MAX = 200
-DEFAULT_NODE_POSITION = {"x": 0, "y": 0}
 DEFAULT_WRITE_MODE = "snapshot"
 
 CONFIRM_ANSWERS = frozenset({"确认", "是", "同意", "继续", "yes", "true", "approve", "approved"})

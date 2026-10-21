@@ -28,14 +28,18 @@ def build_write_tools(
         blocked = common.write_guard(ctx)
         if blocked is not None:
             return blocked
+        fields = {
+            "nodeId": node_id or str(uuid.uuid4()),
+            "nodeType": type,
+            "name": name,
+            "config": config or {},
+        }
+        if position is not None:
+            fields["position"] = position
         command = common.payload(
             ctx,
             "add_node",
-            nodeId=node_id or str(uuid.uuid4()),
-            nodeType=type,
-            name=name,
-            config=config or {},
-            position=position or dict(constants.DEFAULT_NODE_POSITION),
+            **fields,
         )
         return common.write(ctx, command)
 

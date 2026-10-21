@@ -1,11 +1,15 @@
+import threading
+import time
 import uuid
 
 import pytest
+from sqlalchemy import select
 
 from app.agent.tools.data_pipeline import (
     DataPipelineToolContext,
     build_data_pipeline_tools,
 )
+from app.models import ConversationEvent
 from app.services import conversation, conversation_event
 from app.services.data_service.client import RevisionConflict
 from app.vocabulary import ConversationKind
@@ -152,6 +156,7 @@ def test_write_tools_send_current_revision_turn_and_unique_operation(session, mo
         "set_output",
     ]
     assert [item["baseRevision"] for item in commands] == [3, 4, 5, 6, 7, 8]
+    assert "position" not in commands[0]
     assert all(item["turnId"] == str(turn_id) for item in commands)
     operation_ids = {item["operationId"] for item in commands}
     assert len(operation_ids) == 6
@@ -175,6 +180,59 @@ def test_write_tool_returns_structured_revision_conflict(session, monkeypatch):
     assert result["error"] == "REVISION_CONFLICT"
     assert "stale" in result["message"]
     assert ctx.draft_revision == 3
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "client_method", "args"),
+    [
+        ("get_pipeline_check_result", "check_pipeline", {}),
+        (
+            "preview_pipeline_node",
+            "preview_node",
+            {"node_id": str(uuid.uuid4())},
+        ),
+        ("build_pipeline", "create_build", {}),
+    ],
+)
+def test_action_tools_normalize_revision_conflict(
+    session, monkeypatch, tool_name, client_method, args
+):
+    client = FakePipelineClient()
+    attempts: list[int] = []
+
+    def conflict(*_args, **_kwargs):
+        attempts.append(1)
+        raise RevisionConflict("draft revision is stale")
+
+    monkeypatch.setattr(client, client_method, conflict)
+    ctx = _context(session, client, uuid.uuid4())
+    import app.agent.tools.data_pipeline.binding as binding
+
+    monkeypatch.setattr(binding, "interrupt", lambda payload: True)
+    result = _tools(ctx)[tool_name].invoke(args)
+
+    assert result["error"] == "REVISION_CONFLICT"
+    assert "stale" in result["message"]
+    assert len(attempts) == 1
+
+
+def test_write_check_conflict_is_normalized(session, monkeypatch):
+    client = FakePipelineClient()
+
+    def apply_command(pipeline_id, *, owner_id, payload):  # noqa: ARG001
+        return {"pipelineId": str(pipeline_id), "revision": 9, "definition": {}}
+
+    def conflict(*_args, **_kwargs):
+        raise RevisionConflict("checked revision is stale")
+
+    monkeypatch.setattr(client, "apply_draft_command", apply_command)
+    monkeypatch.setattr(client, "check_pipeline", conflict)
+    ctx = _context(session, client, uuid.uuid4())
+
+    result = _tools(ctx)["add_pipeline_node"].invoke({"type": "filter", "name": "筛选"})
+
+    assert result == {"error": "REVISION_CONFLICT", "message": "checked revision is stale"}
+    assert ctx.draft_revision == 9
 
 
 @pytest.mark.parametrize(
@@ -275,6 +333,78 @@ def test_confirmation_interrupt_does_not_consume_question_quota(session, monkeyp
     _tools(ctx)["delete_pipeline_node"].invoke({"node_id": str(uuid.uuid4())})
 
     assert ctx.questions_asked == []
+    rows = list(
+        session.scalars(
+            select(ConversationEvent).where(
+                ConversationEvent.turn_id == ctx.turn_id,
+                ConversationEvent.event_type == "pipeline.agent.question",
+            )
+        )
+    )
+    assert rows == []
+
+
+def test_answered_question_is_persisted_for_the_turn(session, monkeypatch):
+    ctx = _context(session, FakePipelineClient(), uuid.uuid4())
+    import app.agent.tools.data_pipeline.binding as binding
+
+    monkeypatch.setattr(binding, "interrupt", lambda payload: "选择 A")
+
+    assert _tools(ctx)["ask_user"].invoke({"question": "选哪个？"}) == "选择 A"
+    rows = list(
+        session.scalars(
+            select(ConversationEvent).where(
+                ConversationEvent.turn_id == ctx.turn_id,
+                ConversationEvent.event_type == "pipeline.agent.question",
+            )
+        )
+    )
+    assert len(rows) == 1
+    assert rows[0].payload["question"] == "选哪个？"
+
+
+def test_concurrent_ask_user_only_one_enters_interrupt(session, monkeypatch):
+    ctx = _context(session, FakePipelineClient(), uuid.uuid4())
+    import app.agent.tools.data_pipeline.binding as binding
+
+    entered = threading.Event()
+    release = threading.Event()
+    calls: list[int] = []
+
+    def paused_interrupt(_payload):
+        calls.append(1)
+        entered.set()
+        release.wait(timeout=2)
+        raise RuntimeError("interrupt paused")
+
+    monkeypatch.setattr(binding, "interrupt", paused_interrupt)
+    tool = _tools(ctx)["ask_user"]
+    outcomes: list[object] = []
+
+    def first() -> None:
+        try:
+            outcomes.append(tool.invoke({"question": "第一个问题"}))
+        except Exception as exc:  # noqa: BLE001
+            outcomes.append(exc)
+
+    def second() -> None:
+        outcomes.append(tool.invoke({"question": "第二个问题"}))
+
+    first_thread = threading.Thread(target=first)
+    first_thread.start()
+    assert entered.wait(timeout=1)
+    second_thread = threading.Thread(target=second)
+    second_thread.start()
+    time.sleep(0.05)
+    release.set()
+    first_thread.join(timeout=2)
+    second_thread.join(timeout=2)
+
+    assert len(calls) == 1
+    assert any(
+        isinstance(item, dict) and item.get("error") == "QUESTION_LIMIT_REACHED"
+        for item in outcomes
+    )
 
 
 def test_load_error_blocks_every_domain_tool_but_not_ask_user(session, monkeypatch):

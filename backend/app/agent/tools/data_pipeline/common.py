@@ -9,7 +9,6 @@ from typing import Any
 from app.agent.tools.data_pipeline import constants, ops
 from app.agent.tools.data_pipeline.context import DataPipelineToolContext
 from app.services.data_service import pipeline_mapping as mapping
-from app.services.data_service.client import RevisionConflict
 
 
 def state_guard(ctx: DataPipelineToolContext) -> dict | None:
@@ -47,15 +46,12 @@ def payload(ctx: DataPipelineToolContext, command_type: str, **fields: Any) -> d
 
 def write(ctx: DataPipelineToolContext, command: dict) -> dict:
     def call() -> dict:
-        try:
-            response = ops.apply_command(
-                ctx.client,
-                owner_id=ctx.owner_id,
-                pipeline_id=ctx.pipeline_id,
-                payload=command,
-            )
-        except RevisionConflict as exc:
-            return {"error": constants.REVISION_CONFLICT, "message": str(exc)}
+        response = ops.apply_command(
+            ctx.client,
+            owner_id=ctx.owner_id,
+            pipeline_id=ctx.pipeline_id,
+            payload=command,
+        )
 
         revision = response.get("revision")
         if not isinstance(revision, int):

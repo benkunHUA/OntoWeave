@@ -44,4 +44,8 @@ class ToolContext:
             with self.lock:
                 return call()
         except Exception as exc:
-            return {"error": type(exc).__name__, "message": str(exc)}
+            return self.error_result(exc)
+
+    def error_result(self, exc: Exception) -> dict[str, str]:
+        """领域子类可以覆写错误形状；通用默认行为保持不变。"""
+        return {"error": type(exc).__name__, "message": str(exc)}

@@ -9,8 +9,8 @@ from typing import Any
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.orm import Session
 
+from app.agent import data_pipeline_events, llm
 from app.agent import graph as agent_graph
-from app.agent import llm
 from app.agent.definitions.base import AgentRunContext
 from app.agent.prompts_data_pipeline import build_prompt
 from app.agent.tools.data_pipeline import (
@@ -85,6 +85,12 @@ class DataPipelineAgentDefinition:
         events = conversation_event.list_recent_events(
             session, pipeline_run.conversation_id, limit=PROMPT_EVENT_LIMIT
         )
+        turn_id = pipeline_run.turn_id or uuid.uuid4()
+        questions = data_pipeline_events.list_questions(
+            session,
+            conversation_id=pipeline_run.conversation_id,
+            turn_id=turn_id,
+        )
         context = DataPipelineToolContext(
             session=session,
             owner_id=pipeline_run.owner_id,
@@ -92,7 +98,8 @@ class DataPipelineAgentDefinition:
             pipeline_id=pipeline_run.pipeline_id,
             client=client,
             draft_revision=_draft_revision(pipeline_run.draft),
-            turn_id=pipeline_run.turn_id or uuid.uuid4(),
+            turn_id=turn_id,
+            questions_asked=questions,
             last_check_result=pipeline_run.check_result,
             load_error=pipeline_run.load_error,
         )
@@ -107,13 +114,29 @@ class DataPipelineAgentDefinition:
     def build_state_update(
         self, session: Session, settings: Settings, run: AgentRunContext
     ) -> dict[str, Any]:
-        del session, settings
         pipeline_run = self._ensure_run(run)
+        pipeline_state, draft, check_result, load_error = _load_state(
+            DataServiceClient(settings),
+            owner_id=pipeline_run.owner_id,
+            pipeline_id=pipeline_run.pipeline_id,
+        )
+        del pipeline_state
+        draft_revision = _draft_revision(draft)
+        if pipeline_run.turn_id is not None:
+            data_pipeline_events.record_turn(
+                session,
+                conversation_id=pipeline_run.conversation_id,
+                turn_id=pipeline_run.turn_id,
+                pipeline_id=pipeline_run.pipeline_id,
+                draft_revision=draft_revision,
+                load_error=load_error,
+            )
+            session.commit()
         return {
             "pipelineId": str(pipeline_run.pipeline_id),
-            "draftRevision": _draft_revision(pipeline_run.draft),
-            "check": pipeline_run.check_result,
-            "loadError": pipeline_run.load_error,
+            "draftRevision": draft_revision,
+            "check": check_result,
+            "loadError": load_error,
         }
 
     def _ensure_run(self, run: AgentRunContext) -> DataPipelineRunContext:
