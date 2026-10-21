@@ -156,6 +156,12 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     }
 
     @Override
+    public void cancel(UUID pipelineId, UUID ownerId) {
+        stages.assertOwned(pipelineId, ownerId);
+        registry.cancelForBuild(pipelineId);
+    }
+
+    @Override
     public void cancelForBuild(UUID pipelineId) {
         registry.cancelForBuild(pipelineId);
     }

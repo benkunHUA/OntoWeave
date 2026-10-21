@@ -14,6 +14,7 @@ def test_build_output_exposes_dataset_and_version_identity():
         "pipelineVersionId": str(uuid.uuid4()),
         "status": "succeeded",
         "trigger": "manual",
+        "logUri": "s3://logs/build.txt",
         "outputs": [
             {
                 "id": str(uuid.uuid4()),
@@ -22,6 +23,7 @@ def test_build_output_exposes_dataset_and_version_identity():
                 "datasetVersionId": str(dataset_version_id),
                 "outputType": "dataset",
                 "status": "succeeded",
+                "logUri": "s3://logs/output.txt",
                 "result": {"expectations": []},
                 "stats": {"rowCount": 12},
             }
@@ -31,10 +33,14 @@ def test_build_output_exposes_dataset_and_version_identity():
     mapped = pipeline_mapping.build(row)
     assert mapped["outputs"][0]["dataset_id"] == str(dataset_id)
     assert mapped["outputs"][0]["dataset_version_id"] == str(dataset_version_id)
+    assert mapped["log_uri"] == "s3://logs/build.txt"
+    assert mapped["outputs"][0]["log_uri"] == "s3://logs/output.txt"
 
     read = BuildRead.model_validate(mapped)
     assert read.outputs[0].dataset_id == dataset_id
     assert read.outputs[0].dataset_version_id == dataset_version_id
+    assert read.log_uri == "s3://logs/build.txt"
+    assert read.outputs[0].log_uri == "s3://logs/output.txt"
 
 
 def test_non_dataset_output_keeps_identity_null():

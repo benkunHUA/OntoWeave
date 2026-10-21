@@ -48,6 +48,50 @@ describe('previewRequestError', () => {
       field: 'amount',
     })
   })
+
+  it('accepts the current Java blockingIssues payload', () => {
+    const error = new HttpError(422, JSON.stringify({
+      code: 'PREVIEW_BLOCKED',
+      message: '流程存在阻塞错误',
+      details: {
+        blockingIssues: [{
+          code: 'PORT_TYPE_MISMATCH',
+          phase: 'graph',
+          blocking: true,
+          nodeId: 'node-2',
+          portId: 'in',
+          message: '端口类型不匹配',
+        }],
+      },
+    }))
+
+    const mapped = previewRequestError(error)
+
+    expect(mapped.kind).toBe('blocked')
+    expect(mapped.issues[0]).toMatchObject({
+      code: 'PORT_TYPE_MISMATCH',
+      node_id: 'node-2',
+      port_id: 'in',
+    })
+  })
+
+  it('turns a single-field Java execution error into one issue', () => {
+    const error = new HttpError(422, JSON.stringify({
+      code: 'PREVIEW_EXECUTION_FAILED',
+      message: '执行失败',
+      details: { nodeId: 'node-3', portId: 'out', field: 'amount', message: '金额无法解析' },
+    }))
+
+    const mapped = previewRequestError(error)
+
+    expect(mapped.issues).toHaveLength(1)
+    expect(mapped.issues[0]).toMatchObject({
+      node_id: 'node-3',
+      port_id: 'out',
+      field: 'amount',
+      message: '金额无法解析',
+    })
+  })
 })
 
 describe('previewTruncationLabel', () => {

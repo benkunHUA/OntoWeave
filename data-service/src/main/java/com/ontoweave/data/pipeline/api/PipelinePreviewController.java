@@ -6,6 +6,7 @@ import com.ontoweave.data.pipeline.execution.preview.PipelinePreviewService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,5 +32,14 @@ public class PipelinePreviewController {
             @Valid @RequestBody PreviewRequest request
     ) {
         return previews.preview(pipelineId, ownerId, request);
+    }
+
+    @PostMapping("/internal/v1/pipelines/{pipelineId}/previews/cancel")
+    public ResponseEntity<Void> cancel(
+            @PathVariable UUID pipelineId,
+            @RequestParam @NotNull UUID ownerId
+    ) {
+        previews.cancel(pipelineId, ownerId);
+        return ResponseEntity.noContent().build();
     }
 }

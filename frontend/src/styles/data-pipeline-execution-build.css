@@ -2,8 +2,40 @@
 
 .pipeline-build-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 7px;
+}
+
+.pipeline-build-log-link {
+  width: fit-content;
+  color: var(--blue-ink);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.pipeline-build-log-link:hover {
+  text-decoration: underline;
+}
+
+.pipeline-output-dataset-dialog dl {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.pipeline-output-dataset-dialog dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.pipeline-output-dataset-dialog dt,
+.pipeline-output-dataset-dialog dd {
+  margin: 0;
 }
 
 .pipeline-build-bar__error {

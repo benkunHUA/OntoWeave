@@ -37,6 +37,7 @@ function definitionFor(
 function render(node: PipelineNode, definition = outputDefinition): string {
   return renderToStaticMarkup(createElement(NodeConfigDrawer, {
     pipelineId: '00000000-0000-4000-8000-000000000010',
+    revision: 1,
     node,
     definition,
     issues: [],

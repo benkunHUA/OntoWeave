@@ -33,13 +33,28 @@ export function scheduleRunStatusLabel(status: string | null | undefined): strin
   return RUN_STATUS_LABELS[status] ?? status
 }
 
+export function triggerTypeLabel(trigger: string | null | undefined): string {
+  if (!trigger) return '未知触发'
+  if (trigger === 'time' || trigger === 'schedule' || trigger === 'scheduled') return '时间触发'
+  if (trigger === 'manual') return '手动触发'
+  return trigger
+}
+
 export function scheduleVersionHint(
   pipeline: Pipeline | null,
-  hasDraftChanges: boolean,
+  draftRevision: number | null,
 ): string | null {
   if (!pipeline) return null
   if (!pipeline.current_version_id) return '首次构建后才能定时运行'
-  if (hasDraftChanges) return '调度仍使用已发布版本'
+  if (
+    pipeline.current_version_draft_revision !== null &&
+    pipeline.current_version_draft_revision !== draftRevision
+  ) {
+    const version = pipeline.current_version_number === null
+      ? ''
+      : ` v${pipeline.current_version_number}`
+    return `调度仍使用已发布版本${version}`
+  }
   return null
 }
 

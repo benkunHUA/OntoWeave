@@ -4,8 +4,10 @@ import com.ontoweave.data.pipeline.api.dto.CopyPipelineRequest;
 import com.ontoweave.data.pipeline.api.dto.PipelinePageResponse;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
+import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
+import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,17 +27,20 @@ public class PipelineServiceImpl implements PipelineService {
 
     private final PipelineRepository pipelines;
     private final PipelineDraftRepository drafts;
+    private final PipelineVersionRepository versions;
     private final PipelineWriteGuard writeGuard;
     private final PipelineCopyService copyService;
 
     public PipelineServiceImpl(
             PipelineRepository pipelines,
             PipelineDraftRepository drafts,
+            PipelineVersionRepository versions,
             PipelineWriteGuard writeGuard,
             PipelineCopyService copyService
     ) {
         this.pipelines = pipelines;
         this.drafts = drafts;
+        this.versions = versions;
         this.writeGuard = writeGuard;
         this.copyService = copyService;
     }
@@ -90,8 +95,14 @@ public class PipelineServiceImpl implements PipelineService {
         }
         List<PipelineEntity> page = pipelines.findActivePage(ownerId, limit, offset);
         Map<UUID, Long> revisions = draftRevisions(page);
+        Map<UUID, PipelineVersionEntity> currentVersions = currentVersions(page);
         List<PipelineResponse> items = page.stream()
-                .map(pipeline -> response(pipeline, revisions.get(pipeline.getId())))
+                .map(pipeline -> {
+                    PipelineVersionEntity version = pipeline.getCurrentVersionId() == null
+                            ? null
+                            : currentVersions.get(pipeline.getCurrentVersionId());
+                    return response(pipeline, revisions.get(pipeline.getId()), version);
+                })
                 .toList();
         return new PipelinePageResponse(items, pipelines.countActive(ownerId), limit, offset);
     }
@@ -126,7 +137,7 @@ public class PipelineServiceImpl implements PipelineService {
         copyService.copy(locked.pipeline(), locked.draft(), ownerId, request);
         PipelineEntity copied = pipelines.findById(request.pipelineId())
                 .orElseThrow(() -> notFound("流程不存在"));
-        return response(copied, 0L);
+        return response(copied, 0L, null);
     }
 
     private void requireCreateRequest(CreatePipelineRequest request) {
@@ -151,12 +162,20 @@ public class PipelineServiceImpl implements PipelineService {
     }
 
     private PipelineResponse response(PipelineEntity pipeline) {
-        return response(pipeline, drafts.findById(pipeline.getId())
-                .map(PipelineDraftEntity::getRevision)
-                .orElse(null));
+        return response(
+                pipeline,
+                drafts.findById(pipeline.getId())
+                        .map(PipelineDraftEntity::getRevision)
+                        .orElse(null),
+                version(pipeline.getCurrentVersionId())
+        );
     }
 
-    private PipelineResponse response(PipelineEntity pipeline, Long revision) {
+    private PipelineResponse response(
+            PipelineEntity pipeline,
+            Long revision,
+            PipelineVersionEntity version
+    ) {
         return new PipelineResponse(
                 pipeline.getId(),
                 pipeline.getConversationId(),
@@ -164,6 +183,8 @@ public class PipelineServiceImpl implements PipelineService {
                 pipeline.getStatus().value(),
                 revision,
                 pipeline.getCurrentVersionId(),
+                version == null ? null : version.getVersionNumber(),
+                version == null ? null : version.getSourceDraftRevision(),
                 pipeline.getCreatedAt(),
                 pipeline.getUpdatedAt()
         );
@@ -177,6 +198,27 @@ public class PipelineServiceImpl implements PipelineService {
         drafts.findAllById(pipelines.stream().map(PipelineEntity::getId).toList())
                 .forEach(draft -> revisions.put(draft.getPipelineId(), draft.getRevision()));
         return revisions;
+    }
+
+    private Map<UUID, PipelineVersionEntity> currentVersions(List<PipelineEntity> pipelines) {
+        List<UUID> ids = pipelines.stream()
+                .map(PipelineEntity::getCurrentVersionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return versions.findByIdIn(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        PipelineVersionEntity::getId,
+                        version -> version,
+                        (left, right) -> left
+                ));
+    }
+
+    private PipelineVersionEntity version(UUID versionId) {
+        return versionId == null ? null : versions.findById(versionId).orElse(null);
     }
 
 }

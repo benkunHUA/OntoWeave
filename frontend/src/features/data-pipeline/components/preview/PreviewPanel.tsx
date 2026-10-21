@@ -1,5 +1,6 @@
 import { LoaderCircle, RefreshCw, X } from 'lucide-react'
 import type { PipelinePreview, PipelinePreviewIssue } from '../../../../shared/types'
+import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
 import { PREVIEW_COPY } from '../../lib/executionConstants'
 import {
   previewElapsedLabel,
@@ -34,17 +35,19 @@ export function PreviewPanel({
   onClose,
   onSelectIssue,
 }: PreviewPanelProps) {
+  useEscapeClose(true, onClose)
   const truncation = preview ? previewTruncationLabel(preview) : null
   const issues = preview ? [...preview.errors, ...preview.warnings] : error?.issues ?? []
 
   return (
-    <section className="pipeline-preview-panel" aria-label={PREVIEW_COPY.title}>
+    <section className="pipeline-preview-panel" role="dialog" aria-label={PREVIEW_COPY.title}>
       <header className="pipeline-preview-head">
         <div>
           <span className="eyebrow">Preview</span>
           <h2>{nodeName}</h2>
           <div className="pipeline-preview-meta">
             <span>修订 {preview?.draft_revision ?? draftRevision ?? '—'}</span>
+            <span>{PREVIEW_COPY.currentDraft}</span>
             {preview ? <span>{previewRowsLabel(preview)}</span> : null}
             {preview ? <span>{previewElapsedLabel(preview.elapsed_ms)}</span> : null}
             {state === 'stale' ? (
@@ -60,7 +63,7 @@ export function PreviewPanel({
           <button
             type="button"
             className="icon-button icon-button--quiet"
-            aria-label={PREVIEW_COPY.close}
+            aria-label={isLoading ? PREVIEW_COPY.cancel : PREVIEW_COPY.close}
             onClick={onClose}
           >
             <X size={16} />

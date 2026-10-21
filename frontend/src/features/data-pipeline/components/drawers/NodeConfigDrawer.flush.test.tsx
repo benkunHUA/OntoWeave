@@ -3,7 +3,12 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { JsonObject, NodeDefinition, PipelineNode } from '../../../../shared/types'
+import type {
+  JsonObject,
+  NodeDefinition,
+  PipelineDraftResponse,
+  PipelineNode,
+} from '../../../../shared/types'
 import { NodeConfigDrawer } from './NodeConfigDrawer'
 
 const nodeA: PipelineNode = {
@@ -40,11 +45,12 @@ function drawer(
     nodeId: string,
     name: string,
     config: JsonObject,
-  ) => Promise<unknown> | null,
+  ) => Promise<PipelineDraftResponse | null> | null,
 ) {
   return (
     <NodeConfigDrawer
       pipelineId={pipelineId}
+      revision={1}
       node={node}
       definition={definition}
       issues={[]}
@@ -63,13 +69,14 @@ function ClosingDrawer({ onSave }: {
     nodeId: string,
     name: string,
     config: JsonObject,
-  ) => Promise<unknown> | null
+  ) => Promise<PipelineDraftResponse | null> | null
 }) {
   const [open, setOpen] = useState(true)
   if (!open) return null
   return (
     <NodeConfigDrawer
       pipelineId="pipeline-a"
+      revision={1}
       node={nodeA}
       definition={definition}
       issues={[]}

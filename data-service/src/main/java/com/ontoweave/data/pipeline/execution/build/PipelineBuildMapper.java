@@ -43,6 +43,7 @@ public class PipelineBuildMapper {
                 lower(build.getTriggerType() == null ? null : build.getTriggerType().name()),
                 build.getErrorCode(),
                 build.getErrorMessage(),
+                build.getLogUri(),
                 build.getStartedAt(),
                 build.getFinishedAt(),
                 rows.stream().map(output -> toOutput(output, datasetIds, versionIds)).toList()
@@ -95,6 +96,7 @@ public class PipelineBuildMapper {
                 lower(output.getStatus() == null ? null : output.getStatus().name()),
                 lower(output.getStage() == null ? null : output.getStage().name()),
                 output.getEngineJobId(),
+                output.getLogUri(),
                 output.getErrorCode(),
                 output.getErrorMessage(),
                 output.getResult(),

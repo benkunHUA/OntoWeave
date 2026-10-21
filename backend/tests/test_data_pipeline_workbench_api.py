@@ -11,6 +11,9 @@ def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_c
         == "A"
     )
     assert pipeline_client.get(f"{API}/{PIPELINE_ID}").json()["id"] == str(PIPELINE_ID)
+    detail = pipeline_client.get(f"{API}/{PIPELINE_ID}").json()
+    assert detail["current_version_number"] is None
+    assert detail["current_version_draft_revision"] is None
     assert (
         pipeline_client.patch(f"{API}/{PIPELINE_ID}", json={"name": "改名"}).json()["name"]
         == "改名"
@@ -57,6 +60,8 @@ def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_c
     assert preview["returned_rows"] == 1
     assert preview["input_versions"][0]["dataset_version_id"]
     assert "inputVersions" not in str(preview)
+    assert pipeline_client.post(f"{API}/{PIPELINE_ID}/previews/cancel").status_code == 204
+    assert any(call[0] == "cancel-preview" for call in fake_pipeline_client.calls)
 
     build = pipeline_client.post(
         f"{API}/{PIPELINE_ID}/builds",
@@ -101,13 +106,15 @@ def test_schedule_routes_map_camel_case(pipeline_client, fake_pipeline_client):
     ).json()
     assert runs[0]["scheduled_for"] == NOW
     assert runs[0]["trigger_type"] == "scheduled"
+    assert runs[0]["started_at"] == NOW
+    assert runs[0]["finished_at"] == NOW
 
 
 def test_java_422_keeps_blocking_issues_for_preview_and_build(
     pipeline_client, fake_pipeline_client, monkeypatch
 ):
     details = {
-        "issues": [
+        "blockingIssues": [
             {
                 "code": "NODE_CONFIG_INCOMPLETE",
                 "phase": "config",
@@ -140,4 +147,31 @@ def test_java_422_keeps_blocking_issues_for_preview_and_build(
         json={"draft_revision": 3, "operation_id": str(uuid.uuid4())},
     )
     assert build.status_code == 422
-    assert build.json()["details"]["issues"][0]["code"] == "NODE_CONFIG_INCOMPLETE"
+    assert build.json()["details"]["blockingIssues"][0]["code"] == "NODE_CONFIG_INCOMPLETE"
+
+
+def test_java_422_single_field_preview_error_preserves_details(
+    pipeline_client, fake_pipeline_client, monkeypatch
+):
+    details = {
+        "nodeId": "node-1",
+        "portId": "in",
+        "field": "amount",
+        "message": "金额无法解析",
+    }
+
+    def reject(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+        raise UnprocessableEntityError(
+            "预览执行失败（PREVIEW_EXECUTION_FAILED）",
+            code="PREVIEW_EXECUTION_FAILED",
+            details=details,
+        )
+
+    monkeypatch.setattr(fake_pipeline_client, "preview_node", reject)
+    response = pipeline_client.post(
+        f"{API}/{PIPELINE_ID}/previews",
+        json={"draft_revision": 3, "node_id": str(uuid.uuid4())},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["details"] == details

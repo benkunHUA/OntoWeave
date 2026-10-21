@@ -22,6 +22,8 @@ const pipeline: Pipeline = {
   status: 'draft',
   draft_revision: 4,
   current_version_id: null,
+  current_version_number: null,
+  current_version_draft_revision: null,
   created_at: null,
   updated_at: null,
 }
@@ -50,6 +52,8 @@ const run: PipelineScheduleRun = {
   logic_hash: 'hash',
   reason_code: 'NO_CHANGE',
   message: null,
+  started_at: null,
+  finished_at: null,
 }
 
 beforeEach(() => {
@@ -73,7 +77,7 @@ describe('ScheduleDrawer', () => {
     render(<ScheduleDrawer
       open
       pipeline={pipeline}
-      hasDraftChanges
+      draftRevision={4}
       onClose={() => undefined}
       onOpenBuild={() => undefined}
     />)
@@ -82,7 +86,7 @@ describe('ScheduleDrawer', () => {
     expect(screen.getByText('首次构建后才能定时运行')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '创建调度' }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getAllByRole('dialog')).toHaveLength(2)
     expect(api.putPipelineSchedule).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '确认创建' }))
@@ -96,16 +100,26 @@ describe('ScheduleDrawer', () => {
 
     render(<ScheduleDrawer
       open
-      pipeline={{ ...pipeline, status: 'active', current_version_id: 'version-1' }}
-      hasDraftChanges
+      pipeline={{
+        ...pipeline,
+        status: 'active',
+        current_version_id: 'version-1',
+        current_version_number: 2,
+        current_version_draft_revision: 3,
+      }}
+      draftRevision={4}
       onClose={() => undefined}
       onOpenBuild={() => undefined}
     />)
 
     expect(await screen.findByText('输入和逻辑未变化，已跳过')).toBeTruthy()
-    expect(screen.getByText('调度仍使用已发布版本')).toBeTruthy()
+    expect(screen.getAllByText(/时间触发/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Asia\/Shanghai/).length).toBeGreaterThan(0)
+    expect(screen.getByDisplayValue('Asia/Shanghai').getAttribute('list'))
+      .toBe('pipeline-timezones')
+    expect(screen.getByText('调度仍使用已发布版本 v2')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '暂停调度' }))
-    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getAllByRole('dialog')).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('button', { name: '确认暂停' }))
     await waitFor(() => expect(api.pausePipelineSchedule).toHaveBeenCalledTimes(1))

@@ -176,6 +176,13 @@ class PipelineDataServiceMixin:
             json=payload,
         )
 
+    def cancel_preview(self, pipeline_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:
+        return self._request(
+            "POST",
+            f"/internal/v1/pipelines/{pipeline_id}/previews/cancel",
+            params={"ownerId": str(owner_id)},
+        )
+
     def create_build(self, pipeline_id: uuid.UUID, *, owner_id: uuid.UUID, payload: dict) -> dict:
         return self._request(
             "POST",

@@ -2,12 +2,15 @@
 
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { HttpError } from '../../../shared/api/client'
 import type {
   PipelineBuild,
+  PipelineDraftResponse,
   PipelinePreview,
   PipelineSchedule,
   PipelineSource,
 } from '../../../shared/types'
+import { usePipelineExecutionUi } from './usePipelineExecutionUi'
 import { usePipelineBuild } from './usePipelineBuild'
 import { useOutputSources } from './useOutputSources'
 import { usePipelinePreview } from './usePipelinePreview'
@@ -15,6 +18,7 @@ import { usePipelineSchedule } from './usePipelineSchedule'
 
 const api = vi.hoisted(() => ({
   cancelPipelineBuild: vi.fn(),
+  cancelPipelinePreview: vi.fn(),
   createPipelineBuild: vi.fn(),
   getPipelineBuild: vi.fn(),
   getPipelineSchedule: vi.fn(),
@@ -76,6 +80,7 @@ function build(pipelineId: string): PipelineBuild {
     trigger: 'manual',
     error_code: null,
     error_message: null,
+    log_uri: null,
     started_at: null,
     finished_at: null,
     outputs: [],
@@ -99,6 +104,8 @@ function schedule(pipelineId: string): PipelineSchedule {
 
 beforeEach(() => {
   window.localStorage.clear()
+  api.cancelPipelinePreview.mockReset()
+  api.cancelPipelinePreview.mockResolvedValue(undefined)
   api.getPipelineBuild.mockReset()
   api.getPipelineSchedule.mockReset()
   api.getPipelineOutputSources.mockReset()
@@ -184,6 +191,90 @@ describe('execution hook generation isolation', () => {
     })
 
     expect(result.current.build).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not reopen build details when a deferred open was closed first', async () => {
+    const pending = deferred<PipelineBuild>()
+    api.getPipelineBuild.mockReturnValue(pending.promise)
+    const { result } = renderHook(() => usePipelineBuild('pipeline-a'))
+
+    act(() => result.current.open('build-a'))
+    await waitFor(() => expect(api.getPipelineBuild).toHaveBeenCalledTimes(1))
+    act(() => result.current.setDetailsOpen(false))
+    act(() => pending.resolve(build('pipeline-a')))
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.detailsOpen).toBe(false)
+  })
+
+  it('cancels an in-flight preview when the panel closes', async () => {
+    const pending = deferred<PipelinePreview>()
+    api.previewPipelineNode.mockReturnValue(pending.promise)
+    api.cancelPipelinePreview.mockResolvedValue(undefined)
+    const { result } = renderHook(() => usePipelinePreview({
+      pipelineId: 'pipeline-a',
+      draftRevision: 3,
+    }))
+
+    let run!: Promise<PipelinePreview | null>
+    act(() => {
+      run = result.current.run('node-a')
+    })
+    await waitFor(() => expect(api.previewPipelineNode).toHaveBeenCalledTimes(1))
+    act(() => result.current.close())
+
+    expect(api.cancelPipelinePreview).toHaveBeenCalledWith('pipeline-a')
+    act(() => pending.resolve(preview('pipeline-a', 'node-a')))
+    await act(async () => {
+      await run
+    })
+  })
+
+  it('cancels the previous in-flight preview before running another node', async () => {
+    const first = deferred<PipelinePreview>()
+    api.previewPipelineNode
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(preview('pipeline-a', 'node-b'))
+    const { result } = renderHook(() => usePipelinePreview({
+      pipelineId: 'pipeline-a',
+      draftRevision: 3,
+    }))
+
+    let firstRun!: Promise<PipelinePreview | null>
+    act(() => {
+      firstRun = result.current.run('node-a')
+    })
+    await waitFor(() => expect(api.previewPipelineNode).toHaveBeenCalledTimes(1))
+
+    let secondRun!: Promise<PipelinePreview | null>
+    await act(async () => {
+      secondRun = result.current.run('node-b')
+      await Promise.resolve()
+    })
+    expect(api.cancelPipelinePreview).toHaveBeenCalledWith('pipeline-a')
+
+    act(() => first.resolve(preview('pipeline-a', 'node-a')))
+    await act(async () => {
+      await Promise.all([firstRun, secondRun])
+    })
+  })
+
+  it('drops a missing stored build and stops retrying on a 4xx response', async () => {
+    window.localStorage.setItem('ontoweave.data-pipeline.build.pipeline-a', 'missing-build')
+    api.getPipelineBuild.mockRejectedValue(
+      new HttpError(404, '{"code":"NOT_FOUND","message":"构建不存在"}'),
+    )
+    const { result } = renderHook(() => usePipelineBuild('pipeline-a'))
+
+    await waitFor(() => expect(result.current.error).toBe('构建不存在'))
+
+    expect(result.current.build).toBeNull()
+    expect(result.current.isLoading).toBe(false)
+    expect(window.localStorage.getItem('ontoweave.data-pipeline.build.pipeline-a')).toBeNull()
+    expect(api.getPipelineBuild).toHaveBeenCalledTimes(1)
   })
 
   it('does not let a deferred schedule from pipeline A overwrite pipeline B', async () => {
@@ -204,5 +295,95 @@ describe('execution hook generation isolation', () => {
     })
 
     expect(result.current.schedule?.pipeline_id).toBe('pipeline-b')
+  })
+
+  it('keeps build, preview, configuration, and schedule panels mutually exclusive', async () => {
+    api.previewPipelineNode.mockResolvedValue(preview('pipeline-a', 'node-a'))
+    api.getPipelineBuild.mockResolvedValue(build('pipeline-a'))
+    const draft: PipelineDraftResponse = {
+      pipeline_id: 'pipeline-a',
+      revision: 3,
+      definition: {
+        schemaVersion: 1,
+        nodes: [{
+          id: 'node-a',
+          type: 'filter',
+          name: 'Filter',
+          config: {},
+          position: { x: 0, y: 0 },
+        }],
+        edges: [],
+      },
+    }
+    const check = {
+      pipeline_id: 'pipeline-a',
+      revision: 3,
+      stage: 'ready',
+      blocking_issues: [],
+      warnings: [],
+      next_actions: [],
+    }
+    const { result } = renderHook(() => usePipelineExecutionUi({
+      pipelineId: 'pipeline-a',
+      draft,
+      check,
+      onBuildSucceeded: () => undefined,
+    }))
+
+    act(() => result.current.selectNode('node-a'))
+    expect(result.current.selectedNode?.id).toBe('node-a')
+    expect(result.current.build.detailsOpen).toBe(false)
+    expect(result.current.scheduleOpen).toBe(false)
+
+    act(() => result.current.openPreview('node-a', 3))
+    expect(result.current.previewNode?.id).toBe('node-a')
+    expect(result.current.selectedNode).toBeNull()
+
+    act(() => result.current.openBuildDetails('build-a'))
+    await waitFor(() => expect(result.current.build.detailsOpen).toBe(true))
+    expect(result.current.previewNode).toBeNull()
+    expect(result.current.selectedNode).toBeNull()
+    expect(result.current.scheduleOpen).toBe(false)
+
+    act(() => result.current.openSchedule())
+    expect(result.current.scheduleOpen).toBe(true)
+    expect(result.current.build.detailsOpen).toBe(false)
+    expect(result.current.previewNode).toBeNull()
+    expect(result.current.selectedNode).toBeNull()
+
+    act(() => result.current.selectNode('node-a'))
+    expect(result.current.selectedNode?.id).toBe('node-a')
+    expect(result.current.scheduleOpen).toBe(false)
+    expect(result.current.build.detailsOpen).toBe(false)
+  })
+
+  it('restores an active build from localStorage and stops polling in a terminal state', async () => {
+    vi.useFakeTimers()
+    try {
+      window.localStorage.setItem('ontoweave.data-pipeline.build.pipeline-a', 'build-a')
+      const active = { ...build('pipeline-a'), status: 'running', stage: 'executing' }
+      const finished = { ...build('pipeline-a'), status: 'succeeded', stage: 'finished' }
+      api.getPipelineBuild.mockResolvedValueOnce(active).mockResolvedValueOnce(finished)
+      const { result } = renderHook(() => usePipelineBuild('pipeline-a'))
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(result.current.build?.status).toBe('running')
+
+      await act(async () => {
+        vi.advanceTimersByTime(2_000)
+        await Promise.resolve()
+      })
+      expect(result.current.build?.status).toBe('succeeded')
+
+      await act(async () => {
+        vi.advanceTimersByTime(6_000)
+        await Promise.resolve()
+      })
+      expect(api.getPipelineBuild).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

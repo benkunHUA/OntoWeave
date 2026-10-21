@@ -35,7 +35,9 @@ public class PipelineScheduleMapper {
                 run.getBuildId(),
                 run.getLogicHash(),
                 run.getReasonCode(),
-                run.getMessage()
+                run.getMessage(),
+                run.getStartedAt(),
+                run.getFinishedAt()
         );
     }
 

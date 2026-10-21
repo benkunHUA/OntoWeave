@@ -73,6 +73,8 @@ class DataPipelineRead(BaseModel):
     status: str
     draft_revision: int | None = None
     current_version_id: uuid.UUID | None = None
+    current_version_number: int | None = None
+    current_version_draft_revision: int | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

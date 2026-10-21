@@ -1,6 +1,8 @@
 import { CalendarClock, LoaderCircle, Pause, Play, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { Pipeline } from '../../../../shared/types'
+import { httpErrorText } from '../../../../shared/api/errors'
+import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
 import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
 import { usePipelineSchedule } from '../../hooks/usePipelineSchedule'
 import { SCHEDULE_COPY } from '../../lib/executionConstants'
@@ -10,13 +12,14 @@ import {
   SCHEDULE_TIMEZONES,
   scheduleStatusLabel,
   scheduleVersionHint,
+  triggerTypeLabel,
 } from '../../lib/schedule'
 import { ScheduleRunList } from './ScheduleRunList'
 
 interface ScheduleDrawerProps {
   open: boolean
   pipeline: Pipeline | null
-  hasDraftChanges: boolean
+  draftRevision: number | null
   onClose: () => void
   onOpenBuild: (buildId: string) => void
 }
@@ -43,7 +46,7 @@ function defaultForm(pipeline: Pipeline | null): ScheduleForm {
 export function ScheduleDrawer({
   open,
   pipeline,
-  hasDraftChanges,
+  draftRevision,
   onClose,
   onOpenBuild,
 }: ScheduleDrawerProps) {
@@ -66,12 +69,10 @@ export function ScheduleDrawer({
     () => SCHEDULE_PRESETS.find((item) => item.cron === form.cron)?.id ?? 'custom',
     [form.cron],
   )
-  const hint = scheduleVersionHint(pipeline, hasDraftChanges)
-  const timezones = useMemo(() => {
-    const values = new Set<string>(SCHEDULE_TIMEZONES)
-    if (form.timezone) values.add(form.timezone)
-    return [...values]
-  }, [form.timezone])
+  const hint = scheduleVersionHint(pipeline, draftRevision)
+  const displayTimezone = schedules.schedule?.timezone ?? form.timezone
+  const timezones = useMemo(() => new Set<string>(SCHEDULE_TIMEZONES), [])
+  useEscapeClose(open, onClose)
 
   if (!open) return null
 
@@ -94,7 +95,7 @@ export function ScheduleDrawer({
       })
       setAction(null)
     } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : '调度操作失败')
+      setActionError(httpErrorText(reason, '调度操作失败'))
       setAction(null)
     } finally {
       setSubmitting(false)
@@ -111,7 +112,11 @@ export function ScheduleDrawer({
         : { title: SCHEDULE_COPY.saveTitle, body: SCHEDULE_COPY.saveBody, confirm: SCHEDULE_COPY.confirmSave }
 
   return (
-    <aside className="pipeline-drawer pipeline-schedule-drawer" aria-label={SCHEDULE_COPY.title}>
+    <aside
+      className="pipeline-drawer pipeline-schedule-drawer"
+      role="dialog"
+      aria-label={SCHEDULE_COPY.title}
+    >
       <header className="pipeline-drawer__head">
         <div>
           <span className="eyebrow">Schedule</span>
@@ -134,10 +139,10 @@ export function ScheduleDrawer({
         <section className="pipeline-schedule-state">
           <div>
             <strong>{schedules.missing ? SCHEDULE_COPY.missing : scheduleStatusLabel(schedules.schedule?.status)}</strong>
-            <span>{schedules.schedule?.trigger_type ?? 'schedule'}</span>
+            <span>{triggerTypeLabel(schedules.schedule?.trigger_type)}</span>
           </div>
-          <small>{SCHEDULE_COPY.nextRun}：{formatDateTime(schedules.schedule?.next_run_at)}</small>
-          <small>{SCHEDULE_COPY.lastRun}：{formatDateTime(schedules.schedule?.last_run_at)}</small>
+          <small>{SCHEDULE_COPY.nextRun}：{formatDateTime(schedules.schedule?.next_run_at, displayTimezone)} · {displayTimezone}</small>
+          <small>{SCHEDULE_COPY.lastRun}：{formatDateTime(schedules.schedule?.last_run_at, displayTimezone)} · {displayTimezone}</small>
         </section>
 
         <label className="pipeline-config-field">
@@ -163,12 +168,21 @@ export function ScheduleDrawer({
         </label>
         <label className="pipeline-config-field">
           <span>{SCHEDULE_COPY.timezone}</span>
-          <select value={form.timezone} onChange={(event) => update({ timezone: event.target.value })}>
-            {timezones.map((timezone) => <option key={timezone} value={timezone}>{timezone}</option>)}
-          </select>
+          <input
+            list="pipeline-timezones"
+            value={form.timezone}
+            onChange={(event) => update({ timezone: event.target.value })}
+          />
+          <datalist id="pipeline-timezones">
+            {[...timezones].map((timezone) => <option key={timezone} value={timezone} />)}
+          </datalist>
         </label>
 
-        <ScheduleRunList runs={schedules.runs} onOpenBuild={onOpenBuild} />
+        <ScheduleRunList
+          runs={schedules.runs}
+          timeZone={displayTimezone}
+          onOpenBuild={onOpenBuild}
+        />
       </div>
 
       <footer className="pipeline-drawer__foot pipeline-schedule-actions">

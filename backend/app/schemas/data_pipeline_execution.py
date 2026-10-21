@@ -18,6 +18,7 @@ class BuildOutputRead(BaseModel):
     status: str
     stage: str | None = None
     engine_job_id: str | None = None
+    log_uri: str | None = None
     error_code: str | None = None
     error_message: str | None = None
     result: dict[str, Any] | None = None
@@ -35,6 +36,7 @@ class BuildRead(BaseModel):
     trigger: str
     error_code: str | None = None
     error_message: str | None = None
+    log_uri: str | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     outputs: list[BuildOutputRead]
@@ -109,3 +111,5 @@ class ScheduleRunRead(BaseModel):
     logic_hash: str | None = None
     reason_code: str | None = None
     message: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None

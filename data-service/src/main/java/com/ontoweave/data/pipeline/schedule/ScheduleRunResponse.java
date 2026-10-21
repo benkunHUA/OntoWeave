@@ -13,6 +13,8 @@ public record ScheduleRunResponse(
         UUID buildId,
         String logicHash,
         String reasonCode,
-        String message
+        String message,
+        Instant startedAt,
+        Instant finishedAt
 ) {
 }

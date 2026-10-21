@@ -10,6 +10,8 @@ public record PipelineResponse(
         String status,
         Long draftRevision,
         UUID currentVersionId,
+        Integer currentVersionNumber,
+        Long currentVersionDraftRevision,
         Instant createdAt,
         Instant updatedAt
 ) {

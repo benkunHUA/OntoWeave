@@ -13,6 +13,7 @@ public record BuildResponse(
         String trigger,
         String errorCode,
         String errorMessage,
+        String logUri,
         Instant startedAt,
         Instant finishedAt,
         List<BuildOutputResponse> outputs

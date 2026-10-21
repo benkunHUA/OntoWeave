@@ -164,6 +164,15 @@ def preview_node(
     )
 
 
+def cancel_preview(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    pipeline_id: uuid.UUID,
+) -> None:
+    client.cancel_preview(pipeline_id, owner_id=owner_id)
+
+
 def create_build(
     client: DataServiceClient,
     *,

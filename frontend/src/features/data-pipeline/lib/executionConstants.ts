@@ -1,5 +1,7 @@
 export const BUILD_COPY = {
   build: '构建',
+  creating: '创建中',
+  preparing: '保存草稿中',
   rebuild: '重新构建',
   confirmTitle: '确认构建',
   confirmSubtitle: '冻结当前草稿并执行全部输出',
@@ -9,21 +11,32 @@ export const BUILD_COPY = {
   confirm: '确认构建',
   cancel: '取消',
   noOutputs: '请先配置至少一个输出节点',
+  noBoundOutputs: '请先绑定全部输出节点',
+  blockingIssues: '存在阻塞问题，修复后才能构建',
+  savingDraft: '正在保存草稿，请稍候',
+  prepareFailed: '草稿保存失败，未创建构建',
   viewDetails: '查看构建详情',
   detailsTitle: '构建详情',
   outputTitle: '输出',
   diagnostics: '错误与诊断',
   noDiagnostics: '本次输出没有错误信息',
   cancelBuild: '取消构建',
+  cancelSending: '正在发送取消请求…',
   cancelRequested: '已发送取消请求，等待 worker 确认',
+  cancelFailed: '取消构建失败，请重试',
   noBuild: '尚未创建构建',
   schedule: '调度',
+  logOpen: '打开完整日志',
+  logMissing: '日志尚未持久化，以下为诊断信息',
+  outputDataset: '查看输出数据集',
 } as const
 
 export const PREVIEW_COPY = {
   title: '节点预览',
   refresh: '刷新预览',
   close: '关闭预览',
+  cancel: '取消预览',
+  currentDraft: '基于当前草稿',
   stale: '草稿已修改，预览已过期',
   loading: '正在执行预览…',
   nonFull: '非全量结果',
@@ -65,6 +78,9 @@ export const SCHEDULE_COPY = {
   noPublishedVersion: '首次构建后才能定时运行',
   draftUsesPublished: '调度仍使用已发布版本',
   buildLink: '查看构建',
+  timezoneLabel: '时区',
+  triggerTime: '时间触发',
+  triggerManual: '手动触发',
 } as const
 
 export const SOURCE_COPY = {
@@ -77,6 +93,14 @@ export const SOURCE_COPY = {
   loading: '正在读取来源…',
   missing: '元数据不可用',
   restricted: '元数据权限受限',
+} as const
+
+export const OUTPUT_DATASET_COPY = {
+  title: '输出数据集详情',
+  output: '输出节点',
+  datasetId: '数据集 ID',
+  datasetVersionId: '数据版本 ID',
+  close: '关闭',
 } as const
 
 export const BUILD_ACTIVE_STATUSES = new Set(['queued', 'running'])

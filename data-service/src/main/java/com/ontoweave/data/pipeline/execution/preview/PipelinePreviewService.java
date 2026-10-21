@@ -10,6 +10,8 @@ public interface PipelinePreviewService {
 
     PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request);
 
+    void cancel(UUID pipelineId, UUID ownerId);
+
     void cancelForBuild(UUID pipelineId);
 
     boolean awaitReleased(UUID pipelineId, Duration timeout);

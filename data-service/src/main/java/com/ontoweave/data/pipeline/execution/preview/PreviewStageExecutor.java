@@ -63,7 +63,7 @@ final class PreviewStageExecutor {
                     HttpStatus.UNPROCESSABLE_ENTITY,
                     "PREVIEW_BLOCKED",
                     "流程检查存在阻塞错误，不能预览",
-                    Map.of("blockingIssues", check.blockingIssues())
+                    Map.of("issues", check.blockingIssues())
             );
         }
         LogicalPlan plan = planBuilder.buildForPreview(

@@ -14,6 +14,7 @@ public record BuildOutputResponse(
         String status,
         String stage,
         String engineJobId,
+        String logUri,
         String errorCode,
         String errorMessage,
         JsonNode result,

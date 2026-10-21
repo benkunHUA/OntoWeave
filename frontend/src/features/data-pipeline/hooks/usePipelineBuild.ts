@@ -5,6 +5,7 @@ import {
   getPipelineBuild,
 } from '../../../shared/api'
 import { HttpError } from '../../../shared/api/client'
+import { httpErrorInfo, httpErrorText } from '../../../shared/api/errors'
 import type { PipelineBuild } from '../../../shared/types'
 import { BUILD_POLL_INTERVAL_MS, BUILD_STORAGE_PREFIX } from '../lib/constants'
 import { BUILD_ACTIVE_STATUSES } from '../lib/executionConstants'
@@ -32,6 +33,7 @@ export function usePipelineBuild(pipelineId: string | undefined) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const timerRef = useRef<number | null>(null)
   const requestRef = useRef(0)
+  const detailsTokenRef = useRef(0)
   const { token, isCurrent } = usePipelineGeneration(pipelineId)
 
   const stopPolling = useCallback(() => {
@@ -41,9 +43,15 @@ export function usePipelineBuild(pipelineId: string | undefined) {
     }
   }, [])
 
+  const closeDetails = useCallback(() => {
+    detailsTokenRef.current += 1
+    setDetailsOpen(false)
+  }, [])
+
   const load = useCallback(async (buildId: string, open = false) => {
     if (!pipelineId) return null
     const requestToken = ++requestRef.current
+    const detailsToken = open ? ++detailsTokenRef.current : null
     setIsLoading(true)
     setError(null)
     try {
@@ -51,16 +59,17 @@ export function usePipelineBuild(pipelineId: string | undefined) {
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
       setBuild(next)
       storeBuild(pipelineId, next.id)
-      if (open) setDetailsOpen(true)
+      if (open && detailsToken === detailsTokenRef.current) setDetailsOpen(true)
       return next
     } catch (reason) {
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
-      if (reason instanceof HttpError && reason.status === 404) {
+      if (reason instanceof HttpError && reason.status >= 400 && reason.status < 500) {
         storeBuild(pipelineId, null)
         setBuild(null)
-        setDetailsOpen(false)
+        closeDetails()
+        setError(httpErrorInfo(reason, '读取构建失败').message)
       } else {
-        setError(reason instanceof Error ? reason.message : '读取构建失败')
+        setError(httpErrorText(reason, '读取构建失败'))
       }
       return null
     } finally {
@@ -68,14 +77,16 @@ export function usePipelineBuild(pipelineId: string | undefined) {
         setIsLoading(false)
       }
     }
-  }, [isCurrent, pipelineId, token])
+  }, [closeDetails, isCurrent, pipelineId, token])
 
   useEffect(() => {
     requestRef.current += 1
+    detailsTokenRef.current += 1
     stopPolling()
     setBuild(null)
     setError(null)
     setDetailsOpen(false)
+    setIsLoading(false)
     const stored = readStoredBuild(pipelineId)
     if (stored && pipelineId) void load(stored)
     return stopPolling
@@ -94,10 +105,16 @@ export function usePipelineBuild(pipelineId: string | undefined) {
         if (BUILD_ACTIVE_STATUSES.has(next.status)) {
           timerRef.current = window.setTimeout(tick, BUILD_POLL_INTERVAL_MS)
         }
-      } catch {
-        if (!cancelled && isCurrent(pipelineId, token) && requestRef.current === pollRequest) {
-          timerRef.current = window.setTimeout(tick, BUILD_POLL_INTERVAL_MS)
+      } catch (reason) {
+        if (cancelled || !isCurrent(pipelineId, token) || requestRef.current !== pollRequest) return
+        if (reason instanceof HttpError && reason.status >= 400 && reason.status < 500) {
+          storeBuild(pipelineId, null)
+          setBuild(null)
+          closeDetails()
+          setError(httpErrorInfo(reason, '读取构建失败').message)
+          return
         }
+        timerRef.current = window.setTimeout(tick, BUILD_POLL_INTERVAL_MS)
       }
     }
     timerRef.current = window.setTimeout(tick, BUILD_POLL_INTERVAL_MS)
@@ -105,7 +122,7 @@ export function usePipelineBuild(pipelineId: string | undefined) {
       cancelled = true
       stopPolling()
     }
-  }, [build, isCurrent, pipelineId, stopPolling, token])
+  }, [build, closeDetails, isCurrent, pipelineId, stopPolling, token])
 
   const create = useCallback(async (draftRevision: number) => {
     if (!pipelineId) return null
@@ -121,11 +138,12 @@ export function usePipelineBuild(pipelineId: string | undefined) {
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
       setBuild(next)
       storeBuild(pipelineId, next.id)
+      detailsTokenRef.current += 1
       setDetailsOpen(true)
       return next
     } catch (reason) {
       if (isCurrent(pipelineId, token) && requestRef.current === requestToken) {
-        setError(reason instanceof Error ? reason.message : '创建构建失败')
+        setError(httpErrorText(reason, '创建构建失败'))
       }
       return null
     } finally {
@@ -140,24 +158,31 @@ export function usePipelineBuild(pipelineId: string | undefined) {
     void load(buildId, true)
   }, [load, pipelineId])
 
-  const cancel = useCallback(async () => {
-    if (!pipelineId || !build) return
+  const cancel = useCallback(async (): Promise<boolean> => {
+    if (!pipelineId || !build) return false
     try {
       await cancelPipelineBuild(pipelineId, build.id, crypto.randomUUID())
       if (isCurrent(pipelineId, token)) await load(build.id)
+      return true
     } catch (reason) {
       if (isCurrent(pipelineId, token)) {
-        setError(reason instanceof Error ? reason.message : '取消构建失败')
+        setError(httpErrorText(reason, '取消构建失败'))
       }
+      return false
     }
   }, [build, isCurrent, load, pipelineId, token])
+
+  const setDetailsVisibility = useCallback((open: boolean) => {
+    if (open) setDetailsOpen(true)
+    else closeDetails()
+  }, [closeDetails])
 
   return {
     build,
     isLoading,
     error,
     detailsOpen,
-    setDetailsOpen,
+    setDetailsOpen: setDetailsVisibility,
     create,
     open,
     cancel,

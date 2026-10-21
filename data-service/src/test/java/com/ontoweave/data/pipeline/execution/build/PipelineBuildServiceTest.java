@@ -263,7 +263,7 @@ class PipelineBuildServiceTest {
     private BuildResponse response(PipelineBuildEntity build, List<BuildOutputResponse> buildOutputs) {
         return new BuildResponse(
                 build.getId(), PIPELINE_ID, build.getPipelineVersionId(),
-                "queued", null, "manual", null, null, null, null, buildOutputs
+                "queued", null, "manual", null, null, null, null, null, buildOutputs
         );
     }
 }

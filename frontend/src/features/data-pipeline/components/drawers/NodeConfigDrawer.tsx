@@ -1,5 +1,12 @@
 import { CircleAlert, Eye, Info, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import type {
   JsonObject,
   NodeDefinition,
@@ -26,6 +33,7 @@ import {
 
 interface NodeConfigDrawerProps {
   pipelineId: string
+  revision: number | null
   node: PipelineNode
   definition: NodeDefinition | null
   issues: PipelineIssue[]
@@ -33,18 +41,22 @@ interface NodeConfigDrawerProps {
   isReadOnly?: boolean
   focusField?: string | null
   onClose: () => void
-  onPreview?: (nodeId: string) => void
+  onPreview?: (nodeId: string, revision: number) => void
   onSave: (
     pipelineId: string,
     nodeId: string,
     name: string,
     config: JsonObject,
-  ) => Promise<unknown> | null
+  ) => Promise<PipelineDraftResponse | null> | null
   onDelete: (nodeId: string) => Promise<unknown> | null
   onSetOutput: (
     nodeId: string,
     output: OutputDraftInput,
   ) => Promise<PipelineDraftResponse | null> | null
+}
+
+export interface NodeConfigDrawerHandle {
+  flush: () => Promise<number | null>
 }
 
 function fieldLabel(field: string): string {
@@ -55,8 +67,9 @@ function sortIssues(issues: PipelineIssue[]): PipelineIssue[] {
   return [...issues].sort((left, right) => Number(right.blocking) - Number(left.blocking))
 }
 
-export function NodeConfigDrawer({
+export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDrawerProps>(function NodeConfigDrawer({
   pipelineId,
+  revision,
   node,
   definition,
   issues,
@@ -68,11 +81,13 @@ export function NodeConfigDrawer({
   onSave,
   onDelete,
   onSetOutput,
-}: NodeConfigDrawerProps) {
+}, ref) {
   const [drawer, setDrawer] = useState(() => drawerStateFor(node))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [seenConfig, setSeenConfig] = useState(node.config)
   const dirtyRef = useRef(drawer.dirty)
+  const revisionRef = useRef(revision)
+  const savePromiseRef = useRef<Promise<number | null> | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
 
   if (drawer.nodeId !== node.id) {
@@ -83,20 +98,44 @@ export function NodeConfigDrawer({
     if (!drawer.dirty) setDrawer((current) => syncExternalConfig(current, node))
   }
 
-  const saveNow = useCallback(() => {
-    if (!dirtyRef.current || isReadOnly) return
+  useEffect(() => {
+    revisionRef.current = revision
+  }, [revision])
+
+  const saveNow = useCallback((): Promise<number | null> => {
+    if (savePromiseRef.current) return savePromiseRef.current
+    if (isReadOnly) return Promise.resolve(null)
+    if (!dirtyRef.current) return Promise.resolve(revisionRef.current)
     const trimmedName = drawer.name.trim()
-    if (!trimmedName) return
+    if (!trimmedName) return Promise.resolve(null)
     dirtyRef.current = false
     setDrawer((current) => current.nodeId === node.id
       ? { ...current, dirty: false }
       : current)
-    void onSave(pipelineId, node.id, trimmedName, configForSave(drawer))
+    const promise = Promise.resolve(onSave(pipelineId, node.id, trimmedName, configForSave(drawer)))
+      .then((response) => {
+        if (!response) {
+          dirtyRef.current = true
+          setDrawer((current) => current.nodeId === node.id
+            ? { ...current, dirty: true }
+            : current)
+          return null
+        }
+        revisionRef.current = response.revision
+        return response.revision
+      })
+      .finally(() => {
+        savePromiseRef.current = null
+      })
+    savePromiseRef.current = promise
+    return promise
   }, [drawer, isReadOnly, node.id, onSave, pipelineId])
+
+  useImperativeHandle(ref, () => ({ flush: saveNow }), [saveNow])
 
   useEffect(() => {
     if (!drawer.dirty || isReadOnly || !drawer.name.trim()) return
-    const timer = window.setTimeout(saveNow, CONFIG_SAVE_DELAY_MS)
+    const timer = window.setTimeout(() => void saveNow(), CONFIG_SAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [drawer.dirty, drawer.name, isReadOnly, saveNow])
 
@@ -105,7 +144,7 @@ export function NodeConfigDrawer({
     flushRef.current = saveNow
     dirtyRef.current = drawer.dirty
   }, [drawer.dirty, saveNow])
-  useEffect(() => () => flushRef.current(), [node.id, pipelineId])
+  useEffect(() => () => void flushRef.current(), [node.id, pipelineId])
 
   useEffect(() => {
     if (!focusField) return
@@ -117,7 +156,7 @@ export function NodeConfigDrawer({
   }, [focusField, node.id])
 
   function close() {
-    saveNow()
+    void saveNow()
     onClose()
   }
 
@@ -139,6 +178,7 @@ export function NodeConfigDrawer({
   async function setOutput(nodeId: string, output: OutputDraftInput) {
     const response = await onSetOutput(nodeId, output)
     if (!response) return null
+    revisionRef.current = response.revision
     setDrawer((current) => {
       const next = applyDraftResponse(current, node.id, response)
       dirtyRef.current = next.dirty
@@ -234,8 +274,9 @@ export function NodeConfigDrawer({
               className="secondary-button"
               disabled={isReadOnly}
               onClick={() => {
-                saveNow()
-                onPreview(node.id)
+                void saveNow().then((savedRevision) => {
+                  if (savedRevision !== null) onPreview(node.id, savedRevision)
+                })
               }}
             >
               <Eye size={14} />
@@ -267,4 +308,4 @@ export function NodeConfigDrawer({
       </footer>
     </aside>
   )
-}
+})

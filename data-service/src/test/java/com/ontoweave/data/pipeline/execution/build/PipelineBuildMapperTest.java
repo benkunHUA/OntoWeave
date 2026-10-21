@@ -36,6 +36,7 @@ class PipelineBuildMapperTest {
         PipelineBuildOutputEntity output = mock(PipelineBuildOutputEntity.class);
         when(output.getId()).thenReturn(buildOutputId);
         when(output.getOutputId()).thenReturn(outputId);
+        when(output.getLogUri()).thenReturn("s3://logs/output.txt");
         when(output.getResult()).thenReturn(json.createObjectNode());
         when(output.getStats()).thenReturn(json.createObjectNode());
         PipelineDatasetEntity dataset = mock(PipelineDatasetEntity.class);
@@ -47,12 +48,15 @@ class PipelineBuildMapperTest {
         when(datasets.findByOutputIdIn(Set.of(outputId))).thenReturn(List.of(dataset));
         when(versions.findByBuildOutputIdIn(Set.of(buildOutputId))).thenReturn(List.of(version));
         PipelineBuildEntity build = mock(PipelineBuildEntity.class);
+        when(build.getLogUri()).thenReturn("s3://logs/build.txt");
 
         BuildResponse response = mapper.toResponse(build, List.of(output));
 
         assertThat(response.outputs()).hasSize(1);
         assertThat(response.outputs().get(0).datasetId()).isEqualTo(datasetId);
         assertThat(response.outputs().get(0).datasetVersionId()).isEqualTo(versionId);
+        assertThat(response.logUri()).isEqualTo("s3://logs/build.txt");
+        assertThat(response.outputs().get(0).logUri()).isEqualTo("s3://logs/output.txt");
         verify(datasets).findByOutputIdIn(any());
         verify(versions).findByBuildOutputIdIn(any());
     }

@@ -25,6 +25,7 @@ describe('build status labels', () => {
       trigger: 'manual',
       error_code: null,
       error_message: null,
+      log_uri: null,
       started_at: '2026-10-21T10:00:00Z',
       finished_at: '2026-10-21T10:00:02.500Z',
       outputs: [],
@@ -45,6 +46,7 @@ describe('build output summaries', () => {
     status: 'succeeded',
     stage: 'finished',
     engine_job_id: null,
+    log_uri: null,
     error_code: null,
     error_message: null,
     result: {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getPipelineOutputSources } from '../../../shared/api'
+import { httpErrorText } from '../../../shared/api/errors'
 import type { PipelineSource } from '../../../shared/types'
 import { usePipelineGeneration } from './usePipelineGeneration'
 
@@ -43,7 +44,7 @@ export function useOutputSources({
       return next
     } catch (reason) {
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
-      setError(reason instanceof Error ? reason.message : '读取输出来源失败')
+      setError(httpErrorText(reason, '读取输出来源失败'))
       return null
     } finally {
       if (isCurrent(pipelineId, token) && requestRef.current === requestToken) {

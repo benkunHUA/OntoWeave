@@ -1,4 +1,5 @@
 import { HttpError } from '../../../shared/api/client'
+import { httpErrorInfo } from '../../../shared/api/errors'
 import type { PipelinePreview, PipelinePreviewIssue } from '../../../shared/types'
 
 export type PreviewState = 'idle' | 'loading' | 'ready' | 'stale' | 'error'
@@ -52,22 +53,24 @@ function issue(value: Record<string, unknown>): PipelinePreviewIssue {
   }
 }
 
-function issuesFrom(details: unknown): PipelinePreviewIssue[] {
-  if (!details || typeof details !== 'object') return []
-  const issues = (details as { issues?: unknown }).issues
-  if (!Array.isArray(issues)) return []
-  return issues
-    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
-    .map(issue)
-}
-
-function bodyOf(error: HttpError): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(error.body) as unknown
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {}
-  } catch {
-    return {}
+function issuesFrom(details: Record<string, unknown>, fallbackMessage: string): PipelinePreviewIssue[] {
+  const issues = [details.issues, details.blockingIssues]
+    .find((value) => Array.isArray(value)) as unknown[] | undefined
+  if (issues?.length) {
+    return issues
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map(issue)
   }
+  if (!('nodeId' in details || 'portId' in details || 'field' in details)) return []
+  return [issue({
+    code: 'PREVIEW_EXECUTION_FAILED',
+    phase: 'execution',
+    level: 'error',
+    nodeId: details.nodeId,
+    portId: details.portId,
+    field: details.field,
+    message: typeof details.message === 'string' ? details.message : fallbackMessage,
+  })]
 }
 
 export function previewRequestError(reason: unknown): PreviewRequestError {
@@ -78,8 +81,7 @@ export function previewRequestError(reason: unknown): PreviewRequestError {
       issues: [],
     }
   }
-  const body = bodyOf(reason)
-  const message = typeof body.message === 'string' ? body.message : reason.message
+  const info = httpErrorInfo(reason, '预览失败')
   if (reason.status === 409) {
     return {
       kind: 'revision',
@@ -90,11 +92,11 @@ export function previewRequestError(reason: unknown): PreviewRequestError {
   if (reason.status === 422) {
     return {
       kind: 'blocked',
-      message,
-      issues: issuesFrom(body.details),
+      message: info.message,
+      issues: issuesFrom(info.details, info.message),
     }
   }
-  return { kind: 'unknown', message, issues: [] }
+  return { kind: 'unknown', message: info.message, issues: info.issues as PipelinePreviewIssue[] }
 }
 
 export function previewTruncationLabel(

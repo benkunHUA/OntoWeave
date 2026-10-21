@@ -84,32 +84,40 @@ export function usePipelineExecutionUi({
       return
     }
     closePreviewState()
+    setBuildDetailsOpen(false)
+    setScheduleOpen(false)
     setPanel((current) => openNodePanel(current, nodeId))
-  }, [closePreviewState])
+  }, [closePreviewState, setBuildDetailsOpen])
 
-  const openPreview = useCallback((nodeId: string) => {
+  const openPreview = useCallback((nodeId: string, revision?: number) => {
+    setBuildDetailsOpen(false)
+    setScheduleOpen(false)
     setPanel((current) => openPreviewPanel(current, nodeId))
-    void runPreview(nodeId)
-  }, [runPreview])
+    void runPreview(nodeId, revision)
+  }, [runPreview, setBuildDetailsOpen])
 
   const openIssue = useCallback((issue: PipelinePreviewIssue) => {
     if (!issue.node_id) return
     const nodeId = issue.node_id
     closePreviewState()
+    setBuildDetailsOpen(false)
+    setScheduleOpen(false)
     setPanel((current) => openIssuePanel(current, nodeId, issue.field))
-  }, [closePreviewState])
+  }, [closePreviewState, setBuildDetailsOpen])
 
   const openBuildDetails = useCallback((buildId: string) => {
+    closePreviewState()
     setPanel(closePipelinePanel())
     setScheduleOpen(false)
     openStoredBuild(buildId)
-  }, [openStoredBuild])
+  }, [closePreviewState, openStoredBuild])
 
   const openSchedule = useCallback(() => {
+    closePreviewState()
     setPanel(closePipelinePanel())
     setBuildDetailsOpen(false)
     setScheduleOpen(true)
-  }, [setBuildDetailsOpen])
+  }, [closePreviewState, setBuildDetailsOpen])
 
   const closePanel = useCallback(() => setPanel(closePipelinePanel()), [])
   const closePreview = useCallback(() => {

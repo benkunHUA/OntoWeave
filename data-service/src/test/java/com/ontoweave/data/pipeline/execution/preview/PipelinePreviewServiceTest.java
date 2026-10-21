@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static com.ontoweave.data.pipeline.execution.preview.PipelinePreviewTestSupport.BlockingExecutor;
@@ -83,6 +85,7 @@ class PipelinePreviewServiceTest {
         )).isInstanceOfSatisfying(ApiException.class, exception -> {
             assertThat(exception.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
             assertThat(exception.code()).isEqualTo("PREVIEW_BLOCKED");
+            assertThat(exception.details()).containsKey("issues");
         });
 
         verifyNoInteractions(planBuilder, executor, reader);
@@ -92,7 +95,7 @@ class PipelinePreviewServiceTest {
     void inputNodeUsesDirectIcebergReaderAndNeverStartsFlink() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
         when(reader.read("ontoweave", "sales", "orders", 100L, 501))
                 .thenReturn(Optional.of(new IcebergPreview(
@@ -119,7 +122,7 @@ class PipelinePreviewServiceTest {
     void propagatesDirectReaderTruncationEvenWhenRowsFitTheResponseLimit() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
         when(reader.read("ontoweave", "sales", "orders", 100L, 501))
                 .thenReturn(Optional.of(new IcebergPreview(
@@ -146,7 +149,7 @@ class PipelinePreviewServiceTest {
                 "amount", 2L, "值无法转换为 long", "检查原始值格式", "abc"
         );
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
@@ -175,7 +178,7 @@ class PipelinePreviewServiceTest {
     void marksScanRowLimitWhenAnyInputExceedsScanLimit() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
@@ -203,7 +206,7 @@ class PipelinePreviewServiceTest {
     void doesNotMarkScanRowLimitWhenInputsStayWithinLimit() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
@@ -247,7 +250,7 @@ class PipelinePreviewServiceTest {
     void mapsPlanBuildThatExhaustsBudgetToPreviewTimeout() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString())).thenAnswer(invocation -> {
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString())).thenAnswer(invocation -> {
             Thread.sleep(80);
             return transformPlan(NODE_ID, input, 4L);
         });
@@ -269,7 +272,7 @@ class PipelinePreviewServiceTest {
             Thread.sleep(150);
             return readyCheck(PIPELINE_ID, 4L);
         });
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         when(executor.execute(
                 org.mockito.ArgumentMatchers.any(),
@@ -300,7 +303,7 @@ class PipelinePreviewServiceTest {
     void mapsExecutionTimeoutToPreviewTimeout() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         BlockingExecutor blocking = new BlockingExecutor();
         PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
@@ -313,6 +316,41 @@ class PipelinePreviewServiceTest {
             assertThat(exception.status()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
             assertThat(exception.code()).isEqualTo("PREVIEW_TIMEOUT");
         });
+    }
+
+    @Test
+    void cancelChecksOwnershipAndInterruptsTheActivePreview() throws Exception {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        PipelinePreviewTestSupport.BlockingExecutor blocking =
+                new PipelinePreviewTestSupport.BlockingExecutor();
+        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
+                checks, planBuilder, blocking, reader, Duration.ofSeconds(10), workers
+        );
+        ExecutorService callers = Executors.newSingleThreadExecutor();
+        try {
+            Future<PreviewResponse> running = callers.submit(() -> service.preview(
+                    PIPELINE_ID,
+                    OWNER_ID,
+                    new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+            ));
+            assertThat(blocking.awaitStarted(2, TimeUnit.SECONDS)).isTrue();
+
+            service.cancel(PIPELINE_ID, OWNER_ID);
+
+            assertThatThrownBy(() -> running.get(3, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .satisfies(error -> assertThat(error.getCause())
+                            .isInstanceOfSatisfying(ApiException.class, api -> {
+                                assertThat(api.code()).isEqualTo("PREVIEW_CANCELED");
+                                assertThat(api.status()).isEqualTo(HttpStatus.CONFLICT);
+                            }));
+            verify(checks, org.mockito.Mockito.atLeastOnce()).assertOwned(PIPELINE_ID, OWNER_ID);
+        } finally {
+            callers.shutdownNow();
+        }
     }
 
     private PipelinePreviewService service(Duration timeout) {

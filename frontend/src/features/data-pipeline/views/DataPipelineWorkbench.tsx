@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useErrorToast } from '../../../shared/chat/hooks/useErrorToast'
 import type {
@@ -10,7 +10,10 @@ import type {
   StateUpdateEvent,
 } from '../../../shared/types'
 import { WorkbenchPaneLayout } from '../../../shared/workbench/WorkbenchPaneLayout'
-import { NodeConfigDrawer } from '../components/drawers/NodeConfigDrawer'
+import {
+  NodeConfigDrawer,
+  type NodeConfigDrawerHandle,
+} from '../components/drawers/NodeConfigDrawer'
 import { BuildBar } from '../components/build/BuildBar'
 import { BuildDetailsDrawer } from '../components/build/BuildDetailsDrawer'
 import { PipelineCanvas } from '../components/PipelineCanvas'
@@ -55,6 +58,7 @@ export function DataPipelineWorkbench() {
   const refreshList = list.refresh
   const reloadDraftView = draftView.reload
   const layout = usePipelineLayout()
+  const nodeDrawerRef = useRef<NodeConfigDrawerHandle | null>(null)
 
   const pipeline = useMemo<Pipeline | null>(
     () => list.items.find((item) => item.id === pipelineId) ?? null,
@@ -158,6 +162,11 @@ export function DataPipelineWorkbench() {
     [createPipelineRecord, navigate],
   )
 
+  const prepareBuild = useCallback(async () => {
+    if (!nodeDrawerRef.current) return draftView.draft?.revision ?? null
+    return nodeDrawerRef.current.flush()
+  }, [draftView.draft?.revision])
+
   return (
     <WorkbenchPaneLayout
       pageClassName="data-pipeline-page"
@@ -202,10 +211,13 @@ export function DataPipelineWorkbench() {
           error={queue.error ?? draftView.error}
           actions={<BuildBar
             revision={draftView.draft?.revision ?? null}
+            check={draftView.check}
             outputs={outputs}
+            isWriting={queue.isWriting}
             build={build.build}
             isCreating={build.isLoading}
             error={build.error}
+            onPrepareBuild={prepareBuild}
             onBuild={(revision) => void build.create(revision)}
             onOpenDetails={openBuildDetails}
             onOpenSchedule={openSchedule}
@@ -220,8 +232,10 @@ export function DataPipelineWorkbench() {
         />
         {selectedNode && pipelineId ? (
           <NodeConfigDrawer
+            ref={nodeDrawerRef}
             key={`${pipelineId}:${selectedNode.id}`}
             pipelineId={pipelineId}
+            revision={draftView.draft?.revision ?? null}
             node={selectedNode}
             definition={findNodeDefinition(draftView.catalog, selectedNode.type)}
             issues={selectedIssues}
@@ -229,7 +243,7 @@ export function DataPipelineWorkbench() {
             isReadOnly={queue.hasConflict}
             focusField={focusField}
             onClose={closePanel}
-            onPreview={openPreview}
+            onPreview={(nodeId, revision) => openPreview(nodeId, revision)}
             onSave={saveNode}
             onDelete={deleteNode}
             onSetOutput={queueSetOutput}
@@ -256,14 +270,14 @@ export function DataPipelineWorkbench() {
             isLoading={build.isLoading}
             error={build.error}
             onClose={() => build.setDetailsOpen(false)}
-            onCancel={() => void build.cancel()}
+            onCancel={build.cancel}
           />
         ) : null}
         {scheduleOpen ? (
           <ScheduleDrawer
             open
             pipeline={pipeline}
-            hasDraftChanges={draftView.check?.stage === 'stale'}
+            draftRevision={draftView.draft?.revision ?? null}
             onClose={() => setScheduleOpen(false)}
             onOpenBuild={openBuildDetails}
           />

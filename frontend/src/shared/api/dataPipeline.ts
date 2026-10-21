@@ -144,6 +144,10 @@ export function previewPipelineNode(
   })
 }
 
+export function cancelPipelinePreview(pipelineId: string): Promise<void> {
+  return request<void>(`/pipelines/${pipelineId}/previews/cancel`, { method: 'POST' })
+}
+
 export function createPipelineBuild(
   pipelineId: string,
   payload: PipelineBuildRequest,

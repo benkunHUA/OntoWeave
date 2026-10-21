@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { previewPipelineNode } from '../../../shared/api'
+import { cancelPipelinePreview, previewPipelineNode } from '../../../shared/api'
 import type { PipelinePreview } from '../../../shared/types'
 import {
   previewRequestError,
@@ -22,6 +22,7 @@ export function usePipelinePreview({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<PreviewRequestError | null>(null)
   const requestRef = useRef(0)
+  const activeRef = useRef<{ pipelineId: string; nodeId: string } | null>(null)
   const { token, isCurrent } = usePipelineGeneration(pipelineId)
   const state = useMemo(() => previewState({
     previewRevision: preview?.draft_revision ?? null,
@@ -30,16 +31,29 @@ export function usePipelinePreview({
     hasError: Boolean(error),
   }), [draftRevision, error, isLoading, preview?.draft_revision])
 
-  const run = useCallback(async (targetNodeId: string) => {
-    if (!pipelineId || draftRevision === null) return null
+  const cancelActive = useCallback(() => {
+    const active = activeRef.current
+    activeRef.current = null
+    if (active) void cancelPipelinePreview(active.pipelineId).catch(() => undefined)
+  }, [])
+
+  const run = useCallback(async (targetNodeId: string, revisionOverride?: number) => {
+    const revision = revisionOverride ?? draftRevision
+    if (!pipelineId || revision === null) return null
+    setPreview(null)
+    if (activeRef.current) {
+      activeRef.current = null
+      await cancelPipelinePreview(pipelineId).catch(() => undefined)
+    }
     const requestToken = ++requestRef.current
     const requestId = crypto.randomUUID()
+    activeRef.current = { pipelineId, nodeId: targetNodeId }
     setNodeId(targetNodeId)
     setIsLoading(true)
     setError(null)
     try {
       const result = await previewPipelineNode(pipelineId, {
-        draft_revision: draftRevision,
+        draft_revision: revision,
         node_id: targetNodeId,
         request_id: requestId,
       }, requestId)
@@ -53,6 +67,7 @@ export function usePipelinePreview({
       return null
     } finally {
       if (isCurrent(pipelineId, token) && requestRef.current === requestToken) {
+        activeRef.current = null
         setIsLoading(false)
       }
     }
@@ -60,19 +75,26 @@ export function usePipelinePreview({
 
   const close = useCallback(() => {
     requestRef.current += 1
+    cancelActive()
     setNodeId(null)
     setPreview(null)
     setError(null)
     setIsLoading(false)
-  }, [])
+  }, [cancelActive])
 
   useEffect(() => {
     requestRef.current += 1
+    cancelActive()
     setPreview(null)
     setNodeId(null)
     setError(null)
     setIsLoading(false)
-  }, [pipelineId])
+  }, [cancelActive, pipelineId])
+
+  useEffect(() => () => {
+    requestRef.current += 1
+    cancelActive()
+  }, [cancelActive])
 
   return {
     preview,
@@ -82,5 +104,6 @@ export function usePipelinePreview({
     error,
     run,
     close,
+    cancel: cancelActive,
   }
 }

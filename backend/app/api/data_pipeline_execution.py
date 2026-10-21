@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 
 from app.deps import get_current_user_id, get_data_service_client
 from app.schemas.data_pipeline import BuildCreateRequest, PreviewRead, PreviewRequest
@@ -30,6 +30,19 @@ def preview_node(
             request=payload,
         )
     )
+
+
+@router.post("/pipelines/{pipeline_id}/previews/cancel", status_code=204)
+def cancel_preview(
+    pipeline_id: uuid.UUID,
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> Response:
+    data_pipeline_workbench.cancel_preview(
+        client,
+        owner_id=get_current_user_id(),
+        pipeline_id=pipeline_id,
+    )
+    return Response(status_code=204)
 
 
 @router.post("/pipelines/{pipeline_id}/builds", response_model=BuildRead)

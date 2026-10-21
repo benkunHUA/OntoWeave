@@ -238,6 +238,41 @@ class PipelineApiIntegrationTest extends PipelineApiTestSupport {
         assertThat(actual).containsExactlyElementsOf(expected);
     }
 
+    @Test
+    void exposesPublishedVersionNumberAndSourceDraftRevision() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "published");
+        UUID versionId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO data.pipeline_version
+                    (id, pipeline_id, version_number, definition, outputs,
+                     definition_hash, input_refs, source_draft_revision, created_by)
+                VALUES (?, ?, 2, '{"schemaVersion":1,"nodes":[],"edges":[]}'::jsonb,
+                        '[]'::jsonb, ?, '[]'::jsonb, 0, ?)
+                """, versionId, pipelineId, UUID.randomUUID().toString(), ownerId);
+        jdbc.update(
+                "UPDATE data.pipeline SET status = 'active', current_version_id = ? WHERE id = ?",
+                versionId,
+                pipelineId
+        );
+
+        JsonNode detail = json(mvc.perform(get("/internal/v1/pipelines/{id}", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andReturn());
+        JsonNode page = json(mvc.perform(get("/internal/v1/pipelines")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        assertThat(detail.path("currentVersionNumber").asInt()).isEqualTo(2);
+        assertThat(detail.path("currentVersionDraftRevision").asLong()).isZero();
+        assertThat(page.path("items").get(0).path("currentVersionNumber").asInt()).isEqualTo(2);
+        assertThat(page.path("items").get(0).path("currentVersionDraftRevision").asLong()).isZero();
+    }
+
     private java.util.concurrent.Callable<Integer> createAfterStart(
             String body,
             CountDownLatch ready,

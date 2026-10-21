@@ -7,6 +7,7 @@ import {
   resumePipelineSchedule,
 } from '../../../shared/api'
 import { HttpError } from '../../../shared/api/client'
+import { httpErrorText } from '../../../shared/api/errors'
 import type {
   PipelineSchedule,
   PipelineSchedulePutRequest,
@@ -44,7 +45,7 @@ export function usePipelineSchedule(pipelineId: string | undefined) {
         setRuns([])
         setMissing(true)
       } else {
-        setError(reason instanceof Error ? reason.message : '读取调度失败')
+        setError(httpErrorText(reason, '读取调度失败'))
       }
       return null
     } finally {
@@ -65,30 +66,45 @@ export function usePipelineSchedule(pipelineId: string | undefined) {
 
   const put = useCallback(async (payload: PipelineSchedulePutRequest) => {
     if (!pipelineId) return null
-    const next = await putPipelineSchedule(pipelineId, payload, crypto.randomUUID())
-    if (!isCurrent(pipelineId, token)) return null
-    setSchedule(next)
-    setMissing(false)
-    await refresh()
-    return next
+    try {
+      const next = await putPipelineSchedule(pipelineId, payload, crypto.randomUUID())
+      if (!isCurrent(pipelineId, token)) return null
+      setSchedule(next)
+      setMissing(false)
+      await refresh()
+      return next
+    } catch (reason) {
+      if (isCurrent(pipelineId, token)) setError(httpErrorText(reason, '保存调度失败'))
+      throw reason
+    }
   }, [isCurrent, pipelineId, refresh, token])
 
   const pause = useCallback(async () => {
     if (!pipelineId) return null
-    const next = await pausePipelineSchedule(pipelineId, crypto.randomUUID())
-    if (!isCurrent(pipelineId, token)) return null
-    setSchedule(next)
-    await refresh()
-    return next
+    try {
+      const next = await pausePipelineSchedule(pipelineId, crypto.randomUUID())
+      if (!isCurrent(pipelineId, token)) return null
+      setSchedule(next)
+      await refresh()
+      return next
+    } catch (reason) {
+      if (isCurrent(pipelineId, token)) setError(httpErrorText(reason, '暂停调度失败'))
+      throw reason
+    }
   }, [isCurrent, pipelineId, refresh, token])
 
   const resume = useCallback(async () => {
     if (!pipelineId) return null
-    const next = await resumePipelineSchedule(pipelineId, crypto.randomUUID())
-    if (!isCurrent(pipelineId, token)) return null
-    setSchedule(next)
-    await refresh()
-    return next
+    try {
+      const next = await resumePipelineSchedule(pipelineId, crypto.randomUUID())
+      if (!isCurrent(pipelineId, token)) return null
+      setSchedule(next)
+      await refresh()
+      return next
+    } catch (reason) {
+      if (isCurrent(pipelineId, token)) setError(httpErrorText(reason, '恢复调度失败'))
+      throw reason
+    }
   }, [isCurrent, pipelineId, refresh, token])
 
   return { schedule, runs, isLoading, missing, error, refresh, put, pause, resume }

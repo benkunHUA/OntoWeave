@@ -20,6 +20,8 @@ def _pipeline(name: str = "订单清洗") -> dict:
         "status": "draft",
         "draftRevision": 3,
         "currentVersionId": None,
+        "currentVersionNumber": None,
+        "currentVersionDraftRevision": None,
         "createdAt": NOW,
         "updatedAt": NOW,
     }
@@ -190,6 +192,10 @@ class FakePipelineClient:
             "warnings": [],
         }
 
+    def cancel_preview(self, pipeline_id, *, owner_id):  # noqa: ANN001
+        self._record("cancel-preview", pipeline_id=pipeline_id, owner_id=owner_id)
+        return {}
+
     def create_build(self, pipeline_id, *, owner_id, payload):  # noqa: ANN001
         self._record("build", pipeline_id=pipeline_id, payload=payload)
         return self._build()
@@ -212,6 +218,7 @@ class FakePipelineClient:
             "trigger": "manual",
             "errorCode": None,
             "errorMessage": None,
+            "logUri": None,
             "startedAt": None,
             "finishedAt": None,
             "outputs": [
@@ -222,6 +229,7 @@ class FakePipelineClient:
                     "status": "queued",
                     "stage": "queued",
                     "engineJobId": None,
+                    "logUri": None,
                     "errorCode": None,
                     "errorMessage": None,
                     "result": {"expectations": []},
@@ -303,6 +311,8 @@ class FakePipelineClient:
                 "logicHash": "hash",
                 "reasonCode": None,
                 "message": None,
+                "startedAt": NOW,
+                "finishedAt": NOW,
             }
         ]
 
