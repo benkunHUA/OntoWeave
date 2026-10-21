@@ -60,7 +60,7 @@ public class PreviewPlanBuilder {
         }
 
         Map<UUID, ResolvedInput> inputsByDataset = new HashMap<>();
-        for (ResolvedInput input : inputResolver.resolve(pipelineId, revision)) {
+        for (ResolvedInput input : inputResolver.resolve(pipelineId, ownerId, revision)) {
             inputsByDataset.put(input.datasetId(), input);
         }
         Map<UUID, List<DraftEdge>> incoming = incoming(graph.edges());

@@ -1,12 +1,9 @@
 package com.ontoweave.data.sync.iceberg;
 
+import com.ontoweave.data.common.PreviewValues;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.types.Types;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,40 +49,9 @@ final class IcebergPreviewRows {
     private static Map<String, Object> row(List<String> columns, Record record) {
         Map<String, Object> row = new LinkedHashMap<>();
         for (int index = 0; index < columns.size(); index++) {
-            row.put(columns.get(index), normalize(record.get(index)));
+            row.put(columns.get(index), PreviewValues.normalize(record.get(index)));
         }
         return row;
     }
 
-    private static Object normalize(Object value) {
-        if (value instanceof byte[] bytes) {
-            return Base64.getEncoder().encodeToString(bytes);
-        }
-        if (value instanceof ByteBuffer buffer) {
-            ByteBuffer copy = buffer.duplicate();
-            byte[] bytes = new byte[copy.remaining()];
-            copy.get(bytes);
-            return Base64.getEncoder().encodeToString(bytes);
-        }
-        if (value instanceof Record record) {
-            return record(record);
-        }
-        if (value instanceof Map<?, ?> map) {
-            Map<String, Object> normalized = new LinkedHashMap<>();
-            map.forEach((key, item) -> normalized.put(String.valueOf(key), normalize(item)));
-            return normalized;
-        }
-        if (value instanceof Collection<?> collection) {
-            return collection.stream().map(IcebergPreviewRows::normalize).toList();
-        }
-        return value;
-    }
-
-    private static Map<String, Object> record(Record record) {
-        Map<String, Object> normalized = new LinkedHashMap<>();
-        for (Types.NestedField field : record.struct().fields()) {
-            normalized.put(field.name(), normalize(record.getField(field.name())));
-        }
-        return normalized;
-    }
 }

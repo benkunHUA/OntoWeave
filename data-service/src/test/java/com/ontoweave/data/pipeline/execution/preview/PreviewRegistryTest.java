@@ -81,6 +81,40 @@ class PreviewRegistryTest {
                 });
     }
 
+
+    @Test
+    void buildCutoffRejectsARequestThatBegunBeforeCancellation() {
+        UUID pipelineId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
+        long oldEpoch = registry.beginEpoch(pipelineId);
+        registry.cancelForBuild(pipelineId);
+
+        assertThatThrownBy(() -> registry.register(pipelineId, ownerId, oldEpoch))
+                .isInstanceOfSatisfying(ApiException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED");
+                });
+
+        PreviewRegistry.Lease current = registry.register(
+                pipelineId, ownerId, registry.beginEpoch(pipelineId)
+        );
+        registry.unregister(pipelineId, ownerId, current);
+    }
+
+    @Test
+    void awaitReleasedWaitsForLeaseReleaseOrTimesOut() {
+        UUID pipelineId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
+        PreviewRegistry.Lease lease = registry.register(pipelineId, ownerId);
+
+        assertThat(registry.awaitReleased(pipelineId, Duration.ofMillis(20))).isFalse();
+
+        registry.unregister(pipelineId, ownerId, lease);
+        assertThat(registry.awaitReleased(pipelineId, Duration.ofMillis(20))).isTrue();
+    }
+
     @Test
     void olderEpochCannotRegisterAfterANewerEpochAndDoesNotCancelIt() {
         UUID pipelineId = UUID.randomUUID();

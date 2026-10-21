@@ -3,27 +3,16 @@ package com.ontoweave.data.pipeline.execution.preview;
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.api.dto.PreviewRequest;
 import com.ontoweave.data.pipeline.api.dto.PreviewResponse;
-import com.ontoweave.data.pipeline.check.PipelineCheckResult;
 import com.ontoweave.data.pipeline.check.PipelineCheckService;
-import com.ontoweave.data.pipeline.execution.flink.FlinkExecutionResult;
 import com.ontoweave.data.pipeline.execution.flink.FlinkPreviewTimeoutException;
 import com.ontoweave.data.pipeline.execution.flink.FlinkTableExecutor;
-import com.ontoweave.data.pipeline.execution.flink.PipelineExecutionException;
-import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
-import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
 import com.ontoweave.data.pipeline.execution.plan.PreviewPlanBuilder;
-import com.ontoweave.data.sync.iceberg.IcebergPreview;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
-import com.ontoweave.data.sync.iceberg.PreviewColumn;
 import jakarta.annotation.PreDestroy;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -31,21 +20,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PipelinePreviewServiceImpl implements PipelinePreviewService {
 
-    private static final AtomicInteger WORKER_SEQUENCE = new AtomicInteger();
-
-    private final PipelineCheckService checks;
-    private final PreviewPlanBuilder planBuilder;
-    private final FlinkTableExecutor executor;
-    private final IcebergPreviewReader reader;
+    private final PreviewStageExecutor stages;
     private final Duration timeout;
     private final ExecutorService workers;
     private final boolean ownsWorkers;
@@ -63,7 +44,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
                 executor,
                 reader,
                 PipelineExecutionLimits.PREVIEW_TIMEOUT,
-                previewWorkers(),
+                PreviewWorkerPool.create(),
                 true,
                 new PreviewRegistry()
         );
@@ -102,10 +83,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             boolean ownsWorkers,
             PreviewRegistry registry
     ) {
-        this.checks = checks;
-        this.planBuilder = planBuilder;
-        this.executor = executor;
-        this.reader = reader;
+        this.stages = new PreviewStageExecutor(checks, planBuilder, executor, reader);
         this.timeout = timeout;
         this.workers = workers;
         this.ownsWorkers = ownsWorkers;
@@ -119,17 +97,6 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         }
     }
 
-    static ThreadPoolExecutor previewWorkers() {
-        return new ThreadPoolExecutor(
-                0,
-                PipelineExecutionLimits.MAX_PREVIEW_WORKERS,
-                PipelineExecutionLimits.PREVIEW_WORKER_KEEP_ALIVE_SECONDS,
-                TimeUnit.SECONDS,
-                new SynchronousQueue<>(),
-                task -> new Thread(task, "preview-worker-" + WORKER_SEQUENCE.incrementAndGet())
-        );
-    }
-
     @Override
     public PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request) {
         PreviewDeadline deadline = PreviewDeadline.start(timeout);
@@ -140,34 +107,30 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         try {
             lease = registry.register(pipelineId, ownerId, epoch, deadline.remaining());
         } catch (PreviewRegistry.BudgetExceededException error) {
-            throw timeout();
+            throw PreviewErrorMapper.timeout();
         }
-        Future<PreviewComputation> future;
+        Future<PreviewStageExecutor.PreviewComputation> future;
         try {
             ensureActive(lease);
             ensureBudget(deadline);
             future = submit(() -> compute(pipelineId, ownerId, request, lease, deadline));
             lease.attach(future);
-            PreviewComputation computation = await(future, lease, deadline);
+            PreviewStageExecutor.PreviewComputation computation = await(future, lease, deadline);
             ensureActive(lease);
             ensureBudget(deadline);
-            return response(
-                    pipelineId,
-                    request,
-                    computation.plan(),
-                    computation.result(),
-                    deadline.elapsedMs()
+            return PreviewResponseMapper.response(
+                    pipelineId, request, computation.plan(), computation.result(), deadline.elapsedMs()
             );
         } catch (ApiException error) {
             if (lease.isCanceled()) {
-                throw canceled();
+                throw PreviewErrorMapper.canceled();
             }
             throw error;
         } catch (RuntimeException error) {
             if (lease.isCanceled()) {
-                throw canceled();
+                throw PreviewErrorMapper.canceled();
             }
-            throw error;
+            throw PreviewErrorMapper.executionFailure(error);
         } finally {
             lease.detach();
             registry.unregister(pipelineId, ownerId, lease);
@@ -179,6 +142,11 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         registry.cancelForBuild(pipelineId);
     }
 
+    @Override
+    public boolean awaitReleased(UUID pipelineId, Duration timeout) {
+        return registry.awaitReleased(pipelineId, timeout);
+    }
+
     private void validateRevision(
             UUID pipelineId,
             UUID ownerId,
@@ -187,97 +155,41 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     ) {
         Duration remaining = remaining(deadline);
         Future<?> future = submit(() -> {
-            checks.validateRevision(pipelineId, ownerId, revision);
+            stages.validateRevision(pipelineId, ownerId, revision);
             return null;
         });
         try {
             future.get(remaining.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException error) {
             future.cancel(true);
-            throw timeout();
+            throw PreviewErrorMapper.timeout();
         } catch (CancellationException error) {
-            throw timeout();
+            throw PreviewErrorMapper.timeout();
         } catch (InterruptedException error) {
             future.cancel(true);
             Thread.currentThread().interrupt();
-            throw timeout();
+            throw PreviewErrorMapper.timeout();
         } catch (ExecutionException error) {
             Throwable cause = error.getCause();
             if (cause instanceof ApiException apiException) {
                 throw apiException;
             }
-            throw executionFailure(cause);
+            throw PreviewErrorMapper.executionFailure(cause);
         }
     }
 
-    private PreviewComputation compute(
+    private PreviewStageExecutor.PreviewComputation compute(
             UUID pipelineId,
             UUID ownerId,
             PreviewRequest request,
             PreviewRegistry.Lease lease,
             PreviewDeadline deadline
     ) {
-        ensureActive(lease);
-        ensureBudget(deadline);
-        PipelineCheckResult check = checks.check(pipelineId, ownerId, request.draftRevision());
-        ensureActive(lease);
-        ensureBudget(deadline);
-        if (!check.blockingIssues().isEmpty()) {
-            throw new ApiException(
-                    HttpStatus.UNPROCESSABLE_ENTITY,
-                    "PREVIEW_BLOCKED",
-                    "流程检查存在阻塞错误，不能预览",
-                    Map.of("blockingIssues", check.blockingIssues())
-            );
-        }
-        LogicalPlan plan = planBuilder.build(
-                pipelineId, ownerId, request.draftRevision(), request.nodeId()
-        );
-        ensureActive(lease);
-        ensureBudget(deadline);
-        ExecutionResult result = execute(plan, remaining(deadline));
-        ensureActive(lease);
-        ensureBudget(deadline);
-        return new PreviewComputation(plan, result);
+        return stages.compute(pipelineId, ownerId, request, lease, deadline);
     }
 
-    private ExecutionResult execute(LogicalPlan plan, Duration executionBudget) {
-        if (plan.root().node() instanceof LogicalPlanNode.ScanInput scan) {
-            IcebergPreview preview = reader.read(
-                    scan.catalog(),
-                    scan.namespace(),
-                    scan.table(),
-                    scan.snapshotId(),
-                    PipelineExecutionLimits.READ_ROW_LIMIT
-            ).orElseThrow(() -> new ApiException(
-                    HttpStatus.NOT_FOUND,
-                    "INPUT_PREVIEW_UNAVAILABLE",
-                    "输入版本对应的数据文件不存在或已被清理"
-            ));
-            return new ExecutionResult(
-                    preview.columns(),
-                    preview.rows(),
-                    null,
-                    false,
-                    List.of(),
-                    List.of()
-            );
-        }
-        FlinkExecutionResult result = executor.execute(
-                plan, PipelineExecutionLimits.OUTPUT_ROW_LIMIT, executionBudget
-        );
-        return new ExecutionResult(
-                result.columns(),
-                result.rows(),
-                result.scannedRows(),
-                result.scanLimited(),
-                result.errors(),
-                result.warnings()
-        );
-    }
-
-    private PreviewComputation await(
-            Future<PreviewComputation> future,
+    private PreviewStageExecutor.PreviewComputation await(
+            Future<PreviewStageExecutor.PreviewComputation> future,
             PreviewRegistry.Lease lease,
             PreviewDeadline deadline
     ) {
@@ -286,98 +198,24 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             return future.get(remaining.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException error) {
             future.cancel(true);
-            throw lease.isCanceled() ? canceled() : timeout();
+            throw lease.isCanceled() ? PreviewErrorMapper.canceled() : PreviewErrorMapper.timeout();
         } catch (CancellationException error) {
-            throw lease.isCanceled() ? canceled() : timeout();
+            throw lease.isCanceled() ? PreviewErrorMapper.canceled() : PreviewErrorMapper.timeout();
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
-            throw lease.isCanceled() ? canceled() : timeout();
+            throw lease.isCanceled() ? PreviewErrorMapper.canceled() : PreviewErrorMapper.timeout();
         } catch (ExecutionException error) {
             Throwable cause = error.getCause();
             if (cause instanceof ApiException apiException) {
                 throw apiException;
             }
             if (cause instanceof CancellationException) {
-                throw lease.isCanceled() ? canceled() : timeout();
+                throw lease.isCanceled() ? PreviewErrorMapper.canceled() : PreviewErrorMapper.timeout();
             }
             if (cause instanceof FlinkPreviewTimeoutException) {
-                throw timeout();
+                throw PreviewErrorMapper.timeout();
             }
-            throw executionFailure(cause);
-        }
-    }
-
-    private PreviewResponse response(
-            UUID pipelineId,
-            PreviewRequest request,
-            LogicalPlan plan,
-            ExecutionResult result,
-            long elapsedMs
-    ) {
-        int returnedRows = Math.min(result.rows().size(), PipelineExecutionLimits.OUTPUT_ROW_LIMIT);
-        boolean truncated = result.rows().size() > PipelineExecutionLimits.OUTPUT_ROW_LIMIT;
-        String truncationReason = truncated
-                ? "OUTPUT_ROW_LIMIT"
-                : result.scanLimited() ? "SCAN_ROW_LIMIT" : null;
-        List<InputVersion> inputVersions = plan.inputVersions().stream()
-                .map(InputVersion::from)
-                .toList();
-        return new PreviewResponse(
-                request.requestId(),
-                pipelineId,
-                request.draftRevision(),
-                request.nodeId(),
-                result.columns(),
-                result.rows().subList(0, returnedRows),
-                returnedRows,
-                result.scannedRows(),
-                truncated || result.scanLimited(),
-                truncationReason,
-                elapsedMs,
-                inputVersions,
-                result.errors(),
-                result.warnings()
-        );
-    }
-
-    private void ensureActive(PreviewRegistry.Lease lease) {
-        if (lease.isStopped()) {
-            throw canceled();
-        }
-    }
-
-    private void ensureBudget(PreviewDeadline deadline) {
-        if (deadline.expired()) {
-            throw timeout();
-        }
-    }
-
-    private Duration remaining(PreviewDeadline deadline) {
-        Duration remaining = deadline.remaining();
-        if (remaining.isZero() || remaining.isNegative()) {
-            throw timeout();
-        }
-        return remaining;
-    }
-
-    private ApiException executionFailure(Throwable cause) {
-        Map<String, Object> details = new LinkedHashMap<>();
-        if (cause instanceof PipelineExecutionException failure) {
-            put(details, "nodeId", failure.nodeId());
-            put(details, "portId", failure.portId());
-            put(details, "field", failure.field());
-        }
-        return new ApiException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "PREVIEW_EXECUTION_FAILED",
-                cause == null || cause.getMessage() == null ? "预览执行失败" : cause.getMessage(),
-                details
-        );
-    }
-
-    private void put(Map<String, Object> details, String key, String value) {
-        if (value != null) {
-            details.put(key, value);
+            throw PreviewErrorMapper.executionFailure(cause);
         }
     }
 
@@ -385,32 +223,28 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         try {
             return workers.submit(task);
         } catch (RejectedExecutionException error) {
-            throw busy();
+            throw PreviewErrorMapper.busy();
         }
     }
 
-    private ApiException timeout() {
-        return new ApiException(HttpStatus.GATEWAY_TIMEOUT, "PREVIEW_TIMEOUT", "预览执行超时");
+    private void ensureActive(PreviewRegistry.Lease lease) {
+        if (lease.isStopped()) {
+            throw PreviewErrorMapper.canceled();
+        }
     }
 
-    private ApiException canceled() {
-        return new ApiException(HttpStatus.CONFLICT, "PREVIEW_CANCELED", "预览已撤销");
+    private void ensureBudget(PreviewDeadline deadline) {
+        if (deadline.expired()) {
+            throw PreviewErrorMapper.timeout();
+        }
     }
 
-    private ApiException busy() {
-        return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PREVIEW_BUSY", "预览资源繁忙，请稍后重试");
+    private Duration remaining(PreviewDeadline deadline) {
+        Duration remaining = deadline.remaining();
+        if (remaining.isZero() || remaining.isNegative()) {
+            throw PreviewErrorMapper.timeout();
+        }
+        return remaining;
     }
 
-    private record ExecutionResult(
-            List<PreviewColumn> columns,
-            List<Map<String, Object>> rows,
-            Long scannedRows,
-            boolean scanLimited,
-            List<PreviewIssue> errors,
-            List<PreviewIssue> warnings
-    ) {
-    }
-
-    private record PreviewComputation(LogicalPlan plan, ExecutionResult result) {
-    }
 }

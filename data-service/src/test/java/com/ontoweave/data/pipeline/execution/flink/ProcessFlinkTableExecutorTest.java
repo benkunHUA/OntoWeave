@@ -95,6 +95,30 @@ class ProcessFlinkTableExecutorTest {
         });
     }
 
+
+    @Test
+    void warnsWhenScanMetadataIsUnavailableInsteadOfReportingComplete() throws Exception {
+        LogicalPlan plan = transformPlan();
+        CompiledTablePlan.HiddenErrorColumn hidden = new CompiledTablePlan.HiddenErrorColumn(
+                plan.targetNodeId(), "in", "parsed",
+                "__ontoweave_preview_0_flag", "__ontoweave_preview_0_original", true
+        );
+        CompiledTablePlan compiled = compiled(hidden);
+        when(compiler.compile(any())).thenReturn(compiled);
+        when(scanLimits.evaluate(plan)).thenReturn(new ScanLimitAssessment(false, false));
+
+        FlinkExecutionResult result = executor.execute(plan, 500, Duration.ofSeconds(1));
+
+        assertThat(result.scannedRows()).isNull();
+        assertThat(result.scanLimited()).isFalse();
+        assertThat(result.warnings()).singleElement().satisfies(issue -> {
+            assertThat(issue.code()).isEqualTo("SCAN_ROW_LIMIT_UNKNOWN");
+            assertThat(issue.phase()).isEqualTo("scan");
+            assertThat(issue.level()).isEqualTo("warning");
+            assertThat(issue.nodeId()).isNull();
+        });
+    }
+
     @Test
     void leavesRowNumberUnknownWhenAggregationMakesRowsImprecise() throws Exception {
         LogicalPlan plan = transformPlan();

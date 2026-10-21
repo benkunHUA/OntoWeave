@@ -3,12 +3,16 @@ package com.ontoweave.data.sync.iceberg;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
 @Component
 public class IcebergSnapshotMetrics {
+
+    private static final Logger log = LoggerFactory.getLogger(IcebergSnapshotMetrics.class);
 
     private final HadoopCatalogFactory catalogs;
 
@@ -20,6 +24,14 @@ public class IcebergSnapshotMetrics {
         try {
             return catalogs.withTable(namespace, table, current -> recordCount(current, snapshotId));
         } catch (RuntimeException error) {
+            log.warn(
+                    "unable to read iceberg snapshot metrics for {}.{}.{} snapshot {}",
+                    catalog,
+                    namespace,
+                    table,
+                    snapshotId,
+                    error
+            );
             return Optional.empty();
         }
     }

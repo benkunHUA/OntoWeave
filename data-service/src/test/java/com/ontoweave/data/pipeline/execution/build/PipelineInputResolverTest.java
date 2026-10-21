@@ -36,6 +36,7 @@ class PipelineInputResolverTest {
 
     private static final UUID PIPELINE_ID = UUID.randomUUID();
     private static final long REVISION = 4L;
+    private static final UUID OWNER_ID = UUID.randomUUID();
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final PipelineDraftRepository drafts = mock(PipelineDraftRepository.class);
@@ -59,11 +60,11 @@ class PipelineInputResolverTest {
         when(versions.findAllById(anyIterable())).thenReturn(List.of(version(datasetId, versionId)));
         when(connections.findAllById(anyIterable()))
                 .thenReturn(List.of(new DataConnectionEntity(
-                        connectionId, UUID.randomUUID(), UUID.randomUUID(), "prod-mysql", ConnectionKind.MYSQL
+                        connectionId, OWNER_ID, UUID.randomUUID(), "prod-mysql", ConnectionKind.MYSQL
                 )));
         when(tasks.findByDatasetIdIn(anyCollection())).thenReturn(List.of(task(datasetId, connectionId)));
 
-        List<ResolvedInput> resolved = resolver.resolve(PIPELINE_ID, REVISION);
+        List<ResolvedInput> resolved = resolver.resolve(PIPELINE_ID, OWNER_ID, REVISION);
 
         assertThat(resolved).singleElement().satisfies(input -> {
             assertThat(input.datasetVersionId()).isEqualTo(versionId);
@@ -79,6 +80,30 @@ class PipelineInputResolverTest {
         });
     }
 
+
+    @Test
+    void rejectsDatasetWhoseConnectionBelongsToAnotherOwner() {
+        UUID datasetId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+        UUID connectionId = UUID.randomUUID();
+        PipelineDraftEntity draft = draft(datasetId);
+        when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
+        when(datasets.findAllById(anyIterable()))
+                .thenReturn(List.of(dataset(datasetId, connectionId, versionId)));
+        when(versions.findAllById(anyIterable()))
+                .thenReturn(List.of(version(datasetId, versionId)));
+        when(connections.findAllById(anyIterable()))
+                .thenReturn(List.of(new DataConnectionEntity(
+                        connectionId, UUID.randomUUID(), UUID.randomUUID(), "prod-mysql", ConnectionKind.MYSQL
+                )));
+
+        assertThatThrownBy(() -> resolver.resolve(PIPELINE_ID, OWNER_ID, REVISION))
+                .isInstanceOfSatisfying(ApiException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.NOT_FOUND);
+                    assertThat(exception.code()).isEqualTo("NOT_FOUND");
+                });
+    }
+
     @Test
     void rejectsInputWithoutPublishedVersion() {
         UUID datasetId = UUID.randomUUID();
@@ -87,7 +112,7 @@ class PipelineInputResolverTest {
         DatasetEntity dataset = new DatasetEntity(datasetId, UUID.randomUUID(), "orders");
         when(datasets.findAllById(anyIterable())).thenReturn(List.of(dataset));
 
-        assertThatThrownBy(() -> resolver.resolve(PIPELINE_ID, REVISION))
+        assertThatThrownBy(() -> resolver.resolve(PIPELINE_ID, OWNER_ID, REVISION))
                 .isInstanceOfSatisfying(ApiException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
                     assertThat(exception.code()).isEqualTo("INPUT_VERSION_UNRESOLVED");

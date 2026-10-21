@@ -1,8 +1,6 @@
 package com.ontoweave.data.pipeline.execution.preview;
 
-import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
-import org.springframework.http.HttpStatus;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -19,6 +17,7 @@ final class PreviewRegistry {
     private final Map<UUID, Integer> activeByOwner = new HashMap<>();
     private final Map<UUID, Long> lastIssuedEpoch = new HashMap<>();
     private final Map<UUID, Long> lastRegisteredEpoch = new HashMap<>();
+    private final Map<UUID, Long> buildCutoffEpoch = new HashMap<>();
 
     PreviewRegistry() {
         this(PipelineExecutionLimits.PREVIEW_RELEASE_GRACE);
@@ -57,14 +56,14 @@ final class PreviewRegistry {
             Lease existing;
             synchronized (lock) {
                 long registered = lastRegisteredEpoch.getOrDefault(pipelineId, 0L);
-                if (epoch < registered) {
-                    throw canceled();
+                if (epoch < registered || epoch <= buildCutoffEpoch.getOrDefault(pipelineId, 0L)) {
+                    throw PreviewErrorMapper.canceled();
                 }
                 existing = activeByPipeline.get(pipelineId);
                 if (existing == null) {
                     int ownerActive = activeByOwner.getOrDefault(ownerId, 0);
                     if (ownerActive >= PipelineExecutionLimits.MAX_ACTIVE_PREVIEWS_PER_USER) {
-                        throw busy();
+                        throw PreviewErrorMapper.busy();
                     }
                     Lease lease = new Lease();
                     activeByPipeline.put(pipelineId, lease);
@@ -83,14 +82,36 @@ final class PreviewRegistry {
     void cancelForBuild(UUID pipelineId) {
         Lease lease;
         synchronized (lock) {
+            long cutoff = lastIssuedEpoch.getOrDefault(pipelineId, 0L);
+            buildCutoffEpoch.merge(pipelineId, cutoff, Math::max);
             lease = activeByPipeline.get(pipelineId);
             if (lease == null) {
+                lock.notifyAll();
                 return;
             }
             lease.markCanceled();
             lock.notifyAll();
         }
         lease.cancelTask();
+    }
+
+    boolean awaitReleased(UUID pipelineId, Duration timeout) {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        synchronized (lock) {
+            while (activeByPipeline.containsKey(pipelineId)) {
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    return false;
+                }
+                try {
+                    TimeUnit.NANOSECONDS.timedWait(lock, remaining);
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     void unregister(UUID pipelineId, UUID ownerId, Lease lease) {
@@ -146,7 +167,7 @@ final class PreviewRegistry {
                 }
                 long remaining = graceDeadline - now;
                 if (remaining <= 0) {
-                    throw busy();
+                    throw PreviewErrorMapper.busy();
                 }
                 try {
                     TimeUnit.NANOSECONDS.timedWait(
@@ -154,18 +175,10 @@ final class PreviewRegistry {
                     );
                 } catch (InterruptedException error) {
                     Thread.currentThread().interrupt();
-                    throw busy();
+                    throw PreviewErrorMapper.busy();
                 }
             }
         }
-    }
-
-    private ApiException busy() {
-        return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PREVIEW_BUSY", "预览资源繁忙，请稍后重试");
-    }
-
-    private ApiException canceled() {
-        return new ApiException(HttpStatus.CONFLICT, "PREVIEW_CANCELED", "预览已撤销");
     }
 
     static final class BudgetExceededException extends RuntimeException {

@@ -98,11 +98,12 @@ final class PlanStepCompiler {
         } else if (selected.isEmpty()) {
             columns.addAll(schemaColumns);
         } else {
-            for (String column : schemaColumns) {
-                if (selected.contains(column) || hidden.contains(column)) {
+            for (String column : select.columns()) {
+                if (!hidden.contains(column)) {
                     columns.add(column);
                 }
             }
+            columns.addAll(schemaColumns.stream().filter(hidden::contains).toList());
         }
         return new CompiledStep(
                 input.table().select(columns.stream().map(Expressions::$).toArray(Expression[]::new)),
@@ -137,7 +138,7 @@ final class PlanStepCompiler {
             columns.add(failure.original().as(descriptor.originalColumn()));
         }
         return new CompiledStep(
-                input.table().addColumns(columns.toArray(ApiExpression[]::new)), hidden
+                input.table().addOrReplaceColumns(columns.toArray(ApiExpression[]::new)), hidden
         );
     }
 

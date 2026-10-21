@@ -58,7 +58,7 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ResolvedInput> resolve(UUID pipelineId, long draftRevision) {
+    public List<ResolvedInput> resolve(UUID pipelineId, UUID ownerId, long draftRevision) {
         PipelineDraftEntity draft = drafts.findById(pipelineId)
                 .orElseThrow(() -> notFound("流程或草稿不存在"));
         if (draft.getRevision() != draftRevision) {
@@ -99,7 +99,9 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
         Map<UUID, DataConnectionEntity> connectionsById = new HashMap<>();
         if (!connectionIds.isEmpty()) {
             for (DataConnectionEntity connection : connections.findAllById(connectionIds)) {
-                connectionsById.put(connection.getId(), connection);
+                if (ownerId.equals(connection.getOwnerId())) {
+                    connectionsById.put(connection.getId(), connection);
+                }
             }
         }
         Map<UUID, SyncTaskEntity> tasksByDataset = new HashMap<>();
@@ -124,10 +126,14 @@ public class PublishedPipelineInputResolver implements PipelineInputResolver {
                     || version.getSchemaJson() == null) {
                 throw unresolved(node, "输入数据集没有已发布版本: " + datasetId);
             }
+            DataConnectionEntity connection = connectionsById.get(dataset.getConnectionId());
+            if (connection == null) {
+                throw notFound("输入数据集不存在或不属于当前用户");
+            }
             ResolvedInput input = toResolvedInput(
                     dataset,
                     version,
-                    connectionsById.get(dataset.getConnectionId()),
+                    connection,
                     tasksByDataset.get(dataset.getId())
             );
             resolved.putIfAbsent(version.getId(), input);

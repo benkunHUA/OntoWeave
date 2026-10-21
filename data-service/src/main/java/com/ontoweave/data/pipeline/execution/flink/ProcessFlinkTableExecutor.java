@@ -1,5 +1,6 @@
 package com.ontoweave.data.pipeline.execution.flink;
 
+import com.ontoweave.data.common.PreviewValues;
 import com.ontoweave.data.pipeline.execution.plan.CompiledTablePlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.PipelinePlanCompiler;
@@ -14,11 +15,8 @@ import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.springframework.stereotype.Component;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +36,10 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
     private static final String WARNING = "warning";
     private static final String TYPE_MISMATCH_HINT = "检查原始值格式或调整目标字段类型";
     private static final String TYPE_MISMATCH_MESSAGE = "字段值无法转换为目标类型，已返回 null";
+    private static final String SCAN_UNKNOWN_CODE = "SCAN_ROW_LIMIT_UNKNOWN";
+    private static final String SCAN_PHASE = "scan";
+    private static final String SCAN_UNKNOWN_MESSAGE = "无法确认输入扫描行数，预览可能未覆盖完整数据";
+    private static final String SCAN_UNKNOWN_HINT = "检查 Iceberg 快照元数据是否可读";
 
     private final PipelinePlanCompiler compiler;
     private final ScanLimitEvaluator scanLimits;
@@ -132,7 +134,7 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                 for (int index = 0; index < names.size(); index++) {
                     String name = names.get(index);
                     if (!isHidden(name)) {
-                        values.put(name, normalize(row.getField(index)));
+                        values.put(name, PreviewValues.normalize(row.getField(index)));
                     }
                 }
                 rows.add(values);
@@ -141,6 +143,20 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
         } catch (Exception error) {
             throw new IllegalStateException("Unable to collect Flink preview rows", error);
         }
+        List<PreviewIssue> warnings = scanLimit.metadataAvailable()
+                ? List.of()
+                : List.of(new PreviewIssue(
+                        SCAN_UNKNOWN_CODE,
+                        SCAN_PHASE,
+                        WARNING,
+                        null,
+                        null,
+                        null,
+                        null,
+                        SCAN_UNKNOWN_MESSAGE,
+                        SCAN_UNKNOWN_HINT,
+                        null
+                ));
         return new FlinkExecutionResult(
                 executionId,
                 columns,
@@ -148,7 +164,7 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                 null,
                 scanLimit.scanLimited(),
                 errors,
-                List.of()
+                warnings
         );
     }
 
@@ -189,31 +205,4 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
         return value.length() <= 200 ? value : value.substring(0, 200) + "...";
     }
 
-    private Object normalize(Object value) {
-        if (value instanceof byte[] bytes) {
-            return Base64.getEncoder().encodeToString(bytes);
-        }
-        if (value instanceof ByteBuffer buffer) {
-            ByteBuffer copy = buffer.duplicate();
-            byte[] bytes = new byte[copy.remaining()];
-            copy.get(bytes);
-            return Base64.getEncoder().encodeToString(bytes);
-        }
-        if (value instanceof Row row) {
-            Map<String, Object> values = new LinkedHashMap<>();
-            for (int index = 0; index < row.getArity(); index++) {
-                values.put("field_" + index, normalize(row.getField(index)));
-            }
-            return values;
-        }
-        if (value instanceof Map<?, ?> map) {
-            Map<String, Object> values = new LinkedHashMap<>();
-            map.forEach((key, item) -> values.put(String.valueOf(key), normalize(item)));
-            return values;
-        }
-        if (value instanceof Collection<?> collection) {
-            return collection.stream().map(this::normalize).toList();
-        }
-        return value;
-    }
 }

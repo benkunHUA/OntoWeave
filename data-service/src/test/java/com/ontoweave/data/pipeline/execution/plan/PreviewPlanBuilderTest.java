@@ -55,7 +55,7 @@ class PreviewPlanBuilderTest {
                 .thenReturn(Optional.of(new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "orders")));
         PipelineDraftEntity draft = draft(definition);
         when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
-        when(inputResolver.resolve(PIPELINE_ID, REVISION)).thenReturn(List.of(orders));
+        when(inputResolver.resolve(PIPELINE_ID, OWNER_ID, REVISION)).thenReturn(List.of(orders));
 
         LogicalPlan plan = builder.build(PIPELINE_ID, OWNER_ID, REVISION, targetNode.toString());
 
@@ -77,7 +77,7 @@ class PreviewPlanBuilderTest {
                 .thenReturn(Optional.of(new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "orders")));
         PipelineDraftEntity draft = draft(definition);
         when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
-        when(inputResolver.resolve(PIPELINE_ID, REVISION)).thenReturn(List.of(orders));
+        when(inputResolver.resolve(PIPELINE_ID, OWNER_ID, REVISION)).thenReturn(List.of(orders));
 
         LogicalPlan plan = builder.build(PIPELINE_ID, OWNER_ID, REVISION, ordersNode.toString());
 
@@ -117,7 +117,7 @@ class PreviewPlanBuilderTest {
                 .thenReturn(Optional.of(new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "orders")));
         PipelineDraftEntity draft = draft(definition);
         when(drafts.findById(PIPELINE_ID)).thenReturn(Optional.of(draft));
-        when(inputResolver.resolve(PIPELINE_ID, REVISION)).thenReturn(List.of(left, right));
+        when(inputResolver.resolve(PIPELINE_ID, OWNER_ID, REVISION)).thenReturn(List.of(left, right));
 
         LogicalPlan plan = builder.build(PIPELINE_ID, OWNER_ID, REVISION, joinNode.toString());
 

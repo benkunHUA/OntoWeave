@@ -24,6 +24,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.ontoweave.data.pipeline.execution.preview.PipelinePreviewTestSupport.BlockingExecutor;
 import static com.ontoweave.data.pipeline.execution.preview.PipelinePreviewTestSupport.BlockingOnceExecutor;
 import static com.ontoweave.data.pipeline.execution.preview.PipelinePreviewTestSupport.input;
 import static com.ontoweave.data.pipeline.execution.preview.PipelinePreviewTestSupport.inputPlan;
@@ -225,5 +226,66 @@ class PipelinePreviewCancellationTest {
         assertThat(registry.awaitCancellationRequested(PIPELINE_ID, Duration.ofMillis(100))).isFalse();
         releaseCheck.countDown();
         assertThat(current.get(2, TimeUnit.SECONDS).rows()).hasSize(1);
+    }
+    @Test
+    void buildPreemptionCancelsRunningPreview() throws Exception {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        BlockingExecutor blocking = new BlockingExecutor();
+        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
+                checks, planBuilder, blocking, reader, Duration.ofSeconds(5), workers
+        );
+        ExecutorService callers = Executors.newSingleThreadExecutor();
+        try {
+            Future<?> preview = callers.submit(() -> service.preview(
+                    PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
+            ));
+            assertThat(blocking.awaitStarted(1, TimeUnit.SECONDS)).isTrue();
+
+            service.cancelForBuild(PIPELINE_ID);
+
+            assertThatThrownBy(() -> preview.get(2, TimeUnit.SECONDS))
+                    .hasRootCauseInstanceOf(ApiException.class)
+                    .rootCause()
+                    .isInstanceOfSatisfying(ApiException.class, exception ->
+                            assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED"));
+        } finally {
+            callers.shutdownNow();
+        }
+    }
+
+
+    @Test
+    void buildCancellationRejectsARequestStillValidatingItsRevision() throws Exception {
+        CountDownLatch validationStarted = new CountDownLatch(1);
+        CountDownLatch releaseValidation = new CountDownLatch(1);
+        org.mockito.Mockito.doAnswer(invocation -> {
+            validationStarted.countDown();
+            assertThat(releaseValidation.await(2, TimeUnit.SECONDS)).isTrue();
+            return null;
+        }).when(checks).validateRevision(PIPELINE_ID, OWNER_ID, 4L);
+        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
+                checks, planBuilder, mock(FlinkTableExecutor.class),
+                reader, Duration.ofSeconds(5), workers
+        );
+        Future<?> preview = callers.submit(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
+        ));
+        try {
+            assertThat(validationStarted.await(1, TimeUnit.SECONDS)).isTrue();
+            service.cancelForBuild(PIPELINE_ID);
+            releaseValidation.countDown();
+
+            assertThatThrownBy(() -> preview.get(2, TimeUnit.SECONDS))
+                    .hasRootCauseInstanceOf(ApiException.class)
+                    .rootCause()
+                    .isInstanceOfSatisfying(ApiException.class, exception ->
+                            assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED"));
+            assertThat(service.awaitReleased(PIPELINE_ID, Duration.ofMillis(100))).isTrue();
+        } finally {
+            releaseValidation.countDown();
+        }
     }
 }

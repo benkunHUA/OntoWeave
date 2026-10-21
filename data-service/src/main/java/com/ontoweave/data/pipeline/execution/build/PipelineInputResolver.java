@@ -5,5 +5,5 @@ import java.util.UUID;
 
 public interface PipelineInputResolver {
 
-    List<ResolvedInput> resolve(UUID pipelineId, long draftRevision);
+    List<ResolvedInput> resolve(UUID pipelineId, UUID ownerId, long draftRevision);
 }

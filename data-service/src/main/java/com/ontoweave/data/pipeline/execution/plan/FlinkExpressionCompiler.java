@@ -4,13 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.flink.table.api.ApiExpression;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
-import org.apache.flink.table.types.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 final class FlinkExpressionCompiler {
+
+    private final FlinkLiteralCompiler literals = new FlinkLiteralCompiler();
 
     CompiledExpression compile(JsonNode expression) {
         if (expression == null || !expression.isObject()) {
@@ -21,7 +21,7 @@ final class FlinkExpressionCompiler {
             case "field" -> new CompiledExpression(
                     Expressions.$(expression.path("field").asText()), List.of()
             );
-            case "literal" -> new CompiledExpression(literal(expression), List.of());
+            case "literal" -> new CompiledExpression(literals.literal(expression), List.of());
             case "cast" -> cast(expression);
             case "case" -> caseExpression(expression);
             case "compare" -> compareExpression(expression);
@@ -79,10 +79,10 @@ final class FlinkExpressionCompiler {
         if ("in".equals(operator)) {
             JsonNode values = condition.path("values");
             List<ApiExpression> literals = new ArrayList<>();
-            values.forEach(value -> literals.add(literal(value)));
+            values.forEach(value -> literals.add(this.literals.literal(value)));
             return field.in(literals.toArray(ApiExpression[]::new));
         }
-        ApiExpression value = literal(condition.path("value"));
+        ApiExpression value = this.literals.literal(condition.path("value"));
         return switch (operator) {
             case "eq" -> field.isEqual(value);
             case "ne" -> field.isNotEqual(value);
@@ -101,7 +101,7 @@ final class FlinkExpressionCompiler {
     private CompiledExpression cast(JsonNode expression) {
         CompiledExpression source = compile(expression.path("expression"));
         ApiExpression raw = source.expression();
-        ApiExpression casted = raw.tryCast(dataType(expression.path("dataType").asText(null)));
+        ApiExpression casted = raw.tryCast(literals.dataType(expression.path("dataType").asText(null)));
         List<CastFailure> failures = new ArrayList<>(source.failures());
         failures.add(new CastFailure(
                 casted.isNull().and(raw.isNotNull()),
@@ -110,47 +110,44 @@ final class FlinkExpressionCompiler {
         return new CompiledExpression(casted, failures);
     }
 
-    ApiExpression literal(JsonNode expression) {
-        String dataType = expression.path("dataType").asText(null);
-        JsonNode value = expression.has("value") ? expression.path("value") : expression.path("value").path("value");
-        return literal(value, dataType);
-    }
-
-    ApiExpression literal(JsonNode value, String dataType) {
-        if (value == null || value.isMissingNode() || value.isNull()) {
-            return Expressions.nullOf(dataType(dataType));
-        }
-        String normalized = normalize(dataType);
-        if (value.isBoolean()) {
-            return Expressions.lit(value.asBoolean(), DataTypes.BOOLEAN());
-        }
-        if (value.isIntegralNumber()) {
-            return Expressions.lit(value.asLong(), integralType(normalized));
-        }
-        if (value.isFloatingPointNumber()) {
-            return Expressions.lit(value.asDouble(), DataTypes.DOUBLE());
-        }
-        return Expressions.lit(value.asText(), DataTypes.STRING());
-    }
-
     CompiledExpression caseExpression(JsonNode expression) {
         CompiledExpression otherwise = compile(expression.path("otherwise"));
         ApiExpression result = otherwise.expression();
-        List<CastFailure> failures = new ArrayList<>(otherwise.failures());
         JsonNode branches = expression.path("branches");
+        List<CompiledExpression> whens = new ArrayList<>();
+        List<CompiledExpression> thens = new ArrayList<>();
+        for (int index = 0; index < branches.size(); index++) {
+            whens.add(compile(branches.get(index).path("when")));
+            thens.add(compile(branches.get(index).path("then")));
+        }
+        ApiExpression noBranchMatched = null;
+        for (CompiledExpression when : whens) {
+            ApiExpression unmatched = when.expression().isTrue().not();
+            noBranchMatched = noBranchMatched == null ? unmatched : noBranchMatched.and(unmatched);
+        }
+        List<CastFailure> failures = new ArrayList<>();
+        for (int index = 0; index < whens.size(); index++) {
+            failures.addAll(whens.get(index).failures());
+            failures.addAll(guarded(thens.get(index).failures(), whens.get(index).expression().isTrue()));
+        }
+        failures.addAll(guarded(otherwise.failures(), noBranchMatched));
         for (int index = branches.size() - 1; index >= 0; index--) {
-            JsonNode branch = branches.get(index);
-            CompiledExpression when = compile(branch.path("when"));
-            CompiledExpression then = compile(branch.path("then"));
-            failures.addAll(when.failures());
-            failures.addAll(then.failures());
             result = Expressions.ifThenElse(
-                    when.expression(),
-                    then.expression(),
+                    whens.get(index).expression(),
+                    thens.get(index).expression(),
                     result
             );
         }
         return new CompiledExpression(result, failures);
+    }
+
+    private List<CastFailure> guarded(List<CastFailure> failures, ApiExpression guard) {
+        if (guard == null || failures.isEmpty()) {
+            return failures;
+        }
+        return failures.stream()
+                .map(failure -> new CastFailure(failure.flag().and(guard), failure.original()))
+                .toList();
     }
 
     CompiledExpression compareExpression(JsonNode expression) {
@@ -182,39 +179,6 @@ final class FlinkExpressionCompiler {
             result = and ? result.and(child.expression()) : result.or(child.expression());
         }
         return new CompiledExpression(result, failures);
-    }
-
-    DataType dataType(String value) {
-        String normalized = normalize(value);
-        if (normalized.startsWith("decimal")) {
-            return DataTypes.DECIMAL(38, 18);
-        }
-        return switch (normalized) {
-            case "boolean", "bool" -> DataTypes.BOOLEAN();
-            case "tinyint", "byte" -> DataTypes.TINYINT();
-            case "smallint", "short" -> DataTypes.SMALLINT();
-            case "int", "integer" -> DataTypes.INT();
-            case "bigint", "long" -> DataTypes.BIGINT();
-            case "float", "real" -> DataTypes.FLOAT();
-            case "double" -> DataTypes.DOUBLE();
-            case "date" -> DataTypes.DATE();
-            case "timestamp", "datetime" -> DataTypes.TIMESTAMP(3);
-            case "binary", "bytes", "varbinary" -> DataTypes.BYTES();
-            default -> DataTypes.STRING();
-        };
-    }
-
-    DataType integralType(String type) {
-        return switch (type) {
-            case "int", "integer" -> DataTypes.INT();
-            case "smallint", "short" -> DataTypes.SMALLINT();
-            case "tinyint", "byte" -> DataTypes.TINYINT();
-            default -> DataTypes.BIGINT();
-        };
-    }
-
-    String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
     }
 
 }
