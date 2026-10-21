@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,9 +20,29 @@ class PipelineApiOwnerIntegrationTest extends PipelineApiTestSupport {
         UUID otherOwner = UUID.randomUUID();
         UUID nodeId = UUID.randomUUID();
 
+        mvc.perform(get("/internal/v1/pipelines/{id}", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", otherOwner.toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(patch("/internal/v1/pipelines/{id}", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", otherOwner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"renamed\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/internal/v1/pipelines/{id}/archive", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", otherOwner.toString()))
+                .andExpect(status().isNotFound());
         mvc.perform(get("/internal/v1/pipelines/{id}/draft", pipelineId)
                         .header("X-Internal-Token", TOKEN)
                         .param("ownerId", otherOwner.toString()))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", otherOwner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(addNodeBody(0, nodeId)))
                 .andExpect(status().isNotFound());
         mvc.perform(post("/internal/v1/pipelines/{id}/draft/positions", pipelineId)
                         .header("X-Internal-Token", TOKEN)

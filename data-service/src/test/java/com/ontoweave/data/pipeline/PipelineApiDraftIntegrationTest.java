@@ -1,6 +1,7 @@
 package com.ontoweave.data.pipeline;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
@@ -78,6 +79,22 @@ class PipelineApiDraftIntegrationTest extends PipelineApiTestSupport {
                 .andReturn());
 
         assertThat(response.path("code").asText()).isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
+    void rejectsMoveNodeThroughDraftCommands() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
+        ObjectNode command = command("move_node", 0);
+        command.put("nodeId", UUID.randomUUID().toString());
+        command.putObject("position").put("x", 1).put("y", 2);
+
+        mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
