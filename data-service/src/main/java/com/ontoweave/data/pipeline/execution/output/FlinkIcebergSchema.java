@@ -1,5 +1,7 @@
 package com.ontoweave.data.pipeline.execution.output;
 
+import com.ontoweave.data.pipeline.execution.build.PipelineBuildConstants;
+import com.ontoweave.data.pipeline.execution.build.PipelineBuildException;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.DataType;
 import org.apache.flink.table.types.logical.BigIntType;
@@ -52,8 +54,7 @@ public final class FlinkIcebergSchema {
 
     public static void apply(Table table, ResolvedSchema schema) {
         table.refresh();
-        org.apache.iceberg.UpdateSchema update = table.updateSchema();
-        boolean changed = false;
+        org.apache.iceberg.UpdateSchema update = null;
         List<String> names = schema.getColumnNames();
         for (int index = 0; index < names.size(); index++) {
             String name = names.get(index);
@@ -64,14 +65,26 @@ public final class FlinkIcebergSchema {
             Type.PrimitiveType type = type(dataType.getLogicalType());
             Types.NestedField existing = table.schema().findField(name);
             if (existing == null) {
+                update = update == null ? table.updateSchema() : update;
                 update.addColumn(name, type);
-                changed = true;
             } else if (!existing.type().equals(type)) {
+                String existingType = existing.type().toString();
+                String plannedType = type.toString();
+                if (OutputSchemaCompatibility.widenable(plannedType, existingType)) {
+                    continue;
+                }
+                if (!OutputSchemaCompatibility.widenable(existingType, plannedType)) {
+                    throw new PipelineBuildException(
+                            PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED,
+                            "物理表字段类型与计划不兼容: " + name
+                                    + " (" + existingType + " -> " + plannedType + ")"
+                    );
+                }
+                update = update == null ? table.updateSchema() : update;
                 update.updateColumn(name, type);
-                changed = true;
             }
         }
-        if (changed) {
+        if (update != null) {
             update.commit();
         }
     }

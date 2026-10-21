@@ -75,13 +75,12 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 ));
         String namespace = OutputTableNames.NAMESPACE;
         String tableName = OutputTableNames.table(dataset.getId());
-        JsonNode previousSchema = schemaBaseline.resolve(dataset);
-        if (previousSchema == null) {
-            previousSchema = tableSchema(namespace, tableName);
-        }
+        JsonNode publishedSchema = schemaBaseline.resolve(dataset);
         CompiledTablePlan compiled = compiler.compile(plan);
         JsonNode plannedSchema = OutputSchemaJson.from(mapper, compiled.table().getResolvedSchema());
-        OutputSchemaCompatibility.assertCompatible(previousSchema, plannedSchema);
+        if (publishedSchema != null) {
+            OutputSchemaCompatibility.assertCompatible(publishedSchema, plannedSchema);
+        }
         ensureTable(namespace, tableName, compiled.table().getResolvedSchema());
         TableDescriptor sink = TableDescriptor.forConnector("iceberg")
                 .option("catalog-name", properties.icebergCatalog())
@@ -128,7 +127,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         } finally {
             jobs.remove(buildId);
         }
-        return snapshot(dataset.getId(), namespace, tableName, branch, engineJobId, previousSchema);
+        return snapshot(dataset.getId(), namespace, tableName, branch, engineJobId, plannedSchema);
     }
 
     @Override
@@ -184,13 +183,13 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         });
     }
 
-    private WrittenSnapshot snapshot(
+    WrittenSnapshot snapshot(
             UUID datasetId,
             String namespace,
             String tableName,
             String branch,
             String engineJobId,
-            JsonNode previousSchema
+            JsonNode plannedSchema
     ) {
         Table table = requireTable(namespace, tableName);
         table.refresh();
@@ -200,8 +199,6 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                     PipelineBuildConstants.CODE_EXECUTION_FAILED, "临时分支没有可用快照"
             );
         }
-        JsonNode schema = schemaJson(snapshot, table);
-        OutputSchemaCompatibility.assertCompatible(previousSchema, schema);
         Map<String, String> summary = snapshot.summary();
         long rowCount = longValue(summary.get("total-records"));
         return new WrittenSnapshot(
@@ -211,18 +208,13 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 tableName,
                 branch,
                 snapshot.snapshotId(),
-                schema,
+                plannedSchema.deepCopy(),
                 rowCount,
                 longValue(summary.get("total-file-size-bytes")),
                 table.location(),
                 Instant.ofEpochMilli(snapshot.timestampMillis()),
                 engineJobId
         );
-    }
-
-    private JsonNode tableSchema(String namespace, String tableName) {
-        return catalogs.withTable(namespace, tableName, table -> OutputSchemaJson.from(mapper, table.schema()))
-                .orElse(null);
     }
 
     private void ensureTable(String namespace, String tableName, ResolvedSchema schema) {
@@ -235,6 +227,8 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
             }
             Table table = catalog.loadTable(identifier);
             FlinkIcebergSchema.apply(table, schema);
+        } catch (PipelineBuildException error) {
+            throw error;
         } catch (Exception error) {
             throw new PipelineBuildException(
                     PipelineBuildConstants.CODE_EXECUTION_FAILED,
@@ -258,11 +252,6 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         }
         org.apache.iceberg.SnapshotRef ref = table.refs().get(branch);
         return ref == null ? null : table.snapshot(ref.snapshotId());
-    }
-
-    private JsonNode schemaJson(Snapshot snapshot, Table table) {
-        org.apache.iceberg.Schema schema = table.schemas().get((int) snapshot.schemaId());
-        return OutputSchemaJson.from(mapper, schema == null ? table.schema() : schema);
     }
 
     private long longValue(String value) {
