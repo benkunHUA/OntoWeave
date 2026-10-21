@@ -67,12 +67,20 @@ public class PipelineDraftCommandService {
         }
         JsonNode before = DraftCommandValidation.requireDefinition(draft);
         if (command instanceof SetOutput setOutput) {
-            return applySetOutput(pipelineId, ownerId, baseRevision, before, setOutput);
+            return applySetOutput(
+                    pipelineId,
+                    ownerId,
+                    locked.pipeline().getConversationId(),
+                    baseRevision,
+                    before,
+                    setOutput
+            );
         }
         DraftCommandApplier.DraftMutation mutation = applier.apply(before, command);
         return persistSemantic(
                 pipelineId,
                 ownerId,
+                locked.pipeline().getConversationId(),
                 baseRevision,
                 before,
                 mutation,
@@ -146,7 +154,14 @@ public class PipelineDraftCommandService {
                 operationId,
                 turnId
         ));
-        eventWriter.changed(pipelineId, revision, operationId, turnId, OP_UNDO_TURN);
+        eventWriter.changed(
+                pipelineId,
+                locked.pipeline().getConversationId(),
+                revision,
+                operationId,
+                turnId,
+                OP_UNDO_TURN
+        );
         return new DraftResponse(pipelineId, revision, restored);
     }
 
@@ -164,6 +179,7 @@ public class PipelineDraftCommandService {
     private DraftResponse applySetOutput(
             UUID pipelineId,
             UUID ownerId,
+            UUID conversationId,
             long baseRevision,
             JsonNode before,
             SetOutput command
@@ -202,13 +218,21 @@ public class PipelineDraftCommandService {
                 command.operationId(),
                 command.turnId()
         ));
-        eventWriter.changed(pipelineId, revision, command.operationId(), command.turnId(), OP_SET_OUTPUT);
+        eventWriter.changed(
+                pipelineId,
+                conversationId,
+                revision,
+                command.operationId(),
+                command.turnId(),
+                OP_SET_OUTPUT
+        );
         return new DraftResponse(pipelineId, revision, after);
     }
 
     private DraftResponse persistSemantic(
             UUID pipelineId,
             UUID ownerId,
+            UUID conversationId,
             long baseRevision,
             JsonNode before,
             DraftCommandApplier.DraftMutation mutation,
@@ -239,7 +263,14 @@ public class PipelineDraftCommandService {
                 operationId,
                 turnId
         ));
-        eventWriter.changed(pipelineId, revision, operationId, turnId, mutation.opType());
+        eventWriter.changed(
+                pipelineId,
+                conversationId,
+                revision,
+                operationId,
+                turnId,
+                mutation.opType()
+        );
         return new DraftResponse(pipelineId, revision, mutation.after());
     }
 

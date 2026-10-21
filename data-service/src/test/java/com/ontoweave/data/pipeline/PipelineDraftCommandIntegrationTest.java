@@ -65,7 +65,11 @@ class PipelineDraftCommandIntegrationTest extends PipelineDraftIntegrationTestSu
                 "SELECT payload::text FROM data.outbox_event",
                 String.class
         );
-        assertThat(payload).contains("\"revision\": 5", "\"opType\": \"add_node\"");
+        assertThat(payload).contains(
+                "\"conversationId\": \"" + conversationId + "\"",
+                "\"revision\": 5",
+                "\"opType\": \"add_node\""
+        );
     }
 
     @Test

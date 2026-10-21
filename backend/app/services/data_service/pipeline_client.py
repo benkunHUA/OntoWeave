@@ -18,6 +18,16 @@ class PipelineDataServiceMixin:
     ) -> dict:
         raise NotImplementedError
 
+    def _request_list(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict | None = None,
+        operation_id: uuid.UUID | None = None,
+    ) -> list[dict]:
+        raise NotImplementedError
+
     # ---- data pipeline -------------------------------------------------
     def create_pipeline(
         self,
@@ -273,8 +283,8 @@ class PipelineDataServiceMixin:
         owner_id: uuid.UUID,
         limit: int,
         offset: int,
-    ) -> dict:
-        return self._request(
+    ) -> list[dict]:
+        return self._request_list(
             "GET",
             f"/internal/v1/pipelines/{pipeline_id}/schedule/runs",
             params={"ownerId": str(owner_id), "limit": limit, "offset": offset},

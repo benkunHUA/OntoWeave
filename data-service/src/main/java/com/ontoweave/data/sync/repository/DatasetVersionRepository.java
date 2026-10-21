@@ -46,4 +46,12 @@ public interface DatasetVersionRepository extends JpaRepository<DatasetVersionEn
 
     @Query("select count(v) from DatasetVersionEntity v where v.datasetId = :datasetId")
     long countByDatasetId(@Param("datasetId") UUID datasetId);
+
+    @Query("""
+            select v.datasetId as datasetId, count(v) as versionCount
+            from DatasetVersionEntity v
+            where v.datasetId in :datasetIds
+            group by v.datasetId
+            """)
+    List<DatasetVersionCount> countByDatasetIds(@Param("datasetIds") Collection<UUID> datasetIds);
 }

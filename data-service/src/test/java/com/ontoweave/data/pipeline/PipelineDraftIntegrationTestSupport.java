@@ -50,16 +50,18 @@ abstract class PipelineDraftIntegrationTestSupport {
 
     protected UUID pipelineId;
     protected UUID ownerId;
+    protected UUID conversationId;
 
     @BeforeEach
     void setUpPipeline() {
         clear();
         pipelineId = UUID.randomUUID();
         ownerId = UUID.randomUUID();
+        conversationId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO data.pipeline (id, owner_id, conversation_id, name, status)
                 VALUES (?, ?, ?, 'integration-pipeline', 'draft')
-                """, pipelineId, ownerId, UUID.randomUUID());
+                """, pipelineId, ownerId, conversationId);
     }
 
     @AfterEach

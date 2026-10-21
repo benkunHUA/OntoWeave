@@ -44,7 +44,10 @@ class PipelineDraftCommandUndoTest extends PipelineDraftCommandServiceTestSuppor
         assertThat(edit.getValue().opType()).isEqualTo("undo_turn");
         assertThat(edit.getValue().targetType()).isEqualTo("turn");
         assertThat(edit.getValue().targetId()).isEqualTo(turnId(4));
-        verify(outbox).write(eq("pipeline"), eq(PIPELINE_ID), eq("pipeline.draft.changed"), any());
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).write(eq("pipeline"), eq(PIPELINE_ID), eq("pipeline.draft.changed"), payload.capture());
+        assertThat(mapper.valueToTree(payload.getValue()).path("conversationId").asText())
+                .isEqualTo(CONVERSATION_ID.toString());
     }
 
     @Test

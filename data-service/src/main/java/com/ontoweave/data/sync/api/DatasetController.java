@@ -1,6 +1,7 @@
 package com.ontoweave.data.sync.api;
 
 import com.ontoweave.data.sync.api.dto.DatasetResponse;
+import com.ontoweave.data.sync.api.dto.DatasetPageResponse;
 import com.ontoweave.data.sync.api.dto.DatasetPreviewResponse;
 import com.ontoweave.data.sync.api.dto.DatasetVersionResponse;
 import com.ontoweave.data.sync.api.dto.DatasetVersionsResponse;
@@ -24,6 +25,15 @@ public class DatasetController {
     public DatasetController(DatasetService service, DatasetPreviewService previews) {
         this.service = service;
         this.previews = previews;
+    }
+
+    @GetMapping
+    public DatasetPageResponse list(
+            @RequestParam UUID ownerId,
+            @RequestParam(defaultValue = "20") int limit,
+            @RequestParam(defaultValue = "0") int offset
+    ) {
+        return service.listByOwner(ownerId, limit, offset);
     }
 
     @GetMapping("/{id}")

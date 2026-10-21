@@ -24,10 +24,16 @@ from app.services.data_service.pipeline_client import PipelineDataServiceMixin
 
 
 class DataServiceClient(PipelineDataServiceMixin):
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        transport: httpx.BaseTransport | None = None,
+    ) -> None:
         self._base_url = settings.data_service_url.rstrip("/")
         self._token = settings.data_service_token
         self._timeout = settings.data_service_timeout_seconds
+        self._transport = transport
 
     def create_connection(self, *, owner_id: uuid.UUID, payload: dict) -> dict:
         body = {**payload, "ownerId": str(owner_id)}
@@ -232,11 +238,54 @@ class DataServiceClient(PipelineDataServiceMixin):
         json: dict | None = None,
         operation_id: uuid.UUID | None = None,
     ) -> dict:
+        data = self._request_json(
+            method,
+            path,
+            params=params,
+            json=json,
+            operation_id=operation_id,
+            empty={},
+        )
+        if not isinstance(data, dict):
+            raise DataServiceUnavailableError("数据服务返回了非对象响应")
+        return data
+
+    def _request_list(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict | None = None,
+        operation_id: uuid.UUID | None = None,
+    ) -> list[dict]:
+        data = self._request_json(
+            method,
+            path,
+            params=params,
+            operation_id=operation_id,
+            empty=[],
+        )
+        if not isinstance(data, list):
+            raise DataServiceUnavailableError("数据服务返回了非数组响应")
+        if not all(isinstance(item, dict) for item in data):
+            raise DataServiceUnavailableError("数据服务返回了非对象数组项")
+        return data
+
+    def _request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict | None,
+        json: dict | None = None,
+        operation_id: uuid.UUID | None,
+        empty: Any,
+    ) -> Any:
         headers = {"X-Internal-Token": self._token}
         if operation_id is not None:
             headers["X-Operation-Id"] = str(operation_id)
         try:
-            response = httpx.request(
+            response = self._send(
                 method,
                 f"{self._base_url}{path}",
                 params=params,
@@ -250,14 +299,17 @@ class DataServiceClient(PipelineDataServiceMixin):
         if response.status_code >= 400:
             self._raise_error(response)
         if not response.content:
-            return {}
+            return empty
         try:
-            data = response.json()
+            return response.json()
         except ValueError as exc:
             raise DataServiceUnavailableError("数据服务返回了非 JSON 响应") from exc
-        if not isinstance(data, dict):
-            raise DataServiceUnavailableError("数据服务返回了非对象响应")
-        return data
+
+    def _send(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        if self._transport is None:
+            return httpx.request(method, url, **kwargs)
+        with httpx.Client(transport=self._transport, timeout=self._timeout) as client:
+            return client.request(method, url, **kwargs)
 
     @staticmethod
     def _raise_error(response: httpx.Response) -> None:

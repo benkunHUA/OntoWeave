@@ -3,11 +3,15 @@ package com.ontoweave.data.sync.service;
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.connection.service.DataConnectionService;
 import com.ontoweave.data.sync.api.dto.DatasetResponse;
+import com.ontoweave.data.sync.api.dto.DatasetListItemResponse;
+import com.ontoweave.data.sync.api.dto.DatasetPageResponse;
 import com.ontoweave.data.sync.api.dto.DatasetVersionResponse;
 import com.ontoweave.data.sync.api.dto.DatasetVersionsResponse;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
+import com.ontoweave.data.sync.domain.SyncTaskEntity;
 import com.ontoweave.data.sync.repository.DatasetRepository;
+import com.ontoweave.data.sync.repository.DatasetVersionCount;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import com.ontoweave.data.sync.repository.SyncTaskRepository;
 import org.springframework.http.HttpStatus;
@@ -15,7 +19,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DatasetService {
@@ -68,13 +74,7 @@ public class DatasetService {
 
     @Transactional(readOnly = true)
     public DatasetVersionsResponse versions(UUID datasetId, UUID ownerId, int limit, int offset) {
-        if (limit < 1 || limit > 200 || offset < 0) {
-            throw new ApiException(
-                    HttpStatus.BAD_REQUEST,
-                    "INVALID_PAGINATION",
-                    "limit 必须在 1 到 200 之间，offset 不能为负数"
-            );
-        }
+        requirePagination(limit, offset);
         required(datasetId, ownerId);
         List<DatasetVersionEntity> page = versions.findPageByDatasetId(datasetId, limit, offset);
         return new DatasetVersionsResponse(
@@ -104,6 +104,54 @@ public class DatasetService {
         return datasets.findByConnectionIdOrderByCreatedAtAsc(connectionId);
     }
 
+    @Transactional(readOnly = true)
+    public DatasetPageResponse listByOwner(UUID ownerId, int limit, int offset) {
+        requirePagination(limit, offset);
+        List<DatasetEntity> page = datasets.findPageByOwnerId(ownerId, limit, offset);
+        List<UUID> datasetIds = page.stream().map(DatasetEntity::getId).toList();
+        List<UUID> currentVersionIds = page.stream()
+                .map(DatasetEntity::getCurrentVersionId)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        Map<UUID, SyncTaskEntity> taskByDataset = datasetIds.isEmpty()
+                ? Map.of()
+                : tasks.findByDatasetIdIn(datasetIds).stream()
+                        .collect(Collectors.toMap(SyncTaskEntity::getDatasetId, task -> task));
+        Map<UUID, DatasetVersionEntity> currentVersionById = currentVersionIds.isEmpty()
+                ? Map.of()
+                : versions.findByIdIn(currentVersionIds).stream()
+                        .collect(Collectors.toMap(DatasetVersionEntity::getId, version -> version));
+        Map<UUID, Long> versionCounts = datasetIds.isEmpty()
+                ? Map.of()
+                : versions.countByDatasetIds(datasetIds).stream()
+                        .collect(Collectors.toMap(
+                                DatasetVersionCount::getDatasetId,
+                                DatasetVersionCount::getVersionCount
+                        ));
+        List<DatasetListItemResponse> items = page.stream()
+                .map(dataset -> {
+                    SyncTaskEntity task = taskByDataset.get(dataset.getId());
+                    DatasetVersionEntity current = dataset.getCurrentVersionId() == null
+                            ? null
+                            : currentVersionById.get(dataset.getCurrentVersionId());
+                    return new DatasetListItemResponse(
+                            dataset.getId(),
+                            dataset.getConnectionId(),
+                            dataset.getSyncTaskId(),
+                            dataset.getName(),
+                            dataset.getCurrentVersionId(),
+                            current == null ? null : version(current),
+                            Math.toIntExact(versionCounts.getOrDefault(dataset.getId(), 0L)),
+                            task == null ? null : task.getSchemaName(),
+                            task == null ? null : task.getTableName(),
+                            dataset.getCreatedAt(),
+                            dataset.getUpdatedAt()
+                    );
+                })
+                .toList();
+        return new DatasetPageResponse(items, datasets.countByOwnerId(ownerId), limit, offset);
+    }
+
     public DatasetEntity required(UUID datasetId, UUID ownerId) {
         DatasetEntity dataset = datasets.findById(datasetId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "数据集不存在"));
@@ -130,5 +178,15 @@ public class DatasetService {
                 version.getSourceRunId(),
                 version.getStoragePath()
         );
+    }
+
+    private void requirePagination(int limit, int offset) {
+        if (limit < 1 || limit > 200 || offset < 0) {
+            throw new ApiException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_PAGINATION",
+                    "limit 必须在 1 到 200 之间，offset 不能为负数"
+            );
+        }
     }
 }

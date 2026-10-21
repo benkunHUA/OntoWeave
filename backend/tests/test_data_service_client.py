@@ -123,3 +123,73 @@ def test_pipeline_client_uses_documented_paths(monkeypatch):
     assert captured[2][1] == (
         f"http://java:18001/internal/v1/pipelines/{pipeline}/datasets/{dataset}/sources"
     )
+
+
+def test_schedule_runs_accepts_json_array_through_http_transport():
+    owner = uuid.uuid4()
+    pipeline = uuid.uuid4()
+    run_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == f"/internal/v1/pipelines/{pipeline}/schedule/runs"
+        assert request.url.params["ownerId"] == str(owner)
+        return httpx.Response(200, json=[{"id": str(run_id), "status": "dispatched"}])
+
+    client = DataServiceClient(
+        Settings(data_service_url="http://java:18001"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert client.list_schedule_runs(pipeline, owner_id=owner, limit=25, offset=5) == [
+        {"id": str(run_id), "status": "dispatched"}
+    ]
+
+
+def test_object_response_is_rejected_for_list_routes():
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(200, json={"items": []})
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(DataServiceUnavailableError, match="非数组响应"):
+        client.list_schedule_runs(uuid.uuid4(), owner_id=uuid.uuid4(), limit=20, offset=0)
+
+
+def test_array_response_is_rejected_for_object_routes():
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(200, json=[])
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(DataServiceUnavailableError, match="非对象响应"):
+        client.get_schedule(uuid.uuid4(), owner_id=uuid.uuid4())
+
+
+def test_list_route_keeps_the_same_http_error_mapping():
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(409, json={"code": "SCHEDULE_CONFLICT", "message": "冲突"})
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(InvariantViolationError, match="冲突（SCHEDULE_CONFLICT）"):
+        client.list_schedule_runs(uuid.uuid4(), owner_id=uuid.uuid4(), limit=20, offset=0)
+
+
+def test_input_datasets_uses_the_java_page_contract():
+    owner = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/internal/v1/datasets"
+        assert request.url.params["ownerId"] == str(owner)
+        assert request.url.params["limit"] == "30"
+        assert request.url.params["offset"] == "10"
+        return httpx.Response(
+            200,
+            json={"items": [{"id": "dataset-1"}], "total": 1, "limit": 30, "offset": 10},
+        )
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    assert client.list_input_datasets(owner_id=owner, limit=30, offset=10)["items"] == [
+        {"id": "dataset-1"}
+    ]

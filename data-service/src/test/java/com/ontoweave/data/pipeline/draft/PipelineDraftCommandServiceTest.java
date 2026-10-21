@@ -44,6 +44,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
         ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
         verify(outbox).write(eq("pipeline"), eq(PIPELINE_ID), eq("pipeline.draft.changed"), payload.capture());
         JsonNode event = mapper.valueToTree(payload.getValue());
+        assertThat(event.path("conversationId").asText()).isEqualTo(CONVERSATION_ID.toString());
         assertThat(event.path("revision").asLong()).isEqualTo(5);
         assertThat(event.path("operationId").asText()).isEqualTo(operationId(4).toString());
         assertThat(event.path("turnId").asText()).isEqualTo(turnId(4).toString());

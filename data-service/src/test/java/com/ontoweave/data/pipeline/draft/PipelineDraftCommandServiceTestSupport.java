@@ -29,6 +29,8 @@ abstract class PipelineDraftCommandServiceTestSupport {
 
     protected static final UUID PIPELINE_ID = UUID.fromString("11111111-1111-4111-8111-111111111111");
     protected static final UUID OWNER_ID = UUID.fromString("22222222-2222-4222-8222-222222222222");
+    protected static final UUID CONVERSATION_ID =
+            UUID.fromString("55555555-5555-4555-8555-555555555555");
     protected static final UUID NODE_ID = UUID.fromString("33333333-3333-4333-8333-333333333333");
     protected static final UUID EDGE_ID = UUID.fromString("44444444-4444-4444-8444-444444444444");
 
@@ -66,7 +68,7 @@ abstract class PipelineDraftCommandServiceTestSupport {
                 editRecorder,
                 outbox
         );
-        PipelineEntity pipeline = new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "test");
+        PipelineEntity pipeline = new PipelineEntity(PIPELINE_ID, OWNER_ID, CONVERSATION_ID, "test");
         lenient().when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID)).thenReturn(Optional.of(pipeline));
         lenient().when(pipelines.lockById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
     }

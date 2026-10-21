@@ -20,9 +20,17 @@ final class PipelineDraftEventWriter {
         this.outbox = outbox;
     }
 
-    void changed(UUID pipelineId, long revision, UUID operationId, UUID turnId, String opType) {
+    void changed(
+            UUID pipelineId,
+            UUID conversationId,
+            long revision,
+            UUID operationId,
+            UUID turnId,
+            String opType
+    ) {
         ObjectNode payload = mapper.createObjectNode();
         payload.put("pipelineId", pipelineId.toString());
+        payload.put("conversationId", conversationId.toString());
         payload.put("revision", revision);
         payload.put("operationId", operationId.toString());
         if (turnId == null) {

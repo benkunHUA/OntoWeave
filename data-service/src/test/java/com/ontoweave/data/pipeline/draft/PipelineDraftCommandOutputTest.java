@@ -45,6 +45,10 @@ class PipelineDraftCommandOutputTest extends PipelineDraftCommandServiceTestSupp
         assertThat(response.revision()).isEqualTo(6);
         assertThat(response.definition().path("nodes").get(0).path("config").path("outputId").asText())
                 .isEqualTo(outputId.toString());
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(outbox).write(eq("pipeline"), eq(PIPELINE_ID), eq("pipeline.draft.changed"), payload.capture());
+        assertThat(mapper.valueToTree(payload.getValue()).path("conversationId").asText())
+                .isEqualTo(CONVERSATION_ID.toString());
         verify(outputs, never()).save(any());
         verify(datasets, never()).save(any());
         verify(datasets).saveAndFlush(dataset);
