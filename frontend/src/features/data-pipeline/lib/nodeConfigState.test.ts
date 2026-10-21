@@ -40,7 +40,7 @@ describe('node config drawer state', () => {
     state = applyDraftResponse(state, nodeId, boundDraft)
 
     expect(state.config.outputId).toBe('00000000-0000-4000-8000-000000000099')
-    expect(state.dirty).toBe(false)
+    expect(state.dirty).toBe(true)
 
     state = { ...state, name: 'Orders renamed', dirty: true }
     expect(configForSave(state)).toEqual({
@@ -60,6 +60,23 @@ describe('node config drawer state', () => {
     const next = syncExternalConfig(drawerStateFor(unboundNode), boundDraft.definition.nodes[0])
 
     expect(next.config.outputId).toBe('00000000-0000-4000-8000-000000000099')
+  })
+
+  it('synchronizes an external Agent rename only when the drawer is clean', () => {
+    const renamed = { ...boundDraft.definition.nodes[0], name: 'Agent renamed' }
+    const clean = syncExternalConfig(drawerStateFor(unboundNode), renamed)
+    const dirty = syncExternalConfig(
+      { ...drawerStateFor(unboundNode), name: 'Local rename', dirty: true },
+      renamed,
+    )
+
+    expect(clean.name).toBe('Agent renamed')
+    expect(dirty.name).toBe('Local rename')
+  })
+
+  it('keeps a clean drawer clean when set_output returns', () => {
+    const state = applyDraftResponse(drawerStateFor(unboundNode), nodeId, boundDraft)
+    expect(state.dirty).toBe(false)
   })
 
   it('resets local state when switching nodes', () => {

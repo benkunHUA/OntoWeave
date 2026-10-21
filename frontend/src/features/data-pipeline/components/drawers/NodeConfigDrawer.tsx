@@ -1,5 +1,5 @@
 import { CircleAlert, Info, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   JsonObject,
   NodeDefinition,
@@ -25,13 +25,19 @@ import {
 } from '../../lib/nodeConfigState'
 
 interface NodeConfigDrawerProps {
+  pipelineId: string
   node: PipelineNode
   definition: NodeDefinition | null
   issues: PipelineIssue[]
   isSaving: boolean
   isReadOnly?: boolean
   onClose: () => void
-  onSave: (nodeId: string, name: string, config: JsonObject) => Promise<unknown> | null
+  onSave: (
+    pipelineId: string,
+    nodeId: string,
+    name: string,
+    config: JsonObject,
+  ) => Promise<unknown> | null
   onDelete: (nodeId: string) => Promise<unknown> | null
   onSetOutput: (
     nodeId: string,
@@ -48,6 +54,7 @@ function sortIssues(issues: PipelineIssue[]): PipelineIssue[] {
 }
 
 export function NodeConfigDrawer({
+  pipelineId,
   node,
   definition,
   issues,
@@ -74,15 +81,23 @@ export function NodeConfigDrawer({
     if (!drawer.dirty || isReadOnly) return
     const trimmedName = drawer.name.trim()
     if (!trimmedName) return
-    setDrawer((current) => ({ ...current, dirty: false }))
-    void onSave(node.id, trimmedName, configForSave(drawer))
-  }, [drawer, isReadOnly, node.id, onSave])
+    setDrawer((current) => current.nodeId === node.id
+      ? { ...current, dirty: false }
+      : current)
+    void onSave(pipelineId, node.id, trimmedName, configForSave(drawer))
+  }, [drawer, isReadOnly, node.id, onSave, pipelineId])
 
   useEffect(() => {
     if (!drawer.dirty || isReadOnly || !drawer.name.trim()) return
     const timer = window.setTimeout(saveNow, CONFIG_SAVE_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [drawer.dirty, drawer.name, isReadOnly, saveNow])
+
+  const flushRef = useRef(saveNow)
+  useEffect(() => {
+    flushRef.current = saveNow
+  }, [saveNow])
+  useEffect(() => () => flushRef.current(), [node.id, pipelineId])
 
   function close() {
     saveNow()

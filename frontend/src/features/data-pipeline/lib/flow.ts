@@ -89,6 +89,17 @@ export function nextNodePosition(draft: PipelineDraftResponse | null): PipelineN
   return { x: right + NODE_WIDTH + NODE_GAP_X + NODE_WIDTH / 2, y: centerY }
 }
 
+export function changedPositionUpdates(
+  draft: PipelineDraftResponse,
+  moved: Array<{ id: string; position: PipelineNodePosition }>,
+): Array<{ node_id: string } & PipelineNodePosition> {
+  return moved.flatMap((node) => {
+    const position = { x: Math.round(node.position.x), y: Math.round(node.position.y) }
+    const persisted = draft.definition.nodes.find((item) => item.id === node.id)
+    return positionChanged(persisted, position) ? [{ node_id: node.id, ...position }] : []
+  })
+}
+
 export function positionChanged(
   node: PipelineNode | undefined,
   position: PipelineNodePosition,

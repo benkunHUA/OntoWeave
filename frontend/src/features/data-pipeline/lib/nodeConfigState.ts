@@ -28,8 +28,8 @@ export function syncExternalConfig(
   state: NodeConfigDrawerState,
   node: PipelineNode,
 ): NodeConfigDrawerState {
-  if (state.dirty || state.config === node.config) return state
-  return { ...state, config: { ...node.config } }
+  if (state.dirty || (state.config === node.config && state.name === node.name)) return state
+  return { ...state, name: node.name, config: { ...node.config } }
 }
 
 export function applyDraftResponse(
@@ -42,7 +42,6 @@ export function applyDraftResponse(
   return {
     ...state,
     config: { ...state.config, ...updated.config },
-    dirty: false,
   }
 }
 

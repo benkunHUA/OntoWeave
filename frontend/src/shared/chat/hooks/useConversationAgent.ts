@@ -61,6 +61,7 @@ export function useConversationAgent({
   const setInterruptRef = useRef<(value: ReturnType<typeof pendingInterruptFrom>) => void>(
     () => {},
   )
+  const resetAgentRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     finishedRef.current = onFinished
@@ -106,13 +107,15 @@ export function useConversationAgent({
 
   useEffect(() => {
     setInterruptRef.current = agent.setInterrupt
-  }, [agent.setInterrupt])
+    resetAgentRef.current = agent.reset
+  }, [agent.reset, agent.setInterrupt])
 
   useEffect(() => {
     let active = true
     void (async () => {
       const previous = activeConversationRef.current
       activeConversationRef.current = conversationId
+      if (previous !== conversationId) resetAgentRef.current()
       if (previous && previous !== conversationId) forget(previous)
       setEvents([])
       cursorRef.current = undefined

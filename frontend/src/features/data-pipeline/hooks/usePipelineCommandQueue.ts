@@ -16,6 +16,7 @@ import type {
 import { buildDraftCommand } from '../lib/command'
 import { normalizeDraftResponse } from '../lib/draft'
 import { setOutputPayload, type OutputDraftInput } from '../lib/outputCommand'
+import { usePipelineGeneration } from './usePipelineGeneration'
 
 interface CommandQueueOptions {
   pipelineId: string | undefined
@@ -24,6 +25,8 @@ interface CommandQueueOptions {
   refreshCheck: (revision: number) => Promise<unknown>
   reload: () => Promise<unknown>
 }
+
+type IsActive = () => boolean
 
 function isRevisionConflict(reason: unknown): boolean {
   return reason instanceof HttpError && reason.status === 409 &&
@@ -40,14 +43,23 @@ export function usePipelineCommandQueue({
   const [hasConflict, setHasConflict] = useState(false)
   const [isWriting, setIsWriting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const revisionRef = useRef(draft?.revision ?? 0)
+  const revisionsRef = useRef(new Map<string, number>())
   const haltedRef = useRef(false)
   const tailRef = useRef<Promise<unknown>>(Promise.resolve())
   const reloadRef = useRef(reload)
+  const { token: generation, isCurrent } = usePipelineGeneration(pipelineId)
 
   useEffect(() => {
-    revisionRef.current = draft?.revision ?? revisionRef.current
-  }, [draft?.revision])
+    haltedRef.current = false
+    tailRef.current = Promise.resolve()
+    setHasConflict(false)
+    setIsWriting(false)
+    setError(null)
+  }, [pipelineId])
+
+  useEffect(() => {
+    if (draft) revisionsRef.current.set(draft.pipeline_id, draft.revision)
+  }, [draft])
 
   useEffect(() => {
     reloadRef.current = reload
@@ -55,14 +67,22 @@ export function usePipelineCommandQueue({
 
   const enqueue = useCallback(
     <T,>(
-      operation: (baseRevision: number) => Promise<T>,
+      operation: (baseRevision: number, isActive: IsActive) => Promise<T>,
     ): Promise<T | null> => {
+      const runGeneration = generation
+      const runPipeline = pipelineId
+      const isActive: IsActive = () => isCurrent(runPipeline, runGeneration)
+      const baseRevision = runPipeline
+        ? revisionsRef.current.get(runPipeline) ?? 0
+        : 0
       const task = tailRef.current.then(async () => {
         if (haltedRef.current) return null
         setIsWriting(true)
         try {
-          return await operation(revisionRef.current)
+          const result = await operation(baseRevision, isActive)
+          return isActive() ? result : null
         } catch (reason) {
+          if (!isActive()) return null
           if (isRevisionConflict(reason)) {
             haltedRef.current = true
             setHasConflict(true)
@@ -72,18 +92,18 @@ export function usePipelineCommandQueue({
           setError(reason instanceof Error ? reason.message : '保存失败')
           return null
         } finally {
-          setIsWriting(false)
+          if (isActive()) setIsWriting(false)
         }
       })
       tailRef.current = task.catch(() => undefined)
       return task
     },
-    [],
+    [generation, isCurrent, pipelineId],
   )
 
   const sendCommand = useCallback(
     (payload: Omit<PipelineDraftCommand, 'base_revision' | 'operation_id'>) =>
-      enqueue(async (baseRevision) => {
+      enqueue(async (baseRevision, isActive) => {
         if (!pipelineId) return null
         const operationId = crypto.randomUUID()
         const response = normalizeDraftResponse(
@@ -92,9 +112,11 @@ export function usePipelineCommandQueue({
             buildDraftCommand(payload, baseRevision, operationId),
           ),
         )
-        revisionRef.current = response.revision
+        if (!isActive()) return null
+        revisionsRef.current.set(response.pipeline_id, response.revision)
         setDraft(response)
         await refreshCheck(response.revision)
+        if (!isActive()) return null
         setError(null)
         return response
       }),
@@ -136,12 +158,13 @@ export function usePipelineCommandQueue({
 
   const moveNodes = useCallback(
     (positions: PipelineNodePositionUpdate[]) =>
-      enqueue(async () => {
+      enqueue(async (_, isActive) => {
         if (!pipelineId || !positions.length) return null
         const response = normalizeDraftResponse(
           await movePipelineNodes(pipelineId, positions, crypto.randomUUID()),
         )
-        revisionRef.current = response.revision
+        if (!isActive()) return null
+        revisionsRef.current.set(response.pipeline_id, response.revision)
         setDraft(response)
         return response
       }),
@@ -150,7 +173,7 @@ export function usePipelineCommandQueue({
 
   const undoTurn = useCallback(
     (turnId: string, revision: number) =>
-      enqueue(async () => {
+      enqueue(async (_, isActive) => {
         if (!pipelineId) return null
         const response = normalizeDraftResponse(
           await undoPipelineTurn(
@@ -160,7 +183,8 @@ export function usePipelineCommandQueue({
             crypto.randomUUID(),
           ),
         )
-        revisionRef.current = response.revision
+        if (!isActive()) return null
+        revisionsRef.current.set(response.pipeline_id, response.revision)
         setDraft(response)
         await refreshCheck(response.revision)
         return response

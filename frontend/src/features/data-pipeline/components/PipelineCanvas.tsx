@@ -31,10 +31,10 @@ import {
 } from '../lib/constants'
 import { validateConnection } from '../lib/connectionValidation'
 import {
+  changedPositionUpdates,
   draftToFlow,
   layoutPipeline,
   nextNodePosition,
-  positionChanged,
   type PipelineFlowNode,
 } from '../lib/flow'
 import {
@@ -158,11 +158,7 @@ function CanvasSurface(props: PipelineCanvasProps) {
 
   function persistPositions(changed: Node[]) {
     if (!draft) return
-    const positions = changed.flatMap((node) => {
-      const position = { x: Math.round(node.position.x), y: Math.round(node.position.y) }
-      const persisted = draft.definition.nodes.find((item) => item.id === node.id)
-      return positionChanged(persisted, position) ? [{ node_id: node.id, ...position }] : []
-    })
+    const positions = changedPositionUpdates(draft, changed)
     if (positions.length) void onMove(positions)
   }
 
@@ -256,7 +252,8 @@ function CanvasSurface(props: PipelineCanvasProps) {
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onNodeClick={(_, node) => onSelectNode(node.id)}
-            onNodeDragStop={(_, node) => persistPositions([node])}
+            onNodeDragStop={(_, node, dragged) => persistPositions(dragged.length ? dragged : [node])}
+            onSelectionDragStop={(_, dragged) => persistPositions(dragged)}
             onConnect={(connection) => void handleConnect(connection)}
             onEdgesDelete={handleEdgesDelete}
             onEdgeDoubleClick={(_, edge) => void onDisconnect(edge.id)}

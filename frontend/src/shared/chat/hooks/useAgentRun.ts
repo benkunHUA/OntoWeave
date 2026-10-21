@@ -41,9 +41,13 @@ export function useAgentRun({
   const [interrupt, setInterrupt] = useState<PendingInterrupt | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const turnIdRef = useRef<string | null>(null)
+  const runTokenRef = useRef(0)
 
   const run = useCallback(
     async (conversationId: string, body: AgentRunInput, turnId: string) => {
+      const runToken = runTokenRef.current + 1
+      runTokenRef.current = runToken
+      const isCurrent = () => runTokenRef.current === runToken
       turnIdRef.current = turnId
       let activeId = newId()
       chat.append(conversationId, {
@@ -67,6 +71,7 @@ export function useAgentRun({
       }
 
       function handleEvent(event: AgentEvent) {
+        if (!isCurrent()) return
         if (event.type === 'run.start') {
           // 服务端分配的消息 id 才是权威身份，用它替掉本地占位 id。
           const serverId = event.messageId
@@ -103,13 +108,15 @@ export function useAgentRun({
       try {
         await streamAgentRun(conversationId, body, handleEvent, controller.signal, turnId)
       } catch (reason) {
-        if (!controller.signal.aborted) {
+        if (isCurrent() && !controller.signal.aborted) {
           report(reason, '运行失败')
         }
       } finally {
-        setIsRunning(false)
-        abortRef.current = null
-        onFinished(conversationId)
+        if (isCurrent()) {
+          setIsRunning(false)
+          abortRef.current = null
+          onFinished(conversationId)
+        }
       }
     },
     [chat, report, setMessage, clearMessage, onFinished, onStateUpdate],
@@ -156,5 +163,14 @@ export function useAgentRun({
 
   const abort = useCallback(() => abortRef.current?.abort(), [])
 
-  return { isRunning, interrupt, setInterrupt, run, send, answer, abort }
+  const reset = useCallback(() => {
+    runTokenRef.current += 1
+    abortRef.current?.abort()
+    abortRef.current = null
+    turnIdRef.current = null
+    setIsRunning(false)
+    setInterrupt(null)
+  }, [])
+
+  return { isRunning, interrupt, setInterrupt, run, send, answer, abort, reset }
 }

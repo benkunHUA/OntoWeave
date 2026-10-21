@@ -118,9 +118,11 @@ export function DataPipelineWorkbench() {
     [queueMoveNodes],
   )
   const saveNode = useCallback(
-    (nodeId: string, name: string, config: JsonObject) =>
-      queueUpdateNode(nodeId, name, config),
-    [queueUpdateNode],
+    (targetPipelineId: string, nodeId: string, name: string, config: JsonObject) => {
+      if (targetPipelineId !== pipelineId) return null
+      return queueUpdateNode(nodeId, name, config)
+    },
+    [pipelineId, queueUpdateNode],
   )
   const deleteNode = useCallback(
     async (nodeId: string) => {
@@ -190,9 +192,10 @@ export function DataPipelineWorkbench() {
           onClearError={queue.clearError}
           onReloadConflict={queue.resumeAfterConflict}
         />
-        {selectedNode ? (
+        {selectedNode && pipelineId ? (
           <NodeConfigDrawer
-            key={selectedNode.id}
+            key={`${pipelineId}:${selectedNode.id}`}
+            pipelineId={pipelineId}
             node={selectedNode}
             definition={findNodeDefinition(draftView.catalog, selectedNode.type)}
             issues={selectedIssues}
