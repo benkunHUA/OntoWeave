@@ -115,12 +115,16 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
 
     @Override
     public PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request) {
-        long startedAt = System.nanoTime();
+        PreviewDeadline deadline = PreviewDeadline.start(timeout);
+        checks.validateRevision(pipelineId, ownerId, request.draftRevision());
+        ensureBudget(deadline);
         PreviewRegistry.Lease lease = registry.register(pipelineId, ownerId);
         try {
             ensureActive(lease);
+            ensureBudget(deadline);
             PipelineCheckResult check = checks.check(pipelineId, ownerId, request.draftRevision());
             ensureActive(lease);
+            ensureBudget(deadline);
             if (!check.blockingIssues().isEmpty()) {
                 throw new ApiException(
                         HttpStatus.UNPROCESSABLE_ENTITY,
@@ -133,21 +137,24 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
                     pipelineId, ownerId, request.draftRevision(), request.nodeId()
             );
             ensureActive(lease);
+            ensureBudget(deadline);
+            Duration executionBudget = deadline.remaining();
             Future<ExecutionResult> future = workers.submit(() -> {
                 if (!lease.beginTask()) {
                     throw canceled();
                 }
                 try {
                     ensureActive(lease);
-                    return execute(plan);
+                    return execute(plan, executionBudget);
                 } finally {
                     lease.finishTask();
                 }
             });
             lease.setFuture(future);
-            ExecutionResult result = await(future, lease);
+            ExecutionResult result = await(future, lease, executionBudget);
             ensureActive(lease);
-            return response(pipelineId, request, plan, result, startedAt);
+            ensureBudget(deadline);
+            return response(pipelineId, request, plan, result, deadline.elapsedMs());
         } catch (ApiException error) {
             if (lease.isCanceled()) {
                 throw canceled();
@@ -169,7 +176,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         registry.cancelForBuild(pipelineId);
     }
 
-    private ExecutionResult execute(LogicalPlan plan) {
+    private ExecutionResult execute(LogicalPlan plan, Duration executionBudget) {
         if (plan.root().node() instanceof LogicalPlanNode.ScanInput scan) {
             IcebergPreview preview = reader.read(
                     scan.catalog(),
@@ -192,7 +199,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             );
         }
         FlinkExecutionResult result = executor.execute(
-                plan, PipelineExecutionLimits.OUTPUT_ROW_LIMIT, timeout
+                plan, PipelineExecutionLimits.OUTPUT_ROW_LIMIT, executionBudget
         );
         return new ExecutionResult(
                 result.columns(),
@@ -204,9 +211,13 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         );
     }
 
-    private ExecutionResult await(Future<ExecutionResult> future, PreviewRegistry.Lease lease) {
+    private ExecutionResult await(
+            Future<ExecutionResult> future,
+            PreviewRegistry.Lease lease,
+            Duration executionBudget
+    ) {
         try {
-            return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            return future.get(executionBudget.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException error) {
             future.cancel(true);
             throw lease.isCanceled() ? canceled() : timeout();
@@ -232,7 +243,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             PreviewRequest request,
             LogicalPlan plan,
             ExecutionResult result,
-            long startedAt
+            long elapsedMs
     ) {
         int returnedRows = Math.min(result.rows().size(), PipelineExecutionLimits.OUTPUT_ROW_LIMIT);
         boolean truncated = result.rows().size() > PipelineExecutionLimits.OUTPUT_ROW_LIMIT;
@@ -242,7 +253,6 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         List<InputVersion> inputVersions = plan.inputVersions().stream()
                 .map(InputVersion::from)
                 .toList();
-        long elapsedMs = Duration.ofNanos(System.nanoTime() - startedAt).toMillis();
         return new PreviewResponse(
                 request.requestId(),
                 pipelineId,
@@ -264,6 +274,12 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     private void ensureActive(PreviewRegistry.Lease lease) {
         if (lease.isCanceled()) {
             throw canceled();
+        }
+    }
+
+    private void ensureBudget(PreviewDeadline deadline) {
+        if (deadline.expired()) {
+            throw timeout();
         }
     }
 

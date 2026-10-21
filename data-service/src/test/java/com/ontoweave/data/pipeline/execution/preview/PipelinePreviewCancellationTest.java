@@ -127,4 +127,46 @@ class PipelinePreviewCancellationTest {
                         assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED"));
         assertThat(replacement.get(2, TimeUnit.SECONDS).rows()).hasSize(1);
     }
+
+    @Test
+    void staleRequestDoesNotCancelCurrentPreview() throws Exception {
+        CountDownLatch checkStarted = new CountDownLatch(1);
+        CountDownLatch releaseCheck = new CountDownLatch(1);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenAnswer(invocation -> {
+            checkStarted.countDown();
+            assertThat(releaseCheck.await(2, TimeUnit.SECONDS)).isTrue();
+            return readyCheck(PIPELINE_ID, 4L);
+        });
+        org.mockito.Mockito.doThrow(new com.ontoweave.data.pipeline.draft.PipelineRevisionConflict())
+                .when(checks).validateRevision(PIPELINE_ID, OWNER_ID, 3L);
+        ResolvedInput input = input(100L);
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(inputPlan(NODE_ID, input, 4L));
+        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+                .thenReturn(Optional.of(new IcebergPreview(
+                        List.of(new PreviewColumn("id", "long", false)),
+                        rows(1),
+                        false
+                )));
+        PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
+        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
+                checks, planBuilder, mock(FlinkTableExecutor.class),
+                reader, Duration.ofSeconds(5), workers, registry
+        );
+
+        Future<PreviewResponse> current = callers.submit(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
+        ));
+        assertThat(checkStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        assertThatThrownBy(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(3L, NODE_ID.toString(), UUID.randomUUID())
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.code()).isEqualTo("REVISION_CONFLICT"));
+
+        assertThat(current).isNotDone();
+        assertThat(registry.awaitCancellationRequested(PIPELINE_ID, Duration.ofMillis(100))).isFalse();
+        releaseCheck.countDown();
+        assertThat(current.get(2, TimeUnit.SECONDS).rows()).hasSize(1);
+    }
 }

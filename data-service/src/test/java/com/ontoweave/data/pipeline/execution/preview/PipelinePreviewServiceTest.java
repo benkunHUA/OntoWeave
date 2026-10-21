@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -59,7 +60,8 @@ class PipelinePreviewServiceTest {
 
     @Test
     void rejectsStaleDraftRevisionBeforeStartingExecution() {
-        when(checks.check(PIPELINE_ID, OWNER_ID, 3L)).thenThrow(new PipelineRevisionConflict());
+        org.mockito.Mockito.doThrow(new PipelineRevisionConflict())
+                .when(checks).validateRevision(PIPELINE_ID, OWNER_ID, 3L);
         PipelinePreviewService service = service(Duration.ofSeconds(1));
 
         assertThatThrownBy(() -> service.preview(
@@ -118,8 +120,8 @@ class PipelinePreviewServiceTest {
     void transformNodeUsesFlinkAndStripsExecutorIssues() {
         ResolvedInput input = input(100L);
         PreviewIssue issue = new PreviewIssue(
-                "TYPE_MISMATCH", "warning", NODE_ID.toString(), "amount", 2L,
-                "值无法转换为 long", "abc"
+                "TYPE_MISMATCH", "execution", "warning", NODE_ID.toString(), "in",
+                "amount", 2L, "值无法转换为 long", "检查原始值格式", "abc"
         );
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
@@ -130,7 +132,7 @@ class PipelinePreviewServiceTest {
                         UUID.randomUUID(),
                         List.of(new PreviewColumn("id", "long", false)),
                         rows(501),
-                        12_000L,
+                        null,
                         false,
                         List.of(),
                         List.of(issue)
@@ -143,7 +145,7 @@ class PipelinePreviewServiceTest {
 
         assertThat(response.rows()).hasSize(500);
         assertThat(response.truncated()).isTrue();
-        assertThat(response.scannedRows()).isEqualTo(12_000L);
+        assertThat(response.scannedRows()).isNull();
         assertThat(response.warnings()).containsExactly(issue);
     }
 
@@ -159,7 +161,7 @@ class PipelinePreviewServiceTest {
                         UUID.randomUUID(),
                         List.of(new com.ontoweave.data.sync.iceberg.PreviewColumn("id", "long", false)),
                         rows(10),
-                        50_001L,
+                        null,
                         true,
                         List.of(),
                         List.of()
@@ -172,7 +174,7 @@ class PipelinePreviewServiceTest {
 
         assertThat(response.truncated()).isTrue();
         assertThat(response.truncationReason()).isEqualTo("SCAN_ROW_LIMIT");
-        assertThat(response.scannedRows()).isEqualTo(50_001L);
+        assertThat(response.scannedRows()).isNull();
     }
 
     @Test
@@ -187,7 +189,7 @@ class PipelinePreviewServiceTest {
                         UUID.randomUUID(),
                         List.of(new com.ontoweave.data.sync.iceberg.PreviewColumn("id", "long", false)),
                         rows(10),
-                        50_000L,
+                        null,
                         false,
                         List.of(),
                         List.of()
@@ -200,7 +202,76 @@ class PipelinePreviewServiceTest {
 
         assertThat(response.truncated()).isFalse();
         assertThat(response.truncationReason()).isNull();
-        assertThat(response.scannedRows()).isEqualTo(50_000L);
+        assertThat(response.scannedRows()).isNull();
+    }
+
+    @Test
+    void mapsCheckThatExhaustsBudgetToPreviewTimeout() {
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenAnswer(invocation -> {
+            Thread.sleep(80);
+            return readyCheck(PIPELINE_ID, 4L);
+        });
+        PipelinePreviewService service = service(Duration.ofMillis(30));
+
+        assertThatThrownBy(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.code()).isEqualTo("PREVIEW_TIMEOUT"));
+
+        verifyNoInteractions(planBuilder, executor, reader);
+    }
+
+    @Test
+    void mapsPlanBuildThatExhaustsBudgetToPreviewTimeout() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString())).thenAnswer(invocation -> {
+            Thread.sleep(80);
+            return transformPlan(NODE_ID, input, 4L);
+        });
+        PipelinePreviewService service = service(Duration.ofMillis(30));
+
+        assertThatThrownBy(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        )).isInstanceOfSatisfying(ApiException.class, exception ->
+                assertThat(exception.code()).isEqualTo("PREVIEW_TIMEOUT"));
+
+        verifyNoInteractions(executor, reader);
+    }
+
+    @Test
+    void passesOnlyRemainingBudgetToFlink() {
+        ResolvedInput input = input(100L);
+        AtomicReference<Duration> executionBudget = new AtomicReference<>();
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenAnswer(invocation -> {
+            Thread.sleep(150);
+            return readyCheck(PIPELINE_ID, 4L);
+        });
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        when(executor.execute(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(500),
+                org.mockito.ArgumentMatchers.any(Duration.class)
+        )).thenAnswer(invocation -> {
+            executionBudget.set(invocation.getArgument(2));
+            return new FlinkExecutionResult(
+                    UUID.randomUUID(),
+                    List.of(new PreviewColumn("id", "long", false)),
+                    rows(1),
+                    null,
+                    false,
+                    List.of(),
+                    List.of()
+            );
+        });
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        );
+
+        assertThat(executionBudget.get()).isPositive().isLessThan(Duration.ofSeconds(1));
     }
 
     @Test

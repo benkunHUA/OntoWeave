@@ -26,7 +26,6 @@ public class ScanLimitEvaluator {
 
         boolean known = true;
         boolean limited = false;
-        long total = 0L;
         for (LogicalPlanNode.ScanInput scan : scans.values()) {
             Optional<Long> count = metrics.recordCount(
                     scan.catalog(), scan.namespace(), scan.table(), scan.snapshotId()
@@ -36,13 +35,8 @@ public class ScanLimitEvaluator {
                 continue;
             }
             limited = limited || count.get() > scan.scanLimit();
-            try {
-                total = Math.addExact(total, count.get());
-            } catch (ArithmeticException error) {
-                known = false;
-            }
         }
-        return new ScanLimitAssessment(limited, known ? total : null);
+        return new ScanLimitAssessment(limited, known);
     }
 
     private LogicalPlanNode.ScanInput stricter(

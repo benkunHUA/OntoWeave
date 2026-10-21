@@ -26,7 +26,7 @@ class ScanLimitEvaluatorTest {
         ScanLimitAssessment assessment = evaluator.evaluate(plan);
 
         assertThat(assessment.scanLimited()).isTrue();
-        assertThat(assessment.scannedRows()).isEqualTo(50_001L);
+        assertThat(assessment.metadataAvailable()).isTrue();
     }
 
     @Test
@@ -38,7 +38,7 @@ class ScanLimitEvaluatorTest {
         ScanLimitAssessment assessment = evaluator.evaluate(plan);
 
         assertThat(assessment.scanLimited()).isFalse();
-        assertThat(assessment.scannedRows()).isEqualTo(50_000L);
+        assertThat(assessment.metadataAvailable()).isTrue();
     }
 
     @Test
@@ -50,7 +50,7 @@ class ScanLimitEvaluatorTest {
         ScanLimitAssessment assessment = evaluator.evaluate(plan);
 
         assertThat(assessment.scanLimited()).isFalse();
-        assertThat(assessment.scannedRows()).isNull();
+        assertThat(assessment.metadataAvailable()).isFalse();
     }
 
     private LogicalPlan plan(int scanLimit) {

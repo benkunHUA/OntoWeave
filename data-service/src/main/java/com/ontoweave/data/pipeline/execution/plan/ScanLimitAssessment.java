@@ -1,8 +1,8 @@
 package com.ontoweave.data.pipeline.execution.plan;
 
-public record ScanLimitAssessment(boolean scanLimited, Long scannedRows) {
+public record ScanLimitAssessment(boolean scanLimited, boolean metadataAvailable) {
 
     public static ScanLimitAssessment none() {
-        return new ScanLimitAssessment(false, null);
+        return new ScanLimitAssessment(false, false);
     }
 }

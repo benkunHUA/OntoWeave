@@ -65,14 +65,16 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
 
     @Override
     @Transactional(readOnly = true)
+    public void validateRevision(UUID pipelineId, UUID ownerId, long revision) {
+        validated(pipelineId, ownerId, revision);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public PipelineCheckResult check(UUID pipelineId, UUID ownerId, long revision) {
-        PipelineEntity pipeline = pipelines.findByIdAndOwnerId(pipelineId, ownerId)
-                .orElseThrow(() -> notFound());
-        PipelineDraftEntity draft = drafts.findById(pipelineId)
-                .orElseThrow(() -> notFound());
-        if (draft.getRevision() != revision) {
-            throw revisionConflict();
-        }
+        ValidatedPipeline validated = validated(pipelineId, ownerId, revision);
+        PipelineEntity pipeline = validated.pipeline();
+        PipelineDraftEntity draft = validated.draft();
         PipelineDraftGraph graph = PipelineDraftGraph.from(draft.getDefinition());
         Map<UUID, InputSchema> resolvedInputs = resolveInputs(ownerId, graph);
         List<PipelineOutputEntity> activeOutputs = outputs.findByPipelineIdAndArchivedAtIsNull(pipelineId);
@@ -105,6 +107,17 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
                 issues.stream().filter(issue -> !issue.blocking()).toList(),
                 nextActions.build(stage, graph, issues)
         );
+    }
+
+    private ValidatedPipeline validated(UUID pipelineId, UUID ownerId, long revision) {
+        PipelineEntity pipeline = pipelines.findByIdAndOwnerId(pipelineId, ownerId)
+                .orElseThrow(() -> notFound());
+        PipelineDraftEntity draft = drafts.findById(pipelineId)
+                .orElseThrow(() -> notFound());
+        if (draft.getRevision() != revision) {
+            throw revisionConflict();
+        }
+        return new ValidatedPipeline(pipeline, draft);
     }
 
     private Map<UUID, InputSchema> resolveInputs(UUID ownerId, PipelineDraftGraph graph) {
@@ -159,5 +172,8 @@ public class PipelineCheckServiceImpl implements PipelineCheckService {
 
     private ApiException notFound() {
         return new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "流程或草稿不存在");
+    }
+
+    private record ValidatedPipeline(PipelineEntity pipeline, PipelineDraftEntity draft) {
     }
 }

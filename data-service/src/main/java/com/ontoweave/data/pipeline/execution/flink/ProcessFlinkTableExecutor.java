@@ -34,7 +34,10 @@ import java.util.concurrent.TimeoutException;
 public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
 
     private static final String TYPE_MISMATCH = "TYPE_MISMATCH";
+    private static final String EXECUTION_PHASE = "execution";
     private static final String WARNING = "warning";
+    private static final String TYPE_MISMATCH_HINT = "检查原始值格式或调整目标字段类型";
+    private static final String TYPE_MISMATCH_MESSAGE = "字段值无法转换为目标类型，已返回 null";
 
     private final PipelinePlanCompiler compiler;
     private final ScanLimitEvaluator scanLimits;
@@ -66,16 +69,18 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
         } catch (InterruptedException error) {
             cancel(executionId);
             Thread.currentThread().interrupt();
-            throw PipelineExecutionException.at(plan.root(), error);
+            throw PipelineExecutionException.unlocated(error);
         } catch (TimeoutException error) {
             cancel(executionId);
             throw new FlinkPreviewTimeoutException("Flink preview execution timed out");
         } catch (FlinkPreviewTimeoutException error) {
             throw error;
+        } catch (PipelineExecutionException error) {
+            throw error;
         } catch (ExecutionException error) {
-            throw PipelineExecutionException.at(plan.root(), error.getCause());
+            throw PipelineExecutionException.unlocated(error.getCause());
         } catch (RuntimeException error) {
-            throw PipelineExecutionException.at(plan.root(), error);
+            throw PipelineExecutionException.unlocated(error);
         } finally {
             jobs.remove(executionId);
             if (result != null) {
@@ -140,7 +145,7 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                 executionId,
                 columns,
                 rows,
-                scanLimit.scannedRows(),
+                null,
                 scanLimit.scanLimited(),
                 errors,
                 List.of()
@@ -163,18 +168,21 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
             Object original = originalIndex < 0 ? null : row.getField(originalIndex);
             errors.add(new PreviewIssue(
                     TYPE_MISMATCH,
+                    EXECUTION_PHASE,
                     WARNING,
                     hidden.nodeId(),
+                    hidden.portId(),
                     hidden.field(),
-                    (long) rowNumber,
-                    "字段值无法转换为目标类型，已返回 null",
+                    hidden.rowPrecise() ? (long) rowNumber : null,
+                    TYPE_MISMATCH_MESSAGE,
+                    TYPE_MISMATCH_HINT,
                     original == null ? null : abbreviate(String.valueOf(original))
             ));
         }
     }
 
     private boolean isHidden(String name) {
-        return name != null && name.startsWith("__ontoweave_preview_");
+        return name != null && name.startsWith(CompiledTablePlan.HIDDEN_PREFIX);
     }
 
     private String abbreviate(String value) {

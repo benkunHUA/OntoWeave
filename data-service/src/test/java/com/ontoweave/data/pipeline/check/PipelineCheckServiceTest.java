@@ -7,6 +7,7 @@ import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputType;
+import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.graph.InputSchema;
 import com.ontoweave.data.pipeline.graph.InputSchemaResolver;
 import com.ontoweave.data.pipeline.graph.PipelineGraphValidator;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -90,6 +92,17 @@ class PipelineCheckServiceTest {
                     assertThat(issue.nodeId()).isEqualTo(OUTPUT_NODE_ID.toString());
                     assertThat(issue.message()).contains("dataset");
                 });
+    }
+
+    @Test
+    void validateRevisionUsesTheSameOwnershipAndRevisionGuardAsCheck() {
+        ObjectNode draft = draft(mapper.createArrayNode(), mapper.createArrayNode());
+        PipelineCheckService service = service(draft, List.of(), mock(InputSchemaResolver.class));
+
+        service.validateRevision(PIPELINE_ID, OWNER_ID, 3L);
+
+        assertThatThrownBy(() -> service.validateRevision(PIPELINE_ID, OWNER_ID, 2L))
+                .isInstanceOf(PipelineRevisionConflict.class);
     }
 
     private PipelineCheckService service(

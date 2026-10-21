@@ -22,12 +22,13 @@ public class PipelineExecutionException extends RuntimeException {
     }
 
     public static PipelineExecutionException at(PlanStep step, Throwable cause) {
-        String message = cause == null || cause.getMessage() == null
-                ? "Flink preview execution failed"
-                : cause.getMessage();
         return new PipelineExecutionException(
-                message, step.nodeId(), inputPort(step), null, cause
+                message(cause), step.nodeId(), inputPort(step), null, cause
         );
+    }
+
+    public static PipelineExecutionException unlocated(Throwable cause) {
+        return new PipelineExecutionException(message(cause), null, null, null, cause);
     }
 
     public String nodeId() {
@@ -47,5 +48,11 @@ public class PipelineExecutionException extends RuntimeException {
             case "join", "union", "input" -> null;
             default -> "in";
         };
+    }
+
+    private static String message(Throwable cause) {
+        return cause == null || cause.getMessage() == null
+                ? "Flink preview execution failed"
+                : cause.getMessage();
     }
 }
