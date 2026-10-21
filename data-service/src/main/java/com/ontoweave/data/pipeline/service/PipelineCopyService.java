@@ -53,7 +53,7 @@ class PipelineCopyService {
             throw validation("pipelineId 和 conversationId 不能为空");
         }
         String name = PipelineNames.require(request.name() == null ? source.getName() : request.name());
-        PipelineDraftEntity sourceDraft = drafts.findById(source.getId())
+        PipelineDraftEntity sourceDraft = drafts.findByIdForUpdate(source.getId())
                 .orElseThrow(() -> notFound("草稿不存在"));
         List<PipelineOutputEntity> sourceOutputs = outputs
                 .findByPipelineIdAndArchivedAtIsNull(source.getId());
@@ -67,16 +67,6 @@ class PipelineCopyService {
         if (sourceOutputs.stream().anyMatch(output -> !datasetsByOutput.containsKey(output.getId()))) {
             throw outputIncomplete();
         }
-        if (pipelines.findById(request.pipelineId()).isPresent()
-                || pipelines.findByConversationId(request.conversationId()).isPresent()) {
-            throw bindingConflict();
-        }
-        if (pipelines.insertIfAbsent(
-                request.pipelineId(), ownerId, request.conversationId(), name
-        ) == 0) {
-            throw bindingConflict();
-        }
-
         Map<UUID, UUID> outputIds = new HashMap<>();
         List<PipelineOutputEntity> copiedOutputs = new ArrayList<>();
         List<PipelineDatasetEntity> copiedDatasets = new ArrayList<>();
@@ -100,11 +90,22 @@ class PipelineCopyService {
                     dataset.getExpectations()
             ));
         }
+
+        JsonNode copiedDefinition = rewriteOutputIds(sourceDraft.getDefinition(), outputIds);
+        if (pipelines.findById(request.pipelineId()).isPresent()
+                || pipelines.findByConversationId(request.conversationId()).isPresent()) {
+            throw bindingConflict();
+        }
+        if (pipelines.insertIfAbsent(
+                request.pipelineId(), ownerId, request.conversationId(), name
+        ) == 0) {
+            throw bindingConflict();
+        }
         outputs.saveAll(copiedOutputs);
         datasets.saveAll(copiedDatasets);
         drafts.save(new PipelineDraftEntity(
                 request.pipelineId(),
-                rewriteOutputIds(sourceDraft.getDefinition(), outputIds),
+                copiedDefinition,
                 ACTOR_TYPE_USER,
                 ownerId
         ));
@@ -125,13 +126,14 @@ class PipelineCopyService {
             }
             JsonNode config = objectNode.path("config");
             if (!(config instanceof ObjectNode configObject)) {
-                continue;
+                throw outputIncomplete();
             }
             UUID oldOutputId = uuid(configObject.path("outputId").asText(null));
             UUID newOutputId = oldOutputId == null ? null : outputIds.get(oldOutputId);
-            if (newOutputId != null) {
-                configObject.put("outputId", newOutputId.toString());
+            if (newOutputId == null) {
+                throw outputIncomplete();
             }
+            configObject.put("outputId", newOutputId.toString());
         }
         return copy;
     }

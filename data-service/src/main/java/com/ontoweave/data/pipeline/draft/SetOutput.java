@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.UUID;
 
 public record SetOutput(
-        long baseRevision,
+        Long baseRevision,
         UUID operationId,
         UUID turnId,
         UUID nodeId,
@@ -23,7 +23,7 @@ public record SetOutput(
             String writeMode,
             JsonNode primaryKeyColumns,
             JsonNode expectations,
-            long baseRevision,
+            Long baseRevision,
             UUID operationId,
             UUID turnId
     ) {
@@ -32,7 +32,7 @@ public record SetOutput(
 
     @JsonCreator
     static SetOutput fromJson(
-            @JsonProperty("baseRevision") long baseRevision,
+            @JsonProperty("baseRevision") Long baseRevision,
             @JsonProperty("operationId") UUID operationId,
             @JsonProperty("turnId") UUID turnId,
             @JsonProperty("output") DraftOutputPayload output,

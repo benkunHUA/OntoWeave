@@ -4,6 +4,7 @@ import com.ontoweave.data.common.web.ApiException;
 import org.springframework.http.HttpStatus;
 
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_BINDING_CONFLICT;
+import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_ARCHIVED;
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_NOT_FOUND;
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_OUTPUT_INCOMPLETE;
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.CODE_VALIDATION_ERROR;
@@ -28,6 +29,10 @@ public final class PipelineErrors {
                 CODE_OUTPUT_INCOMPLETE,
                 "输出缺少数据集配置"
         );
+    }
+
+    public static ApiException archived() {
+        return new ApiException(HttpStatus.CONFLICT, CODE_ARCHIVED, "流程已归档");
     }
 
     private PipelineErrors() {

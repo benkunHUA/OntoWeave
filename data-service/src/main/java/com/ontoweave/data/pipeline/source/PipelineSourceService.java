@@ -208,9 +208,7 @@ public class PipelineSourceService {
         }
         Integer versionNumber = input.datasetVersionNumber() != null
                 ? input.datasetVersionNumber()
-                : snapshot == null || snapshot.datasetVersionNumber() == null
-                        ? safeMetadata.datasetVersionNumber()
-                        : snapshot.datasetVersionNumber();
+                : snapshot == null ? null : snapshot.datasetVersionNumber();
         return new SourceInput(
                 input.ref().datasetKind(),
                 input.ref().datasetId(),
@@ -226,7 +224,7 @@ public class PipelineSourceService {
     }
 
     private String pick(String preferred, String fallback) {
-        return preferred == null ? fallback : preferred;
+        return preferred == null || preferred.isBlank() ? fallback : preferred;
     }
 
     private String text(JsonNode node, String field) {

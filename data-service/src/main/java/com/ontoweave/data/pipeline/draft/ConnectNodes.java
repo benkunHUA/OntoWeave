@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 public record ConnectNodes(
-        long baseRevision,
+        Long baseRevision,
         UUID operationId,
         UUID turnId,
         UUID edgeId,
@@ -22,7 +22,7 @@ public record ConnectNodes(
             String sourcePort,
             UUID targetNodeId,
             String targetPort,
-            long baseRevision,
+            Long baseRevision,
             UUID operationId,
             UUID turnId
     ) {
@@ -31,7 +31,7 @@ public record ConnectNodes(
 
     @JsonCreator
     static ConnectNodes fromJson(
-            @JsonProperty("baseRevision") long baseRevision,
+            @JsonProperty("baseRevision") Long baseRevision,
             @JsonProperty("operationId") UUID operationId,
             @JsonProperty("turnId") UUID turnId,
             @JsonProperty("edge") DraftEdgePayload edge,

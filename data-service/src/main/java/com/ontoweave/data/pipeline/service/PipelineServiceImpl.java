@@ -4,6 +4,7 @@ import com.ontoweave.data.pipeline.api.dto.CopyPipelineRequest;
 import com.ontoweave.data.pipeline.api.dto.PipelinePageResponse;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
+import com.ontoweave.data.pipeline.domain.PipelineStatus;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.EMPTY_DRAFT;
+import static com.ontoweave.data.pipeline.service.PipelineErrors.archived;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.bindingConflict;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.notFound;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
@@ -48,8 +50,15 @@ public class PipelineServiceImpl implements PipelineService {
             ensureDraft(request.pipelineId(), request.ownerId());
             return new PipelineCreateResult(response(existing), false);
         }
-        if (pipelines.findByConversationId(request.conversationId()).isPresent()) {
-            throw bindingConflict();
+        PipelineEntity conversationOwner = pipelines.findByConversationId(request.conversationId())
+                .orElse(null);
+        if (conversationOwner != null) {
+            if (!Objects.equals(conversationOwner.getId(), request.pipelineId())) {
+                throw bindingConflict();
+            }
+            requireSameBinding(conversationOwner, request.ownerId(), request.conversationId());
+            ensureDraft(conversationOwner.getId(), conversationOwner.getOwnerId());
+            return new PipelineCreateResult(response(conversationOwner), false);
         }
         int inserted = pipelines.insertIfAbsent(
                 request.pipelineId(),
@@ -95,7 +104,7 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional
     public PipelineResponse rename(UUID pipelineId, UUID ownerId, String name) {
-        PipelineEntity pipeline = required(pipelineId, ownerId);
+        PipelineEntity pipeline = requiredWritable(pipelineId, ownerId);
         pipeline.rename(PipelineNames.require(name));
         PipelineEntity saved = pipelines.saveAndFlush(pipeline);
         return response(saved);
@@ -112,7 +121,7 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional
     public PipelineResponse copy(UUID pipelineId, UUID ownerId, CopyPipelineRequest request) {
-        PipelineEntity source = required(pipelineId, ownerId);
+        PipelineEntity source = requiredWritable(pipelineId, ownerId);
         copyService.copy(source, ownerId, request);
         PipelineEntity copied = pipelines.findById(request.pipelineId())
                 .orElseThrow(() -> notFound("流程不存在"));
@@ -146,6 +155,14 @@ public class PipelineServiceImpl implements PipelineService {
         }
         return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
                 .orElseThrow(() -> notFound("流程不存在"));
+    }
+
+    private PipelineEntity requiredWritable(UUID pipelineId, UUID ownerId) {
+        PipelineEntity pipeline = required(pipelineId, ownerId);
+        if (pipeline.getStatus() == PipelineStatus.ARCHIVED) {
+            throw archived();
+        }
+        return pipeline;
     }
 
     private PipelineResponse response(PipelineEntity pipeline) {

@@ -101,7 +101,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
     void rejectsMalformedCommandWithConfigInvalid() {
         lockDraft(4, emptyDraft());
         AddNode command = new AddNode(
-                4, operationId(4), turnId(4), NODE_ID, "not-a-real-node", "Bad",
+                4L, operationId(4), turnId(4), NODE_ID, "not-a-real-node", "Bad",
                 mapper.createObjectNode(), position(1, 1)
         );
 
@@ -123,7 +123,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
     @Test
     void rejectsSemanticCommandWithoutTurnId() {
         AddNode command = new AddNode(
-                4, operationId(4), null, NODE_ID, "filter", "Filter",
+                4L, operationId(4), null, NODE_ID, "filter", "Filter",
                 mapper.createObjectNode(), position(1, 1)
         );
 
@@ -143,7 +143,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
         DraftResponse response = service.apply(
                 PIPELINE_ID,
                 OWNER_ID,
-                new UpdateNode(5, operationId(5), turnId(5), NODE_ID, "Renamed output", null)
+                new UpdateNode(5L, operationId(5), turnId(5), NODE_ID, "Renamed output", null)
         );
 
         JsonNode node = response.definition().path("nodes").get(0);
@@ -161,7 +161,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
         assertConfigInvalid(() -> service.apply(
                 PIPELINE_ID,
                 OWNER_ID,
-                new UpdateNode(5, operationId(5), turnId(5), NODE_ID, null, config)
+                new UpdateNode(5L, operationId(5), turnId(5), NODE_ID, null, config)
         ));
         verify(drafts, never()).updateDefinition(any(), eq(5L), anyString(), anyString(), any());
     }
@@ -175,7 +175,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
                 PIPELINE_ID,
                 OWNER_ID,
                 new UpdateNode(
-                        5,
+                        5L,
                         operationId(5),
                         turnId(5),
                         NODE_ID,

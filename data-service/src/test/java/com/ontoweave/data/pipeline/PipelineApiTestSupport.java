@@ -113,21 +113,29 @@ abstract class PipelineApiTestSupport {
     }
 
     protected String addOutputNodeBody(UUID nodeId) throws Exception {
+        return addOutputNodeBody(0, nodeId);
+    }
+
+    protected String addOutputNodeBody(long baseRevision, UUID nodeId) throws Exception {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("id", nodeId.toString());
         node.put("type", "output");
         node.put("name", "Output");
         node.putObject("config");
         node.putObject("position").put("x", 10).put("y", 20);
-        ObjectNode command = command("add_node", 0);
+        ObjectNode command = command("add_node", baseRevision);
         command.set("node", node);
         return objectMapper.writeValueAsString(command);
     }
 
     protected String setOutputBody(long baseRevision, UUID nodeId) throws Exception {
+        return setOutputBody(baseRevision, nodeId, "orders_clean");
+    }
+
+    protected String setOutputBody(long baseRevision, UUID nodeId, String name) throws Exception {
         ObjectNode output = objectMapper.createObjectNode();
         output.put("nodeId", nodeId.toString());
-        output.put("name", "orders_clean");
+        output.put("name", name);
         output.put("writeMode", "snapshot");
         output.putArray("primaryKeyColumns");
         output.putArray("expectations");

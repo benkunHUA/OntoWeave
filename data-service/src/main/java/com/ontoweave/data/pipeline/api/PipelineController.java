@@ -7,6 +7,7 @@ import com.ontoweave.data.pipeline.service.CreatePipelineRequest;
 import com.ontoweave.data.pipeline.service.PipelineCreateResult;
 import com.ontoweave.data.pipeline.service.PipelineResponse;
 import com.ontoweave.data.pipeline.service.PipelineService;
+import com.ontoweave.data.pipeline.service.PipelineServiceConstants;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -51,7 +52,8 @@ public class PipelineController {
     @GetMapping
     public PipelinePageResponse list(
             @RequestParam @NotNull UUID ownerId,
-            @RequestParam(defaultValue = "50") @Min(1) @Max(200) int limit,
+            @RequestParam(defaultValue = "" + PipelineServiceConstants.DEFAULT_LIMIT)
+            @Min(1) @Max(200) int limit,
             @RequestParam(defaultValue = "0") @Min(0) int offset
     ) {
         return service.list(ownerId, limit, offset);

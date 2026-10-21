@@ -33,7 +33,7 @@ class PipelineDraftCommandUndoTest extends PipelineDraftCommandServiceTestSuppor
         when(drafts.updateDefinition(eq(PIPELINE_ID), eq(6L), anyString(), eq("user"), eq(OWNER_ID)))
                 .thenReturn(1);
 
-        DraftResponse response = service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6);
+        DraftResponse response = service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6L);
 
         assertThat(response.revision()).isEqualTo(7);
         assertThat(response.definition().path("nodes")).isEmpty();
@@ -56,7 +56,7 @@ class PipelineDraftCommandUndoTest extends PipelineDraftCommandServiceTestSuppor
         );
         when(editRecorder.findLatest(PIPELINE_ID)).thenReturn(Optional.of(latest));
 
-        assertThatThrownBy(() -> service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6))
+        assertThatThrownBy(() -> service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6L))
                 .isInstanceOfSatisfying(ApiException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(409);
                     assertThat(error.code()).isEqualTo("UNDO_NOT_LATEST");
@@ -77,7 +77,7 @@ class PipelineDraftCommandUndoTest extends PipelineDraftCommandServiceTestSuppor
         when(drafts.updateDefinition(eq(PIPELINE_ID), eq(6L), anyString(), eq("user"), eq(OWNER_ID)))
                 .thenReturn(1);
 
-        DraftResponse response = service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6);
+        DraftResponse response = service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6L);
 
         JsonNode position = response.definition().path("nodes").get(0).path("position");
         assertThat(position.path("x").asInt()).isEqualTo(100);
@@ -92,7 +92,7 @@ class PipelineDraftCommandUndoTest extends PipelineDraftCommandServiceTestSuppor
         when(editRecorder.findLatest(PIPELINE_ID)).thenReturn(Optional.of(second));
         when(editRecorder.findTurn(PIPELINE_ID, turnId(4))).thenReturn(List.of(first, second));
 
-        assertThatThrownBy(() -> service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6))
+        assertThatThrownBy(() -> service.undoTurn(PIPELINE_ID, OWNER_ID, turnId(4), 6L))
                 .isInstanceOf(PipelineRevisionConflict.class);
 
         verify(editRecorder, never()).recordSemanticEdit(any());

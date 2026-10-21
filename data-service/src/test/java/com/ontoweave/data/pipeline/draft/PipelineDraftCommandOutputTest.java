@@ -80,7 +80,7 @@ class PipelineDraftCommandOutputTest extends PipelineDraftCommandServiceTestSupp
         DraftResponse response = service.apply(
                 PIPELINE_ID,
                 OWNER_ID,
-                new SetOutput(5, operationId(5), turnId(5), NODE_ID, "orders", null, null, null)
+                new SetOutput(5L, operationId(5), turnId(5), NODE_ID, "orders", null, null, null)
         );
 
         ArgumentCaptor<PipelineDatasetEntity> dataset = ArgumentCaptor.forClass(PipelineDatasetEntity.class);

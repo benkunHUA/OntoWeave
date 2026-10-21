@@ -6,19 +6,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 public record DeleteNode(
-        long baseRevision,
+        Long baseRevision,
         UUID operationId,
         UUID turnId,
         UUID nodeId
 ) implements DraftCommand {
 
-    public DeleteNode(UUID nodeId, long baseRevision, UUID operationId, UUID turnId) {
+    public DeleteNode(UUID nodeId, Long baseRevision, UUID operationId, UUID turnId) {
         this(baseRevision, operationId, turnId, nodeId);
     }
 
     @JsonCreator
     static DeleteNode fromJson(
-            @JsonProperty("baseRevision") long baseRevision,
+            @JsonProperty("baseRevision") Long baseRevision,
             @JsonProperty("operationId") UUID operationId,
             @JsonProperty("turnId") UUID turnId,
             @JsonProperty("node") DraftNodePayload node,

@@ -22,7 +22,7 @@ public interface PipelineRepository extends JpaRepository<PipelineEntity, UUID> 
     @Query(value = """
             SELECT * FROM data.pipeline
             WHERE owner_id = :ownerId AND archived_at IS NULL
-            ORDER BY updated_at DESC
+            ORDER BY updated_at DESC, id DESC
             LIMIT :limit OFFSET :offset
             """, nativeQuery = true)
     List<PipelineEntity> findActivePage(

@@ -13,7 +13,7 @@ final class PipelineNames {
         if (name.isEmpty()) {
             throw validation("流程名称不能为空");
         }
-        if (name.length() > MAX_NAME_LENGTH) {
+        if (name.codePointCount(0, name.length()) > MAX_NAME_LENGTH) {
             throw validation("流程名称不能超过 " + MAX_NAME_LENGTH + " 个字符");
         }
         return name;

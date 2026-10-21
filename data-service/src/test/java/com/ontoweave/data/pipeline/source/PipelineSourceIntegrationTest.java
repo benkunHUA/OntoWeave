@@ -99,6 +99,43 @@ class PipelineSourceIntegrationTest {
         });
     }
 
+    @Test
+    void keepsHistoricalInputVersionNumberAfterANewInputVersionIsPublished() {
+        UUID nextVersionId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO data.dataset_version
+                    (id, dataset_id, version_number, iceberg_catalog, iceberg_namespace,
+                     iceberg_table, iceberg_snapshot_id, row_count, row_count_estimated,
+                     byte_size, schema_json, column_count, committed_at, published_at, version_source)
+                VALUES (?, ?, 13, 'catalog', 'ns', 'orders', 13, 200, false,
+                        2048, '{}'::jsonb, 1, now(), now(), 'snapshot_end')
+                """, nextVersionId, fixture.inputDatasetId());
+        jdbc.update("UPDATE data.dataset SET current_version_id = ? WHERE id = ?",
+                nextVersionId, fixture.inputDatasetId());
+
+        SourceResponse historical = service.get(
+                fixture.pipelineId(), fixture.datasetId(), fixture.datasetVersionId(), fixture.ownerId()
+        );
+
+        assertThat(historical.inputs()).singleElement().satisfies(input -> {
+            assertThat(input.datasetVersionId()).isEqualTo(fixture.inputVersionId());
+            assertThat(input.datasetVersionNumber()).isEqualTo(12);
+        });
+    }
+
+    @Test
+    void readsSourcesForAnArchivedPipeline() {
+        jdbc.update("UPDATE data.pipeline SET status = 'archived', archived_at = now() WHERE id = ?",
+                fixture.pipelineId());
+
+        SourceResponse response = service.get(
+                fixture.pipelineId(), fixture.datasetId(), fixture.datasetVersionId(), fixture.ownerId()
+        );
+
+        assertThat(response.output().name()).isEqualTo("orders_clean");
+        assertThat(response.inputs()).hasSize(1);
+    }
+
     private SourceFixture seed() {
         UUID ownerId = UUID.randomUUID();
         UUID pipelineId = UUID.randomUUID();

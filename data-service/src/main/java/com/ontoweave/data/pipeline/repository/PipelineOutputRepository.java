@@ -15,5 +15,4 @@ public interface PipelineOutputRepository extends JpaRepository<PipelineOutputEn
 
     Optional<PipelineOutputEntity> findByPipelineIdAndName(UUID pipelineId, String name);
 
-    Optional<PipelineOutputEntity> findByIdAndPipelineId(UUID id, UUID pipelineId);
 }

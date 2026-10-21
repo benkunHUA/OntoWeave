@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.UUID;
 
 public record AddNode(
-        long baseRevision,
+        Long baseRevision,
         UUID operationId,
         UUID turnId,
         UUID nodeId,
@@ -23,7 +23,7 @@ public record AddNode(
             String name,
             JsonNode config,
             JsonNode position,
-            long baseRevision,
+            Long baseRevision,
             UUID operationId,
             UUID turnId
     ) {
@@ -32,7 +32,7 @@ public record AddNode(
 
     @JsonCreator
     static AddNode fromJson(
-            @JsonProperty("baseRevision") long baseRevision,
+            @JsonProperty("baseRevision") Long baseRevision,
             @JsonProperty("operationId") UUID operationId,
             @JsonProperty("turnId") UUID turnId,
             @JsonProperty("node") DraftNodePayload node,

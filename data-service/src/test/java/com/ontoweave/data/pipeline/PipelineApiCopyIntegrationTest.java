@@ -20,6 +20,19 @@ class PipelineApiCopyIntegrationTest extends PipelineApiTestSupport {
         UUID ownerId = UUID.randomUUID();
         UUID sourceId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "source");
         OutputFixture sourceOutput = createOutput(ownerId, sourceId);
+        UUID sourceVersionId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO data.pipeline_version
+                    (id, pipeline_id, version_number, definition, outputs, definition_hash,
+                     input_refs, source_draft_revision, created_by)
+                VALUES (?, ?, 1, '{}'::jsonb, '[]'::jsonb, 'source-hash', '[]'::jsonb, 2, ?)
+                """, sourceVersionId, sourceId, ownerId);
+        jdbc.update("""
+                INSERT INTO data.pipeline_build
+                    (id, pipeline_id, pipeline_version_id, status, trigger_type, operation_id,
+                     resolved_inputs, stats)
+                VALUES (?, ?, ?, 'succeeded', 'manual', ?, '[]'::jsonb, '{}'::jsonb)
+                """, UUID.randomUUID(), sourceId, sourceVersionId, UUID.randomUUID());
 
         UUID copiedId = UUID.randomUUID();
         JsonNode copied = copy(sourceId, ownerId, copiedId, UUID.randomUUID(), "copied", 201);
@@ -49,8 +62,18 @@ class PipelineApiCopyIntegrationTest extends PipelineApiTestSupport {
                 .isEqualTo(sourceOutput.nodeId().toString());
         assertThat(copiedDraft.path("definition").path("nodes").get(0).path("config").path("outputId").asText())
                 .isEqualTo(outputs.get(0).get("output_id").toString());
-        assertThat(count("data.pipeline_build")).isZero();
-        assertThat(count("data.pipeline_version")).isZero();
+        assertThat(count("data.pipeline_build")).isEqualTo(1);
+        assertThat(count("data.pipeline_version")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM data.pipeline_build WHERE pipeline_id = ?",
+                Integer.class,
+                copiedId
+        )).isZero();
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM data.pipeline_version WHERE pipeline_id = ?",
+                Integer.class,
+                copiedId
+        )).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM data.pipeline_edit_op WHERE pipeline_id = ?",
                 Integer.class,
@@ -122,6 +145,33 @@ class PipelineApiCopyIntegrationTest extends PipelineApiTestSupport {
         );
 
         assertThat(response.path("code").asText()).isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
+    void rejectsCopyWhenDraftOutputNodeHasNoCopiedOutput() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID sourceId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "source");
+        mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", sourceId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(addOutputNodeBody(UUID.randomUUID())))
+                .andExpect(status().isOk());
+        UUID targetId = UUID.randomUUID();
+
+        JsonNode response = copy(
+                sourceId,
+                ownerId,
+                targetId,
+                UUID.randomUUID(),
+                "incomplete",
+                409
+        );
+
+        assertThat(response.path("code").asText()).isEqualTo("OUTPUT_CONFIGURATION_INCOMPLETE");
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM data.pipeline WHERE id = ?", Integer.class, targetId
+        )).isZero();
     }
 
     private JsonNode copy(

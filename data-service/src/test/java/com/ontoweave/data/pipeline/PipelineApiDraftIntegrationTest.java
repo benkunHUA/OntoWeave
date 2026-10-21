@@ -107,4 +107,60 @@ class PipelineApiDraftIntegrationTest extends PipelineApiTestSupport {
                         .param("ownerId", ownerId.toString()))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void rejectsCommandWithoutBaseRevisionAsConfigInvalid() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
+        ObjectNode command = (ObjectNode) objectMapper.readTree(addNodeBody(0, UUID.randomUUID()));
+        command.remove("baseRevision");
+
+        JsonNode response = json(mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().isBadRequest())
+                .andReturn());
+
+        assertThat(response.path("code").asText()).isEqualTo("CONFIG_INVALID");
+    }
+
+    @Test
+    void undoRequiresCurrentRevisionAndRestoresTheTurn() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
+        UUID nodeId = UUID.randomUUID();
+        UUID turnId = UUID.randomUUID();
+        ObjectNode add = (ObjectNode) objectMapper.readTree(addNodeBody(0, nodeId));
+        add.put("turnId", turnId.toString());
+        mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(add)))
+                .andExpect(status().isOk());
+
+        JsonNode missing = json(mvc.perform(post("/internal/v1/pipelines/{id}/turns/{turnId}/undo",
+                                pipelineId, turnId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andReturn());
+        assertThat(missing.path("code").asText()).isEqualTo("VALIDATION_ERROR");
+
+        JsonNode undone = json(mvc.perform(post("/internal/v1/pipelines/{id}/turns/{turnId}/undo",
+                                pipelineId, turnId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentRevision\":1}"))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        assertThat(undone.path("revision").asLong()).isEqualTo(2);
+        assertThat(undone.path("definition").path("nodes")).isEmpty();
+    }
 }

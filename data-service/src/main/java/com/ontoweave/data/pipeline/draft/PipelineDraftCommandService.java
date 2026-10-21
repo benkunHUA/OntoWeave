@@ -7,6 +7,8 @@ import com.ontoweave.data.outbox.OutboxWriter;
 import com.ontoweave.data.pipeline.catalog.PipelineNodeCatalog;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEditOpEntity;
+import com.ontoweave.data.pipeline.domain.PipelineEntity;
+import com.ontoweave.data.pipeline.domain.PipelineStatus;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
@@ -27,6 +29,8 @@ import static com.ontoweave.data.pipeline.draft.DraftConstants.OP_SET_OUTPUT;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.OP_UNDO_TURN;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.TARGET_OUTPUT;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.TARGET_TURN;
+import static com.ontoweave.data.pipeline.service.PipelineErrors.archived;
+import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
 
 @Service
 public class PipelineDraftCommandService {
@@ -58,21 +62,22 @@ public class PipelineDraftCommandService {
 
     @Transactional
     public DraftResponse apply(UUID pipelineId, UUID ownerId, DraftCommand command) {
-        requirePipeline(pipelineId, ownerId);
+        requireWritablePipeline(pipelineId, ownerId);
         requireCommandMetadata(command);
+        long baseRevision = command.baseRevision();
         PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
-        if (draft.getRevision() != command.baseRevision()) {
+        if (draft.getRevision() != baseRevision) {
             throw new PipelineRevisionConflict();
         }
         JsonNode before = requireDefinition(draft);
         if (command instanceof SetOutput setOutput) {
-            return applySetOutput(pipelineId, ownerId, before, setOutput);
+            return applySetOutput(pipelineId, ownerId, baseRevision, before, setOutput);
         }
         DraftCommandApplier.DraftMutation mutation = applier.apply(before, command);
         return persistSemantic(
                 pipelineId,
                 ownerId,
-                command.baseRevision(),
+                baseRevision,
                 before,
                 mutation,
                 command.operationId(),
@@ -82,7 +87,7 @@ public class PipelineDraftCommandService {
 
     @Transactional
     public DraftResponse moveNode(UUID pipelineId, UUID ownerId, MoveNodeCommand command) {
-        requirePipeline(pipelineId, ownerId);
+        requireWritablePipeline(pipelineId, ownerId);
         PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
         JsonNode moved = applier.moveNode(requireDefinition(draft), command);
         int updated = drafts.updateDefinitionWithoutRevision(
@@ -98,8 +103,11 @@ public class PipelineDraftCommandService {
     }
 
     @Transactional
-    public DraftResponse undoTurn(UUID pipelineId, UUID ownerId, UUID turnId, long currentRevision) {
-        requirePipeline(pipelineId, ownerId);
+    public DraftResponse undoTurn(UUID pipelineId, UUID ownerId, UUID turnId, Long currentRevision) {
+        requireWritablePipeline(pipelineId, ownerId);
+        if (currentRevision == null) {
+            throw validation("currentRevision 不能为空");
+        }
         PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
         PipelineEditOpEntity latest = editRecorder.findLatest(pipelineId)
                 .orElseThrow(this::undoNotLatest);
@@ -156,6 +164,7 @@ public class PipelineDraftCommandService {
     private DraftResponse applySetOutput(
             UUID pipelineId,
             UUID ownerId,
+            long baseRevision,
             JsonNode before,
             SetOutput command
     ) {
@@ -171,7 +180,7 @@ public class PipelineDraftCommandService {
         JsonNode after = applier.bindOutput(before, command.nodeId(), outputId).after();
         int updated = drafts.updateDefinition(
                 pipelineId,
-                command.baseRevision(),
+                baseRevision,
                 after.toString(),
                 ACTOR_TYPE_USER,
                 ownerId
@@ -179,7 +188,7 @@ public class PipelineDraftCommandService {
         if (updated == 0) {
             throw new PipelineRevisionConflict();
         }
-        long revision = command.baseRevision() + 1;
+        long revision = baseRevision + 1;
         editRecorder.recordSemanticEdit(new PipelineEditRecorder.SemanticEdit(
                 pipelineId,
                 revision,
@@ -238,6 +247,9 @@ public class PipelineDraftCommandService {
         if (command == null) {
             throw invalid("command 不能为空");
         }
+        if (command.baseRevision() == null) {
+            throw invalid("baseRevision 不能为空");
+        }
         if (command.baseRevision() < 0) {
             throw invalid("baseRevision 不能为负数");
         }
@@ -249,12 +261,20 @@ public class PipelineDraftCommandService {
         }
     }
 
-    private void requirePipeline(UUID pipelineId, UUID ownerId) {
+    private PipelineEntity requirePipeline(UUID pipelineId, UUID ownerId) {
         if (pipelineId == null || ownerId == null) {
             throw notFound("流程不存在");
         }
-        pipelines.findByIdAndOwnerId(pipelineId, ownerId)
+        return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
                 .orElseThrow(() -> notFound("流程不存在"));
+    }
+
+    private PipelineEntity requireWritablePipeline(UUID pipelineId, UUID ownerId) {
+        PipelineEntity pipeline = requirePipeline(pipelineId, ownerId);
+        if (pipeline.getStatus() == PipelineStatus.ARCHIVED) {
+            throw archived();
+        }
+        return pipeline;
     }
 
     private PipelineDraftEntity requireDraft(UUID pipelineId) {

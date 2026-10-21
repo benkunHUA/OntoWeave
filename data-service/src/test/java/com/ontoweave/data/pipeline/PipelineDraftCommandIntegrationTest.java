@@ -98,12 +98,12 @@ class PipelineDraftCommandIntegrationTest extends PipelineDraftIntegrationTestSu
         DraftResponse first = service.apply(
                 pipelineId,
                 ownerId,
-                new SetOutput(4, operationId(4), turnId(4), outputNodeId, "orders", "snapshot", null, null)
+                new SetOutput(4L, operationId(4), turnId(4), outputNodeId, "orders", "snapshot", null, null)
         );
         DraftResponse second = service.apply(
                 pipelineId,
                 ownerId,
-                new SetOutput(5, operationId(5), turnId(5), outputNodeId, "orders_clean", "snapshot", null, null)
+                new SetOutput(5L, operationId(5), turnId(5), outputNodeId, "orders_clean", "snapshot", null, null)
         );
 
         assertThat(first.revision()).isEqualTo(5);
@@ -125,7 +125,7 @@ class PipelineDraftCommandIntegrationTest extends PipelineDraftIntegrationTestSu
         assertThatThrownBy(() -> service.apply(
                 pipelineId,
                 ownerId,
-                new SetOutput(4, operationId(4), turnId(4), outputNodeId, "orders", "snapshot", null, null)
+                new SetOutput(4L, operationId(4), turnId(4), outputNodeId, "orders", "snapshot", null, null)
         )).isInstanceOf(PipelineRevisionConflict.class);
 
         assertThat(revision()).isEqualTo(5);
@@ -143,10 +143,10 @@ class PipelineDraftCommandIntegrationTest extends PipelineDraftIntegrationTestSu
         service.apply(
                 pipelineId,
                 ownerId,
-                new UpdateNode(5, operationId(5), turnId(4), nodeId, "Renamed", null)
+                new UpdateNode(5L, operationId(5), turnId(4), nodeId, "Renamed", null)
         );
 
-        DraftResponse undone = service.undoTurn(pipelineId, ownerId, turnId(4), 6);
+        DraftResponse undone = service.undoTurn(pipelineId, ownerId, turnId(4), 6L);
 
         assertThat(undone.revision()).isEqualTo(7);
         assertThat(undone.definition().path("nodes")).isEmpty();

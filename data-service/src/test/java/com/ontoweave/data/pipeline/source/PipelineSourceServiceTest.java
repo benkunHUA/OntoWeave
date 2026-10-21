@@ -126,4 +126,70 @@ class PipelineSourceServiceTest extends PipelineSourceServiceTestSupport {
 
         assertThat(response.inputs()).isEmpty();
     }
+
+    @Test
+    void leavesDisplayFieldsNullWhenMetadataIsMissingAndNoSnapshotWasSaved() {
+        UUID inputDatasetId = UUID.randomUUID();
+        UUID inputVersionId = UUID.randomUUID();
+        givenSourceChain(resolvedInputs(resolvedInput(
+                "sync",
+                inputDatasetId,
+                inputVersionId,
+                5,
+                "hash-missing",
+                null
+        )));
+        when(metadataQuery.batchLoad(eq(ownerId), anyList())).thenReturn(Map.of(
+                new DatasetRef("sync", inputDatasetId),
+                DatasetMetadata.missing()
+        ));
+
+        SourceResponse response = service.get(pipelineId, datasetId, sourceVersionId, ownerId);
+
+        assertThat(response.inputs()).singleElement().satisfies(input -> {
+            assertThat(input.metadataStatus()).isEqualTo(MetadataStatus.MISSING);
+            assertThat(input.datasetVersionNumber()).isEqualTo(5);
+            assertThat(input.datasetName()).isNull();
+            assertThat(input.connectionName()).isNull();
+            assertThat(input.sourceSchemaName()).isNull();
+            assertThat(input.sourceTableName()).isNull();
+        });
+    }
+
+    @Test
+    void fallsBackToCurrentMetadataWhenSnapshotFieldsAreBlank() {
+        UUID inputDatasetId = UUID.randomUUID();
+        UUID inputVersionId = UUID.randomUUID();
+        ObjectNode blankSnapshot = snapshot(" ", 12, " ", " ", " ");
+        givenSourceChain(resolvedInputs(resolvedInput(
+                "sync",
+                inputDatasetId,
+                inputVersionId,
+                12,
+                "hash-blank",
+                blankSnapshot
+        )));
+        when(metadataQuery.batchLoad(eq(ownerId), anyList())).thenReturn(Map.of(
+                new DatasetRef("sync", inputDatasetId),
+                new DatasetMetadata(
+                        "orders-current",
+                        99,
+                        UUID.randomUUID(),
+                        "prod-mysql",
+                        "sales",
+                        "orders",
+                        MetadataStatus.AVAILABLE
+                )
+        ));
+
+        SourceResponse response = service.get(pipelineId, datasetId, sourceVersionId, ownerId);
+
+        assertThat(response.inputs()).singleElement().satisfies(input -> {
+            assertThat(input.datasetName()).isEqualTo("orders-current");
+            assertThat(input.connectionName()).isEqualTo("prod-mysql");
+            assertThat(input.sourceSchemaName()).isEqualTo("sales");
+            assertThat(input.sourceTableName()).isEqualTo("orders");
+            assertThat(input.datasetVersionNumber()).isEqualTo(12);
+        });
+    }
 }

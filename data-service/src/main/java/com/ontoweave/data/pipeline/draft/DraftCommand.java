@@ -17,7 +17,7 @@ import java.util.UUID;
 public sealed interface DraftCommand permits AddNode, UpdateNode, DeleteNode, ConnectNodes,
         DisconnectNodes, SetOutput {
 
-    long baseRevision();
+    Long baseRevision();
 
     UUID operationId();
 

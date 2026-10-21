@@ -5,7 +5,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -162,5 +168,89 @@ class PipelineApiIntegrationTest extends PipelineApiTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(Map.of("name", longName))))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void countsNameLengthByCodePoint() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        String emoji = "\uD83D\uDE00";
+
+        create(ownerId, UUID.randomUUID(), UUID.randomUUID(), emoji.repeat(200));
+        JsonNode response = json(mvc.perform(post("/internal/v1/pipelines")
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody(ownerId, UUID.randomUUID(), UUID.randomUUID(), emoji.repeat(201))))
+                .andExpect(status().isBadRequest())
+                .andReturn());
+
+        assertThat(response.path("code").asText()).isEqualTo("VALIDATION_ERROR");
+    }
+
+    @Test
+    void concurrentCreateReturnsOneCreatedAndOneExistingPipeline() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = UUID.randomUUID();
+        UUID conversationId = UUID.randomUUID();
+        String body = createBody(ownerId, pipelineId, conversationId, "concurrent");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<Integer> first = executor.submit(createAfterStart(body, ready, start));
+            Future<Integer> second = executor.submit(createAfterStart(body, ready, start));
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(List.of(first.get(15, TimeUnit.SECONDS), second.get(15, TimeUnit.SECONDS)))
+                    .containsExactlyInAnyOrder(201, 200);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM data.pipeline WHERE id = ?", Integer.class, pipelineId
+        )).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM data.pipeline_draft WHERE pipeline_id = ?", Integer.class, pipelineId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void ordersPipelinesWithTheSameUpdatedAtByIdDescending() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "first");
+        create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "second");
+        create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "third");
+        jdbc.update("UPDATE data.pipeline SET updated_at = '2026-01-01T00:00:00Z' WHERE owner_id = ?", ownerId);
+
+        JsonNode page = json(mvc.perform(get("/internal/v1/pipelines")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andReturn());
+        List<String> expected = jdbc.queryForList("""
+                SELECT id::text FROM data.pipeline
+                WHERE owner_id = ? AND archived_at IS NULL
+                ORDER BY updated_at DESC, id DESC
+                """, String.class, ownerId);
+
+        List<String> actual = new java.util.ArrayList<>();
+        page.path("items").forEach(item -> actual.add(item.path("id").asText()));
+        assertThat(actual).containsExactlyElementsOf(expected);
+    }
+
+    private java.util.concurrent.Callable<Integer> createAfterStart(
+            String body,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) {
+        return () -> {
+            ready.countDown();
+            start.await();
+            return mvc.perform(post("/internal/v1/pipelines")
+                            .header("X-Internal-Token", TOKEN)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andReturn().getResponse().getStatus();
+        };
     }
 }

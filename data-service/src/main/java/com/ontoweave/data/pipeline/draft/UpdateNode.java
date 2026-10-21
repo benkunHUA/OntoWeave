@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.UUID;
 
 public record UpdateNode(
-        long baseRevision,
+        Long baseRevision,
         UUID operationId,
         UUID turnId,
         UUID nodeId,
@@ -19,7 +19,7 @@ public record UpdateNode(
             UUID nodeId,
             String name,
             JsonNode config,
-            long baseRevision,
+            Long baseRevision,
             UUID operationId,
             UUID turnId
     ) {
@@ -28,7 +28,7 @@ public record UpdateNode(
 
     @JsonCreator
     static UpdateNode fromJson(
-            @JsonProperty("baseRevision") long baseRevision,
+            @JsonProperty("baseRevision") Long baseRevision,
             @JsonProperty("operationId") UUID operationId,
             @JsonProperty("turnId") UUID turnId,
             @JsonProperty("node") DraftNodePayload node,
