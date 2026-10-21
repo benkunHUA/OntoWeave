@@ -27,7 +27,16 @@ final class PreviewRegistry {
     }
 
     Lease register(UUID pipelineId, UUID ownerId) {
-        long deadline = System.nanoTime() + releaseGrace.toNanos();
+        return register(pipelineId, ownerId, releaseGrace);
+    }
+
+    Lease register(UUID pipelineId, UUID ownerId, Duration budget) {
+        long now = System.nanoTime();
+        long graceDeadline = now + releaseGrace.toNanos();
+        long budgetDeadline = now + budget.toNanos();
+        if (budget.isZero() || budget.isNegative()) {
+            throw new BudgetExceededException();
+        }
         while (true) {
             Lease existing;
             synchronized (lock) {
@@ -46,7 +55,7 @@ final class PreviewRegistry {
                 lock.notifyAll();
             }
             existing.cancelTask();
-            awaitRelease(pipelineId, existing, deadline);
+            awaitRelease(pipelineId, existing, graceDeadline, budgetDeadline);
         }
     }
 
@@ -65,9 +74,23 @@ final class PreviewRegistry {
 
     void unregister(UUID pipelineId, UUID ownerId, Lease lease) {
         synchronized (lock) {
-            activeByPipeline.remove(pipelineId, lease);
+            if (!activeByPipeline.remove(pipelineId, lease)) {
+                return;
+            }
             activeByOwner.computeIfPresent(ownerId, (key, count) -> count <= 1 ? null : count - 1);
             lock.notifyAll();
+        }
+    }
+
+    boolean hasActiveLease(UUID pipelineId) {
+        synchronized (lock) {
+            return activeByPipeline.containsKey(pipelineId);
+        }
+    }
+
+    int activeLeases(UUID ownerId) {
+        synchronized (lock) {
+            return activeByOwner.getOrDefault(ownerId, 0);
         }
     }
 
@@ -88,15 +111,26 @@ final class PreviewRegistry {
         }
     }
 
-    private void awaitRelease(UUID pipelineId, Lease lease, long deadline) {
+    private void awaitRelease(
+            UUID pipelineId,
+            Lease lease,
+            long graceDeadline,
+            long budgetDeadline
+    ) {
         synchronized (lock) {
             while (activeByPipeline.get(pipelineId) == lease) {
-                long remaining = deadline - System.nanoTime();
+                long now = System.nanoTime();
+                if (now >= budgetDeadline) {
+                    throw new BudgetExceededException();
+                }
+                long remaining = graceDeadline - now;
                 if (remaining <= 0) {
                     throw busy();
                 }
                 try {
-                    TimeUnit.NANOSECONDS.timedWait(lock, remaining);
+                    TimeUnit.NANOSECONDS.timedWait(
+                            lock, Math.min(remaining, budgetDeadline - now)
+                    );
                 } catch (InterruptedException error) {
                     Thread.currentThread().interrupt();
                     throw busy();
@@ -109,22 +143,28 @@ final class PreviewRegistry {
         return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PREVIEW_BUSY", "预览资源繁忙，请稍后重试");
     }
 
+    static final class BudgetExceededException extends RuntimeException {
+    }
+
     static final class Lease {
 
         private volatile Future<?> future;
         private volatile boolean canceled;
-        private boolean started;
-        private boolean finished;
+        private volatile boolean detached;
 
         boolean isCanceled() {
             return canceled;
         }
 
-        void setFuture(Future<?> future) {
+        boolean isStopped() {
+            return canceled || detached;
+        }
+
+        void attach(Future<?> future) {
             boolean cancel;
             synchronized (this) {
                 this.future = future;
-                cancel = canceled;
+                cancel = isStopped();
             }
             if (cancel) {
                 future.cancel(true);
@@ -144,40 +184,17 @@ final class PreviewRegistry {
         void markCanceled() {
             synchronized (this) {
                 canceled = true;
-                notifyAll();
             }
         }
 
-        boolean beginTask() {
+        void detach() {
+            Future<?> current;
             synchronized (this) {
-                if (canceled) {
-                    return false;
-                }
-                started = true;
-                return true;
+                detached = true;
+                current = future;
             }
-        }
-
-        void finishTask() {
-            synchronized (this) {
-                finished = true;
-                notifyAll();
-            }
-        }
-
-        void awaitTaskFinished() {
-            boolean interrupted = false;
-            synchronized (this) {
-                while (started && !finished) {
-                    try {
-                        wait();
-                    } catch (InterruptedException error) {
-                        interrupted = true;
-                    }
-                }
-            }
-            if (interrupted) {
-                Thread.currentThread().interrupt();
+            if (current != null) {
+                current.cancel(true);
             }
         }
     }

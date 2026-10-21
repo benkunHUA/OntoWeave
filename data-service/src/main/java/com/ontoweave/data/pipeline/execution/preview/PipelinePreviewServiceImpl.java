@@ -116,45 +116,30 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     @Override
     public PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request) {
         PreviewDeadline deadline = PreviewDeadline.start(timeout);
-        checks.validateRevision(pipelineId, ownerId, request.draftRevision());
+        validateRevision(pipelineId, ownerId, request.draftRevision(), deadline);
         ensureBudget(deadline);
-        PreviewRegistry.Lease lease = registry.register(pipelineId, ownerId);
+        PreviewRegistry.Lease lease;
+        try {
+            lease = registry.register(pipelineId, ownerId, deadline.remaining());
+        } catch (PreviewRegistry.BudgetExceededException error) {
+            throw timeout();
+        }
+        Future<PreviewComputation> future = null;
         try {
             ensureActive(lease);
             ensureBudget(deadline);
-            PipelineCheckResult check = checks.check(pipelineId, ownerId, request.draftRevision());
+            future = workers.submit(() -> compute(pipelineId, ownerId, request, lease, deadline));
+            lease.attach(future);
+            PreviewComputation computation = await(future, lease, deadline);
             ensureActive(lease);
             ensureBudget(deadline);
-            if (!check.blockingIssues().isEmpty()) {
-                throw new ApiException(
-                        HttpStatus.UNPROCESSABLE_ENTITY,
-                        "PREVIEW_BLOCKED",
-                        "流程检查存在阻塞错误，不能预览",
-                        Map.of("blockingIssues", check.blockingIssues())
-                );
-            }
-            LogicalPlan plan = planBuilder.build(
-                    pipelineId, ownerId, request.draftRevision(), request.nodeId()
+            return response(
+                    pipelineId,
+                    request,
+                    computation.plan(),
+                    computation.result(),
+                    deadline.elapsedMs()
             );
-            ensureActive(lease);
-            ensureBudget(deadline);
-            Duration executionBudget = deadline.remaining();
-            Future<ExecutionResult> future = workers.submit(() -> {
-                if (!lease.beginTask()) {
-                    throw canceled();
-                }
-                try {
-                    ensureActive(lease);
-                    return execute(plan, executionBudget);
-                } finally {
-                    lease.finishTask();
-                }
-            });
-            lease.setFuture(future);
-            ExecutionResult result = await(future, lease, executionBudget);
-            ensureActive(lease);
-            ensureBudget(deadline);
-            return response(pipelineId, request, plan, result, deadline.elapsedMs());
         } catch (ApiException error) {
             if (lease.isCanceled()) {
                 throw canceled();
@@ -166,7 +151,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             }
             throw error;
         } finally {
-            lease.awaitTaskFinished();
+            lease.detach();
             registry.unregister(pipelineId, ownerId, lease);
         }
     }
@@ -174,6 +159,68 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     @Override
     public void cancelForBuild(UUID pipelineId) {
         registry.cancelForBuild(pipelineId);
+    }
+
+    private void validateRevision(
+            UUID pipelineId,
+            UUID ownerId,
+            long revision,
+            PreviewDeadline deadline
+    ) {
+        Duration remaining = remaining(deadline);
+        Future<?> future = workers.submit(() -> {
+            checks.validateRevision(pipelineId, ownerId, revision);
+            return null;
+        });
+        try {
+            future.get(remaining.toNanos(), TimeUnit.NANOSECONDS);
+        } catch (TimeoutException error) {
+            future.cancel(true);
+            throw timeout();
+        } catch (CancellationException error) {
+            throw timeout();
+        } catch (InterruptedException error) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            throw timeout();
+        } catch (ExecutionException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof ApiException apiException) {
+                throw apiException;
+            }
+            throw executionFailure(cause);
+        }
+    }
+
+    private PreviewComputation compute(
+            UUID pipelineId,
+            UUID ownerId,
+            PreviewRequest request,
+            PreviewRegistry.Lease lease,
+            PreviewDeadline deadline
+    ) {
+        ensureActive(lease);
+        ensureBudget(deadline);
+        PipelineCheckResult check = checks.check(pipelineId, ownerId, request.draftRevision());
+        ensureActive(lease);
+        ensureBudget(deadline);
+        if (!check.blockingIssues().isEmpty()) {
+            throw new ApiException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "PREVIEW_BLOCKED",
+                    "流程检查存在阻塞错误，不能预览",
+                    Map.of("blockingIssues", check.blockingIssues())
+            );
+        }
+        LogicalPlan plan = planBuilder.build(
+                pipelineId, ownerId, request.draftRevision(), request.nodeId()
+        );
+        ensureActive(lease);
+        ensureBudget(deadline);
+        ExecutionResult result = execute(plan, remaining(deadline));
+        ensureActive(lease);
+        ensureBudget(deadline);
+        return new PreviewComputation(plan, result);
     }
 
     private ExecutionResult execute(LogicalPlan plan, Duration executionBudget) {
@@ -211,13 +258,14 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         );
     }
 
-    private ExecutionResult await(
-            Future<ExecutionResult> future,
+    private PreviewComputation await(
+            Future<PreviewComputation> future,
             PreviewRegistry.Lease lease,
-            Duration executionBudget
+            PreviewDeadline deadline
     ) {
+        Duration remaining = remaining(deadline);
         try {
-            return future.get(executionBudget.toNanos(), TimeUnit.NANOSECONDS);
+            return future.get(remaining.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException error) {
             future.cancel(true);
             throw lease.isCanceled() ? canceled() : timeout();
@@ -272,7 +320,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     }
 
     private void ensureActive(PreviewRegistry.Lease lease) {
-        if (lease.isCanceled()) {
+        if (lease.isStopped()) {
             throw canceled();
         }
     }
@@ -281,6 +329,14 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         if (deadline.expired()) {
             throw timeout();
         }
+    }
+
+    private Duration remaining(PreviewDeadline deadline) {
+        Duration remaining = deadline.remaining();
+        if (remaining.isZero() || remaining.isNegative()) {
+            throw timeout();
+        }
+        return remaining;
     }
 
     private ApiException executionFailure(Throwable cause) {
@@ -320,5 +376,8 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             List<PreviewIssue> errors,
             List<PreviewIssue> warnings
     ) {
+    }
+
+    private record PreviewComputation(LogicalPlan plan, ExecutionResult result) {
     }
 }

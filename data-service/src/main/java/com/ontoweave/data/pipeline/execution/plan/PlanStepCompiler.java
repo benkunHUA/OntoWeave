@@ -142,28 +142,33 @@ final class PlanStepCompiler {
     }
 
     private CompiledStep deduplicate(CompiledStep input, LogicalPlanNode.Deduplicate deduplicate) {
-        if (!"subset".equals(deduplicate.mode()) || deduplicate.columns().isEmpty()) {
-            return new CompiledStep(input.table().distinct(), input.hiddenColumns());
+        List<String> visible = input.table().getResolvedSchema().getColumnNames().stream()
+                .filter(column -> !column.startsWith(HiddenColumns.PREFIX))
+                .toList();
+        Set<String> keys = new LinkedHashSet<>();
+        if ("subset".equals(deduplicate.mode()) && !deduplicate.columns().isEmpty()) {
+            keys.addAll(deduplicate.columns());
+        } else {
+            keys.addAll(visible);
         }
-        GroupedTable grouped = input.table().groupBy(deduplicate.columns().stream()
+        GroupedTable grouped = input.table().groupBy(keys.stream()
                 .map(Expressions::$)
                 .toArray(Expression[]::new));
         List<Expression> selected = new ArrayList<>();
-        Set<String> keys = new LinkedHashSet<>(deduplicate.columns());
-        Set<String> flags = input.hiddenColumns().stream()
-                .map(CompiledTablePlan.HiddenErrorColumn::flagColumn)
-                .collect(java.util.stream.Collectors.toSet());
-        for (String column : input.table().getResolvedSchema().getColumnNames()) {
-            if (keys.contains(column)) {
-                selected.add(Expressions.$(column));
-            } else if (flags.contains(column)) {
-                selected.add(HiddenColumns.flagAggregate(column));
-            } else {
-                selected.add(Expressions.$(column).firstValue().as(column));
-            }
+        for (String column : visible) {
+            selected.add(keys.contains(column)
+                    ? Expressions.$(column)
+                    : Expressions.$(column).firstValue().as(column));
         }
+        for (CompiledTablePlan.HiddenErrorColumn column : input.hiddenColumns()) {
+            selected.add(HiddenColumns.flagAggregate(column.flagColumn()));
+            selected.add(HiddenColumns.originalAggregate(column.originalColumn()));
+        }
+        List<CompiledTablePlan.HiddenErrorColumn> hidden = input.hiddenColumns().stream()
+                .map(column -> column.withRowPrecise(false))
+                .toList();
         return new CompiledStep(
-                grouped.select(selected.toArray(Expression[]::new)), input.hiddenColumns()
+                grouped.select(selected.toArray(Expression[]::new)), hidden
         );
     }
 

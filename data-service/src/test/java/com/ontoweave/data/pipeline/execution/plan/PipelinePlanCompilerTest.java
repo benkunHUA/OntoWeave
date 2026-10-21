@@ -36,6 +36,7 @@ class PipelinePlanCompilerTest {
     private final ObjectMapper mapper = new ObjectMapper();
     private final PipelinePlanCompiler compiler = compiler();
     private List<Expression> lastSelected = List.of();
+    private List<Expression> lastGroupBy = List.of();
 
     @Test
     void keepsJoinRightBranchCastFlagsHiddenWithSynchronizedDescriptors() {
@@ -114,7 +115,37 @@ class PipelinePlanCompilerTest {
     }
 
     @Test
-    void deduplicatePreservesAnyUpstreamCastFlag() {
+    void fullDeduplicateMergesVisibleDuplicatesAndKeepsAnyFailureFlag() {
+        PlanStep scan = scan("orders");
+        PlanStep derive = derive(scan, "parsed", cast("value", "long"));
+        PlanStep deduplicate = step("deduplicate", new LogicalPlanNode.Deduplicate(
+                "all", List.of()
+        ), derive);
+
+        CompiledTablePlan compiled = compiler.compile(
+                plan(deduplicate), mock(StreamTableEnvironment.class),
+                ignored -> table("id", "value")
+        );
+
+        String flag = compiled.hiddenErrorColumns().get(0).flagColumn();
+        String original = compiled.hiddenErrorColumns().get(0).originalColumn();
+        assertThat(groupByNames()).containsExactly("id", "value", "parsed");
+        assertThat(groupByNames()).doesNotContain(flag, original);
+        assertThat(lastSelected)
+                .extracting(Expression::asSummaryString)
+                .anySatisfy(summary -> assertThat(summary)
+                        .containsIgnoringCase("max")
+                        .contains(flag));
+        assertThat(lastSelected)
+                .extracting(Expression::asSummaryString)
+                .anySatisfy(summary -> assertThat(summary)
+                        .containsIgnoringCase("first_value")
+                        .contains(original));
+        assertThat(compiled.hiddenErrorColumns().get(0).rowPrecise()).isFalse();
+    }
+
+    @Test
+    void subsetDeduplicateGroupsVisibleKeysAndKeepsAnyFailureFlag() {
         PlanStep scan = scan("orders");
         PlanStep derive = derive(scan, "parsed", cast("value", "long"));
         PlanStep deduplicate = step("deduplicate", new LogicalPlanNode.Deduplicate(
@@ -127,11 +158,28 @@ class PipelinePlanCompilerTest {
         );
 
         String flag = compiled.hiddenErrorColumns().get(0).flagColumn();
+        String original = compiled.hiddenErrorColumns().get(0).originalColumn();
+        assertThat(groupByNames()).containsExactly("id");
+        assertThat(groupByNames()).doesNotContain(flag, original);
+        assertThat(lastSelected)
+                .extracting(Expression::asSummaryString)
+                .anySatisfy(summary -> assertThat(summary)
+                        .containsIgnoringCase("first_value")
+                        .contains("value"));
         assertThat(lastSelected)
                 .extracting(Expression::asSummaryString)
                 .anySatisfy(summary -> assertThat(summary)
                         .containsIgnoringCase("max")
                         .contains(flag));
+        assertThat(lastSelected)
+                .extracting(Expression::asSummaryString)
+                .anySatisfy(summary -> assertThat(summary).containsIgnoringCase("first_value"));
+        assertThat(lastSelected)
+                .extracting(Expression::asSummaryString)
+                .anySatisfy(summary -> assertThat(summary)
+                        .containsIgnoringCase("first_value")
+                        .contains(original));
+        assertThat(compiled.hiddenErrorColumns().get(0).rowPrecise()).isFalse();
     }
 
     @Test
@@ -182,8 +230,15 @@ class PipelinePlanCompilerTest {
         when(table.unionAll(any())).thenReturn(table);
         GroupedTable grouped = mock(GroupedTable.class);
         when(grouped.select(any(Expression[].class))).thenAnswer(selectColumns());
-        when(table.groupBy(any(Expression[].class))).thenReturn(grouped);
+        when(table.groupBy(any(Expression[].class))).thenAnswer(invocation -> {
+            lastGroupBy = expressions(invocation);
+            return grouped;
+        });
         return table;
+    }
+
+    private List<String> groupByNames() {
+        return lastGroupBy.stream().map(this::outputName).toList();
     }
 
     private DataType[] types(int count) {

@@ -51,7 +51,7 @@ class PreviewRegistryTest {
         PreviewRegistry.Lease old = registry.register(pipelineId, ownerId);
         try {
             Future<PreviewRegistry.Lease> replacement = callers.submit(
-                    () -> registry.register(pipelineId, ownerId)
+                    () -> registry.register(pipelineId, ownerId, Duration.ofSeconds(1))
             );
             assertThat(registry.awaitCancellationRequested(pipelineId, Duration.ofSeconds(1))).isTrue();
 
