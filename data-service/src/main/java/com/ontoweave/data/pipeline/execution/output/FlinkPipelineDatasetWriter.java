@@ -23,6 +23,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +42,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
     private final HadoopCatalogFactory catalogs;
     private final SyncProperties properties;
     private final ObjectMapper mapper;
+    private final Duration cancelTimeout;
     private final ConcurrentMap<UUID, JobClient> jobs = new ConcurrentHashMap<>();
 
     public FlinkPipelineDatasetWriter(
@@ -53,6 +55,30 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
             SyncProperties properties,
             ObjectMapper mapper
     ) {
+        this(
+                outputs,
+                buildOutputs,
+                datasets,
+                compiler,
+                schemaBaseline,
+                catalogs,
+                properties,
+                mapper,
+                FlinkJobCancellation.DEFAULT_TIMEOUT
+        );
+    }
+
+    FlinkPipelineDatasetWriter(
+            PipelineOutputRepository outputs,
+            PipelineBuildOutputRepository buildOutputs,
+            PipelineDatasetRepository datasets,
+            PipelinePlanCompiler compiler,
+            OutputSchemaBaseline schemaBaseline,
+            HadoopCatalogFactory catalogs,
+            SyncProperties properties,
+            ObjectMapper mapper,
+            Duration cancelTimeout
+    ) {
         this.outputs = outputs;
         this.buildOutputs = buildOutputs;
         this.datasets = datasets;
@@ -61,6 +87,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         this.catalogs = catalogs;
         this.properties = properties;
         this.mapper = mapper;
+        this.cancelTimeout = cancelTimeout;
     }
 
     @Override
@@ -164,16 +191,8 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         if (client == null) {
             return;
         }
-        try {
-            client.cancel();
-            jobs.remove(buildId, client);
-        } catch (RuntimeException error) {
-            throw new PipelineBuildException(
-                    PipelineBuildConstants.CODE_EXECUTION_FAILED,
-                    "取消 Flink 作业失败",
-                    error
-            );
-        }
+        FlinkJobCancellation.awaitTermination(client, cancelTimeout);
+        jobs.remove(buildId, client);
     }
 
     private void recordEngineJob(UUID buildId, UUID outputId, String engineJobId) {

@@ -11,6 +11,7 @@ import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
+import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.catalog.ResolvedSchema;
 import org.apache.flink.table.types.DataType;
@@ -22,12 +23,14 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -65,7 +68,8 @@ class FlinkPipelineDatasetWriterTest {
         JobClient client = mock(JobClient.class);
         when(client.cancel())
                 .thenThrow(new IllegalStateException("flink unavailable"))
-                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null));
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getJobStatus()).thenReturn(CompletableFuture.completedFuture(JobStatus.CANCELED));
         FlinkPipelineDatasetWriter writer = writer();
         ConcurrentMap<UUID, JobClient> jobs = jobs(writer);
         jobs.put(buildId, client);
@@ -80,6 +84,79 @@ class FlinkPipelineDatasetWriterTest {
 
         verify(client, times(2)).cancel();
         assertThat(jobs).doesNotContainKey(buildId);
+    }
+
+    @Test
+    void cancelWaitsForFutureAndTerminalStatusBeforeRemovingTheClient() {
+        UUID buildId = UUID.randomUUID();
+        JobClient client = mock(JobClient.class);
+        when(client.cancel()).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getJobStatus()).thenReturn(CompletableFuture.completedFuture(JobStatus.CANCELED));
+        FlinkPipelineDatasetWriter writer = writer();
+        ConcurrentMap<UUID, JobClient> jobs = jobs(writer);
+        jobs.put(buildId, client);
+
+        writer.cancel(buildId);
+
+        verify(client).getJobStatus();
+        assertThat(jobs).doesNotContainKey(buildId);
+    }
+
+    @Test
+    void cancelRetainsTheClientWhenTheFutureFailsAndCanRetry() {
+        UUID buildId = UUID.randomUUID();
+        JobClient client = mock(JobClient.class);
+        when(client.cancel())
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("cancel failed")))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getJobStatus()).thenReturn(CompletableFuture.completedFuture(JobStatus.CANCELED));
+        FlinkPipelineDatasetWriter writer = writer();
+        ConcurrentMap<UUID, JobClient> jobs = jobs(writer);
+        jobs.put(buildId, client);
+
+        assertThatThrownBy(() -> writer.cancel(buildId))
+                .isInstanceOfSatisfying(PipelineBuildException.class, error ->
+                        assertThat(error.errorCode())
+                                .isEqualTo(PipelineBuildConstants.CODE_EXECUTION_FAILED));
+        assertThat(jobs).containsEntry(buildId, client);
+
+        writer.cancel(buildId);
+
+        verify(client, times(2)).cancel();
+        assertThat(jobs).doesNotContainKey(buildId);
+    }
+
+    @Test
+    void cancelRetainsTheClientWhenTheFutureTimesOut() {
+        UUID buildId = UUID.randomUUID();
+        JobClient client = mock(JobClient.class);
+        when(client.cancel()).thenReturn(new CompletableFuture<>());
+        FlinkPipelineDatasetWriter writer = writer(mock(HadoopCatalogFactory.class), Duration.ofMillis(50));
+        ConcurrentMap<UUID, JobClient> jobs = jobs(writer);
+        jobs.put(buildId, client);
+
+        assertThatThrownBy(() -> writer.cancel(buildId))
+                .isInstanceOfSatisfying(PipelineBuildException.class, error -> {
+                    assertThat(error.errorCode())
+                            .isEqualTo(PipelineBuildConstants.CODE_EXECUTION_FAILED);
+                    assertThat(error).hasMessageContaining("超时");
+                });
+        assertThat(jobs).containsEntry(buildId, client);
+    }
+
+    @Test
+    void cancelRetainsTheClientWhenTheJobHasNotTerminated() {
+        UUID buildId = UUID.randomUUID();
+        JobClient client = mock(JobClient.class);
+        when(client.cancel()).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.getJobStatus()).thenReturn(CompletableFuture.completedFuture(JobStatus.RUNNING));
+        FlinkPipelineDatasetWriter writer = writer();
+        ConcurrentMap<UUID, JobClient> jobs = jobs(writer);
+        jobs.put(buildId, client);
+
+        assertThatThrownBy(() -> writer.cancel(buildId))
+                .isInstanceOf(PipelineBuildException.class);
+        assertThat(jobs).containsEntry(buildId, client);
     }
 
     @Test
@@ -132,6 +209,10 @@ class FlinkPipelineDatasetWriterTest {
     }
 
     private FlinkPipelineDatasetWriter writer(HadoopCatalogFactory catalogs) {
+        return writer(catalogs, Duration.ofSeconds(1));
+    }
+
+    private FlinkPipelineDatasetWriter writer(HadoopCatalogFactory catalogs, Duration cancelTimeout) {
         SyncProperties properties = properties();
         return new FlinkPipelineDatasetWriter(
                 mock(PipelineOutputRepository.class),
@@ -141,7 +222,8 @@ class FlinkPipelineDatasetWriterTest {
                 mock(OutputSchemaBaseline.class),
                 catalogs,
                 properties,
-                mapper
+                mapper,
+                cancelTimeout
         );
     }
 
