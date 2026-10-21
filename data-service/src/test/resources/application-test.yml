@@ -33,6 +33,8 @@ ontoweave:
   pipeline:
     build:
       worker-enabled: false
+    schedule:
+      worker-enabled: false
   sync:
     dispatch-enabled: false
     supervisor-enabled: false

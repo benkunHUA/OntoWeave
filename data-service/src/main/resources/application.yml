@@ -79,3 +79,10 @@ ontoweave:
       executor-threads: ${PIPELINE_BUILD_EXECUTOR_THREADS:2}
       executor-queue-capacity: ${PIPELINE_BUILD_EXECUTOR_QUEUE_CAPACITY:20}
       cancel-threads: ${PIPELINE_BUILD_CANCEL_THREADS:2}
+    schedule:
+      worker-enabled: ${PIPELINE_SCHEDULE_WORKER_ENABLED:true}
+      poll-interval-ms: ${PIPELINE_SCHEDULE_POLL_INTERVAL_MS:15000}
+      initial-delay-ms: ${PIPELINE_SCHEDULE_INITIAL_DELAY_MS:15000}
+      max-per-poll: ${PIPELINE_SCHEDULE_MAX_PER_POLL:100}
+      executor-threads: ${PIPELINE_SCHEDULE_EXECUTOR_THREADS:2}
+      executor-queue-capacity: ${PIPELINE_SCHEDULE_EXECUTOR_QUEUE_CAPACITY:20}

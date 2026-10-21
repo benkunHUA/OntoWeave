@@ -21,6 +21,7 @@
     <java.version>17</java.version>
     <flink.version>1.20.3</flink.version>
     <iceberg.version>1.10.1</iceberg.version>
+    <cron-utils.version>9.2.1</cron-utils.version>
   </properties>
 
   <dependencies>
@@ -52,6 +53,11 @@
       <groupId>com.networknt</groupId>
       <artifactId>json-schema-validator</artifactId>
       <version>1.5.6</version>
+    </dependency>
+    <dependency>
+      <groupId>com.cronutils</groupId>
+      <artifactId>cron-utils</artifactId>
+      <version>${cron-utils.version}</version>
     </dependency>
     <dependency>
       <groupId>org.flywaydb</groupId>

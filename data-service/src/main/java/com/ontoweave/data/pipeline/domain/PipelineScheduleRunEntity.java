@@ -141,4 +141,46 @@ public class PipelineScheduleRunEntity {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    public void evaluate(String logicHash, JsonNode resolvedInputs) {
+        this.logicHash = logicHash;
+        this.resolvedInputs = resolvedInputs;
+    }
+
+    public void markPending(String logicHash, JsonNode resolvedInputs) {
+        this.status = PipelineScheduleRunStatus.PENDING;
+        evaluate(logicHash, resolvedInputs);
+        this.reasonCode = null;
+        this.message = null;
+        this.buildId = null;
+    }
+
+    public void markDispatched(
+            UUID buildId,
+            String logicHash,
+            JsonNode resolvedInputs,
+            Instant now
+    ) {
+        this.status = PipelineScheduleRunStatus.DISPATCHED;
+        this.buildId = buildId;
+        evaluate(logicHash, resolvedInputs);
+        this.reasonCode = null;
+        this.message = null;
+        this.startedAt = now;
+        this.finishedAt = null;
+    }
+
+    public void markIgnored(String reasonCode, String message, Instant now) {
+        this.status = PipelineScheduleRunStatus.IGNORED;
+        this.reasonCode = reasonCode;
+        this.message = message;
+        this.finishedAt = now;
+    }
+
+    public void markFailed(String reasonCode, String message, Instant now) {
+        this.status = PipelineScheduleRunStatus.FAILED;
+        this.reasonCode = reasonCode;
+        this.message = message;
+        this.finishedAt = now;
+    }
 }

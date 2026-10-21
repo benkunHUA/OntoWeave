@@ -153,4 +153,43 @@ public class PipelineScheduleEntity {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void updateDefinition(
+            String name,
+            String cronExpression,
+            String timezone,
+            Instant nextRunAt
+    ) {
+        this.name = name;
+        this.cronExpression = cronExpression;
+        this.timezone = timezone;
+        this.nextRunAt = nextRunAt;
+        this.status = PipelineScheduleStatus.ACTIVE;
+        this.pausedAt = null;
+        this.pausedBy = null;
+    }
+
+    public void pause(UUID actorId, Instant now) {
+        this.status = PipelineScheduleStatus.PAUSED;
+        this.nextRunAt = null;
+        this.pausedAt = now;
+        this.pausedBy = actorId;
+    }
+
+    public void resume(Instant nextRunAt, Instant now) {
+        this.status = PipelineScheduleStatus.ACTIVE;
+        this.nextRunAt = nextRunAt;
+        this.pausedAt = null;
+        this.pausedBy = null;
+        this.updatedAt = now;
+    }
+
+    public void advance(Instant nextRunAt, Instant dueAt) {
+        this.nextRunAt = nextRunAt;
+        this.lastRunAt = dueAt;
+    }
+
+    public void recordRun(Instant dueAt) {
+        this.lastRunAt = dueAt;
+    }
 }
