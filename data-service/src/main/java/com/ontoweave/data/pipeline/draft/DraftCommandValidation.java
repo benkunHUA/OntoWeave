@@ -8,6 +8,7 @@ import com.ontoweave.data.pipeline.catalog.NodeDefinition;
 import com.ontoweave.data.pipeline.catalog.NodePort;
 import com.ontoweave.data.pipeline.catalog.NodePortRole;
 import com.ontoweave.data.pipeline.catalog.PipelineNodeCatalog;
+import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
@@ -21,6 +22,31 @@ import static com.ontoweave.data.pipeline.draft.DraftConstants.FIELD_Y;
 final class DraftCommandValidation {
 
     private DraftCommandValidation() {
+    }
+
+    static void requireMetadata(DraftCommand command) {
+        if (command == null) {
+            throw invalid("command 不能为空");
+        }
+        if (command.baseRevision() == null) {
+            throw invalid("baseRevision 不能为空");
+        }
+        if (command.baseRevision() < 0) {
+            throw invalid("baseRevision 不能为负数");
+        }
+        if (command.operationId() == null) {
+            throw invalid("operationId 不能为空");
+        }
+        if (command.turnId() == null) {
+            throw invalid("turnId 不能为空");
+        }
+    }
+
+    static JsonNode requireDefinition(PipelineDraftEntity draft) {
+        if (draft.getDefinition() == null) {
+            throw invalid("草稿定义不能为空");
+        }
+        return draft.getDefinition().deepCopy();
     }
 
     static ObjectNode validateConfig(PipelineNodeCatalog catalog, String type, JsonNode config) {

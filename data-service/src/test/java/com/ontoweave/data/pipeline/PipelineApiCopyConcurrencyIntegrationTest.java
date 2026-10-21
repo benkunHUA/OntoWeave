@@ -37,13 +37,13 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
-        int copyStatus;
+        ApiResult copied;
         int setOutputStatus;
         try {
-            Future<Integer> copy = executor.submit(() -> {
+            Future<ApiResult> copy = executor.submit(() -> {
                 ready.countDown();
                 start.await();
-                return copyStatus(sourceId, ownerId, targetId);
+                return copyResult(sourceId, ownerId, targetId);
             });
             Future<Integer> setOutput = executor.submit(() -> {
                 ready.countDown();
@@ -58,18 +58,20 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
             });
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
-            copyStatus = copy.get(15, TimeUnit.SECONDS);
+            copied = copy.get(15, TimeUnit.SECONDS);
             setOutputStatus = setOutput.get(15, TimeUnit.SECONDS);
         } finally {
             executor.shutdownNow();
         }
 
         assertThat(setOutputStatus).isEqualTo(200);
-        if (copyStatus == 409) {
+        if (copied.status() == 409) {
+            assertThat(copied.body().path("code").asText())
+                    .isEqualTo("OUTPUT_CONFIGURATION_INCOMPLETE");
             assertThat(countWhere("data.pipeline", "id", targetId)).isZero();
             return;
         }
-        assertThat(copyStatus).isEqualTo(201);
+        assertThat(copied.status()).isEqualTo(201);
         List<Map<String, Object>> outputs = jdbc.queryForList("""
                 SELECT o.id::text AS output_id, d.id::text AS dataset_id
                 FROM data.pipeline_output o
@@ -103,7 +105,7 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
         UUID targetId = UUID.randomUUID();
         installFailingDraftTrigger(targetId);
         try {
-            copyStatus(sourceId, ownerId, targetId);
+            copyResult(sourceId, ownerId, targetId);
         } finally {
             jdbc.execute("DROP TRIGGER IF EXISTS fail_target_draft ON data.pipeline_draft");
             jdbc.execute("DROP FUNCTION IF EXISTS data.fail_target_draft()");
@@ -116,8 +118,8 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
         assertThat(countWhere("data.pipeline_output", "pipeline_id", sourceId)).isEqualTo(1);
     }
 
-    private int copyStatus(UUID sourceId, UUID ownerId, UUID targetId) throws Exception {
-        return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+    private ApiResult copyResult(UUID sourceId, UUID ownerId, UUID targetId) throws Exception {
+        var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
                         "/internal/v1/pipelines/{id}/copy", sourceId)
                         .header("X-Internal-Token", TOKEN)
                         .param("ownerId", ownerId.toString())
@@ -127,7 +129,8 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
                                 "conversationId", UUID.randomUUID(),
                                 "name", "copy"
                         ))))
-                .andReturn().getResponse().getStatus();
+                .andReturn();
+        return new ApiResult(result.getResponse().getStatus(), json(result));
     }
 
     private void installFailingDraftTrigger(UUID targetId) {
@@ -156,5 +159,8 @@ class PipelineApiCopyConcurrencyIntegrationTest extends PipelineApiTestSupport {
                 id
         );
         return count == null ? 0 : count;
+    }
+
+    private record ApiResult(int status, JsonNode body) {
     }
 }

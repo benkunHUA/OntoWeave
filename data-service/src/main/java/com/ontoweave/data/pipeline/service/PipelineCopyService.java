@@ -48,13 +48,16 @@ class PipelineCopyService {
         this.datasets = datasets;
     }
 
-    void copy(PipelineEntity source, UUID ownerId, CopyPipelineRequest request) {
+    void copy(
+            PipelineEntity source,
+            PipelineDraftEntity sourceDraft,
+            UUID ownerId,
+            CopyPipelineRequest request
+    ) {
         if (request == null || request.pipelineId() == null || request.conversationId() == null) {
             throw validation("pipelineId 和 conversationId 不能为空");
         }
         String name = PipelineNames.require(request.name() == null ? source.getName() : request.name());
-        PipelineDraftEntity sourceDraft = drafts.findByIdForUpdate(source.getId())
-                .orElseThrow(() -> notFound("草稿不存在"));
         List<PipelineOutputEntity> sourceOutputs = outputs
                 .findByPipelineIdAndArchivedAtIsNull(source.getId());
         Map<UUID, PipelineDatasetEntity> datasetsByOutput = sourceOutputs.isEmpty()

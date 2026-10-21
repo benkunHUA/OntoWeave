@@ -6,7 +6,7 @@ import com.ontoweave.data.outbox.OutboxWriter;
 
 import java.util.UUID;
 
-import static com.ontoweave.data.pipeline.draft.DraftConstants.ACTOR_TYPE_USER;
+import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.ACTOR_TYPE_USER;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.EVENT_AGGREGATE_TYPE;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.EVENT_DRAFT_CHANGED;
 

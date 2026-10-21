@@ -12,7 +12,7 @@ public final class PipelineServiceConstants {
     static final String CODE_OUTPUT_INCOMPLETE = "OUTPUT_CONFIGURATION_INCOMPLETE";
     static final String CODE_ARCHIVED = "PIPELINE_ARCHIVED";
 
-    static final String ACTOR_TYPE_USER = "user";
+    public static final String ACTOR_TYPE_USER = "user";
     static final String EMPTY_DRAFT = "{\"schemaVersion\":1,\"nodes\":[],\"edges\":[]}";
 
     private PipelineServiceConstants() {

@@ -12,6 +12,7 @@ import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
+import com.ontoweave.data.pipeline.service.PipelineWriteGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -56,7 +57,7 @@ abstract class PipelineDraftCommandServiceTestSupport {
     @BeforeEach
     void setUpService() {
         service = new PipelineDraftCommandService(
-                pipelines,
+                new PipelineWriteGuard(pipelines, drafts),
                 drafts,
                 outputs,
                 datasets,
@@ -65,9 +66,9 @@ abstract class PipelineDraftCommandServiceTestSupport {
                 editRecorder,
                 outbox
         );
-        lenient().when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID)).thenReturn(Optional.of(
-                new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "test")
-        ));
+        PipelineEntity pipeline = new PipelineEntity(PIPELINE_ID, OWNER_ID, UUID.randomUUID(), "test");
+        lenient().when(pipelines.findByIdAndOwnerId(PIPELINE_ID, OWNER_ID)).thenReturn(Optional.of(pipeline));
+        lenient().when(pipelines.lockById(PIPELINE_ID)).thenReturn(Optional.of(pipeline));
     }
 
     protected PipelineDraftEntity lockDraft(long revision, ObjectNode definition) {

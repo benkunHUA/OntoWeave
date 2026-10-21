@@ -4,7 +4,6 @@ import com.ontoweave.data.pipeline.api.dto.CopyPipelineRequest;
 import com.ontoweave.data.pipeline.api.dto.PipelinePageResponse;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
-import com.ontoweave.data.pipeline.domain.PipelineStatus;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
 import org.springframework.stereotype.Service;
@@ -17,7 +16,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.EMPTY_DRAFT;
-import static com.ontoweave.data.pipeline.service.PipelineErrors.archived;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.bindingConflict;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.notFound;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
@@ -27,15 +25,18 @@ public class PipelineServiceImpl implements PipelineService {
 
     private final PipelineRepository pipelines;
     private final PipelineDraftRepository drafts;
+    private final PipelineWriteGuard writeGuard;
     private final PipelineCopyService copyService;
 
     public PipelineServiceImpl(
             PipelineRepository pipelines,
             PipelineDraftRepository drafts,
+            PipelineWriteGuard writeGuard,
             PipelineCopyService copyService
     ) {
         this.pipelines = pipelines;
         this.drafts = drafts;
+        this.writeGuard = writeGuard;
         this.copyService = copyService;
     }
 
@@ -98,13 +99,13 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional(readOnly = true)
     public PipelineResponse get(UUID pipelineId, UUID ownerId) {
-        return response(required(pipelineId, ownerId));
+        return response(writeGuard.requireReadable(pipelineId, ownerId));
     }
 
     @Override
     @Transactional
     public PipelineResponse rename(UUID pipelineId, UUID ownerId, String name) {
-        PipelineEntity pipeline = requiredWritable(pipelineId, ownerId);
+        PipelineEntity pipeline = writeGuard.lockWritableWithDraft(pipelineId, ownerId).pipeline();
         pipeline.rename(PipelineNames.require(name));
         PipelineEntity saved = pipelines.saveAndFlush(pipeline);
         return response(saved);
@@ -113,7 +114,7 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional
     public void archive(UUID pipelineId, UUID ownerId) {
-        PipelineEntity pipeline = required(pipelineId, ownerId);
+        PipelineEntity pipeline = writeGuard.lockOwnedWithDraft(pipelineId, ownerId).pipeline();
         pipeline.archive();
         pipelines.saveAndFlush(pipeline);
     }
@@ -121,8 +122,8 @@ public class PipelineServiceImpl implements PipelineService {
     @Override
     @Transactional
     public PipelineResponse copy(UUID pipelineId, UUID ownerId, CopyPipelineRequest request) {
-        PipelineEntity source = requiredWritable(pipelineId, ownerId);
-        copyService.copy(source, ownerId, request);
+        PipelineWriteGuard.LockedPipeline locked = writeGuard.lockWritableWithDraft(pipelineId, ownerId);
+        copyService.copy(locked.pipeline(), locked.draft(), ownerId, request);
         PipelineEntity copied = pipelines.findById(request.pipelineId())
                 .orElseThrow(() -> notFound("流程不存在"));
         return response(copied, 0L);
@@ -147,22 +148,6 @@ public class PipelineServiceImpl implements PipelineService {
             return;
         }
         drafts.insertIfAbsent(pipelineId, EMPTY_DRAFT, ownerId);
-    }
-
-    private PipelineEntity required(UUID pipelineId, UUID ownerId) {
-        if (pipelineId == null || ownerId == null) {
-            throw notFound("流程不存在");
-        }
-        return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
-                .orElseThrow(() -> notFound("流程不存在"));
-    }
-
-    private PipelineEntity requiredWritable(UUID pipelineId, UUID ownerId) {
-        PipelineEntity pipeline = required(pipelineId, ownerId);
-        if (pipeline.getStatus() == PipelineStatus.ARCHIVED) {
-            throw archived();
-        }
-        return pipeline;
     }
 
     private PipelineResponse response(PipelineEntity pipeline) {

@@ -122,6 +122,7 @@ class PipelineDraftCommandServiceTest extends PipelineDraftCommandServiceTestSup
 
     @Test
     void rejectsSemanticCommandWithoutTurnId() {
+        lockDraft(4, emptyDraft());
         AddNode command = new AddNode(
                 4L, operationId(4), null, NODE_ID, "filter", "Filter",
                 mapper.createObjectNode(), position(1, 1)

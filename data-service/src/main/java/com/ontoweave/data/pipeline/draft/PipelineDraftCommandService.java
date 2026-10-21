@@ -7,12 +7,10 @@ import com.ontoweave.data.outbox.OutboxWriter;
 import com.ontoweave.data.pipeline.catalog.PipelineNodeCatalog;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEditOpEntity;
-import com.ontoweave.data.pipeline.domain.PipelineEntity;
-import com.ontoweave.data.pipeline.domain.PipelineStatus;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
-import com.ontoweave.data.pipeline.repository.PipelineRepository;
+import com.ontoweave.data.pipeline.service.PipelineWriteGuard;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,21 +19,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.ontoweave.data.pipeline.draft.DraftConstants.ACTOR_TYPE_USER;
-import static com.ontoweave.data.pipeline.draft.DraftConstants.CODE_CONFIG_INVALID;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.CODE_NOT_FOUND;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.CODE_UNDO_NOT_LATEST;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.OP_SET_OUTPUT;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.OP_UNDO_TURN;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.TARGET_OUTPUT;
 import static com.ontoweave.data.pipeline.draft.DraftConstants.TARGET_TURN;
-import static com.ontoweave.data.pipeline.service.PipelineErrors.archived;
+import static com.ontoweave.data.pipeline.service.PipelineServiceConstants.ACTOR_TYPE_USER;
 import static com.ontoweave.data.pipeline.service.PipelineErrors.validation;
 
 @Service
 public class PipelineDraftCommandService {
 
-    private final PipelineRepository pipelines;
+    private final PipelineWriteGuard writeGuard;
     private final PipelineDraftRepository drafts;
     private final PipelineEditRecorder editRecorder;
     private final DraftCommandApplier applier;
@@ -43,7 +39,7 @@ public class PipelineDraftCommandService {
     private final PipelineDraftEventWriter eventWriter;
 
     public PipelineDraftCommandService(
-            PipelineRepository pipelines,
+            PipelineWriteGuard writeGuard,
             PipelineDraftRepository drafts,
             PipelineOutputRepository outputs,
             PipelineDatasetRepository datasets,
@@ -52,7 +48,7 @@ public class PipelineDraftCommandService {
             PipelineEditRecorder editRecorder,
             OutboxWriter outbox
     ) {
-        this.pipelines = pipelines;
+        this.writeGuard = writeGuard;
         this.drafts = drafts;
         this.editRecorder = editRecorder;
         this.applier = new DraftCommandApplier(catalog, mapper);
@@ -62,14 +58,14 @@ public class PipelineDraftCommandService {
 
     @Transactional
     public DraftResponse apply(UUID pipelineId, UUID ownerId, DraftCommand command) {
-        requireWritablePipeline(pipelineId, ownerId);
-        requireCommandMetadata(command);
+        PipelineWriteGuard.LockedPipeline locked = writeGuard.lockWritableWithDraft(pipelineId, ownerId);
+        DraftCommandValidation.requireMetadata(command);
         long baseRevision = command.baseRevision();
-        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
+        PipelineDraftEntity draft = locked.draft();
         if (draft.getRevision() != baseRevision) {
             throw new PipelineRevisionConflict();
         }
-        JsonNode before = requireDefinition(draft);
+        JsonNode before = DraftCommandValidation.requireDefinition(draft);
         if (command instanceof SetOutput setOutput) {
             return applySetOutput(pipelineId, ownerId, baseRevision, before, setOutput);
         }
@@ -87,9 +83,9 @@ public class PipelineDraftCommandService {
 
     @Transactional
     public DraftResponse moveNode(UUID pipelineId, UUID ownerId, MoveNodeCommand command) {
-        requireWritablePipeline(pipelineId, ownerId);
-        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
-        JsonNode moved = applier.moveNode(requireDefinition(draft), command);
+        PipelineWriteGuard.LockedPipeline locked = writeGuard.lockWritableWithDraft(pipelineId, ownerId);
+        PipelineDraftEntity draft = locked.draft();
+        JsonNode moved = applier.moveNode(DraftCommandValidation.requireDefinition(draft), command);
         int updated = drafts.updateDefinitionWithoutRevision(
                 pipelineId,
                 moved.toString(),
@@ -104,11 +100,11 @@ public class PipelineDraftCommandService {
 
     @Transactional
     public DraftResponse undoTurn(UUID pipelineId, UUID ownerId, UUID turnId, Long currentRevision) {
-        requireWritablePipeline(pipelineId, ownerId);
+        PipelineWriteGuard.LockedPipeline locked = writeGuard.lockWritableWithDraft(pipelineId, ownerId);
         if (currentRevision == null) {
             throw validation("currentRevision 不能为空");
         }
-        PipelineDraftEntity draft = requireDraftForUpdate(pipelineId);
+        PipelineDraftEntity draft = locked.draft();
         PipelineEditOpEntity latest = editRecorder.findLatest(pipelineId)
                 .orElseThrow(this::undoNotLatest);
         if (turnId == null || latest.getTurnId() == null
@@ -123,7 +119,7 @@ public class PipelineDraftCommandService {
         if (draft.getRevision() != currentRevision || last.getRevision() != currentRevision) {
             throw new PipelineRevisionConflict();
         }
-        JsonNode before = requireDefinition(draft);
+        JsonNode before = DraftCommandValidation.requireDefinition(draft);
         JsonNode restored = applier.preservePositions(turnEdits.get(0).getBefore(), before);
         UUID operationId = UUID.randomUUID();
         int updated = drafts.updateDefinition(
@@ -156,9 +152,13 @@ public class PipelineDraftCommandService {
 
     @Transactional(readOnly = true)
     public DraftResponse get(UUID pipelineId, UUID ownerId) {
-        requirePipeline(pipelineId, ownerId);
+        writeGuard.requireReadable(pipelineId, ownerId);
         PipelineDraftEntity draft = requireDraft(pipelineId);
-        return new DraftResponse(pipelineId, draft.getRevision(), requireDefinition(draft));
+        return new DraftResponse(
+                pipelineId,
+                draft.getRevision(),
+                DraftCommandValidation.requireDefinition(draft)
+        );
     }
 
     private DraftResponse applySetOutput(
@@ -243,55 +243,9 @@ public class PipelineDraftCommandService {
         return new DraftResponse(pipelineId, revision, mutation.after());
     }
 
-    private void requireCommandMetadata(DraftCommand command) {
-        if (command == null) {
-            throw invalid("command 不能为空");
-        }
-        if (command.baseRevision() == null) {
-            throw invalid("baseRevision 不能为空");
-        }
-        if (command.baseRevision() < 0) {
-            throw invalid("baseRevision 不能为负数");
-        }
-        if (command.operationId() == null) {
-            throw invalid("operationId 不能为空");
-        }
-        if (command.turnId() == null) {
-            throw invalid("turnId 不能为空");
-        }
-    }
-
-    private PipelineEntity requirePipeline(UUID pipelineId, UUID ownerId) {
-        if (pipelineId == null || ownerId == null) {
-            throw notFound("流程不存在");
-        }
-        return pipelines.findByIdAndOwnerId(pipelineId, ownerId)
-                .orElseThrow(() -> notFound("流程不存在"));
-    }
-
-    private PipelineEntity requireWritablePipeline(UUID pipelineId, UUID ownerId) {
-        PipelineEntity pipeline = requirePipeline(pipelineId, ownerId);
-        if (pipeline.getStatus() == PipelineStatus.ARCHIVED) {
-            throw archived();
-        }
-        return pipeline;
-    }
-
     private PipelineDraftEntity requireDraft(UUID pipelineId) {
         return drafts.findById(pipelineId)
                 .orElseThrow(() -> notFound("草稿不存在"));
-    }
-
-    private PipelineDraftEntity requireDraftForUpdate(UUID pipelineId) {
-        return drafts.findByIdForUpdate(pipelineId)
-                .orElseThrow(() -> notFound("草稿不存在"));
-    }
-
-    private JsonNode requireDefinition(PipelineDraftEntity draft) {
-        if (draft.getDefinition() == null) {
-            throw invalid("草稿定义不能为空");
-        }
-        return draft.getDefinition().deepCopy();
     }
 
     private ApiException undoNotLatest() {
@@ -300,10 +254,6 @@ public class PipelineDraftCommandService {
                 CODE_UNDO_NOT_LATEST,
                 "只能撤销最近一个编辑轮次"
         );
-    }
-
-    private ApiException invalid(String message) {
-        return new ApiException(HttpStatus.BAD_REQUEST, CODE_CONFIG_INVALID, message);
     }
 
     private ApiException notFound(String message) {
