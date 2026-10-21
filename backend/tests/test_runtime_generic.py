@@ -36,6 +36,15 @@ class _FakeDefinition:
         return {"view": {}}
 
 
+class _TurnCapturingDefinition(_FakeDefinition):
+    def __init__(self) -> None:
+        self.turn_ids: list[uuid.UUID | None] = []
+
+    def build_graph(self, session, settings, run, *, checkpointer=None):  # noqa: ARG002
+        self.turn_ids.append(run.turn_id)
+        return _FakeAgent()
+
+
 def _events(text: str) -> list[dict]:
     return [
         json.loads(line.removeprefix("data: "))
@@ -86,3 +95,42 @@ def test_stream_run_uses_a_non_ontology_definition(monkeypatch, session, session
     state = next(frame for frame in frames if frame["type"] == "state.update")
     assert state["view"] == {}
     assert requested_kinds == [ConversationKind.DATA_CONNECTION]
+
+
+def test_stream_run_injects_explicit_or_generated_turn_id(monkeypatch, session, session_factory):
+    owner = uuid.uuid4()
+    definition = _TurnCapturingDefinition()
+    stored = conversation.create_conversation(
+        session,
+        owner_id=owner,
+        title="turn id",
+        kind=ConversationKind.DATA_CONNECTION,
+        resource_id=uuid.uuid4(),
+    )
+    session.commit()
+    monkeypatch.setattr("app.agent.runtime.stream.get_definition", lambda kind: definition)
+
+    explicit = uuid.uuid4()
+    list(
+        stream_run(
+            session_factory,
+            Settings(),
+            owner,
+            conversation_id=stored.id,
+            text="第一轮",
+            turn_id=explicit,
+        )
+    )
+    list(
+        stream_run(
+            session_factory,
+            Settings(),
+            owner,
+            conversation_id=stored.id,
+            text="第二轮",
+        )
+    )
+
+    assert definition.turn_ids[0] == explicit
+    assert isinstance(definition.turn_ids[1], uuid.UUID)
+    assert definition.turn_ids[1] != explicit

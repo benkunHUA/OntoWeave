@@ -11,6 +11,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections.abc import Iterator
+from dataclasses import replace
 from typing import Any
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
@@ -83,6 +84,7 @@ def stream_run(
     checkpointer=None,
     text: str | None = None,
     resume: Any | None = None,
+    turn_id: uuid.UUID | None = None,
 ) -> Iterator[str]:
     """跑一轮并推 SSE 事件。
 
@@ -92,6 +94,7 @@ def stream_run(
     run: AgentRunContext | None = None
     run_id = uuid.uuid4().hex
     message_id = uuid.uuid4().hex
+    turn_id = turn_id or uuid.uuid4()
     turn = TurnBuilder(message_id)
     try:
         conv = conversation.get_conversation(
@@ -100,7 +103,10 @@ def stream_run(
             owner_id=owner_id,
         )
         definition = get_definition(conv.kind)
-        run = definition.prepare_run(session, conversation=conv, owner_id=owner_id)
+        run = replace(
+            definition.prepare_run(session, conversation=conv, owner_id=owner_id),
+            turn_id=turn_id,
+        )
         conversation.add_message(
             session,
             conversation_id=conversation_id,

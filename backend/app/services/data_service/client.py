@@ -24,6 +24,21 @@ from app.errors import (
 from app.services.data_service.pipeline_client import PipelineDataServiceMixin
 
 
+class RevisionConflict(InvariantViolationError):
+    """草稿 revision 已被其他操作推进；Agent 应重新读取而不是重试旧写入。"""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "REVISION_CONFLICT",
+        details: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
+
+
 class DataServiceClient(PipelineDataServiceMixin):
     def __init__(
         self,
@@ -333,6 +348,8 @@ class DataServiceClient(PipelineDataServiceMixin):
         if response.status_code == 400:
             raise InvalidRequestError(f"{text}{suffix}")
         if response.status_code == 409:
+            if code == "REVISION_CONFLICT":
+                raise RevisionConflict(f"{text}{suffix}", details=details)
             raise InvariantViolationError(f"{text}{suffix}")
         if response.status_code == 422:
             raise UnprocessableEntityError(

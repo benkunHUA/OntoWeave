@@ -7,6 +7,10 @@ from app.agent.definitions.data_connection import (
     DataConnectionAgentDefinition,
     DataConnectionRunContext,
 )
+from app.agent.definitions.data_pipeline import (
+    DataPipelineAgentDefinition,
+    DataPipelineRunContext,
+)
 from app.agent.definitions.ontology import OntologyAgentDefinition, OntologyRunContext
 from app.agent.definitions.registry import get_definition
 
@@ -15,6 +19,8 @@ __all__ = [
     "AgentRunContext",
     "DataConnectionAgentDefinition",
     "DataConnectionRunContext",
+    "DataPipelineAgentDefinition",
+    "DataPipelineRunContext",
     "OntologyAgentDefinition",
     "OntologyRunContext",
     "get_definition",

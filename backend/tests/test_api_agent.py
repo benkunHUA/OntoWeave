@@ -458,3 +458,41 @@ def test_stream_errors_are_reported_as_events(client, monkeypatch):
     events = _events(body)
     assert events[-1]["type"] == "run.error"
     assert "模型挂了" in events[-1]["message"]
+
+
+def test_agent_endpoints_forward_x_turn_id(client, monkeypatch):
+    captured: list[dict] = []
+
+    def fake_stream(*args, **kwargs):  # noqa: ARG001
+        captured.append(kwargs)
+        return iter(["data: {}\n\n"])
+
+    monkeypatch.setattr("app.api.agent.runtime.stream_run", fake_stream)
+    conv = client.post("/api/v1/conversations", json={"title": "turn id"}).json()
+    turn_id = uuid.uuid4()
+    headers = {"X-Turn-Id": str(turn_id)}
+
+    assert (
+        client.post(
+            f"/api/v1/conversations/{conv['id']}/messages",
+            json={"text": "继续"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/conversations/{conv['id']}/resume",
+            json={"answer": "确认"},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/conversations/{conv['id']}/messages", json={"text": "新的一轮"}
+        ).status_code
+        == 200
+    )
+
+    assert [item["turn_id"] for item in captured] == [turn_id, turn_id, None]

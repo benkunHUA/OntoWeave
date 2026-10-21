@@ -11,7 +11,7 @@ from app.errors import (
     NotFoundError,
     UnprocessableEntityError,
 )
-from app.services.data_service.client import DataServiceClient
+from app.services.data_service.client import DataServiceClient, RevisionConflict
 
 
 def _response(status: int, body: dict) -> httpx.Response:
@@ -106,6 +106,31 @@ def test_422_preserves_code_and_details():
     assert caught.value.code == "PIPELINE_NOT_READY"
     assert caught.value.details == details
     assert "流程未就绪" in str(caught.value)
+
+
+def test_revision_conflict_has_a_specific_domain_error():
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(
+            409,
+            json={"code": "REVISION_CONFLICT", "message": "草稿已变化"},
+        )
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(RevisionConflict, match="草稿已变化"):
+        client.apply_draft_command(uuid.uuid4(), owner_id=uuid.uuid4(), payload={})
+
+
+def test_other_409_stays_an_invariant_violation():
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
+        return httpx.Response(409, json={"code": "BUILD_ACTIVE", "message": "构建进行中"})
+
+    client = DataServiceClient(Settings(), transport=httpx.MockTransport(handler))
+
+    with pytest.raises(InvariantViolationError, match="构建进行中") as caught:
+        client.apply_draft_command(uuid.uuid4(), owner_id=uuid.uuid4(), payload={})
+
+    assert not isinstance(caught.value, RevisionConflict)
 
 
 def test_pipeline_client_uses_documented_paths(monkeypatch):

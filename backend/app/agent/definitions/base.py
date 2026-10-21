@@ -21,6 +21,7 @@ class AgentRunContext:
     owner_id: uuid.UUID
     kind: str
     resource_id: uuid.UUID
+    turn_id: uuid.UUID | None = None
 
 
 class AgentDefinition(Protocol):

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -52,6 +52,7 @@ def post_message(
     payload: MessageIn,
     request: Request,
     session: Session = Depends(get_session),
+    turn_id: Annotated[uuid.UUID | None, Header(alias="X-Turn-Id")] = None,
 ) -> StreamingResponse:
     # 先在普通请求里校验会话存在与归属，别等流开了才报 404
     runtime.validate_conversation(
@@ -59,7 +60,7 @@ def post_message(
         conversation_id=conversation_id,
         owner_id=get_current_user_id(),
     )
-    return _stream(request, conversation_id, text=payload.text)
+    return _stream(request, conversation_id, text=payload.text, turn_id=turn_id)
 
 
 @router.post("/conversations/{conversation_id}/resume")
@@ -68,6 +69,7 @@ def post_resume(
     payload: ResumeIn,
     request: Request,
     session: Session = Depends(get_session),
+    turn_id: Annotated[uuid.UUID | None, Header(alias="X-Turn-Id")] = None,
 ) -> StreamingResponse:
     runtime.validate_conversation(
         session,
@@ -79,4 +81,10 @@ def post_resume(
         if isinstance(payload.answer, str)
         else json.dumps(payload.answer, ensure_ascii=False)
     )
-    return _stream(request, conversation_id, text=display, resume=payload.answer)
+    return _stream(
+        request,
+        conversation_id,
+        text=display,
+        resume=payload.answer,
+        turn_id=turn_id,
+    )
