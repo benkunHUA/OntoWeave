@@ -13,6 +13,8 @@ import {
   NODE_CONFIG_COPY,
 } from '../../lib/constants'
 import { ConfigField } from './fields/ConfigField'
+import { OutputSelect } from './fields/OutputSelect'
+import type { OutputDraftInput } from '../../lib/outputCommand'
 
 interface NodeConfigDrawerProps {
   node: PipelineNode
@@ -23,6 +25,7 @@ interface NodeConfigDrawerProps {
   onClose: () => void
   onSave: (nodeId: string, name: string, config: JsonObject) => Promise<unknown> | null
   onDelete: (nodeId: string) => Promise<unknown> | null
+  onSetOutput: (nodeId: string, output: OutputDraftInput) => Promise<unknown> | null
 }
 
 function fieldLabel(field: string): string {
@@ -42,6 +45,7 @@ export function NodeConfigDrawer({
   onClose,
   onSave,
   onDelete,
+  onSetOutput,
 }: NodeConfigDrawerProps) {
   const [name, setName] = useState(node.name)
   const [config, setConfig] = useState<JsonObject>({ ...node.config })
@@ -71,7 +75,8 @@ export function NodeConfigDrawer({
 
   const properties = definition?.config_schema.properties ?? {}
   const widgets = definition?.ui_schema.fields ?? {}
-  const orderedFields = Object.keys(properties)
+  const isOutput = definition?.type === 'output'
+  const orderedFields = Object.keys(properties).filter((field) => !(isOutput && field === 'outputId'))
   const sortedIssues = sortIssues(issues)
 
   function updateField(field: string, value: unknown) {
@@ -111,7 +116,7 @@ export function NodeConfigDrawer({
         {orderedFields.map((field) => {
           const fieldIssues = sortedIssues.filter((issue) => issue.field === field)
           return (
-            <label key={field} className="pipeline-config-field">
+            <div key={field} className="pipeline-config-field">
               <span>{fieldLabel(field)}</span>
               <ConfigField
                 field={field}
@@ -125,9 +130,20 @@ export function NodeConfigDrawer({
                   {issue.message}
                 </small>
               ))}
-            </label>
+            </div>
           )
         })}
+
+        {isOutput && definition ? (
+          <OutputSelect
+            nodeId={node.id}
+            defaultName={node.name}
+            outputId={typeof config.outputId === 'string' ? config.outputId : null}
+            isReadOnly={isReadOnly}
+            isSaving={isSaving}
+            onSetOutput={onSetOutput}
+          />
+        ) : null}
 
         <section className="pipeline-issue-list">
           <h3>{NODE_CONFIG_COPY.issues}</h3>

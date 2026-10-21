@@ -43,6 +43,7 @@ export function DataPipelineWorkbench() {
     moveNodes: queueMoveNodes,
     updateNode: queueUpdateNode,
     deleteNode: queueDeleteNode,
+    setOutput: queueSetOutput,
   } = queue
   const { reload: reloadDraft, setCheck: setDraftCheck } = draftView
   const { create: createPipelineRecord } = list
@@ -200,6 +201,7 @@ export function DataPipelineWorkbench() {
             onClose={() => setSelectedNodeId(null)}
             onSave={saveNode}
             onDelete={deleteNode}
+            onSetOutput={queueSetOutput}
           />
         ) : null}
       </div>}

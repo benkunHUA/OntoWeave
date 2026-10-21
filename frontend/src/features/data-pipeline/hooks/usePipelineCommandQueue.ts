@@ -13,7 +13,9 @@ import type {
   PipelineNode,
   PipelineNodePositionUpdate,
 } from '../../../shared/types'
+import { buildDraftCommand } from '../lib/command'
 import { normalizeDraftResponse } from '../lib/draft'
+import { setOutputPayload, type OutputDraftInput } from '../lib/outputCommand'
 
 interface CommandQueueOptions {
   pipelineId: string | undefined
@@ -85,12 +87,10 @@ export function usePipelineCommandQueue({
         if (!pipelineId) return null
         const operationId = crypto.randomUUID()
         const response = normalizeDraftResponse(
-          await applyPipelineDraftCommand(pipelineId, {
-            ...payload,
-            base_revision: baseRevision,
-            operation_id: operationId,
-            turn_id: crypto.randomUUID(),
-          }),
+          await applyPipelineDraftCommand(
+            pipelineId,
+            buildDraftCommand(payload, baseRevision, operationId),
+          ),
         )
         revisionRef.current = response.revision
         setDraft(response)
@@ -129,7 +129,8 @@ export function usePipelineCommandQueue({
   )
 
   const setOutput = useCallback(
-    (output: JsonObject) => sendCommand({ type: 'set_output', output }),
+    (nodeId: string, output: OutputDraftInput) =>
+      sendCommand(setOutputPayload(nodeId, output)),
     [sendCommand],
   )
 

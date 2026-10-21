@@ -36,10 +36,8 @@ export function outputPorts(definition: NodeDefinition | null): PipelineNodePort
 
 function defaultValue(schema: ConfigSchema | undefined): unknown {
   if (!schema) return undefined
+  if (schema.default !== undefined) return schema.default
   if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0]
-  if (schema.type === 'array') return []
-  if (schema.type === 'boolean') return false
-  if (schema.type === 'object') return undefined
   return undefined
 }
 

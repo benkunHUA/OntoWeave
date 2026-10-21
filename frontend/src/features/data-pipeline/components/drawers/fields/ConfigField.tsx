@@ -1,9 +1,11 @@
 import type { ConfigSchema } from '../../../../../shared/types'
 import { WIDGETS } from '../../../lib/constants'
 import { ArrayRowsControl, type ArrayRowColumn } from './ArrayRowsControl'
+import { ConditionTreeEditor } from './ConditionTreeEditor'
 import { DatasetPickerField } from './DatasetPickerField'
-import { JsonControl } from './JsonControl'
-import { ListControl } from './ListControl'
+import { ExpressionEditor } from './ExpressionEditor'
+import { FieldMultiSelect } from './FieldMultiSelect'
+import { GroupByPicker } from './GroupByPicker'
 import { BooleanControl, NumberControl, SelectControl, TextControl } from './scalars'
 
 interface ConfigFieldProps {
@@ -87,24 +89,15 @@ export function ConfigField({ field, widget, schema, value, onChange }: ConfigFi
     case WIDGETS.operatorSelector:
       return <SelectControl value={value} schema={schema} onChange={onChange} />
     case WIDGETS.multiSelect:
+      return <FieldMultiSelect value={value} onChange={onChange} />
     case WIDGETS.fieldSelector:
-      return <ListControl value={value} onChange={onChange} />
+      return field === 'groupBy'
+        ? <GroupByPicker value={value} onChange={onChange} />
+        : <FieldMultiSelect value={value} onChange={onChange} />
     case WIDGETS.conditionTree:
-      return (
-        <JsonControl
-          value={value}
-          onChange={onChange}
-          hint="条件树来自节点目录契约：compare / and / or，value 为带 dataType 的字面量。"
-        />
-      )
+      return <ConditionTreeEditor value={value} onChange={onChange} />
     case WIDGETS.expressionTree:
-      return (
-        <JsonControl
-          value={value}
-          onChange={onChange}
-          hint="表达式来自节点目录契约：field / literal / cast / case / compare / logical / isNull。"
-        />
-      )
+      return <ExpressionEditor value={value} onChange={onChange} />
     default:
       return <TextControl value={value} schema={schema} onChange={onChange} />
   }

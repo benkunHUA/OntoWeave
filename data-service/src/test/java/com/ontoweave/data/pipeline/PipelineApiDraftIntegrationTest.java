@@ -86,6 +86,32 @@ class PipelineApiDraftIntegrationTest extends PipelineApiTestSupport {
     }
 
     @Test
+    void acceptsEmptyConfigForNodesWhoseMinItemsBelongToSemanticChecks() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
+        long revision = 0;
+
+        for (String type : new String[]{"select_columns", "join", "aggregate"}) {
+            JsonNode response = json(mvc.perform(post("/internal/v1/pipelines/{id}/draft/commands", pipelineId)
+                            .header("X-Internal-Token", TOKEN)
+                            .param("ownerId", ownerId.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(addNodeBody(revision, UUID.randomUUID(), type, objectMapper.createObjectNode())))
+                    .andExpect(status().isOk())
+                    .andReturn());
+            revision = response.path("revision").asLong();
+        }
+
+        JsonNode checked = json(mvc.perform(get("/internal/v1/pipelines/{id}/check", pipelineId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString())
+                        .param("revision", Long.toString(revision)))
+                .andExpect(status().isOk())
+                .andReturn());
+        assertThat(checked.path("blockingIssues").isArray()).isTrue();
+    }
+
+    @Test
     void rejectsUnknownDraftCommandType() throws Exception {
         UUID ownerId = UUID.randomUUID();
         UUID pipelineId = create(ownerId, UUID.randomUUID(), UUID.randomUUID(), "draft");
