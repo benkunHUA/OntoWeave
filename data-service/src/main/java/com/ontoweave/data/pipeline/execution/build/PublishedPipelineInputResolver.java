@@ -11,6 +11,7 @@ import com.ontoweave.data.pipeline.graph.DraftNode;
 import com.ontoweave.data.pipeline.graph.InputSchemaResolver;
 import com.ontoweave.data.pipeline.graph.PipelineDraftGraph;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
+import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
 import com.ontoweave.data.sync.domain.SyncTaskEntity;

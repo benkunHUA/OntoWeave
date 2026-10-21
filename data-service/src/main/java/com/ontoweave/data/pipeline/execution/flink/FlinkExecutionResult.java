@@ -1,7 +1,7 @@
 package com.ontoweave.data.pipeline.execution.flink;
 
-import com.ontoweave.data.pipeline.execution.preview.PreviewColumn;
 import com.ontoweave.data.pipeline.execution.preview.PreviewIssue;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 
 import java.util.List;
 import java.util.Map;

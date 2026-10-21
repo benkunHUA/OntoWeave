@@ -3,8 +3,10 @@ package com.ontoweave.data.pipeline.execution.flink;
 import com.ontoweave.data.pipeline.execution.plan.CompiledTablePlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.PipelinePlanCompiler;
-import com.ontoweave.data.pipeline.execution.preview.PreviewColumn;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimitAssessment;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimitEvaluator;
 import com.ontoweave.data.pipeline.execution.preview.PreviewIssue;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.catalog.ResolvedSchema;
@@ -35,10 +37,12 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
     private static final String WARNING = "warning";
 
     private final PipelinePlanCompiler compiler;
+    private final ScanLimitEvaluator scanLimits;
     private final ConcurrentMap<UUID, JobClient> jobs = new ConcurrentHashMap<>();
 
-    public ProcessFlinkTableExecutor(PipelinePlanCompiler compiler) {
+    public ProcessFlinkTableExecutor(PipelinePlanCompiler compiler, ScanLimitEvaluator scanLimits) {
         this.compiler = compiler;
+        this.scanLimits = scanLimits;
     }
 
     @Override
@@ -47,20 +51,31 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
         TableResult result = null;
         try {
             CompiledTablePlan compiled = compiler.compile(plan);
+            ScanLimitAssessment scanLimit = scanLimits.evaluate(plan);
             result = compiled.table().limit(0, outputLimit + 1).execute();
             Optional<JobClient> jobClient = result.getJobClient();
             jobClient.ifPresent(client -> jobs.put(executionId, client));
             result.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
-            return collect(executionId, result, compiled.hiddenErrorColumns(), outputLimit + 1);
+            return collect(
+                    executionId,
+                    result,
+                    compiled.hiddenErrorColumns(),
+                    outputLimit + 1,
+                    scanLimit
+            );
         } catch (InterruptedException error) {
             cancel(executionId);
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Flink preview interrupted", error);
+            throw PipelineExecutionException.at(plan.root(), error);
         } catch (TimeoutException error) {
             cancel(executionId);
             throw new FlinkPreviewTimeoutException("Flink preview execution timed out");
+        } catch (FlinkPreviewTimeoutException error) {
+            throw error;
         } catch (ExecutionException error) {
-            throw new IllegalStateException("Flink preview execution failed", error.getCause());
+            throw PipelineExecutionException.at(plan.root(), error.getCause());
+        } catch (RuntimeException error) {
+            throw PipelineExecutionException.at(plan.root(), error);
         } finally {
             jobs.remove(executionId);
             if (result != null) {
@@ -85,7 +100,8 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
             UUID executionId,
             TableResult result,
             List<CompiledTablePlan.HiddenErrorColumn> hiddenColumns,
-            int limit
+            int limit,
+            ScanLimitAssessment scanLimit
     ) {
         ResolvedSchema schema = result.getResolvedSchema();
         List<String> names = schema.getColumnNames();
@@ -121,7 +137,13 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
             throw new IllegalStateException("Unable to collect Flink preview rows", error);
         }
         return new FlinkExecutionResult(
-                executionId, columns, rows, null, false, errors, List.of()
+                executionId,
+                columns,
+                rows,
+                scanLimit.scannedRows(),
+                scanLimit.scanLimited(),
+                errors,
+                List.of()
         );
     }
 

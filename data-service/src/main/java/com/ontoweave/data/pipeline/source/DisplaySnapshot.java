@@ -2,7 +2,7 @@ package com.ontoweave.data.pipeline.source;
 
 import java.util.UUID;
 
-record DisplaySnapshot(
+public record DisplaySnapshot(
         String datasetName,
         Integer datasetVersionNumber,
         UUID connectionId,

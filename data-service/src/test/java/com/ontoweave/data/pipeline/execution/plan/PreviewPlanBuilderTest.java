@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
-import com.ontoweave.data.pipeline.execution.build.DisplaySnapshot;
+import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 import com.ontoweave.data.pipeline.execution.build.PipelineInputResolver;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;

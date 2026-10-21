@@ -8,9 +8,11 @@ import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
 import com.ontoweave.data.pipeline.execution.flink.FlinkExecutionResult;
 import com.ontoweave.data.pipeline.execution.flink.FlinkTableExecutor;
+import com.ontoweave.data.pipeline.execution.flink.PipelineExecutionException;
 import com.ontoweave.data.pipeline.execution.plan.PreviewPlanBuilder;
 import com.ontoweave.data.sync.iceberg.IcebergPreview;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -146,6 +148,62 @@ class PipelinePreviewServiceTest {
     }
 
     @Test
+    void marksScanRowLimitWhenAnyInputExceedsScanLimit() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+                org.mockito.ArgumentMatchers.any(Duration.class)))
+                .thenReturn(new FlinkExecutionResult(
+                        UUID.randomUUID(),
+                        List.of(new com.ontoweave.data.sync.iceberg.PreviewColumn("id", "long", false)),
+                        rows(10),
+                        50_001L,
+                        true,
+                        List.of(),
+                        List.of()
+                ));
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        PreviewResponse response = service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        );
+
+        assertThat(response.truncated()).isTrue();
+        assertThat(response.truncationReason()).isEqualTo("SCAN_ROW_LIMIT");
+        assertThat(response.scannedRows()).isEqualTo(50_001L);
+    }
+
+    @Test
+    void doesNotMarkScanRowLimitWhenInputsStayWithinLimit() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+                org.mockito.ArgumentMatchers.any(Duration.class)))
+                .thenReturn(new FlinkExecutionResult(
+                        UUID.randomUUID(),
+                        List.of(new com.ontoweave.data.sync.iceberg.PreviewColumn("id", "long", false)),
+                        rows(10),
+                        50_000L,
+                        false,
+                        List.of(),
+                        List.of()
+                ));
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        PreviewResponse response = service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        );
+
+        assertThat(response.truncated()).isFalse();
+        assertThat(response.truncationReason()).isNull();
+        assertThat(response.scannedRows()).isEqualTo(50_000L);
+    }
+
+    @Test
     void mapsExecutionTimeoutToPreviewTimeout() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
@@ -161,6 +219,31 @@ class PipelinePreviewServiceTest {
         )).isInstanceOfSatisfying(ApiException.class, exception -> {
             assertThat(exception.status()).isEqualTo(HttpStatus.GATEWAY_TIMEOUT);
             assertThat(exception.code()).isEqualTo("PREVIEW_TIMEOUT");
+        });
+    }
+
+    @Test
+    void mapsExecutionFailureToNodeAndInputPortWithoutInventingField() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(transformPlan(NODE_ID, input, 4L));
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+                org.mockito.ArgumentMatchers.any(Duration.class)))
+                .thenThrow(new PipelineExecutionException(
+                        "bad expression", NODE_ID.toString(), "in", null, new RuntimeException("bad expression")
+                ));
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        assertThatThrownBy(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
+        )).isInstanceOfSatisfying(ApiException.class, exception -> {
+            assertThat(exception.status()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(exception.code()).isEqualTo("PREVIEW_EXECUTION_FAILED");
+            assertThat(exception.details())
+                    .containsEntry("nodeId", NODE_ID.toString())
+                    .containsEntry("portId", "in")
+                    .doesNotContainKey("field");
         });
     }
 
@@ -188,37 +271,6 @@ class PipelinePreviewServiceTest {
                     .rootCause()
                     .isInstanceOfSatisfying(ApiException.class, exception ->
                             assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED"));
-        } finally {
-            callers.shutdownNow();
-        }
-    }
-
-    @Test
-    void limitsPipelineToSingleActivePreview() throws Exception {
-        ResolvedInput input = input(100L);
-        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
-                .thenReturn(transformPlan(NODE_ID, input, 4L));
-        BlockingExecutor blocking = new BlockingExecutor();
-        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
-                checks, planBuilder, blocking, reader, Duration.ofSeconds(5), workers
-        );
-        ExecutorService callers = Executors.newSingleThreadExecutor();
-        try {
-            Future<?> first = callers.submit(() -> service.preview(
-                    PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
-            ));
-            assertThat(blocking.awaitStarted(1, TimeUnit.SECONDS)).isTrue();
-
-            assertThatThrownBy(() -> service.preview(
-                    PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
-            )).isInstanceOfSatisfying(ApiException.class, exception -> {
-                assertThat(exception.status()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
-                assertThat(exception.code()).isEqualTo("PREVIEW_BUSY");
-            });
-
-            service.cancelForBuild(PIPELINE_ID);
-            assertThatThrownBy(() -> first.get(2, TimeUnit.SECONDS)).hasRootCauseInstanceOf(ApiException.class);
         } finally {
             callers.shutdownNow();
         }

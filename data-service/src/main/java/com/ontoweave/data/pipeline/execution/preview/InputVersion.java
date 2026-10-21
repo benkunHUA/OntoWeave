@@ -1,7 +1,7 @@
 package com.ontoweave.data.pipeline.execution.preview;
 
-import com.ontoweave.data.pipeline.execution.build.DisplaySnapshot;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
+import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 
 import java.util.UUID;
 

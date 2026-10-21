@@ -4,13 +4,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ontoweave.data.pipeline.check.PipelineCheckResult;
 import com.ontoweave.data.pipeline.check.PipelineIssue;
 import com.ontoweave.data.pipeline.check.PipelineStage;
-import com.ontoweave.data.pipeline.execution.build.DisplaySnapshot;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
 import com.ontoweave.data.pipeline.execution.flink.FlinkExecutionResult;
 import com.ontoweave.data.pipeline.execution.flink.FlinkTableExecutor;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PlanStep;
+import com.ontoweave.data.pipeline.source.DisplaySnapshot;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 
 final class PipelinePreviewTestSupport {
 
@@ -124,6 +126,49 @@ final class PipelinePreviewTestSupport {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("preview interrupted", error);
             }
+        }
+
+        @Override
+        public void cancel(UUID executionId) {
+        }
+    }
+
+    static final class BlockingOnceExecutor implements FlinkTableExecutor {
+
+        private final CountDownLatch started = new CountDownLatch(1);
+        private final CountDownLatch firstStopped = new CountDownLatch(1);
+        private final AtomicInteger calls = new AtomicInteger();
+
+        boolean awaitStarted(long timeout, java.util.concurrent.TimeUnit unit) throws InterruptedException {
+            return started.await(timeout, unit);
+        }
+
+        @Override
+        public FlinkExecutionResult execute(LogicalPlan plan, int outputLimit, Duration timeout) {
+            if (calls.getAndIncrement() == 0) {
+                started.countDown();
+                try {
+                    Thread.sleep(10_000);
+                    throw new AssertionError("preview should have been interrupted");
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("preview interrupted", error);
+                } finally {
+                    firstStopped.countDown();
+                }
+            }
+            if (firstStopped.getCount() != 0) {
+                throw new AssertionError("replacement started before the old task stopped");
+            }
+            return new FlinkExecutionResult(
+                    UUID.randomUUID(),
+                    List.of(new PreviewColumn("id", "long", false)),
+                    rows(1),
+                    1L,
+                    false,
+                    List.of(),
+                    List.of()
+            );
         }
 
         @Override

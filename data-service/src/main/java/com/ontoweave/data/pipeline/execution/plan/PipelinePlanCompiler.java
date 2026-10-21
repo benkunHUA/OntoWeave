@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.ontoweave.data.common.config.SyncProperties;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.table.api.ApiExpression;
-import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.GroupedTable;
 import org.apache.flink.table.api.Table;
@@ -154,24 +153,23 @@ public class PipelinePlanCompiler {
             CompilerState state
     ) {
         JsonNode expressionNode = derive.expression();
-        ApiExpression expression = expressions.expression(expressionNode);
-        if (expressionNode != null && "cast".equals(expressionNode.path("kind").asText())) {
-            ApiExpression raw = expressions.expression(expressionNode.path("expression"));
-            DataType dataType = expressions.dataType(expressionNode.path("dataType").asText(null));
-            ApiExpression casted = raw.tryCast(dataType);
+        FlinkExpressionCompiler.CompiledExpression compiled = expressions.compile(expressionNode);
+        ApiExpression expression = compiled.expression();
+        if (compiled.failures().isEmpty()) {
+            return input.addColumns(expression.as(derive.outputField()));
+        }
+        List<ApiExpression> columns = new ArrayList<>();
+        columns.add(expression.as(derive.outputField()));
+        for (FlinkExpressionCompiler.CastFailure failure : compiled.failures()) {
             String flagColumn = HIDDEN_PREFIX + state.hiddenColumns.size() + "_flag";
             String originalColumn = HIDDEN_PREFIX + state.hiddenColumns.size() + "_original";
-            ApiExpression failed = casted.isNull().and(raw.isNotNull());
             state.hiddenColumns.add(new CompiledTablePlan.HiddenErrorColumn(
                     step.nodeId(), derive.outputField(), flagColumn, originalColumn
             ));
-            return input.addColumns(
-                    casted.as(derive.outputField()),
-                    failed.as(flagColumn),
-                    raw.tryCast(DataTypes.STRING()).as(originalColumn)
-            );
+            columns.add(failure.flag().as(flagColumn));
+            columns.add(failure.original().as(originalColumn));
         }
-        return input.addColumns(expression.as(derive.outputField()));
+        return input.addColumns(columns.toArray(ApiExpression[]::new));
     }
 
     private Table deduplicate(Table input, LogicalPlanNode.Deduplicate deduplicate) {

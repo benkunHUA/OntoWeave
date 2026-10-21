@@ -1,8 +1,8 @@
 package com.ontoweave.data.pipeline.api.dto;
 
 import com.ontoweave.data.pipeline.execution.preview.InputVersion;
-import com.ontoweave.data.pipeline.execution.preview.PreviewColumn;
 import com.ontoweave.data.pipeline.execution.preview.PreviewIssue;
+import com.ontoweave.data.sync.iceberg.PreviewColumn;
 
 import java.util.List;
 import java.util.Map;

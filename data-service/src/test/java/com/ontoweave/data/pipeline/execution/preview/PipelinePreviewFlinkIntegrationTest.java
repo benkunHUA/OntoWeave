@@ -8,6 +8,9 @@ import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PipelinePlanCompiler;
 import com.ontoweave.data.pipeline.execution.plan.PlanStep;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimitEvaluator;
+import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
+import com.ontoweave.data.sync.iceberg.IcebergSnapshotMetrics;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -51,7 +54,10 @@ class PipelinePreviewFlinkIntegrationTest {
             append(table, 2L, 20L);
             long snapshotId = table.currentSnapshot().snapshotId();
             PipelinePlanCompiler compiler = new PipelinePlanCompiler(properties());
-            ProcessFlinkTableExecutor executor = new ProcessFlinkTableExecutor(compiler);
+            HadoopCatalogFactory catalogs = new HadoopCatalogFactory(properties());
+            ProcessFlinkTableExecutor executor = new ProcessFlinkTableExecutor(
+                    compiler, new ScanLimitEvaluator(new IcebergSnapshotMetrics(catalogs))
+            );
 
             FlinkExecutionResult result = executor.execute(
                     filterPlan(snapshotId), 500, Duration.ofSeconds(30)
