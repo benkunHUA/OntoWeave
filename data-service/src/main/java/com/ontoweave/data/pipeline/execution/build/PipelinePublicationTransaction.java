@@ -105,7 +105,12 @@ public class PipelinePublicationTransaction {
             version.attachStoragePath(snapshot.storagePath());
             version.markPublished(now);
             versions.save(version);
-            datasets.activateVersion(dataset.getId(), version.getId());
+            if (datasets.activateVersion(dataset.getId(), version.getId()) != 1) {
+                throw new PipelineBuildException(
+                        PipelineBuildConstants.CODE_PUBLISH_FAILED,
+                        "输出数据集不存在: " + dataset.getId()
+                );
+            }
             String branch = snapshot.branch() == null
                     ? PipelineBuildConstants.BRANCH_PREFIX + buildId
                     : snapshot.branch();

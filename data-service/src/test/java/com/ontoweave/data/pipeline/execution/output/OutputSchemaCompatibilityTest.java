@@ -58,6 +58,7 @@ class OutputSchemaCompatibilityTest {
         ObjectNode previous = schema(field("amount", "decimal(10, 2)", true));
         ObjectNode wider = schema(field("amount", "decimal(12, 3)", true));
         ObjectNode narrowerScale = schema(field("amount", "decimal(12, 1)", true));
+        ObjectNode narrowerPrecision = schema(field("amount", "decimal(10, 3)", true));
 
         assertThatCode(() -> OutputSchemaCompatibility.assertCompatible(previous, wider))
                 .doesNotThrowAnyException();
@@ -65,6 +66,24 @@ class OutputSchemaCompatibilityTest {
                 .isInstanceOfSatisfying(PipelineBuildException.class, error ->
                         assertThat(error.errorCode())
                                 .isEqualTo(PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED));
+        assertThatThrownBy(() -> OutputSchemaCompatibility.assertCompatible(previous, narrowerPrecision))
+                .isInstanceOfSatisfying(PipelineBuildException.class, error ->
+                        assertThat(error.errorCode())
+                                .isEqualTo(PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED));
+    }
+
+    @Test
+    void rejectsIntegralToFloatButAllowsIntToDouble() {
+        ObjectNode integer = schema(field("value", "int", true));
+        ObjectNode floatType = schema(field("value", "float", true));
+        ObjectNode doubleType = schema(field("value", "double", true));
+
+        assertThatThrownBy(() -> OutputSchemaCompatibility.assertCompatible(integer, floatType))
+                .isInstanceOfSatisfying(PipelineBuildException.class, error ->
+                        assertThat(error.errorCode())
+                                .isEqualTo(PipelineBuildConstants.CODE_OUTPUT_SCHEMA_CHANGED));
+        assertThatCode(() -> OutputSchemaCompatibility.assertCompatible(integer, doubleType))
+                .doesNotThrowAnyException();
     }
 
     private ObjectNode schema(ObjectNode... fields) {

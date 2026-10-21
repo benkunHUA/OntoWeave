@@ -68,3 +68,13 @@ ontoweave:
     stop-savepoint-timeout-seconds: ${SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS:30}
     max-concurrent-runs: ${SYNC_MAX_CONCURRENT_RUNS:4}
     max-concurrent-runs-per-connection: ${SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION:1}
+  pipeline:
+    build:
+      worker-enabled: ${PIPELINE_BUILD_WORKER_ENABLED:true}
+      poll-interval-ms: ${PIPELINE_BUILD_POLL_INTERVAL_MS:2000}
+      initial-delay-ms: ${PIPELINE_BUILD_INITIAL_DELAY_MS:3000}
+      heartbeat-interval: ${PIPELINE_BUILD_HEARTBEAT_INTERVAL:5s}
+      lost-after: ${PIPELINE_BUILD_LOST_AFTER:30s}
+      max-per-poll: ${PIPELINE_BUILD_MAX_PER_POLL:10}
+      executor-threads: ${PIPELINE_BUILD_EXECUTOR_THREADS:2}
+      executor-queue-capacity: ${PIPELINE_BUILD_EXECUTOR_QUEUE_CAPACITY:20}

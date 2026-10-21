@@ -11,6 +11,7 @@ import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -29,6 +30,21 @@ public class PipelinePlanCompiler {
         environment.setRuntimeMode(RuntimeExecutionMode.BATCH);
         StreamTableEnvironment tableEnvironment = StreamTableEnvironment.create(environment);
         return compile(plan, tableEnvironment, scan -> scan(scan, tableEnvironment));
+    }
+
+    public CompiledTablePlan snapshotScan(
+            String catalog,
+            String namespace,
+            String table,
+            long snapshotId
+    ) {
+        StreamExecutionEnvironment environment = StreamExecutionEnvironment.getExecutionEnvironment();
+        environment.setRuntimeMode(RuntimeExecutionMode.BATCH);
+        StreamTableEnvironment tableEnvironment = StreamTableEnvironment.create(environment);
+        LogicalPlanNode.ScanInput scan = new LogicalPlanNode.ScanInput(
+                catalog, namespace, table, snapshotId, ScanLimit.unlimited()
+        );
+        return new CompiledTablePlan(tableEnvironment, scan(scan, tableEnvironment), List.of());
     }
 
     CompiledTablePlan compile(

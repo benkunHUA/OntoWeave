@@ -56,15 +56,15 @@ public final class OutputSchemaCompatibility {
         if (FLOATING.contains(left) && FLOATING.contains(right)) {
             return rank(right) >= rank(left);
         }
-        if (INTEGRAL.contains(left) && FLOATING.contains(right)) {
+        if (isInt(left) && "double".equals(right)) {
             return true;
         }
         if (left.startsWith("decimal") && right.startsWith("decimal")) {
             Decimal previousDecimal = decimal(left);
             Decimal nextDecimal = decimal(right);
             return previousDecimal != null && nextDecimal != null
-                    && nextDecimal.precision() >= previousDecimal.precision()
-                    && nextDecimal.scale() >= previousDecimal.scale();
+                    && nextDecimal.scale() >= previousDecimal.scale()
+                    && integerDigits(nextDecimal) >= integerDigits(previousDecimal);
         }
         if (left.startsWith("varchar") && right.startsWith("varchar")) {
             return varcharWidth(right) >= varcharWidth(left);
@@ -80,6 +80,14 @@ public final class OutputSchemaCompatibility {
             case "double" -> 4;
             default -> 0;
         };
+    }
+
+    private static boolean isInt(String type) {
+        return "int".equals(type) || "integer".equals(type);
+    }
+
+    private static long integerDigits(Decimal decimal) {
+        return (long) decimal.precision() - decimal.scale();
     }
 
     private static Decimal decimal(String type) {

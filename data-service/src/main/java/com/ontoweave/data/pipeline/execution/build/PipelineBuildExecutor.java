@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.domain.PipelineBuildEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStage;
-import com.ontoweave.data.pipeline.domain.PipelineDatasetEntity;
+import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineOutputStatus;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
@@ -17,7 +17,6 @@ import com.ontoweave.data.pipeline.execution.plan.PreviewPlanBuilder;
 import com.ontoweave.data.pipeline.execution.preview.PipelinePreviewService;
 import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
-import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineVersionRepository;
 import org.slf4j.Logger;
@@ -39,12 +38,12 @@ public class PipelineBuildExecutor {
     private final PipelineBuildOutputRepository buildOutputs;
     private final PipelineVersionRepository versions;
     private final PipelineOutputRepository outputs;
-    private final PipelineDatasetRepository datasets;
     private final PreviewPlanBuilder plans;
     private final PipelineDatasetWriter writer;
     private final ExpectationChecker expectations;
     private final PipelinePublisher publisher;
     private final PipelinePreviewService previews;
+    private final PipelineBuildBranchCleaner branchCleaner;
     private final ObjectMapper mapper;
 
     public PipelineBuildExecutor(
@@ -52,24 +51,24 @@ public class PipelineBuildExecutor {
             PipelineBuildOutputRepository buildOutputs,
             PipelineVersionRepository versions,
             PipelineOutputRepository outputs,
-            PipelineDatasetRepository datasets,
             PreviewPlanBuilder plans,
             PipelineDatasetWriter writer,
             ExpectationChecker expectations,
             PipelinePublisher publisher,
             PipelinePreviewService previews,
+            PipelineBuildBranchCleaner branchCleaner,
             ObjectMapper mapper
     ) {
         this.builds = builds;
         this.buildOutputs = buildOutputs;
         this.versions = versions;
         this.outputs = outputs;
-        this.datasets = datasets;
         this.plans = plans;
         this.writer = writer;
         this.expectations = expectations;
         this.publisher = publisher;
         this.previews = previews;
+        this.branchCleaner = branchCleaner;
         this.mapper = mapper;
     }
 
@@ -101,8 +100,13 @@ public class PipelineBuildExecutor {
     }
 
     private boolean releasePreview(PipelineBuildEntity build) {
-        previews.cancelForBuild(build.getPipelineId());
-        return previews.awaitReleased(build.getPipelineId(), PREVIEW_RELEASE_TIMEOUT);
+        try {
+            previews.cancelForBuild(build.getPipelineId());
+            return previews.awaitReleased(build.getPipelineId(), PREVIEW_RELEASE_TIMEOUT);
+        } catch (RuntimeException error) {
+            log.warn("failed to release preview for pipeline {}", build.getPipelineId(), error);
+            return false;
+        }
     }
 
     private void executeOutputs(PipelineBuildEntity build) {
@@ -168,12 +172,8 @@ public class PipelineBuildExecutor {
                 cancel(build);
                 return;
             }
-            PipelineDatasetEntity dataset = datasets.findByOutputId(frozen.outputId())
-                    .orElseThrow(() -> new PipelineBuildException(
-                            PipelineBuildConstants.CODE_EXECUTION_FAILED, "输出数据集不存在"
-                    ));
             List<ExpectationResult> results = expectations.check(
-                    ExpectationSet.from(dataset.getExpectations()),
+                    ExpectationSet.from(frozen.expectations()),
                     OutputSnapshot.from(snapshot)
             );
             ObjectNode result = PipelineOutputResultJson.result(mapper, snapshot, results);
@@ -246,8 +246,16 @@ public class PipelineBuildExecutor {
     }
 
     private void cancel(PipelineBuildEntity build) {
-        writer.cancel(build.getId());
         PipelineBuildEntity current = builds.findById(build.getId()).orElse(build);
+        if (terminal(current.getStatus())) {
+            return;
+        }
+        try {
+            writer.cancel(build.getId());
+        } catch (RuntimeException error) {
+            log.warn("failed to cancel engine job for build {}", build.getId(), error);
+            return;
+        }
         Instant now = Instant.now();
         for (PipelineBuildOutputEntity row : buildOutputs.findByBuildIdOrderByCreatedAtAsc(current.getId())) {
             if (row.getStatus() == PipelineOutputStatus.RUNNING
@@ -258,6 +266,7 @@ public class PipelineBuildExecutor {
         }
         current.markCanceled(now);
         builds.save(current);
+        branchCleaner.cleanup(current.getId());
     }
 
     private void updateStage(UUID buildId, PipelineBuildStage stage) {
@@ -266,7 +275,7 @@ public class PipelineBuildExecutor {
 
     private void fail(PipelineBuildEntity build, String code, String message) {
         PipelineBuildEntity current = builds.findById(build.getId()).orElse(build);
-        if (current.getStatus() == com.ontoweave.data.pipeline.domain.PipelineBuildStatus.CANCELED) {
+        if (terminal(current.getStatus())) {
             return;
         }
         Instant now = Instant.now();
@@ -283,5 +292,12 @@ public class PipelineBuildExecutor {
         }
         current.markFailed(code, message, now);
         builds.save(current);
+        branchCleaner.cleanup(current.getId());
+    }
+
+    private boolean terminal(PipelineBuildStatus status) {
+        return status == PipelineBuildStatus.SUCCEEDED
+                || status == PipelineBuildStatus.FAILED
+                || status == PipelineBuildStatus.CANCELED;
     }
 }

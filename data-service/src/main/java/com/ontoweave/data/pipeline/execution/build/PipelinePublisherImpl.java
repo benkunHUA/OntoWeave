@@ -32,6 +32,7 @@ public class PipelinePublisherImpl implements PipelinePublisher {
             } catch (RuntimeException error) {
                 log.warn("failed to fast-forward iceberg main for dataset {} snapshot {}",
                         dataset.datasetId(), dataset.snapshotId(), error);
+                continue;
             }
             try {
                 writer.dropBranch(dataset.datasetId(), dataset.branch());

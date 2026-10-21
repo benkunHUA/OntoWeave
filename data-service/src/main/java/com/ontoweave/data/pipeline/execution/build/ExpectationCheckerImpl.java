@@ -7,15 +7,19 @@ import com.ontoweave.data.pipeline.execution.output.OutputSnapshot;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 @Component
 public class ExpectationCheckerImpl implements ExpectationChecker {
+
+    private final ExpectationQueryExecutor queries;
+
+    public ExpectationCheckerImpl(ExpectationQueryExecutor queries) {
+        this.queries = queries;
+    }
 
     @Override
     public List<ExpectationResult> check(ExpectationSet expectations, OutputSnapshot snapshot) {
@@ -59,28 +63,17 @@ public class ExpectationCheckerImpl implements ExpectationChecker {
         if (columns.isEmpty()) {
             return failed("PRIMARY_KEY_UNIQUE", List.of(), "至少需要一列主键", 0L);
         }
-        Set<List<Object>> seen = new HashSet<>();
-        Set<Integer> failed = new HashSet<>();
-        for (int index = 0; index < snapshot.rows().size(); index++) {
-            Map<String, Object> row = snapshot.rows().get(index);
-            List<Object> key = new ArrayList<>();
-            boolean nullKey = false;
-            for (String column : columns) {
-                Object value = row.get(column);
-                if (value == null) {
-                    nullKey = true;
-                }
-                key.add(value);
-            }
-            if (nullKey || !seen.add(key)) {
-                failed.add(index);
-            }
-        }
-        long failedRows = failed.size();
+        ExpectationQueryExecutor.PrimaryKeyStats stats = queries.primaryKey(snapshot, columns);
+        long failedRows = stats.failedRows();
         return new ExpectationResult(
                 "PRIMARY_KEY_UNIQUE",
                 failedRows == 0,
-                Map.of("columns", columns, "failedRows", failedRows),
+                Map.of(
+                        "columns", columns,
+                        "failedRows", failedRows,
+                        "nullRows", stats.nullRows(),
+                        "duplicateRows", stats.duplicateRows()
+                ),
                 Map.of("unique", true, "notNull", true),
                 failedRows,
                 failedRows == 0 ? "主键唯一且非空" : "主键存在重复或空值"
@@ -111,21 +104,11 @@ public class ExpectationCheckerImpl implements ExpectationChecker {
         if (column == null || expectedValues.isEmpty()) {
             return failed("VALUE_SET", expectedValues, "列和候选值不能为空", 0L);
         }
-        Set<String> allowed = new HashSet<>(expectedValues);
-        Map<String, Integer> invalid = new LinkedHashMap<>();
-        Set<Integer> failed = new HashSet<>();
-        for (int index = 0; index < snapshot.rows().size(); index++) {
-            Object value = snapshot.rows().get(index).get(column);
-            if (value == null || !allowed.contains(String.valueOf(value))) {
-                failed.add(index);
-                invalid.merge(String.valueOf(value), 1, Integer::sum);
-            }
-        }
-        long failedRows = failed.size();
+        long failedRows = queries.invalidValueRows(snapshot, column, expectedValues);
         return new ExpectationResult(
                 "VALUE_SET",
                 failedRows == 0,
-                Map.of("column", column, "invalidValues", invalid),
+                Map.of("column", column, "failedRows", failedRows),
                 Map.of("values", expectedValues),
                 failedRows,
                 failedRows == 0 ? "取值均在候选集合内" : "存在不允许的取值"
@@ -137,25 +120,16 @@ public class ExpectationCheckerImpl implements ExpectationChecker {
         if (columns.isEmpty()) {
             return failed("NOT_NULL", List.of(), "至少需要一列", 0L);
         }
-        Map<String, Integer> nulls = new LinkedHashMap<>();
-        Set<Integer> failed = new HashSet<>();
-        for (String column : columns) {
-            nulls.put(column, 0);
-        }
-        for (int index = 0; index < snapshot.rows().size(); index++) {
-            Map<String, Object> row = snapshot.rows().get(index);
-            for (String column : columns) {
-                if (row.get(column) == null) {
-                    nulls.merge(column, 1, Integer::sum);
-                    failed.add(index);
-                }
-            }
-        }
-        long failedRows = failed.size();
+        ExpectationQueryExecutor.NullStats stats = queries.notNull(snapshot, columns);
+        long failedRows = stats.failedRows();
         return new ExpectationResult(
                 "NOT_NULL",
                 failedRows == 0,
-                Map.of("nullRowsByColumn", nulls),
+                Map.of(
+                        "columns", columns,
+                        "failedRows", failedRows,
+                        "nullRowsByColumn", stats.nullRowsByColumn()
+                ),
                 Map.of("columns", columns),
                 failedRows,
                 failedRows == 0 ? "指定列均非空" : "指定列存在空值"

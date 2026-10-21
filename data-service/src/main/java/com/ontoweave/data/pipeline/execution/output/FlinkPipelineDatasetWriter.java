@@ -14,8 +14,6 @@ import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
-import com.ontoweave.data.sync.iceberg.IcebergPreview;
-import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableResult;
@@ -26,7 +24,6 @@ import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,9 +37,9 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
     private final PipelineBuildOutputRepository buildOutputs;
     private final PipelineDatasetRepository datasets;
     private final PipelinePlanCompiler compiler;
+    private final OutputSchemaBaseline schemaBaseline;
     private final HadoopCatalogFactory catalogs;
     private final SyncProperties properties;
-    private final IcebergPreviewReader reader;
     private final ObjectMapper mapper;
     private final ConcurrentMap<UUID, JobClient> jobs = new ConcurrentHashMap<>();
 
@@ -51,18 +48,18 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
             PipelineBuildOutputRepository buildOutputs,
             PipelineDatasetRepository datasets,
             PipelinePlanCompiler compiler,
+            OutputSchemaBaseline schemaBaseline,
             HadoopCatalogFactory catalogs,
             SyncProperties properties,
-            IcebergPreviewReader reader,
             ObjectMapper mapper
     ) {
         this.outputs = outputs;
         this.buildOutputs = buildOutputs;
         this.datasets = datasets;
         this.compiler = compiler;
+        this.schemaBaseline = schemaBaseline;
         this.catalogs = catalogs;
         this.properties = properties;
-        this.reader = reader;
         this.mapper = mapper;
     }
 
@@ -78,7 +75,10 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 ));
         String namespace = OutputTableNames.NAMESPACE;
         String tableName = OutputTableNames.table(dataset.getId());
-        JsonNode previousSchema = tableSchema(namespace, tableName);
+        JsonNode previousSchema = schemaBaseline.resolve(dataset);
+        if (previousSchema == null) {
+            previousSchema = tableSchema(namespace, tableName);
+        }
         CompiledTablePlan compiled = compiler.compile(plan);
         JsonNode plannedSchema = OutputSchemaJson.from(mapper, compiled.table().getResolvedSchema());
         OutputSchemaCompatibility.assertCompatible(previousSchema, plannedSchema);
@@ -161,9 +161,19 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
 
     @Override
     public void cancel(UUID buildId) {
-        JobClient client = jobs.remove(buildId);
-        if (client != null) {
+        JobClient client = jobs.get(buildId);
+        if (client == null) {
+            return;
+        }
+        try {
             client.cancel();
+            jobs.remove(buildId, client);
+        } catch (RuntimeException error) {
+            throw new PipelineBuildException(
+                    PipelineBuildConstants.CODE_EXECUTION_FAILED,
+                    "取消 Flink 作业失败",
+                    error
+            );
         }
     }
 
@@ -194,13 +204,6 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         OutputSchemaCompatibility.assertCompatible(previousSchema, schema);
         Map<String, String> summary = snapshot.summary();
         long rowCount = longValue(summary.get("total-records"));
-        List<Map<String, Object>> rows = reader.read(
-                properties.icebergCatalog(),
-                namespace,
-                tableName,
-                snapshot.snapshotId(),
-                (int) Math.min(rowCount, Integer.MAX_VALUE)
-        ).map(IcebergPreview::rows).orElse(List.of());
         return new WrittenSnapshot(
                 datasetId,
                 properties.icebergCatalog(),
@@ -213,8 +216,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 longValue(summary.get("total-file-size-bytes")),
                 table.location(),
                 Instant.ofEpochMilli(snapshot.timestampMillis()),
-                engineJobId,
-                rows
+                engineJobId
         );
     }
 

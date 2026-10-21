@@ -241,6 +241,16 @@ public class PipelineBuildEntity {
         this.heartbeatAt = now;
     }
 
+    public void markQueued() {
+        this.status = PipelineBuildStatus.QUEUED;
+        this.stage = null;
+        this.startedAt = null;
+        this.heartbeatAt = null;
+        this.finishedAt = null;
+        this.errorCode = null;
+        this.errorMessage = null;
+    }
+
     public void updateLogicHash(String logicHash) {
         this.logicHash = logicHash;
     }

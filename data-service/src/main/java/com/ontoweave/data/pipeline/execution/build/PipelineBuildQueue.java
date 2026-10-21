@@ -26,17 +26,26 @@ public class PipelineBuildQueue {
     private final PipelineBuildOutputRepository outputs;
     private final PipelineDatasetWriter writer;
     private final FlinkRestClient flink;
+    private final PipelineBuildHeartbeat heartbeat;
+    private final PipelineBuildRecovery recovery;
+    private final PipelineBuildBranchCleaner branchCleaner;
 
     public PipelineBuildQueue(
             PipelineBuildRepository builds,
             PipelineBuildOutputRepository outputs,
             PipelineDatasetWriter writer,
-            FlinkRestClient flink
+            FlinkRestClient flink,
+            PipelineBuildHeartbeat heartbeat,
+            PipelineBuildRecovery recovery,
+            PipelineBuildBranchCleaner branchCleaner
     ) {
         this.builds = builds;
         this.outputs = outputs;
         this.writer = writer;
         this.flink = flink;
+        this.heartbeat = heartbeat;
+        this.recovery = recovery;
+        this.branchCleaner = branchCleaner;
     }
 
     @Transactional
@@ -68,49 +77,40 @@ public class PipelineBuildQueue {
         return null;
     }
 
-    @Transactional
     public void heartbeat(UUID buildId) {
-        builds.lockById(buildId)
-                .filter(build -> build.getStatus() == PipelineBuildStatus.RUNNING)
-                .ifPresent(build -> {
-                    build.heartbeat(Instant.now());
-                    builds.save(build);
-                    if (build.getCancelRequestedAt() != null) {
-                        writer.cancel(buildId);
-                    }
-                });
+        if (heartbeat.mark(buildId)) {
+            writer.cancel(buildId);
+        }
+    }
+
+    public int recoverLost(Duration timeout) {
+        int recovered = 0;
+        while (true) {
+            List<PipelineBuildRecovery.LostBuild> lost = recovery.markLost(timeout);
+            if (lost.isEmpty()) {
+                return recovered;
+            }
+            for (PipelineBuildRecovery.LostBuild build : lost) {
+                for (String jobId : build.engineJobIds()) {
+                    cancelEngineJob(jobId);
+                }
+                branchCleaner.cleanup(build.buildId());
+            }
+            recovered += lost.size();
+            if (lost.size() < PipelineBuildRecovery.BATCH_SIZE) {
+                return recovered;
+            }
+        }
     }
 
     @Transactional
-    public int recoverLost(Duration timeout) {
-        Instant cutoff = Instant.now().minus(timeout);
-        List<PipelineBuildEntity> stale = builds.findStaleRunning(PipelineBuildStatus.RUNNING, cutoff);
-        for (PipelineBuildEntity build : stale) {
-            List<PipelineBuildOutputEntity> rows = outputs.findByBuildIdOrderByCreatedAtAsc(build.getId());
-            for (PipelineBuildOutputEntity row : rows) {
-                cancelEngineJob(row.getEngineJobId());
-                if (row.getStatus() == PipelineOutputStatus.RUNNING
-                        || row.getStatus() == PipelineOutputStatus.QUEUED) {
-                    row.markFailed(
-                            PipelineBuildStage.FINISHED,
-                            PipelineBuildConstants.CODE_WORKER_LOST,
-                            "构建 worker 心跳超时",
-                            row.getResult(),
-                            row.getStats(),
-                            Instant.now()
-                    );
-                    outputs.save(row);
-                }
-            }
-            writer.cancel(build.getId());
-            build.markFailed(
-                    PipelineBuildConstants.CODE_WORKER_LOST,
-                    "构建 worker 心跳超时",
-                    Instant.now()
-            );
-            builds.save(build);
-        }
-        return stale.size();
+    public void requeue(UUID buildId) {
+        builds.lockById(buildId)
+                .filter(build -> build.getStatus() == PipelineBuildStatus.RUNNING)
+                .ifPresent(build -> {
+                    build.markQueued();
+                    builds.save(build);
+                });
     }
 
     private void cancelEngineJob(String jobId) {

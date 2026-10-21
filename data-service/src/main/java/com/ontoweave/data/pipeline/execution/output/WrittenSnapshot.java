@@ -3,8 +3,6 @@ package com.ontoweave.data.pipeline.execution.output;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 public record WrittenSnapshot(
@@ -19,11 +17,6 @@ public record WrittenSnapshot(
         long byteSize,
         String storagePath,
         Instant committedAt,
-        String engineJobId,
-        List<Map<String, Object>> rows
+        String engineJobId
 ) {
-
-    public WrittenSnapshot {
-        rows = rows == null ? List.of() : List.copyOf(rows);
-    }
 }

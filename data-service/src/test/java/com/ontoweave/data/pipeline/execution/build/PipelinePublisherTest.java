@@ -65,6 +65,7 @@ class PipelinePublisherTest {
         when(versions.findByBuildOutputId(any())).thenReturn(Optional.empty());
         when(versions.save(any(PipelineDatasetVersionEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(datasets.activateVersion(any(), any())).thenReturn(1);
         when(pipelines.activateVersion(
                 fixture.build().getPipelineId(), fixture.build().getPipelineVersionId()
         )).thenReturn(1);
@@ -98,7 +99,7 @@ class PipelinePublisherTest {
     }
 
     @Test
-    void fastForwardsAndDropsBranchesAfterTheTransaction() {
+    void fastForwardsAndDropsBranchesButKeepsTheBranchWhenFastForwardFails() {
         UUID buildId = UUID.randomUUID();
         UUID datasetA = UUID.randomUUID();
         UUID datasetB = UUID.randomUUID();
@@ -118,9 +119,34 @@ class PipelinePublisherTest {
         publisher.publish(buildId);
 
         verify(writer).fastForwardMain(datasetA, 11L);
-        verify(writer).dropBranch(datasetA, "build_" + buildId);
+        verify(writer, never()).dropBranch(datasetA, "build_" + buildId);
         verify(writer).fastForwardMain(datasetB, 12L);
         verify(writer).dropBranch(datasetB, "build_" + buildId);
+    }
+
+    @Test
+    void refusesToPublishWhenADatasetPointerCannotBeSwitched() {
+        Fixture fixture = fixture();
+        when(builds.lockById(fixture.buildId())).thenReturn(Optional.of(fixture.build()));
+        when(buildOutputs.findByBuildIdOrderByCreatedAtAsc(fixture.buildId()))
+                .thenReturn(List.of(fixture.outputA()));
+        when(datasets.findByOutputId(fixture.outputA().getOutputId()))
+                .thenReturn(Optional.of(fixture.datasetA()));
+        when(versions.findTopByDatasetIdOrderByVersionNumberDesc(fixture.datasetA().getId()))
+                .thenReturn(Optional.empty());
+        when(versions.findByBuildOutputId(any())).thenReturn(Optional.empty());
+        when(versions.save(any(PipelineDatasetVersionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(datasets.activateVersion(any(), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> transaction.publish(fixture.buildId()))
+                .isInstanceOfSatisfying(PipelineBuildException.class, error ->
+                        assertThat(error.errorCode())
+                                .isEqualTo(PipelineBuildConstants.CODE_PUBLISH_FAILED));
+
+        verify(pipelines, never()).activateVersion(any(), any());
+        verify(outbox, never()).write(any(), any(), any(), any());
+        assertThat(fixture.build().getStatus()).isEqualTo(PipelineBuildStatus.RUNNING);
     }
 
     @Test

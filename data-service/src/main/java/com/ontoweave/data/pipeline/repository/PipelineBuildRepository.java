@@ -50,14 +50,17 @@ public interface PipelineBuildRepository extends JpaRepository<PipelineBuildEnti
             @Param("status") PipelineBuildStatus status
     );
 
-    @Query("""
-            select b from PipelineBuildEntity b
-            where b.status = :status
-              and (b.heartbeatAt is null or b.heartbeatAt < :cutoff)
-            """)
-    List<PipelineBuildEntity> findStaleRunning(
-            @Param("status") PipelineBuildStatus status,
-            @Param("cutoff") Instant cutoff
+    @Query(value = """
+            SELECT * FROM data.pipeline_build
+            WHERE status = 'running'
+              AND (heartbeat_at IS NULL OR heartbeat_at < :cutoff)
+            ORDER BY created_at, id
+            FOR UPDATE SKIP LOCKED
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<PipelineBuildEntity> lockStaleRunning(
+            @Param("cutoff") Instant cutoff,
+            @Param("limit") int limit
     );
 
     @Query(value = """
