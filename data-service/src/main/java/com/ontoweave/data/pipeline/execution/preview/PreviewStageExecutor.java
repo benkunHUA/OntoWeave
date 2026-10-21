@@ -66,7 +66,7 @@ final class PreviewStageExecutor {
                     Map.of("blockingIssues", check.blockingIssues())
             );
         }
-        LogicalPlan plan = planBuilder.build(
+        LogicalPlan plan = planBuilder.buildForPreview(
                 pipelineId, ownerId, request.draftRevision(), request.nodeId()
         );
         ensureActive(lease);

@@ -10,6 +10,7 @@ import com.ontoweave.data.pipeline.execution.flink.FlinkTableExecutor;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PlanStep;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimit;
 import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 import com.ontoweave.data.sync.iceberg.PreviewColumn;
 
@@ -104,7 +105,7 @@ final class PipelinePreviewTestSupport {
                 input.icebergNamespace(),
                 input.icebergTable(),
                 input.icebergSnapshotId(),
-                50_000
+                ScanLimit.preview(50_000)
         );
     }
 

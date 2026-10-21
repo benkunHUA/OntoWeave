@@ -59,7 +59,9 @@ class ScanLimitEvaluatorTest {
         PlanStep root = new PlanStep(
                 UUID.randomUUID().toString(),
                 "input",
-                new LogicalPlanNode.ScanInput("ontoweave", "sales", "orders", 100L, scanLimit),
+                new LogicalPlanNode.ScanInput(
+                        "ontoweave", "sales", "orders", 100L, ScanLimit.preview(scanLimit)
+                ),
                 List.of()
         );
         return LogicalPlan.of(root, 4L, root.nodeId(), Map.of());

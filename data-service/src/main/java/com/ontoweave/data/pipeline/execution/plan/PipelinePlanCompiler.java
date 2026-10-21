@@ -40,18 +40,19 @@ public class PipelinePlanCompiler {
         return new CompiledTablePlan(tableEnvironment, result.table(), result.hiddenColumns());
     }
 
-    private Table scan(LogicalPlanNode.ScanInput scan, StreamTableEnvironment tableEnvironment) {
+    Table scan(LogicalPlanNode.ScanInput scan, StreamTableEnvironment tableEnvironment) {
         registerCatalog(scan, tableEnvironment);
-        TableDescriptor descriptor = TableDescriptor.forConnector("iceberg")
+        TableDescriptor.Builder descriptor = TableDescriptor.forConnector("iceberg")
                 .option("catalog-name", scan.catalog())
                 .option(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP)
                 .option("catalog-database", scan.namespace())
                 .option("catalog-table", scan.table())
                 .option("warehouse", warehouse)
-                .option("snapshot-id", Long.toString(scan.snapshotId()))
-                .option("limit", Integer.toString(scan.scanLimit()))
-                .build();
-        return tableEnvironment.from(descriptor);
+                .option("snapshot-id", Long.toString(scan.snapshotId()));
+        if (scan.scanLimit().limited()) {
+            descriptor.option("limit", Integer.toString(scan.scanLimit().maxRows()));
+        }
+        return tableEnvironment.from(descriptor.build());
     }
 
     private void registerCatalog(LogicalPlanNode.ScanInput scan, StreamTableEnvironment tableEnvironment) {

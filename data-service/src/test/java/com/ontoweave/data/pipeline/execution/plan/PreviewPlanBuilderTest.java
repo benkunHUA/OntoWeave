@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.domain.PipelineDraftEntity;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
+import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.source.DisplaySnapshot;
 import com.ontoweave.data.pipeline.execution.build.PipelineInputResolver;
 import com.ontoweave.data.pipeline.execution.build.ResolvedInput;
@@ -85,7 +86,7 @@ class PreviewPlanBuilderTest {
                 LogicalPlanNode.ScanInput.class,
                 scan -> {
                     assertThat(scan.snapshotId()).isEqualTo(100L);
-                    assertThat(scan.scanLimit()).isEqualTo(50_000);
+                    assertThat(scan.scanLimit()).isEqualTo(ScanLimit.preview(50_000));
                     assertThat(scan.catalog()).isEqualTo("ontoweave");
                     assertThat(scan.namespace()).isEqualTo("sales");
                     assertThat(scan.table()).isEqualTo("orders");
@@ -123,6 +124,39 @@ class PreviewPlanBuilderTest {
 
         assertThat(plan.root().inputs()).hasSize(2);
         assertThat(plan.inputVersions()).containsExactly(left, right);
+    }
+
+    @Test
+    void buildPlanLeavesEveryScanUnlimited() {
+        UUID leftNode = UUID.randomUUID();
+        UUID rightNode = UUID.randomUUID();
+        UUID joinNode = UUID.randomUUID();
+        ResolvedInput left = input(UUID.randomUUID(), 100L);
+        ResolvedInput right = input(UUID.randomUUID(), 200L);
+        ObjectNode definition = definition();
+        definition.withArray("nodes").add(inputNode(leftNode, left.datasetId()));
+        definition.withArray("nodes").add(inputNode(rightNode, right.datasetId()));
+        definition.withArray("nodes").add(transformNode(joinNode, "join", mapper.createObjectNode()
+                .put("joinType", "inner")
+                .set("keys", mapper.createArrayNode().add(mapper.createObjectNode()
+                        .put("left", "customer_id")
+                        .put("right", "id")))));
+        definition.withArray("edges").add(edge(leftNode, "out", joinNode, "left"));
+        definition.withArray("edges").add(edge(rightNode, "out", joinNode, "right"));
+        PipelineVersionEntity version = new PipelineVersionEntity(
+                UUID.randomUUID(), PIPELINE_ID, 2, definition, mapper.createArrayNode(),
+                "hash", mapper.createArrayNode(), REVISION, OWNER_ID
+        );
+
+        LogicalPlan plan = builder.buildForBuild(version, List.of(left, right), joinNode.toString());
+
+        List<LogicalPlanNode.ScanInput> scans = plan.nodes().stream()
+                .map(PlanStep::node)
+                .filter(LogicalPlanNode.ScanInput.class::isInstance)
+                .map(LogicalPlanNode.ScanInput.class::cast)
+                .toList();
+        assertThat(scans).hasSize(2)
+                .allSatisfy(scan -> assertThat(scan.scanLimit().limited()).isFalse());
     }
 
     private PipelineDraftEntity draft(ObjectNode definition) {

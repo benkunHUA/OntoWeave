@@ -10,6 +10,7 @@ import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
 import com.ontoweave.data.pipeline.execution.plan.PreviewPlanBuilder;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -34,6 +35,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
     private final boolean ownsWorkers;
     private final PreviewRegistry registry;
 
+    @Autowired
     public PipelinePreviewServiceImpl(
             PipelineCheckService checks,
             PreviewPlanBuilder planBuilder,

@@ -1,17 +1,44 @@
 package com.ontoweave.data.pipeline.execution.plan;
 
 import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.expressions.Expression;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class PipelinePlanCompilerTest extends PipelinePlanCompilerTestSupport {
+
+    @Test
+    void appliesIcebergLimitOnlyToLimitedScans() {
+        StreamTableEnvironment environment = mock(StreamTableEnvironment.class);
+        AtomicReference<TableDescriptor> descriptor = new AtomicReference<>();
+        when(environment.listCatalogs()).thenReturn(new String[]{"ontoweave"});
+        when(environment.from(any(TableDescriptor.class))).thenAnswer(invocation -> {
+            descriptor.set(invocation.getArgument(0));
+            return table("id");
+        });
+        LogicalPlanNode.ScanInput limited = new LogicalPlanNode.ScanInput(
+                "ontoweave", "sales", "orders", 100L, ScanLimit.preview(50_000)
+        );
+        LogicalPlanNode.ScanInput unlimited = new LogicalPlanNode.ScanInput(
+                "ontoweave", "sales", "orders", 100L, ScanLimit.unlimited()
+        );
+
+        compiler.scan(limited, environment);
+        assertThat(descriptor.get().getOptions()).containsEntry("limit", "50000");
+
+        compiler.scan(unlimited, environment);
+        assertThat(descriptor.get().getOptions()).doesNotContainKey("limit");
+    }
 
     @Test
     void keepsJoinRightBranchCastFlagsHiddenWithSynchronizedDescriptors() {

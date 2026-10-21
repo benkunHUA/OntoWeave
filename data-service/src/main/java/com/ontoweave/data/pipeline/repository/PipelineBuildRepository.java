@@ -27,6 +27,16 @@ public interface PipelineBuildRepository extends JpaRepository<PipelineBuildEnti
     @Query(value = "SELECT * FROM data.pipeline_build WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<PipelineBuildEntity> lockById(@Param("id") UUID id);
 
+    @Query(value = """
+            SELECT * FROM data.pipeline_build
+            WHERE id = :id AND pipeline_id = :pipelineId
+            FOR UPDATE
+            """, nativeQuery = true)
+    Optional<PipelineBuildEntity> lockByIdAndPipelineId(
+            @Param("id") UUID id,
+            @Param("pipelineId") UUID pipelineId
+    );
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Transactional
     @Query("""

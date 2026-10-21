@@ -6,6 +6,7 @@ import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PipelinePlanCompiler;
 import com.ontoweave.data.pipeline.execution.plan.PlanStep;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimit;
 import com.ontoweave.data.pipeline.execution.plan.ScanLimitAssessment;
 import com.ontoweave.data.pipeline.execution.plan.ScanLimitEvaluator;
 import org.apache.flink.table.api.DataTypes;
@@ -213,7 +214,9 @@ class ProcessFlinkTableExecutorTest {
         PlanStep scan = new PlanStep(
                 UUID.randomUUID().toString(),
                 "input",
-                new LogicalPlanNode.ScanInput("ontoweave", "sales", "orders", 100L, 50_000),
+                new LogicalPlanNode.ScanInput(
+                        "ontoweave", "sales", "orders", 100L, ScanLimit.preview(50_000)
+                ),
                 List.of()
         );
         PlanStep filter = new PlanStep(

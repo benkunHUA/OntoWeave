@@ -1,6 +1,5 @@
 package com.ontoweave.data.pipeline.execution.build;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ontoweave.data.common.web.ApiException;
 import com.ontoweave.data.pipeline.check.PipelineCheckResult;
@@ -9,7 +8,6 @@ import com.ontoweave.data.pipeline.domain.PipelineBuildEntity;
 import com.ontoweave.data.pipeline.domain.PipelineBuildStatus;
 import com.ontoweave.data.pipeline.domain.PipelineBuildTrigger;
 import com.ontoweave.data.pipeline.domain.PipelineEntity;
-import com.ontoweave.data.pipeline.domain.PipelineOutputType;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
@@ -21,7 +19,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +36,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     private final PipelineVersionFreezer freezer;
     private final PipelineBuildRepository builds;
     private final PipelineBuildOutputRepository outputs;
+    private final PipelineBuildCreator creator;
     private final PipelineBuildMapper mapper;
     private final ObjectMapper json;
 
@@ -49,6 +47,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
             PipelineVersionFreezer freezer,
             PipelineBuildRepository builds,
             PipelineBuildOutputRepository outputs,
+            PipelineBuildCreator creator,
             PipelineBuildMapper mapper,
             ObjectMapper json
     ) {
@@ -58,12 +57,12 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         this.freezer = freezer;
         this.builds = builds;
         this.outputs = outputs;
+        this.creator = creator;
         this.mapper = mapper;
         this.json = json;
     }
 
     @Override
-    @Transactional
     public BuildResponse enqueue(UUID pipelineId, UUID ownerId, CreateBuildRequest request) {
         requireOwned(pipelineId, ownerId);
         requireOperation(request);
@@ -96,11 +95,14 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
                 PipelineResolvedInputs.toJson(json, frozen.resolvedInputs()),
                 json.createObjectNode()
         );
-        return save(build, frozen.version());
+        try {
+            return response(creator.create(build, frozen.version()));
+        } catch (DataIntegrityViolationException error) {
+            return recoverConflict(pipelineId, request.operationId(), error);
+        }
     }
 
     @Override
-    @Transactional
     public UUID enqueueScheduled(EnqueueScheduledBuild command) {
         if (command == null || command.pipelineId() == null
                 || command.pipelineVersionId() == null || command.operationId() == null) {
@@ -129,8 +131,11 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
                 json.createObjectNode()
         );
         build.updateLogicHash(command.logicHash());
-        save(build, version);
-        return build.getId();
+        try {
+            return creator.create(build, version).getId();
+        } catch (DataIntegrityViolationException error) {
+            return recoverConflict(command.pipelineId(), command.operationId(), error).id();
+        }
     }
 
     @Override
@@ -146,7 +151,7 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     @Transactional
     public void requestCancel(UUID pipelineId, UUID buildId, UUID ownerId) {
         requireOwned(pipelineId, ownerId);
-        PipelineBuildEntity build = builds.findByIdAndPipelineId(buildId, pipelineId)
+        PipelineBuildEntity build = builds.lockByIdAndPipelineId(buildId, pipelineId)
                 .orElseThrow(() -> notFound("构建不存在"));
         if (build.getStatus() != PipelineBuildStatus.QUEUED
                 && build.getStatus() != PipelineBuildStatus.RUNNING) {
@@ -156,40 +161,20 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
         builds.save(build);
     }
 
-    private BuildResponse save(PipelineBuildEntity build, PipelineVersionEntity version) {
-        try {
-            builds.saveAndFlush(build);
-        } catch (DataIntegrityViolationException error) {
-            Optional<PipelineBuildEntity> existing = builds
-                    .findByPipelineIdAndOperationId(build.getPipelineId(), build.getOperationId());
-            if (existing.isPresent()) {
-                return response(existing.get());
-            }
+    private BuildResponse recoverConflict(
+            UUID pipelineId,
+            UUID operationId,
+            DataIntegrityViolationException error
+    ) {
+        Optional<PipelineBuildEntity> existing = builds
+                .findByPipelineIdAndOperationId(pipelineId, operationId);
+        if (existing.isPresent()) {
+            return response(existing.get());
+        }
+        if (builds.existsByPipelineIdAndStatusIn(pipelineId, ACTIVE_STATUSES)) {
             throw activeBuild();
         }
-        writeOutputs(build.getId(), version.getOutputs());
-        return response(build);
-    }
-
-    private void writeOutputs(UUID buildId, JsonNode frozenOutputs) {
-        List<com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity> rows = new ArrayList<>();
-        for (PipelineFrozenOutput output : PipelineFrozenOutput.from(frozenOutputs, json)) {
-            if (output.outputId() == null) {
-                continue;
-            }
-            rows.add(new com.ontoweave.data.pipeline.domain.PipelineBuildOutputEntity(
-                    UUID.randomUUID(),
-                    buildId,
-                    output.outputId(),
-                    output.outputType() == null ? PipelineOutputType.DATASET : output.outputType(),
-                    com.ontoweave.data.pipeline.domain.PipelineOutputStatus.QUEUED,
-                    json.createObjectNode(),
-                    json.createObjectNode()
-            ));
-        }
-        if (!rows.isEmpty()) {
-            outputs.saveAll(rows);
-        }
+        throw error;
     }
 
     private BuildResponse response(PipelineBuildEntity build) {

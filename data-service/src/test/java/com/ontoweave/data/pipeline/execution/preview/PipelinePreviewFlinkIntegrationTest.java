@@ -8,6 +8,7 @@ import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
 import com.ontoweave.data.pipeline.execution.plan.PipelinePlanCompiler;
 import com.ontoweave.data.pipeline.execution.plan.PlanStep;
+import com.ontoweave.data.pipeline.execution.plan.ScanLimit;
 import com.ontoweave.data.pipeline.execution.plan.ScanLimitEvaluator;
 import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
 import com.ontoweave.data.sync.iceberg.IcebergSnapshotMetrics;
@@ -86,7 +87,7 @@ class PipelinePreviewFlinkIntegrationTest {
                 UUID.randomUUID().toString(),
                 "input",
                 new LogicalPlanNode.ScanInput(
-                        "ontoweave", "preview", "orders", snapshotId, 50_000
+                        "ontoweave", "preview", "orders", snapshotId, ScanLimit.preview(50_000)
                 ),
                 List.of()
         );

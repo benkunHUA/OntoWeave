@@ -157,7 +157,9 @@ abstract class PipelinePlanCompilerTestSupport {
         return new PlanStep(
                 UUID.randomUUID().toString(),
                 "input",
-                new LogicalPlanNode.ScanInput("ontoweave", "sales", table, 100L, 50_000),
+                new LogicalPlanNode.ScanInput(
+                        "ontoweave", "sales", table, 100L, ScanLimit.preview(50_000)
+                ),
                 List.of()
         );
     }

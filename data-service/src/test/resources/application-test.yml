@@ -30,6 +30,9 @@ ontoweave:
     enabled: false
     exchange: ontoweave.data.events
     poll-interval-ms: 60000
+  pipeline:
+    build:
+      worker-enabled: false
   sync:
     dispatch-enabled: false
     supervisor-enabled: false

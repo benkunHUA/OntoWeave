@@ -28,6 +28,9 @@ public class ScanLimitEvaluator {
         boolean limited = false;
         long total = 0L;
         for (LogicalPlanNode.ScanInput scan : scans.values()) {
+            if (!scan.scanLimit().limited()) {
+                continue;
+            }
             Optional<Long> count = metrics.recordCount(
                     scan.catalog(), scan.namespace(), scan.table(), scan.snapshotId()
             );
@@ -35,7 +38,7 @@ public class ScanLimitEvaluator {
                 known = false;
                 continue;
             }
-            limited = limited || count.get() > scan.scanLimit();
+            limited = limited || count.get() > scan.scanLimit().maxRows();
             try {
                 total = Math.addExact(total, count.get());
             } catch (ArithmeticException error) {
@@ -49,7 +52,13 @@ public class ScanLimitEvaluator {
             LogicalPlanNode.ScanInput left,
             LogicalPlanNode.ScanInput right
     ) {
-        return left.scanLimit() <= right.scanLimit() ? left : right;
+        if (!left.scanLimit().limited()) {
+            return right;
+        }
+        if (!right.scanLimit().limited()) {
+            return left;
+        }
+        return left.scanLimit().maxRows() <= right.scanLimit().maxRows() ? left : right;
     }
 
     private String scanKey(LogicalPlanNode.ScanInput scan) {

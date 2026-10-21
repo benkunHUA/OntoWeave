@@ -1,13 +1,16 @@
 package com.ontoweave.data.pipeline.graph;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.ontoweave.data.pipeline.check.PipelineIssue;
 import com.ontoweave.data.pipeline.check.PipelineIssueCodes;
+import com.ontoweave.data.pipeline.expectation.ExpectationRules;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -141,16 +144,25 @@ final class OutputValidator {
                 expectationIssue(nodeId, null, "expectation 必须是对象", issues);
                 continue;
             }
-            String type = expectation.path("type").asText(null);
-            if (type == null) {
+            String rawType = expectation.path("type").asText(null);
+            if (rawType == null) {
                 expectationIssue(nodeId, null, "expectation.type 不能为空", issues);
                 continue;
             }
-            switch (type) {
-                case "rowCount" -> validateRowCount(nodeId, expectation, issues);
-                case "acceptedValues" -> validateAcceptedValues(nodeId, expectation, schema, issues);
-                case "notNull" -> validateNotNull(nodeId, expectation, schema, issues);
-                default -> expectationIssue(nodeId, "type", "不支持的 expectation 类型: " + type, issues);
+            Optional<ObjectNode> normalized = ExpectationRules.normalize(expectation);
+            if (normalized.isEmpty()) {
+                expectationIssue(nodeId, "type", "不支持的 expectation 类型: " + rawType, issues);
+                continue;
+            }
+            ObjectNode rule = normalized.get();
+            switch (rule.path("type").asText()) {
+                case ExpectationRules.PRIMARY_KEY_UNIQUE ->
+                        validateColumns(nodeId, ExpectationRules.PRIMARY_KEY_UNIQUE, rule, schema, issues);
+                case ExpectationRules.ROW_COUNT_RANGE -> validateRowCount(nodeId, rule, issues);
+                case ExpectationRules.VALUE_SET -> validateAcceptedValues(nodeId, rule, schema, issues);
+                case ExpectationRules.NOT_NULL ->
+                        validateColumns(nodeId, ExpectationRules.NOT_NULL, rule, schema, issues);
+                default -> throw new IllegalStateException("normalized expectation type is invalid");
             }
         }
     }
@@ -159,17 +171,22 @@ final class OutputValidator {
         JsonNode minNode = expectation.get("min");
         JsonNode maxNode = expectation.get("max");
         if (minNode == null && maxNode == null) {
-            expectationIssue(nodeId, null, "rowCount 至少需要 min 或 max", issues);
+            expectationIssue(nodeId, null, "ROW_COUNT_RANGE 至少需要 min 或 max", issues);
             return;
         }
         Long min = nonNegativeLong(minNode);
         Long max = nonNegativeLong(maxNode);
         if ((minNode != null && min == null) || (maxNode != null && max == null)) {
-            expectationIssue(nodeId, minNode != null && min == null ? "min" : "max", "rowCount 边界必须是非负整数", issues);
+            expectationIssue(
+                    nodeId,
+                    minNode != null && min == null ? "min" : "max",
+                    "ROW_COUNT_RANGE 边界必须是非负整数",
+                    issues
+            );
             return;
         }
         if (min != null && max != null && min > max) {
-            expectationIssue(nodeId, "min", "rowCount min 不能大于 max", issues);
+            expectationIssue(nodeId, "min", "ROW_COUNT_RANGE min 不能大于 max", issues);
         }
     }
 
@@ -182,35 +199,36 @@ final class OutputValidator {
         String column = expectation.path("column").asText(null);
         JsonNode values = expectation.path("values");
         if (column == null || column.isBlank()) {
-            expectationIssue(nodeId, "column", "acceptedValues.column 不能为空", issues);
+            expectationIssue(nodeId, "column", "VALUE_SET.column 不能为空", issues);
         } else if (schema != null && field(schema, column) == null) {
             expectationIssue(nodeId, "column", "期望字段不存在: " + column, issues);
         }
         if (!values.isArray() || values.isEmpty()) {
-            expectationIssue(nodeId, "values", "acceptedValues.values 不能为空", issues);
+            expectationIssue(nodeId, "values", "VALUE_SET.values 不能为空", issues);
         }
     }
 
-    private void validateNotNull(
+    private void validateColumns(
             String nodeId,
+            String type,
             JsonNode expectation,
             List<FieldSchema> schema,
             List<PipelineIssue> issues
     ) {
         JsonNode columns = expectation.path("columns");
         if (!columns.isArray() || columns.isEmpty()) {
-            expectationIssue(nodeId, "columns", "notNull.columns 不能为空", issues);
+            expectationIssue(nodeId, "columns", type + ".columns 不能为空", issues);
             return;
         }
         Set<String> seen = new HashSet<>();
         for (JsonNode value : columns) {
             if (!value.isTextual() || value.asText().isBlank()) {
-                expectationIssue(nodeId, "columns", "notNull 字段必须是非空字符串", issues);
+                expectationIssue(nodeId, "columns", type + " 字段必须是非空字符串", issues);
                 continue;
             }
             String column = value.asText();
             if (!seen.add(column)) {
-                expectationIssue(nodeId, "columns", "notNull 字段重复: " + column, issues);
+                expectationIssue(nodeId, "columns", type + " 字段重复: " + column, issues);
             }
             if (schema != null && field(schema, column) == null) {
                 expectationIssue(nodeId, "columns", "期望字段不存在: " + column, issues);

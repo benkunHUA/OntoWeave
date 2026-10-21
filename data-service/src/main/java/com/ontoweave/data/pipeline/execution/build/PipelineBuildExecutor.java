@@ -156,7 +156,7 @@ public class PipelineBuildExecutor {
                     .orElseThrow(() -> new PipelineBuildException(
                             PipelineBuildConstants.CODE_EXECUTION_FAILED, "输出不存在"
                     ));
-            LogicalPlan plan = plans.build(version, resolved, output.getNodeId().toString());
+            LogicalPlan plan = plans.buildForBuild(version, resolved, output.getNodeId().toString());
             String branch = PipelineBuildConstants.BRANCH_PREFIX + build.getId();
             snapshot = writer.write(build.getId(), frozen.outputId(), plan, branch);
             if (snapshot.engineJobId() != null) {

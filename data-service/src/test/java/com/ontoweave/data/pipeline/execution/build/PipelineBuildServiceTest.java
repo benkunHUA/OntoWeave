@@ -47,10 +47,11 @@ class PipelineBuildServiceTest {
     private final PipelineVersionFreezer freezer = mock(PipelineVersionFreezer.class);
     private final PipelineBuildRepository builds = mock(PipelineBuildRepository.class);
     private final PipelineBuildOutputRepository outputs = mock(PipelineBuildOutputRepository.class);
+    private final PipelineBuildCreator creator = mock(PipelineBuildCreator.class);
     private final PipelineVersionRepository versions = mock(PipelineVersionRepository.class);
     private final PipelineBuildMapper responseMapper = mock(PipelineBuildMapper.class);
     private final PipelineBuildService service = new PipelineBuildServiceImpl(
-            pipelines, versions, checks, freezer, builds, outputs, responseMapper, mapper
+            pipelines, versions, checks, freezer, builds, outputs, creator, responseMapper, mapper
     );
 
     @BeforeEach
@@ -126,16 +127,14 @@ class PipelineBuildServiceTest {
         when(builds.existsByPipelineIdAndStatusIn(any(), anyList())).thenReturn(false);
         when(freezer.freeze(PIPELINE_ID, OWNER_ID, REVISION))
                 .thenReturn(new FrozenBuild(version, List.of(input)));
-        when(builds.saveAndFlush(any(PipelineBuildEntity.class)))
+        when(creator.create(any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(outputs.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
         when(responseMapper.toResponse(any(PipelineBuildEntity.class), anyList()))
                 .thenReturn(mock(BuildResponse.class));
 
         service.enqueue(PIPELINE_ID, OWNER_ID, new CreateBuildRequest(REVISION, OPERATION_ID));
 
-        verify(builds).saveAndFlush(any(PipelineBuildEntity.class));
-        verify(outputs).saveAll(anyList());
+        verify(creator).create(any(PipelineBuildEntity.class), any(PipelineVersionEntity.class));
     }
 
     @Test
@@ -147,9 +146,8 @@ class PipelineBuildServiceTest {
                 .thenReturn(Optional.of(version));
         when(builds.findByPipelineIdAndOperationId(PIPELINE_ID, OPERATION_ID)).thenReturn(Optional.empty());
         when(builds.existsByPipelineIdAndStatusIn(any(), anyList())).thenReturn(false);
-        when(builds.saveAndFlush(any(PipelineBuildEntity.class)))
+        when(creator.create(any(PipelineBuildEntity.class), any(PipelineVersionEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(outputs.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
         UUID buildId = service.enqueueScheduled(new EnqueueScheduledBuild(
                 PIPELINE_ID,
@@ -167,7 +165,7 @@ class PipelineBuildServiceTest {
     @Test
     void cancelOnlyWritesCancelRequest() {
         PipelineBuildEntity build = build(RUNNING);
-        when(builds.findByIdAndPipelineId(build.getId(), PIPELINE_ID)).thenReturn(Optional.of(build));
+        when(builds.lockByIdAndPipelineId(build.getId(), PIPELINE_ID)).thenReturn(Optional.of(build));
 
         service.requestCancel(PIPELINE_ID, build.getId(), OWNER_ID);
 

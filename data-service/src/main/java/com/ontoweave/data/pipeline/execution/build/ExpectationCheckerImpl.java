@@ -1,6 +1,8 @@
 package com.ontoweave.data.pipeline.execution.build;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.ontoweave.data.pipeline.expectation.ExpectationRules;
 import com.ontoweave.data.pipeline.execution.output.OutputSnapshot;
 import org.springframework.stereotype.Component;
 
@@ -9,6 +11,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
@@ -28,18 +31,27 @@ public class ExpectationCheckerImpl implements ExpectationChecker {
 
     private ExpectationResult checkOne(JsonNode rule, OutputSnapshot snapshot) {
         String rawType = rule.path("type").asText(null);
+        Optional<ObjectNode> normalized = ExpectationRules.normalize(rule);
+        if (normalized.isEmpty()) {
+            return unknown(rawType, rule);
+        }
+        JsonNode canonical = normalized.get();
         try {
-            return switch (ExpectationType.from(rawType)) {
-                case PRIMARY_KEY_UNIQUE -> primaryKey(rule, snapshot);
-                case ROW_COUNT_RANGE -> rowCount(rule, snapshot);
-                case VALUE_SET -> valueSet(rule, snapshot);
-                case NOT_NULL -> notNull(rule, snapshot);
+            return switch (ExpectationType.from(canonical.path("type").asText())) {
+                case PRIMARY_KEY_UNIQUE -> primaryKey(canonical, snapshot);
+                case ROW_COUNT_RANGE -> rowCount(canonical, snapshot);
+                case VALUE_SET -> valueSet(canonical, snapshot);
+                case NOT_NULL -> notNull(canonical, snapshot);
             };
         } catch (IllegalArgumentException error) {
-            return new ExpectationResult(
-                    rawType, false, null, rule, 0L, "未知的数据期望类型: " + rawType
-            );
+            return unknown(rawType, rule);
         }
+    }
+
+    private ExpectationResult unknown(String rawType, JsonNode rule) {
+        return new ExpectationResult(
+                rawType, false, null, rule, 0L, "未知的数据期望类型: " + rawType
+        );
     }
 
     private ExpectationResult primaryKey(JsonNode rule, OutputSnapshot snapshot) {

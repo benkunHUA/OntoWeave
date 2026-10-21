@@ -11,7 +11,7 @@ public sealed interface LogicalPlanNode {
             String namespace,
             String table,
             long snapshotId,
-            int scanLimit
+            ScanLimit scanLimit
     ) implements LogicalPlanNode {
     }
 
