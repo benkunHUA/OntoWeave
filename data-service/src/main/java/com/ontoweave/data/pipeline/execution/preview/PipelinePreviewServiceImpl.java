@@ -25,16 +25,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class PipelinePreviewServiceImpl implements PipelinePreviewService {
+
+    private static final AtomicInteger WORKER_SEQUENCE = new AtomicInteger();
 
     private final PipelineCheckService checks;
     private final PreviewPlanBuilder planBuilder;
@@ -57,7 +63,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
                 executor,
                 reader,
                 PipelineExecutionLimits.PREVIEW_TIMEOUT,
-                Executors.newCachedThreadPool(),
+                previewWorkers(),
                 true,
                 new PreviewRegistry()
         );
@@ -113,22 +119,34 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         }
     }
 
+    static ThreadPoolExecutor previewWorkers() {
+        return new ThreadPoolExecutor(
+                0,
+                PipelineExecutionLimits.MAX_PREVIEW_WORKERS,
+                PipelineExecutionLimits.PREVIEW_WORKER_KEEP_ALIVE_SECONDS,
+                TimeUnit.SECONDS,
+                new SynchronousQueue<>(),
+                task -> new Thread(task, "preview-worker-" + WORKER_SEQUENCE.incrementAndGet())
+        );
+    }
+
     @Override
     public PreviewResponse preview(UUID pipelineId, UUID ownerId, PreviewRequest request) {
         PreviewDeadline deadline = PreviewDeadline.start(timeout);
+        long epoch = registry.beginEpoch(pipelineId);
         validateRevision(pipelineId, ownerId, request.draftRevision(), deadline);
         ensureBudget(deadline);
         PreviewRegistry.Lease lease;
         try {
-            lease = registry.register(pipelineId, ownerId, deadline.remaining());
+            lease = registry.register(pipelineId, ownerId, epoch, deadline.remaining());
         } catch (PreviewRegistry.BudgetExceededException error) {
             throw timeout();
         }
-        Future<PreviewComputation> future = null;
+        Future<PreviewComputation> future;
         try {
             ensureActive(lease);
             ensureBudget(deadline);
-            future = workers.submit(() -> compute(pipelineId, ownerId, request, lease, deadline));
+            future = submit(() -> compute(pipelineId, ownerId, request, lease, deadline));
             lease.attach(future);
             PreviewComputation computation = await(future, lease, deadline);
             ensureActive(lease);
@@ -168,7 +186,7 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             PreviewDeadline deadline
     ) {
         Duration remaining = remaining(deadline);
-        Future<?> future = workers.submit(() -> {
+        Future<?> future = submit(() -> {
             checks.validateRevision(pipelineId, ownerId, revision);
             return null;
         });
@@ -279,6 +297,9 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
             if (cause instanceof ApiException apiException) {
                 throw apiException;
             }
+            if (cause instanceof CancellationException) {
+                throw lease.isCanceled() ? canceled() : timeout();
+            }
             if (cause instanceof FlinkPreviewTimeoutException) {
                 throw timeout();
             }
@@ -360,12 +381,24 @@ public class PipelinePreviewServiceImpl implements PipelinePreviewService {
         }
     }
 
+    private <T> Future<T> submit(Callable<T> task) {
+        try {
+            return workers.submit(task);
+        } catch (RejectedExecutionException error) {
+            throw busy();
+        }
+    }
+
     private ApiException timeout() {
         return new ApiException(HttpStatus.GATEWAY_TIMEOUT, "PREVIEW_TIMEOUT", "预览执行超时");
     }
 
     private ApiException canceled() {
         return new ApiException(HttpStatus.CONFLICT, "PREVIEW_CANCELED", "预览已撤销");
+    }
+
+    private ApiException busy() {
+        return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PREVIEW_BUSY", "预览资源繁忙，请稍后重试");
     }
 
     private record ExecutionResult(

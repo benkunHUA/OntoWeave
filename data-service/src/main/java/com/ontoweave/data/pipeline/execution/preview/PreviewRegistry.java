@@ -17,6 +17,8 @@ final class PreviewRegistry {
     private final Object lock = new Object();
     private final Map<UUID, Lease> activeByPipeline = new HashMap<>();
     private final Map<UUID, Integer> activeByOwner = new HashMap<>();
+    private final Map<UUID, Long> lastIssuedEpoch = new HashMap<>();
+    private final Map<UUID, Long> lastRegisteredEpoch = new HashMap<>();
 
     PreviewRegistry() {
         this(PipelineExecutionLimits.PREVIEW_RELEASE_GRACE);
@@ -27,10 +29,24 @@ final class PreviewRegistry {
     }
 
     Lease register(UUID pipelineId, UUID ownerId) {
-        return register(pipelineId, ownerId, releaseGrace);
+        return register(pipelineId, ownerId, beginEpoch(pipelineId), releaseGrace);
     }
 
     Lease register(UUID pipelineId, UUID ownerId, Duration budget) {
+        return register(pipelineId, ownerId, beginEpoch(pipelineId), budget);
+    }
+
+    Lease register(UUID pipelineId, UUID ownerId, long epoch) {
+        return register(pipelineId, ownerId, epoch, releaseGrace);
+    }
+
+    long beginEpoch(UUID pipelineId) {
+        synchronized (lock) {
+            return lastIssuedEpoch.merge(pipelineId, 1L, Long::sum);
+        }
+    }
+
+    Lease register(UUID pipelineId, UUID ownerId, long epoch, Duration budget) {
         long now = System.nanoTime();
         long graceDeadline = now + releaseGrace.toNanos();
         long budgetDeadline = now + budget.toNanos();
@@ -40,6 +56,10 @@ final class PreviewRegistry {
         while (true) {
             Lease existing;
             synchronized (lock) {
+                long registered = lastRegisteredEpoch.getOrDefault(pipelineId, 0L);
+                if (epoch < registered) {
+                    throw canceled();
+                }
                 existing = activeByPipeline.get(pipelineId);
                 if (existing == null) {
                     int ownerActive = activeByOwner.getOrDefault(ownerId, 0);
@@ -49,6 +69,7 @@ final class PreviewRegistry {
                     Lease lease = new Lease();
                     activeByPipeline.put(pipelineId, lease);
                     activeByOwner.put(ownerId, ownerActive + 1);
+                    lastRegisteredEpoch.put(pipelineId, epoch);
                     return lease;
                 }
                 existing.markCanceled();
@@ -141,6 +162,10 @@ final class PreviewRegistry {
 
     private ApiException busy() {
         return new ApiException(HttpStatus.TOO_MANY_REQUESTS, "PREVIEW_BUSY", "预览资源繁忙，请稍后重试");
+    }
+
+    private ApiException canceled() {
+        return new ApiException(HttpStatus.CONFLICT, "PREVIEW_CANCELED", "预览已撤销");
     }
 
     static final class BudgetExceededException extends RuntimeException {

@@ -129,6 +129,63 @@ class PipelinePreviewCancellationTest {
     }
 
     @Test
+    void slowOldValidationCannotCancelPreviewRegisteredWithHigherEpoch() throws Exception {
+        CountDownLatch oldValidationStarted = new CountDownLatch(1);
+        CountDownLatch releaseOldValidation = new CountDownLatch(1);
+        CountDownLatch newCheckStarted = new CountDownLatch(1);
+        CountDownLatch releaseNewCheck = new CountDownLatch(1);
+        AtomicInteger validationCalls = new AtomicInteger();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            if (validationCalls.getAndIncrement() == 0) {
+                oldValidationStarted.countDown();
+                assertThat(releaseOldValidation.await(2, TimeUnit.SECONDS)).isTrue();
+            }
+            return null;
+        }).when(checks).validateRevision(PIPELINE_ID, OWNER_ID, 4L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenAnswer(invocation -> {
+            newCheckStarted.countDown();
+            assertThat(releaseNewCheck.await(2, TimeUnit.SECONDS)).isTrue();
+            return readyCheck(PIPELINE_ID, 4L);
+        });
+        ResolvedInput input = input(100L);
+        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(inputPlan(NODE_ID, input, 4L));
+        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+                .thenReturn(Optional.of(new IcebergPreview(
+                        List.of(new PreviewColumn("id", "long", false)),
+                        rows(1),
+                        false
+                )));
+        PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
+        PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(
+                checks, planBuilder, mock(FlinkTableExecutor.class),
+                reader, Duration.ofSeconds(5), workers, registry
+        );
+
+        Future<PreviewResponse> old = callers.submit(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
+        ));
+        assertThat(oldValidationStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        Future<PreviewResponse> current = callers.submit(() -> service.preview(
+                PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), UUID.randomUUID())
+        ));
+        assertThat(newCheckStarted.await(1, TimeUnit.SECONDS)).isTrue();
+
+        releaseOldValidation.countDown();
+        assertThatThrownBy(() -> old.get(2, TimeUnit.SECONDS))
+                .hasRootCauseInstanceOf(ApiException.class)
+                .rootCause()
+                .isInstanceOfSatisfying(ApiException.class, exception ->
+                        assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED"));
+        assertThat(current).isNotDone();
+        assertThat(registry.awaitCancellationRequested(PIPELINE_ID, Duration.ofMillis(100))).isFalse();
+
+        releaseNewCheck.countDown();
+        assertThat(current.get(2, TimeUnit.SECONDS).rows()).hasSize(1);
+    }
+
+    @Test
     void staleRequestDoesNotCancelCurrentPreview() throws Exception {
         CountDownLatch checkStarted = new CountDownLatch(1);
         CountDownLatch releaseCheck = new CountDownLatch(1);

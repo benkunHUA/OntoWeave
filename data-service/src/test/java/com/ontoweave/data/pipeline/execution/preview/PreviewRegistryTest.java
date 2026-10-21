@@ -80,4 +80,25 @@ class PreviewRegistryTest {
                     assertThat(exception.code()).isEqualTo("PREVIEW_BUSY");
                 });
     }
+
+    @Test
+    void olderEpochCannotRegisterAfterANewerEpochAndDoesNotCancelIt() {
+        UUID pipelineId = UUID.randomUUID();
+        UUID ownerId = UUID.randomUUID();
+        PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
+        long oldEpoch = registry.beginEpoch(pipelineId);
+        long newEpoch = registry.beginEpoch(pipelineId);
+        PreviewRegistry.Lease current = registry.register(pipelineId, ownerId, newEpoch);
+        try {
+            assertThatThrownBy(() -> registry.register(pipelineId, ownerId, oldEpoch))
+                    .isInstanceOfSatisfying(ApiException.class, exception -> {
+                        assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                        assertThat(exception.code()).isEqualTo("PREVIEW_CANCELED");
+                    });
+            assertThat(current.isCanceled()).isFalse();
+            assertThat(registry.hasActiveLease(pipelineId)).isTrue();
+        } finally {
+            registry.unregister(pipelineId, ownerId, current);
+        }
+    }
 }

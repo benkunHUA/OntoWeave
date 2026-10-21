@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 
 @Component
 public class HadoopCatalogFactory {
@@ -37,6 +38,8 @@ public class HadoopCatalogFactory {
                 return Optional.empty();
             }
             return Optional.ofNullable(function.apply(catalog.loadTable(identifier)));
+        } catch (CancellationException exception) {
+            throw exception;
         } catch (Exception exception) {
             throw new IcebergCatalogException(
                     "读取 Iceberg 表失败: " + namespace + "." + table,
