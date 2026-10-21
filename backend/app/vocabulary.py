@@ -44,6 +44,7 @@ class ConversationKind(StrEnum):
 
     MODELING = "modeling"
     DATA_CONNECTION = "data_connection"
+    DATA_PIPELINE = "data_pipeline"
 
 
 CONVERSATION_KINDS: tuple[str, ...] = tuple(kind.value for kind in ConversationKind)

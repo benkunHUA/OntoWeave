@@ -86,3 +86,40 @@ def test_transport_error_is_unavailable(monkeypatch):
 
     with pytest.raises(DataServiceUnavailableError, match="数据服务不可用"):
         client.get_state(uuid.uuid4(), owner_id=uuid.uuid4())
+
+
+def test_pipeline_client_uses_documented_paths(monkeypatch):
+    captured = []
+
+    def fake_request(method, url, **kwargs):
+        captured.append((method, url, kwargs))
+        return _response(200, {"id": str(uuid.uuid4())})
+
+    monkeypatch.setattr("app.services.data_service.client.httpx.request", fake_request)
+    client = DataServiceClient(Settings(data_service_url="http://java:18001"))
+    owner = uuid.uuid4()
+    pipeline = uuid.uuid4()
+    dataset = uuid.uuid4()
+    operation = uuid.uuid4()
+
+    client.create_pipeline(
+        owner_id=owner,
+        payload={"pipelineId": str(pipeline), "conversationId": str(uuid.uuid4()), "name": "流程"},
+        operation_id=operation,
+    )
+    client.put_schedule(
+        pipeline,
+        owner_id=owner,
+        payload={"name": "每日", "cronExpression": "0 2 * * *", "timezone": "Asia/Shanghai"},
+    )
+    client.get_output_sources(pipeline, dataset, owner_id=owner)
+
+    assert captured[0][0] == "POST"
+    assert captured[0][1] == "http://java:18001/internal/v1/pipelines"
+    assert captured[0][2]["json"]["ownerId"] == str(owner)
+    assert captured[0][2]["headers"]["X-Operation-Id"] == str(operation)
+    assert captured[1][0] == "PUT"
+    assert captured[1][1] == f"http://java:18001/internal/v1/pipelines/{pipeline}/schedule"
+    assert captured[2][1] == (
+        f"http://java:18001/internal/v1/pipelines/{pipeline}/datasets/{dataset}/sources"
+    )

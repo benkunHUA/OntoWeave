@@ -145,3 +145,32 @@ def test_stream_replays_and_stops(session_factory):
     assert all(frame.startswith("event: conversation.event") for frame in frames)
     payload = json.loads(frames[0].split("data: ", 1)[1])
     assert payload["summary"] == "0"
+
+
+def test_turn_id_is_persisted_and_exposed(session_factory):
+    conversation_id = uuid.uuid4()
+    turn_id = uuid.uuid4()
+    with session_factory() as session:
+        session.add(
+            conversation.Conversation(
+                id=conversation_id,
+                owner_id=OWNER_ID,
+                kind=ConversationKind.DATA_PIPELINE.value,
+                resource_id=uuid.uuid4(),
+            )
+        )
+        session.commit()
+
+    envelope = _envelope(
+        "pipeline.draft.changed",
+        {
+            "conversationId": str(conversation_id),
+            "turnId": str(turn_id),
+            "summary": "草稿已修改",
+        },
+    )
+    assert conversation_event.ingest_envelope(session_factory, envelope) is True
+
+    client = TestClient(_create_app(session_factory, enable_agent_checkpoints=False))
+    body = client.get(f"/api/v1/conversations/{conversation_id}/events").json()
+    assert body[0]["turn_id"] == str(turn_id)

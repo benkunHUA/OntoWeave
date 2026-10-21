@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
+from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import Connection, make_url
 from sqlalchemy.orm import Session, sessionmaker
@@ -331,3 +332,20 @@ class FakeDataServiceClient:
 @pytest.fixture
 def fake_data_service() -> FakeDataServiceClient:
     return FakeDataServiceClient()
+
+
+@pytest.fixture
+def fake_pipeline_client():
+    from pipeline_test_fakes import FakePipelineClient
+
+    return FakePipelineClient()
+
+
+@pytest.fixture
+def pipeline_client(session_factory, fake_pipeline_client):
+    from app.deps import get_data_service_client
+    from app.main import _create_app
+
+    app = _create_app(session_factory, enable_agent_checkpoints=False)
+    app.dependency_overrides[get_data_service_client] = lambda: fake_pipeline_client
+    return TestClient(app)

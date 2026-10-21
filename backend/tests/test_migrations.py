@@ -159,3 +159,99 @@ def test_migration_0018_downgrade_rejects_orphaned_modeling_conversation(
 
         with pytest.raises(RuntimeError, match="missing graph rows"):
             command.downgrade(schema_config, "0017")
+
+
+def test_data_pipeline_conversation_and_turn_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    conversation_columns = {column["name"] for column in inspector.get_columns("conversation")}
+    event_columns = {column["name"] for column in inspector.get_columns("conversation_event")}
+
+    assert "archived_at" in conversation_columns
+    assert "turn_id" in event_columns
+    assert "ix_conversation_event_turn" in {
+        index["name"] for index in inspector.get_indexes("conversation_event")
+    }
+
+
+def test_migration_0020_allows_data_pipeline_and_rejects_unsafe_downgrade(
+    engine: Engine, alembic_config: Config
+) -> None:
+    with _isolated_migration_schema(engine, alembic_config) as (
+        schema_config,
+        schema_engine,
+    ):
+        command.upgrade(schema_config, "head")
+        conversation_id = uuid.uuid4()
+        with schema_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO conversation (id, owner_id, kind, resource_id) "
+                    "VALUES (:id, :owner_id, 'data_pipeline', :resource_id)"
+                ),
+                {
+                    "id": conversation_id,
+                    "owner_id": uuid.uuid4(),
+                    "resource_id": uuid.uuid4(),
+                },
+            )
+
+        with pytest.raises(RuntimeError, match="data_pipeline conversations"):
+            command.downgrade(schema_config, "0019")
+
+        with schema_engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM conversation WHERE id = :id"), {"id": conversation_id}
+            )
+        command.downgrade(schema_config, "0019")
+        with schema_engine.connect() as connection:
+            columns = {
+                row.column_name
+                for row in connection.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns "
+                        "WHERE table_schema = :schema AND table_name = 'conversation'"
+                    ),
+                    {"schema": schema_config.attributes["version_table_schema"]},
+                )
+            }
+        assert "archived_at" not in columns
+
+
+def test_migration_0020_downgrade_rejects_non_null_turn_id(
+    engine: Engine, alembic_config: Config
+) -> None:
+    with _isolated_migration_schema(engine, alembic_config) as (
+        schema_config,
+        schema_engine,
+    ):
+        command.upgrade(schema_config, "head")
+        conversation_id = uuid.uuid4()
+        with schema_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO conversation (id, owner_id, kind, resource_id) "
+                    "VALUES (:id, :owner_id, 'modeling', :resource_id)"
+                ),
+                {
+                    "id": conversation_id,
+                    "owner_id": uuid.uuid4(),
+                    "resource_id": uuid.uuid4(),
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO conversation_event "
+                    "(id, conversation_id, event_id, event_type, summary, payload, turn_id) "
+                    "VALUES (:id, :conversation_id, :event_id, 'pipeline.draft.changed', "
+                    "'changed', '{}'::jsonb, :turn_id)"
+                ),
+                {
+                    "id": uuid.uuid4(),
+                    "conversation_id": conversation_id,
+                    "event_id": uuid.uuid4(),
+                    "turn_id": uuid.uuid4(),
+                },
+            )
+
+        with pytest.raises(RuntimeError, match="turn ids"):
+            command.downgrade(schema_config, "0019")

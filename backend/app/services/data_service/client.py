@@ -20,9 +20,10 @@ from app.errors import (
     InvariantViolationError,
     NotFoundError,
 )
+from app.services.data_service.pipeline_client import PipelineDataServiceMixin
 
 
-class DataServiceClient:
+class DataServiceClient(PipelineDataServiceMixin):
     def __init__(self, settings: Settings) -> None:
         self._base_url = settings.data_service_url.rstrip("/")
         self._token = settings.data_service_token

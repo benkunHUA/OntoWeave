@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -23,6 +24,7 @@ def create_conversation(
     title: str | None = None,
     kind: str = ConversationKind.MODELING.value,
     resource_id: uuid.UUID | None = None,
+    conversation_id: uuid.UUID | None = None,
 ) -> Conversation:
     """按会话类型建立资源绑定；建模会话仍保持一次对话一张图。"""
     _ensure_supported_kind(kind)
@@ -35,6 +37,7 @@ def create_conversation(
         raise InvariantViolationError(f"{kind} conversations require a resource_id")
 
     conv = Conversation(
+        id=conversation_id or uuid.uuid4(),
         owner_id=owner_id,
         kind=kind,
         resource_id=resource_id,
@@ -52,6 +55,11 @@ def get_conversation(
     if conv is None or (owner_id is not None and conv.owner_id != owner_id):
         raise NotFoundError(f"conversation {conversation_id} not found")
     return conv
+
+
+def _ensure_writable(conv: Conversation) -> None:
+    if conv.archived_at is not None:
+        raise InvariantViolationError(f"conversation {conv.id} is archived")
 
 
 def find_conversation_by_graph(
@@ -91,6 +99,7 @@ def rename_conversation(
     owner_id: uuid.UUID | None = None,
 ) -> Conversation:
     conv = get_conversation(session, conversation_id, owner_id=owner_id)
+    _ensure_writable(conv)
     normalized = title.strip()
     if not normalized:
         raise InvariantViolationError("conversation title must not be empty")
@@ -120,6 +129,7 @@ def delete_conversation(
     具体口径见 `app.services.graph_cleanup`。其它资源会话只删会话与消息。
     """
     conv = get_conversation(session, conversation_id, owner_id=owner_id)
+    _ensure_writable(conv)
     graph_row = None
     if conv.kind == ConversationKind.MODELING:
         graph_id = conv.resource_id
@@ -138,6 +148,7 @@ def list_conversations(
     *,
     owner_id: uuid.UUID | None = None,
     kind: str | None = None,
+    include_archived: bool = False,
     limit: int = 50,
     offset: int = 0,
 ) -> list[Conversation]:
@@ -148,6 +159,8 @@ def list_conversations(
         stmt = stmt.where(Conversation.owner_id == owner_id)
     if kind is not None:
         stmt = stmt.where(Conversation.kind == kind)
+    if not include_archived:
+        stmt = stmt.where(Conversation.archived_at.is_(None))
     return list(
         session.scalars(
             stmt.order_by(Conversation.created_at.desc(), Conversation.id)
@@ -155,6 +168,20 @@ def list_conversations(
             .offset(offset)
         )
     )
+
+
+def archive_conversation(
+    session: Session,
+    conversation_id: uuid.UUID,
+    *,
+    owner_id: uuid.UUID | None = None,
+) -> Conversation:
+    """逻辑归档；重复调用保持幂等，不触碰消息或其它资源。"""
+    conv = get_conversation(session, conversation_id, owner_id=owner_id)
+    if conv.archived_at is None:
+        conv.archived_at = datetime.now(UTC)
+        session.flush()
+    return conv
 
 
 def add_message(
@@ -166,7 +193,7 @@ def add_message(
     kind: str = "message",
     blocks: list[dict] | None = None,
 ) -> ConversationMessage:
-    get_conversation(session, conversation_id)
+    _ensure_writable(get_conversation(session, conversation_id))
     message = ConversationMessage(
         conversation_id=conversation_id,
         role=role,
@@ -195,6 +222,7 @@ def resolve_tool_block(
     下一轮才出现，而那一轮并没有对应的起始块。状态必须回填到上一轮那条消息里，
     否则前端刷新后还是「等待你的判断」，一直转圈。
     """
+    _ensure_writable(get_conversation(session, conversation_id))
     rows = session.scalars(
         select(ConversationMessage)
         .where(ConversationMessage.conversation_id == conversation_id)

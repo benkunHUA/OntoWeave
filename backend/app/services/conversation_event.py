@@ -33,13 +33,11 @@ def _uuid_or_none(value: Any) -> uuid.UUID | None:
 
 
 def _conversation_id(session: Session, payload: dict) -> uuid.UUID | None:
-    """事件来源只有两种：连接事件带 conversationId，同步/数据集事件带 connectionId。"""
+    """conversationId 指向任何存在的会话；connectionId 仍按连接会话反查。"""
     direct = _uuid_or_none(payload.get("conversationId"))
     if direct is not None:
         row = session.get(Conversation, direct)
-        if row is None or row.kind != ConversationKind.DATA_CONNECTION.value:
-            return None
-        return row.id
+        return row.id if row is not None else None
     connection_id = _uuid_or_none(payload.get("connectionId"))
     if connection_id is None:
         return None
@@ -61,6 +59,7 @@ def append_event(
     payload: dict,
     operation_id: uuid.UUID | None = None,
     run_id: uuid.UUID | None = None,
+    turn_id: uuid.UUID | None = None,
 ) -> bool:
     """按 `event_id` 幂等写入；返回是否真的新增了一条。"""
     statement = (
@@ -71,6 +70,7 @@ def append_event(
             event_id=event_id,
             operation_id=operation_id,
             run_id=run_id,
+            turn_id=turn_id,
             event_type=event_type,
             summary=summary,
             payload=payload,
@@ -86,6 +86,7 @@ def ingest_envelope(
     envelope: dict,
     *,
     bus: ConversationEventBus | None = None,
+    turn_id: uuid.UUID | None = None,
 ) -> bool:
     """消费一条 Outbox 信封。格式不对或找不到会话就丢弃，不阻塞队列。"""
     event_id = _uuid_or_none(envelope.get("eventId"))
@@ -106,6 +107,7 @@ def ingest_envelope(
             event_id=event_id,
             operation_id=_uuid_or_none(payload.get("operationId")),
             run_id=_uuid_or_none(payload.get("runId")),
+            turn_id=turn_id or _uuid_or_none(payload.get("turnId")),
             event_type=event_type,
             summary=str(payload.get("summary") or event_type),
             payload=payload,

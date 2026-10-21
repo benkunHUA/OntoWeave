@@ -367,3 +367,61 @@ def test_delete_conversation_api(client):
 
 def test_delete_missing_conversation_api_404(client):
     assert client.delete(f"{API}/conversations/{uuid.uuid4()}").status_code == 404
+
+
+def test_create_conversation_accepts_caller_supplied_id(session):
+    conversation_id = uuid.uuid4()
+    resource_id = uuid.uuid4()
+
+    conv = conversation.create_conversation(
+        session,
+        owner_id=uuid.uuid4(),
+        title="稳定 ID",
+        kind="data_connection",
+        resource_id=resource_id,
+        conversation_id=conversation_id,
+    )
+
+    assert conv.id == conversation_id
+
+
+def test_archived_conversation_is_hidden_but_still_readable(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="归档")
+    conversation.archive_conversation(session, conv.id, owner_id=owner)
+
+    assert conversation.list_conversations(session, owner_id=owner) == []
+    assert conversation.list_conversations(session, owner_id=owner, include_archived=True) == [conv]
+    assert conversation.get_conversation(session, conv.id, owner_id=owner).id == conv.id
+
+
+def test_archived_conversation_rejects_writes_but_archive_is_idempotent(session):
+    owner = uuid.uuid4()
+    conv = conversation.create_conversation(session, owner_id=owner, title="归档后写")
+    conversation.archive_conversation(session, conv.id, owner_id=owner)
+    conversation.archive_conversation(session, conv.id, owner_id=owner)
+
+    with pytest.raises(InvariantViolationError, match="archived"):
+        conversation.rename_conversation(session, conv.id, title="新名字", owner_id=owner)
+    with pytest.raises(InvariantViolationError, match="archived"):
+        conversation.add_message(session, conversation_id=conv.id, role="user", content="hi")
+    with pytest.raises(InvariantViolationError, match="archived"):
+        conversation.resolve_tool_block(
+            session, conversation_id=conv.id, call_id="call", status="done"
+        )
+    with pytest.raises(InvariantViolationError, match="archived"):
+        conversation.delete_conversation(session, conv.id, owner_id=owner)
+
+
+def test_archived_conversation_api_rejects_patch_and_delete(client, session):
+    from app.config import get_settings
+
+    owner = uuid.UUID(get_settings().default_user_id)
+    conv = conversation.create_conversation(session, owner_id=owner, title="归档接口")
+    conversation.archive_conversation(session, conv.id, owner_id=owner)
+    session.commit()
+
+    assert client.get(f"{API}/conversations/{conv.id}").status_code == 200
+    assert client.get(f"{API}/conversations").json() == []
+    assert client.patch(f"{API}/conversations/{conv.id}", json={"title": "改"}).status_code == 409
+    assert client.delete(f"{API}/conversations/{conv.id}").status_code == 409

@@ -16,6 +16,7 @@ class ConversationEventRead(BaseModel):
     event_id: uuid.UUID
     operation_id: uuid.UUID | None = None
     run_id: uuid.UUID | None = None
+    turn_id: uuid.UUID | None = None
     event_type: str
     summary: str
     payload: dict[str, Any]
