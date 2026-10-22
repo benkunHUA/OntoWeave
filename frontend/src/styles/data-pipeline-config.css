@@ -147,6 +147,32 @@
   gap: 5px;
 }
 
+.pipeline-ast-compare {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.pipeline-ast-compare__head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.55fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.pipeline-ast-compare__value,
+.pipeline-ast-value-row {
+  min-width: 0;
+}
+
+.pipeline-ast-value-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
 .pipeline-ast-control {
   flex: 1;
 }
@@ -160,9 +186,18 @@
 
 .pipeline-literal-editor,
 .pipeline-inline-add {
-  display: flex;
   min-width: 0;
   gap: 5px;
+}
+
+.pipeline-literal-editor {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.pipeline-inline-add {
+  display: flex;
 }
 
 .pipeline-literal-control,

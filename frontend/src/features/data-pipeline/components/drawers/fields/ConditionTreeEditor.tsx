@@ -35,31 +35,35 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
   const needsValue = !['in', 'is_null', 'is_not_null'].includes(node.op)
 
   return (
-    <div className="pipeline-ast-row">
-      <TextField
-        className="pipeline-ast-control"
-        aria-label={EDITOR_COPY.field}
-        value={node.field}
-        placeholder={EDITOR_COPY.fieldPlaceholder}
-        onChange={(event) => onChange({ ...node, field: event.target.value })}
-      />
-      <NativeSelectField
-        className="pipeline-ast-control"
-        aria-label={EDITOR_COPY.operator}
-        value={node.op}
-        data={CONDITION_OPERATOR_OPTIONS}
-        onChange={(event) => onChange(changeConditionOperator(node, event.target.value))}
-      />
-      {needsValue && node.value ? (
-        <LiteralValueEditor
-          value={node.value}
-          onChange={(value) => onChange({ ...node, value })}
+    <div className="pipeline-ast-compare">
+      <div className="pipeline-ast-compare__head">
+        <TextField
+          className="pipeline-ast-control"
+          aria-label={EDITOR_COPY.field}
+          value={node.field}
+          placeholder={EDITOR_COPY.fieldPlaceholder}
+          onChange={(event) => onChange({ ...node, field: event.target.value })}
         />
+        <NativeSelectField
+          className="pipeline-ast-control"
+          aria-label={EDITOR_COPY.operator}
+          value={node.op}
+          data={CONDITION_OPERATOR_OPTIONS}
+          onChange={(event) => onChange(changeConditionOperator(node, event.target.value))}
+        />
+      </div>
+      {needsValue && node.value ? (
+        <div className="pipeline-ast-compare__value">
+          <LiteralValueEditor
+            value={node.value}
+            onChange={(value) => onChange({ ...node, value })}
+          />
+        </div>
       ) : null}
       {node.op === 'in' ? (
         <div className="pipeline-ast-list">
           {(node.values ?? []).map((operand, index) => (
-            <span className="pipeline-ast-row" key={index}>
+            <div className="pipeline-ast-value-row" key={index}>
               <LiteralValueEditor
                 value={operand}
                 onChange={(next) => onChange({
@@ -79,7 +83,7 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
               >
                 <Trash2 size={12} />
               </ActionIcon>
-            </span>
+            </div>
           ))}
           <Button
             type="button"
@@ -98,7 +102,7 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
 
 function ConditionNodeEditor({ node, onChange, onRemove }: NodeProps) {
   return (
-    <div className="pipeline-ast-node">
+    <div className={`pipeline-ast-node pipeline-ast-node--${node.kind}`}>
       <div className="pipeline-ast-row">
         <NativeSelectField
           className="pipeline-ast-control"
