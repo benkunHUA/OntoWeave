@@ -7,7 +7,10 @@ COPY docker/flink/pom.xml ./flink-deps/pom.xml
 RUN mvn -q -DskipTests dependency:go-offline \
     && mvn -q -f flink-deps/pom.xml dependency:copy-dependencies -DoutputDirectory=/workspace/flink-libs
 COPY src ./src
-RUN mvn -q -DskipTests package
+RUN mvn -q -DskipTests package \
+    && mvn -q -DskipTests dependency:copy-dependencies \
+        -DincludeScope=runtime \
+        -DoutputDirectory=/workspace/app-libs
 
 FROM flink:1.20.3-scala_2.12-java17
 
@@ -35,7 +38,8 @@ RUN curl -fsSL "${FLINK_CDC_TARBALL_URL}" \
 COPY --from=build /workspace/flink-libs/*.jar /opt/flink/lib/
 RUN cp /opt/flink-cdc/lib/mysql-connector-j-*.jar /opt/flink/lib/
 RUN rm -f /opt/flink/lib/commons-math3-*.jar
-COPY --from=build /workspace/target/data-service-0.1.0-SNAPSHOT.jar app.jar
+COPY --from=build /workspace/target/data-service-0.1.0-SNAPSHOT.jar.original app.jar
+COPY --from=build /workspace/app-libs /app/lib
 COPY docker/entrypoint-data-service.sh /entrypoint-data-service.sh
 RUN chmod 0755 /entrypoint-data-service.sh
 

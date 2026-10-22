@@ -123,6 +123,21 @@
       <version>${flink.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-base</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-connector-files</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.flink</groupId>
+      <artifactId>flink-metrics-dropwizard</artifactId>
+      <version>${flink.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.iceberg</groupId>
       <artifactId>iceberg-flink-1.20</artifactId>
       <version>${iceberg.version}</version>
@@ -145,6 +160,11 @@
           <artifactId>jdk.tools</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-hdfs-client</artifactId>
+      <version>3.4.1</version>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
