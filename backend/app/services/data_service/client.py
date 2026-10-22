@@ -49,6 +49,7 @@ class DataServiceClient(PipelineDataServiceMixin):
         self._base_url = settings.data_service_url.rstrip("/")
         self._token = settings.data_service_token
         self._timeout = settings.data_service_timeout_seconds
+        self._preview_timeout = settings.data_service_preview_timeout_seconds
         self._transport = transport
 
     def create_connection(self, *, owner_id: uuid.UUID, payload: dict) -> dict:
@@ -253,6 +254,7 @@ class DataServiceClient(PipelineDataServiceMixin):
         params: dict | None = None,
         json: dict | None = None,
         operation_id: uuid.UUID | None = None,
+        timeout: float | None = None,
     ) -> dict:
         data = self._request_json(
             method,
@@ -260,6 +262,7 @@ class DataServiceClient(PipelineDataServiceMixin):
             params=params,
             json=json,
             operation_id=operation_id,
+            timeout=timeout,
             empty={},
         )
         if not isinstance(data, dict):
@@ -273,12 +276,14 @@ class DataServiceClient(PipelineDataServiceMixin):
         *,
         params: dict | None = None,
         operation_id: uuid.UUID | None = None,
+        timeout: float | None = None,
     ) -> list[dict]:
         data = self._request_json(
             method,
             path,
             params=params,
             operation_id=operation_id,
+            timeout=timeout,
             empty=[],
         )
         if not isinstance(data, list):
@@ -295,6 +300,7 @@ class DataServiceClient(PipelineDataServiceMixin):
         params: dict | None,
         json: dict | None = None,
         operation_id: uuid.UUID | None,
+        timeout: float | None = None,
         empty: Any,
     ) -> Any:
         headers = {"X-Internal-Token": self._token}
@@ -307,7 +313,7 @@ class DataServiceClient(PipelineDataServiceMixin):
                 params=params,
                 json=json,
                 headers=headers,
-                timeout=self._timeout,
+                timeout=self._timeout if timeout is None else timeout,
             )
         except httpx.HTTPError as exc:
             raise DataServiceUnavailableError(f"数据服务不可用：{exc}") from exc

@@ -1,7 +1,6 @@
 package com.ontoweave.data.pipeline.execution.plan;
 
 import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.expressions.Expression;
 import org.junit.jupiter.api.Test;
@@ -12,6 +11,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -20,10 +20,10 @@ class PipelinePlanCompilerTest extends PipelinePlanCompilerTestSupport {
     @Test
     void appliesIcebergLimitOnlyToLimitedScans() {
         StreamTableEnvironment environment = mock(StreamTableEnvironment.class);
-        AtomicReference<TableDescriptor> descriptor = new AtomicReference<>();
+        AtomicReference<String> query = new AtomicReference<>();
         when(environment.listCatalogs()).thenReturn(new String[]{"ontoweave"});
-        when(environment.from(any(TableDescriptor.class))).thenAnswer(invocation -> {
-            descriptor.set(invocation.getArgument(0));
+        when(environment.sqlQuery(anyString())).thenAnswer(invocation -> {
+            query.set(invocation.getArgument(0));
             return table("id");
         });
         LogicalPlanNode.ScanInput limited = new LogicalPlanNode.ScanInput(
@@ -34,10 +34,11 @@ class PipelinePlanCompilerTest extends PipelinePlanCompilerTestSupport {
         );
 
         compiler.scan(limited, environment);
-        assertThat(descriptor.get().getOptions()).containsEntry("limit", "50000");
+        assertThat(query.get())
+                .contains("snapshot-id", "100", "LIMIT 50000");
 
         compiler.scan(unlimited, environment);
-        assertThat(descriptor.get().getOptions()).doesNotContainKey("limit");
+        assertThat(query.get()).doesNotContain("LIMIT");
     }
 
     @Test

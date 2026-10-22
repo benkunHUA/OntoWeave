@@ -82,14 +82,15 @@ final class FlinkExpressionCompiler {
             values.forEach(value -> literals.add(this.literals.literal(value)));
             return field.in(literals.toArray(ApiExpression[]::new));
         }
-        ApiExpression value = this.literals.literal(condition.path("value"));
         return switch (operator) {
-            case "eq" -> field.isEqual(value);
-            case "ne" -> field.isNotEqual(value);
-            case "gt" -> field.isGreater(value);
-            case "gte" -> field.isGreaterOrEqual(value);
-            case "lt" -> field.isLess(value);
-            case "lte" -> field.isLessOrEqual(value);
+            case "eq" -> field.isEqual(this.literals.literal(condition.path("value")));
+            case "ne" -> field.isNotEqual(this.literals.literal(condition.path("value")));
+            case "gt" -> field.isGreater(this.literals.literal(condition.path("value")));
+            case "gte" -> field.isGreaterOrEqual(this.literals.literal(condition.path("value")));
+            case "lt" -> field.isLess(this.literals.literal(condition.path("value")));
+            case "lte" -> field.isLessOrEqual(this.literals.literal(condition.path("value")));
+            case "is_null" -> field.isNull();
+            case "is_not_null" -> field.isNotNull();
             default -> throw new IllegalArgumentException("Unsupported comparison: " + operator);
         };
     }

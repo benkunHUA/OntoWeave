@@ -38,6 +38,23 @@ class FlinkExpressionCompilerTest {
     }
 
     @Test
+    void compilesNullComparisonWithoutValueLiteral() {
+        ObjectNode isNull = mapper.createObjectNode()
+                .put("kind", "compare")
+                .put("field", "deleted_at")
+                .put("op", "is_null");
+        ObjectNode isNotNull = mapper.createObjectNode()
+                .put("kind", "compare")
+                .put("field", "id")
+                .put("op", "is_not_null");
+
+        assertThat(compiler.condition(isNull).asSummaryString())
+                .contains("deleted_at", "isNull");
+        assertThat(compiler.condition(isNotNull).asSummaryString())
+                .contains("id", "isNotNull");
+    }
+
+    @Test
     void guardsCaseBranchCastFailuresWithBranchSelection() {
         ObjectNode conditional = mapper.createObjectNode().put("kind", "case");
         ArrayNode branches = conditional.putArray("branches");

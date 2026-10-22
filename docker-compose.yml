@@ -144,6 +144,7 @@ services:
       ONTOWEAVE_SECRET_KEY_VERSION: 1
       ONTOWEAVE_OUTBOX_ENABLED: "true"
       FLINK_REST_URL: http://flink-jobmanager:8081
+      FLINK_PUBLIC_URL: ${FLINK_PUBLIC_URL:-http://localhost:18081}
       FLINK_HOME: /opt/flink
       FLINK_CDC_HOME: /opt/flink-cdc
       ICEBERG_WAREHOUSE: /data/iceberg/warehouse

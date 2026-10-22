@@ -22,12 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Component
 public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
@@ -62,7 +59,6 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
             result = compiled.table().limit(0, outputLimit + 1).execute();
             Optional<JobClient> jobClient = result.getJobClient();
             jobClient.ifPresent(client -> jobs.put(executionId, client));
-            result.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
             return collect(
                     executionId,
                     result,
@@ -71,30 +67,25 @@ public class ProcessFlinkTableExecutor implements FlinkTableExecutor {
                     deadlineNanos,
                     scanLimit
             );
-        } catch (InterruptedException error) {
-            cancel(executionId);
-            Thread.currentThread().interrupt();
-            throw PipelineExecutionException.unlocated(error);
         } catch (CancellationException error) {
             cancel(executionId);
             throw error;
-        } catch (TimeoutException error) {
-            cancel(executionId);
-            throw new FlinkPreviewTimeoutException("Flink preview execution timed out");
         } catch (FlinkPreviewTimeoutException error) {
             throw error;
         } catch (PipelineExecutionException error) {
             throw error;
-        } catch (ExecutionException error) {
-            throw PipelineExecutionException.unlocated(error.getCause());
         } catch (RuntimeException error) {
             throw PipelineExecutionException.unlocated(error);
         } finally {
             jobs.remove(executionId);
             if (result != null) {
                 result.getJobClient().ifPresent(client -> {
-                    if (!client.getJobStatus().isDone()) {
-                        client.cancel();
+                    try {
+                        if (!client.getJobStatus().isDone()) {
+                            client.cancel();
+                        }
+                    } catch (RuntimeException ignored) {
+                        return;
                     }
                 });
             }

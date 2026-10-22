@@ -22,8 +22,18 @@ public class IcebergSnapshotMetrics {
     }
 
     public Optional<Long> recordCount(String catalog, String namespace, String table, long snapshotId) {
+        return metrics(catalog, namespace, table, snapshotId)
+                .map(SnapshotMetrics::rowCount);
+    }
+
+    public Optional<SnapshotMetrics> metrics(
+            String catalog,
+            String namespace,
+            String table,
+            long snapshotId
+    ) {
         try {
-            return catalogs.withTable(namespace, table, current -> recordCount(current, snapshotId));
+            return catalogs.withTable(namespace, table, current -> metrics(current, snapshotId));
         } catch (CancellationException error) {
             throw error;
         } catch (RuntimeException error) {
@@ -39,11 +49,12 @@ public class IcebergSnapshotMetrics {
         }
     }
 
-    private Long recordCount(Table table, long snapshotId) throws Exception {
+    private SnapshotMetrics metrics(Table table, long snapshotId) throws Exception {
         if (table.snapshot(snapshotId) == null) {
             return null;
         }
-        long total = 0L;
+        long rows = 0L;
+        long bytes = 0L;
         try (CloseableIterable<FileScanTask> tasks = table.newScan()
                 .useSnapshot(snapshotId)
                 .planFiles()) {
@@ -53,12 +64,16 @@ public class IcebergSnapshotMetrics {
                     return null;
                 }
                 try {
-                    total = Math.addExact(total, count);
+                    rows = Math.addExact(rows, count);
+                    bytes = Math.addExact(bytes, task.file().fileSizeInBytes());
                 } catch (ArithmeticException error) {
                     return null;
                 }
             }
         }
-        return total;
+        return new SnapshotMetrics(rows, bytes);
+    }
+
+    public record SnapshotMetrics(long rowCount, long byteSize) {
     }
 }

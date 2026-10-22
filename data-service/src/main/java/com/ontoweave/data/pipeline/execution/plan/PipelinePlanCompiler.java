@@ -3,7 +3,6 @@ package com.ontoweave.data.pipeline.execution.plan;
 import com.ontoweave.data.common.config.SyncProperties;
 import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.catalog.Catalog;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -58,17 +57,21 @@ public class PipelinePlanCompiler {
 
     Table scan(LogicalPlanNode.ScanInput scan, StreamTableEnvironment tableEnvironment) {
         registerCatalog(scan, tableEnvironment);
-        TableDescriptor.Builder descriptor = TableDescriptor.forConnector("iceberg")
-                .option("catalog-name", scan.catalog())
-                .option(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP)
-                .option("catalog-database", scan.namespace())
-                .option("catalog-table", scan.table())
-                .option("warehouse", warehouse)
-                .option("snapshot-id", Long.toString(scan.snapshotId()));
+        StringBuilder sql = new StringBuilder("SELECT * FROM ")
+                .append(identifier(scan.catalog())).append('.')
+                .append(identifier(scan.namespace())).append('.')
+                .append(identifier(scan.table()))
+                .append(" /*+ OPTIONS('snapshot-id'='")
+                .append(scan.snapshotId())
+                .append("') */");
         if (scan.scanLimit().limited()) {
-            descriptor.option("limit", Integer.toString(scan.scanLimit().maxRows()));
+            sql.append(" LIMIT ").append(scan.scanLimit().maxRows());
         }
-        return tableEnvironment.from(descriptor.build());
+        return tableEnvironment.sqlQuery(sql.toString());
+    }
+
+    private String identifier(String value) {
+        return '`' + value.replace("`", "``") + '`';
     }
 
     private void registerCatalog(LogicalPlanNode.ScanInput scan, StreamTableEnvironment tableEnvironment) {

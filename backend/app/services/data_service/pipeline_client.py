@@ -7,6 +7,8 @@ from typing import Any
 
 
 class PipelineDataServiceMixin:
+    _preview_timeout: float
+
     def _request(
         self,
         method: str,
@@ -15,6 +17,7 @@ class PipelineDataServiceMixin:
         params: dict | None = None,
         json: dict | None = None,
         operation_id: uuid.UUID | None = None,
+        timeout: float | None = None,
     ) -> dict:
         raise NotImplementedError
 
@@ -174,6 +177,7 @@ class PipelineDataServiceMixin:
             f"/internal/v1/pipelines/{pipeline_id}/previews",
             params={"ownerId": str(owner_id)},
             json=payload,
+            timeout=self._preview_timeout,
         )
 
     def cancel_preview(self, pipeline_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:

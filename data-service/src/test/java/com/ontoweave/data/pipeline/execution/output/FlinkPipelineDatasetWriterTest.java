@@ -11,6 +11,7 @@ import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
+import com.ontoweave.data.sync.iceberg.IcebergSnapshotMetrics;
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.catalog.ResolvedSchema;
@@ -36,6 +37,7 @@ import java.util.concurrent.ConcurrentMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -59,6 +61,7 @@ class FlinkPipelineDatasetWriterTest {
                 mock(PipelinePlanCompiler.class),
                 mock(OutputSchemaBaseline.class),
                 mock(HadoopCatalogFactory.class),
+                mock(IcebergSnapshotMetrics.class),
                 properties(),
                 mapper,
                 Duration.ofSeconds(1)
@@ -222,7 +225,7 @@ class FlinkPipelineDatasetWriterTest {
                 new DataType[]{DataTypes.BIGINT(), DataTypes.STRING()}
         ));
 
-        WrittenSnapshot snapshot = writer(catalogs).snapshot(
+        WrittenSnapshot snapshot = writer(catalogs, metrics(0L, 0L)).snapshot(
                 datasetId,
                 OutputTableNames.NAMESPACE,
                 tableName,
@@ -236,6 +239,45 @@ class FlinkPipelineDatasetWriterTest {
         verify(table, org.mockito.Mockito.never()).schema();
     }
 
+    @Test
+    void snapshotStatsComeFromIcebergScanInsteadOfTheOverwriteSummary() {
+        UUID datasetId = UUID.randomUUID();
+        String tableName = OutputTableNames.table(datasetId);
+        String branch = "build_scan_stats";
+        HadoopCatalogFactory catalogs = mock(HadoopCatalogFactory.class);
+        Table table = mock(Table.class);
+        Snapshot icebergSnapshot = mock(Snapshot.class);
+        when(catalogs.withTable(eq(OutputTableNames.NAMESPACE), eq(tableName), any()))
+                .thenReturn(Optional.of(table));
+        when(table.refs()).thenReturn(Map.of(branch, SnapshotRef.branchBuilder(7L).build()));
+        when(table.snapshot(7L)).thenReturn(icebergSnapshot);
+        when(icebergSnapshot.snapshotId()).thenReturn(7L);
+        when(icebergSnapshot.summary()).thenReturn(Map.of(
+                "total-records", "0",
+                "total-files-size", "0"
+        ));
+        when(icebergSnapshot.timestampMillis()).thenReturn(1_700_000_000_000L);
+        when(table.location()).thenReturn("/tmp/pipeline-table");
+        JsonNode plannedSchema = OutputSchemaJson.from(mapper, ResolvedSchema.physical(
+                new String[]{"id"},
+                new DataType[]{DataTypes.BIGINT()}
+        ));
+        IcebergSnapshotMetrics metrics = metrics(2L, 1_303L);
+
+        WrittenSnapshot snapshot = writer(catalogs, metrics).snapshot(
+                datasetId,
+                OutputTableNames.NAMESPACE,
+                tableName,
+                branch,
+                "job-1",
+                plannedSchema
+        );
+
+        assertThat(snapshot.rowCount()).isEqualTo(2L);
+        assertThat(snapshot.byteSize()).isEqualTo(1_303L);
+        verify(metrics).metrics("ontoweave", OutputTableNames.NAMESPACE, tableName, 7L);
+    }
+
     @SuppressWarnings("unchecked")
     private ConcurrentMap<UUID, JobClient> jobs(FlinkPipelineDatasetWriter writer) {
         return (ConcurrentMap<UUID, JobClient>) ReflectionTestUtils.getField(writer, "jobs");
@@ -246,10 +288,28 @@ class FlinkPipelineDatasetWriterTest {
     }
 
     private FlinkPipelineDatasetWriter writer(HadoopCatalogFactory catalogs) {
-        return writer(catalogs, Duration.ofSeconds(1));
+        return writer(catalogs, metrics(0L, 0L));
     }
 
-    private FlinkPipelineDatasetWriter writer(HadoopCatalogFactory catalogs, Duration cancelTimeout) {
+    private FlinkPipelineDatasetWriter writer(
+            HadoopCatalogFactory catalogs,
+            IcebergSnapshotMetrics metrics
+    ) {
+        return writer(catalogs, metrics, Duration.ofSeconds(1));
+    }
+
+    private FlinkPipelineDatasetWriter writer(
+            HadoopCatalogFactory catalogs,
+            Duration cancelTimeout
+    ) {
+        return writer(catalogs, metrics(0L, 0L), cancelTimeout);
+    }
+
+    private FlinkPipelineDatasetWriter writer(
+            HadoopCatalogFactory catalogs,
+            IcebergSnapshotMetrics metrics,
+            Duration cancelTimeout
+    ) {
         SyncProperties properties = properties();
         return new FlinkPipelineDatasetWriter(
                 mock(PipelineOutputRepository.class),
@@ -258,10 +318,19 @@ class FlinkPipelineDatasetWriterTest {
                 mock(PipelinePlanCompiler.class),
                 mock(OutputSchemaBaseline.class),
                 catalogs,
+                metrics,
                 properties,
                 mapper,
                 cancelTimeout
         );
+    }
+
+    private IcebergSnapshotMetrics metrics(long rowCount, long byteSize) {
+        IcebergSnapshotMetrics metrics = mock(IcebergSnapshotMetrics.class);
+        when(metrics.metrics(any(), any(), any(), anyLong())).thenReturn(Optional.of(
+                new IcebergSnapshotMetrics.SnapshotMetrics(rowCount, byteSize)
+        ));
+        return metrics;
     }
 
     private SyncProperties properties() {

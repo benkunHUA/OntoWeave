@@ -31,6 +31,7 @@ final class PreviewErrorMapper {
 
     static ApiException executionFailure(Throwable cause) {
         if (cause instanceof PipelineExecutionException failure) {
+            log.warn("preview execution failed at node={}", failure.nodeId(), failure);
             Map<String, Object> details = new LinkedHashMap<>();
             put(details, "nodeId", failure.nodeId());
             put(details, "portId", failure.portId());
@@ -42,7 +43,7 @@ final class PreviewErrorMapper {
                     details
             );
         }
-        log.error("unexpected preview execution failure: {}", cause.getClass().getName());
+        log.error("unexpected preview execution failure", cause);
         return new ApiException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",

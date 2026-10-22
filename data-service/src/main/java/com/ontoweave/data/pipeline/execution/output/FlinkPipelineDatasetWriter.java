@@ -14,6 +14,7 @@ import com.ontoweave.data.pipeline.repository.PipelineBuildOutputRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineOutputRepository;
 import com.ontoweave.data.sync.iceberg.HadoopCatalogFactory;
+import com.ontoweave.data.sync.iceberg.IcebergSnapshotMetrics;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.table.api.TableDescriptor;
 import org.apache.flink.table.api.TableResult;
@@ -26,7 +27,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -41,6 +41,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
     private final PipelinePlanCompiler compiler;
     private final OutputSchemaBaseline schemaBaseline;
     private final HadoopCatalogFactory catalogs;
+    private final IcebergSnapshotMetrics metrics;
     private final SyncProperties properties;
     private final ObjectMapper mapper;
     private final Duration cancelTimeout;
@@ -54,6 +55,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
             PipelinePlanCompiler compiler,
             OutputSchemaBaseline schemaBaseline,
             HadoopCatalogFactory catalogs,
+            IcebergSnapshotMetrics metrics,
             SyncProperties properties,
             ObjectMapper mapper
     ) {
@@ -64,6 +66,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 compiler,
                 schemaBaseline,
                 catalogs,
+                metrics,
                 properties,
                 mapper,
                 FlinkJobCancellation.DEFAULT_TIMEOUT
@@ -77,6 +80,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
             PipelinePlanCompiler compiler,
             OutputSchemaBaseline schemaBaseline,
             HadoopCatalogFactory catalogs,
+            IcebergSnapshotMetrics metrics,
             SyncProperties properties,
             ObjectMapper mapper,
             Duration cancelTimeout
@@ -87,6 +91,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         this.compiler = compiler;
         this.schemaBaseline = schemaBaseline;
         this.catalogs = catalogs;
+        this.metrics = metrics;
         this.properties = properties;
         this.mapper = mapper;
         this.cancelTimeout = cancelTimeout;
@@ -126,7 +131,7 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         String logUri = null;
         if (client != null) {
             engineJobId = client.getJobID().toString();
-            logUri = FlinkJobLogUri.forJob(properties.flinkRestUrl(), engineJobId);
+            logUri = FlinkJobLogUri.forJob(properties.flinkPublicUrl(), engineJobId);
             jobs.put(buildId, client);
             try {
                 recordEngineJob(buildId, outputId, engineJobId, logUri);
@@ -219,8 +224,13 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                     PipelineBuildConstants.CODE_EXECUTION_FAILED, "临时分支没有可用快照"
             );
         }
-        Map<String, String> summary = snapshot.summary();
-        long rowCount = longValue(summary.get("total-records"));
+        IcebergSnapshotMetrics.SnapshotMetrics stats = metrics.metrics(
+                        properties.icebergCatalog(), namespace, tableName, snapshot.snapshotId()
+                )
+                .orElseThrow(() -> new PipelineBuildException(
+                        PipelineBuildConstants.CODE_EXECUTION_FAILED,
+                        "无法读取 Iceberg 快照统计"
+                ));
         return new WrittenSnapshot(
                 datasetId,
                 properties.icebergCatalog(),
@@ -229,12 +239,12 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
                 branch,
                 snapshot.snapshotId(),
                 plannedSchema.deepCopy(),
-                rowCount,
-                longValue(summary.get("total-file-size-bytes")),
+                stats.rowCount(),
+                stats.byteSize(),
                 table.location(),
                 Instant.ofEpochMilli(snapshot.timestampMillis()),
                 engineJobId,
-                FlinkJobLogUri.forJob(properties.flinkRestUrl(), engineJobId)
+                FlinkJobLogUri.forJob(properties.flinkPublicUrl(), engineJobId)
         );
     }
 
@@ -275,11 +285,4 @@ public class FlinkPipelineDatasetWriter implements PipelineDatasetWriter {
         return ref == null ? null : table.snapshot(ref.snapshotId());
     }
 
-    private long longValue(String value) {
-        try {
-            return value == null ? 0L : Long.parseLong(value);
-        } catch (NumberFormatException error) {
-            return 0L;
-        }
-    }
 }

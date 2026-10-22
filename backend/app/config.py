@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     data_service_url: str = "http://localhost:18001"
     data_service_token: str = "dev-internal-token"
     data_service_timeout_seconds: float = 10.0
+    data_service_preview_timeout_seconds: float = 25.0
 
     # ---- RabbitMQ：消费 Java Outbox 发出的数据连接/同步事件
     rabbitmq_url: str = "amqp://ontoweave:ontoweave@localhost:5672/%2F"

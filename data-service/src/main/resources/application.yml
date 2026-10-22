@@ -50,6 +50,7 @@ ontoweave:
     poll-interval-ms: ${ONTOWEAVE_OUTBOX_POLL_INTERVAL_MS:1000}
   sync:
     flink-rest-url: ${FLINK_REST_URL:http://localhost:8081}
+    flink-public-url: ${FLINK_PUBLIC_URL:${FLINK_REST_URL:http://localhost:8081}}
     flink-home: ${FLINK_HOME:/opt/flink}
     flink-cdc-home: ${FLINK_CDC_HOME:/opt/flink-cdc-3.7.0-1.20}
     iceberg-catalog: ${ICEBERG_CATALOG:ontoweave}
