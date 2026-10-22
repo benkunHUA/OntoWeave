@@ -42,6 +42,13 @@ def _create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI):
         settings = get_settings()
+        # PostgresSaver.setup() 会 CREATE INDEX CONCURRENTLY。若放在请求事务或
+        # 流式响应生命周期里执行，会和请求连接上的快照互等；启动时先建好，
+        # 后续请求只复用 saver。
+        if application.state.enable_agent_checkpoints:
+            from app.deps import get_agent_checkpointer
+
+            get_agent_checkpointer(application.state, settings)
         consumer = None
         if settings.event_consumer_enabled:
             from app.messaging import DataEventConsumer
@@ -54,7 +61,7 @@ def _create_app(
         yield
         if consumer is not None:
             consumer.stop()
-        # 检查点的连接池是懒建的，关的时候也要顺手关掉，不然进程退出会漏连接。
+        # 检查点连接池在生命周期内长期存活，关的时候要顺手释放。
         pool = application.state.checkpointer_pool
         if pool is not None:
             pool.close()
