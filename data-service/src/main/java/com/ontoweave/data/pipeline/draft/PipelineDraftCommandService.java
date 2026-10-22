@@ -36,6 +36,7 @@ public class PipelineDraftCommandService {
     private final PipelineEditRecorder editRecorder;
     private final DraftCommandApplier applier;
     private final PipelineOutputWriter outputWriter;
+    private final PipelineOutputLifecycle outputLifecycle;
     private final PipelineDraftEventWriter eventWriter;
 
     public PipelineDraftCommandService(
@@ -53,6 +54,7 @@ public class PipelineDraftCommandService {
         this.editRecorder = editRecorder;
         this.applier = new DraftCommandApplier(catalog, mapper);
         this.outputWriter = new PipelineOutputWriter(outputs, datasets, mapper);
+        this.outputLifecycle = new PipelineOutputLifecycle(outputs, datasets);
         this.eventWriter = new PipelineDraftEventWriter(mapper, outbox);
     }
 
@@ -77,6 +79,7 @@ public class PipelineDraftCommandService {
             );
         }
         DraftCommandApplier.DraftMutation mutation = applier.apply(before, command);
+        outputLifecycle.reconcile(pipelineId, mutation.after());
         return persistSemantic(
                 pipelineId,
                 ownerId,
@@ -129,6 +132,7 @@ public class PipelineDraftCommandService {
         }
         JsonNode before = DraftCommandValidation.requireDefinition(draft);
         JsonNode restored = applier.preservePositions(turnEdits.get(0).getBefore(), before);
+        outputLifecycle.reconcile(pipelineId, restored);
         UUID operationId = UUID.randomUUID();
         int updated = drafts.updateDefinition(
                 pipelineId,
@@ -194,6 +198,7 @@ public class PipelineDraftCommandService {
                 command.expectations()
         );
         JsonNode after = applier.bindOutput(before, command.nodeId(), outputId).after();
+        outputLifecycle.reconcile(pipelineId, after);
         int updated = drafts.updateDefinition(
                 pipelineId,
                 baseRevision,

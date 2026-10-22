@@ -34,6 +34,7 @@ class PipelineVersionFreezerTest {
 
     private static final UUID PIPELINE_ID = UUID.randomUUID();
     private static final UUID OWNER_ID = UUID.randomUUID();
+    private static final UUID OUTPUT_NODE_ID = UUID.randomUUID();
     private static final long REVISION = 7L;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -118,6 +119,33 @@ class PipelineVersionFreezerTest {
         verifyNoInteractions(drafts, versions);
     }
 
+    @Test
+    void ignoresActiveOutputsThatAreNoLongerInTheDraft() {
+        PipelineEntity pipeline = pipeline();
+        PipelineDraftEntity draft = draft();
+        PipelineOutputEntity stale = new PipelineOutputEntity(
+                UUID.randomUUID(), PIPELINE_ID, UUID.randomUUID(),
+                PipelineOutputType.DATASET, "removed-output"
+        );
+        when(pipelines.lockActiveByIdAndOwnerId(PIPELINE_ID, OWNER_ID))
+                .thenReturn(Optional.of(pipeline));
+        when(drafts.findByIdForUpdate(PIPELINE_ID)).thenReturn(Optional.of(draft));
+        when(outputs.findByPipelineIdAndArchivedAtIsNull(PIPELINE_ID)).thenReturn(List.of(stale));
+        when(hasher.normalizedHash(any(), any(), any())).thenReturn("new-hash");
+        when(versions.findByPipelineIdAndDefinitionHash(PIPELINE_ID, "new-hash"))
+                .thenReturn(Optional.empty());
+        when(versions.findTopByPipelineIdOrderByVersionNumberDesc(PIPELINE_ID))
+                .thenReturn(Optional.empty());
+        when(versions.saveAndFlush(any(PipelineVersionEntity.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(inputs.resolve(any(PipelineVersionEntity.class))).thenReturn(List.of());
+
+        FrozenBuild frozen = freezer.freeze(PIPELINE_ID, OWNER_ID, REVISION);
+
+        assertThat(frozen.version().getOutputs()).isEmpty();
+        verify(datasets, never()).findByOutputIdIn(anyCollection());
+    }
+
     private PipelineEntity pipeline() {
         PipelineEntity pipeline = mock(PipelineEntity.class);
         when(pipeline.getId()).thenReturn(PIPELINE_ID);
@@ -133,7 +161,7 @@ class PipelineVersionFreezerTest {
         input.put("type", "input");
         input.putObject("config").put("datasetKind", "sync").put("datasetId", UUID.randomUUID().toString());
         ObjectNode outputNode = definition.withArray("nodes").addObject();
-        outputNode.put("id", UUID.randomUUID().toString());
+        outputNode.put("id", OUTPUT_NODE_ID.toString());
         outputNode.put("type", "output");
         definition.putArray("edges");
         PipelineDraftEntity draft = mock(PipelineDraftEntity.class);
@@ -144,7 +172,7 @@ class PipelineVersionFreezerTest {
 
     private PipelineOutputEntity output() {
         return new PipelineOutputEntity(
-                UUID.randomUUID(), PIPELINE_ID, UUID.randomUUID(),
+                UUID.randomUUID(), PIPELINE_ID, OUTPUT_NODE_ID,
                 PipelineOutputType.DATASET, "orders"
         );
     }

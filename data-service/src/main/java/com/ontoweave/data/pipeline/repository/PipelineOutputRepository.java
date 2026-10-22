@@ -3,6 +3,7 @@ package com.ontoweave.data.pipeline.repository;
 import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -12,6 +13,10 @@ public interface PipelineOutputRepository extends JpaRepository<PipelineOutputEn
     List<PipelineOutputEntity> findByPipelineIdAndArchivedAtIsNull(UUID pipelineId);
 
     Optional<PipelineOutputEntity> findByPipelineIdAndNodeId(UUID pipelineId, UUID nodeId);
+
+    List<PipelineOutputEntity> findByPipelineIdAndNodeIdIn(
+            UUID pipelineId, Collection<UUID> nodeIds
+    );
 
     Optional<PipelineOutputEntity> findByPipelineIdAndName(UUID pipelineId, String name);
 

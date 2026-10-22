@@ -100,6 +100,18 @@ public class PipelineDatasetEntity {
         this.expectations = expectations;
     }
 
+    public void archive() {
+        this.archivedAt = Instant.now();
+    }
+
+    public void activate() {
+        this.archivedAt = null;
+    }
+
+    public boolean isArchived() {
+        return archivedAt != null;
+    }
+
     public UUID getId() {
         return id;
     }

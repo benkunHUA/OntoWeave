@@ -12,6 +12,7 @@ import com.ontoweave.data.pipeline.domain.PipelineOutputEntity;
 import com.ontoweave.data.pipeline.domain.PipelineVersionEntity;
 import com.ontoweave.data.pipeline.draft.PipelineRevisionConflict;
 import com.ontoweave.data.pipeline.graph.DraftNode;
+import com.ontoweave.data.pipeline.graph.OutputNodeIds;
 import com.ontoweave.data.pipeline.graph.PipelineDraftGraph;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDraftRepository;
@@ -83,7 +84,7 @@ public class PipelineVersionFreezerImpl implements PipelineVersionFreezer {
         }
 
         JsonNode definition = draft.getDefinition().deepCopy();
-        JsonNode frozenOutputs = outputs(pipelineId);
+        JsonNode frozenOutputs = outputs(pipelineId, OutputNodeIds.from(definition));
         JsonNode inputRefs = inputRefs(definition);
         String hash = hasher.normalizedHash(definition, frozenOutputs, inputRefs);
 
@@ -112,9 +113,10 @@ public class PipelineVersionFreezerImpl implements PipelineVersionFreezer {
         return new FrozenBuild(version, inputs.resolve(version));
     }
 
-    private JsonNode outputs(UUID pipelineId) {
+    private JsonNode outputs(UUID pipelineId, Set<UUID> outputNodeIds) {
         List<PipelineOutputEntity> active = outputs.findByPipelineIdAndArchivedAtIsNull(pipelineId)
                 .stream()
+                .filter(output -> outputNodeIds.contains(output.getNodeId()))
                 .sorted(Comparator.comparing(PipelineOutputEntity::getId))
                 .toList();
         Map<UUID, PipelineDatasetEntity> datasetsByOutput = new HashMap<>();

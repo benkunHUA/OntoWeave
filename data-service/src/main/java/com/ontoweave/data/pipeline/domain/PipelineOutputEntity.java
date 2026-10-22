@@ -15,6 +15,7 @@ import java.util.UUID;
 public class PipelineOutputEntity {
 
     private static final String ACTIVE_STATUS = "active";
+    private static final String ARCHIVED_STATUS = "archived";
 
     @Id
     private UUID id;
@@ -79,6 +80,20 @@ public class PipelineOutputEntity {
 
     public void rename(String name) {
         this.name = name;
+    }
+
+    public void archive() {
+        this.status = ARCHIVED_STATUS;
+        this.archivedAt = Instant.now();
+    }
+
+    public void activate() {
+        this.status = ACTIVE_STATUS;
+        this.archivedAt = null;
+    }
+
+    public boolean isArchived() {
+        return archivedAt != null;
     }
 
     public UUID getId() {

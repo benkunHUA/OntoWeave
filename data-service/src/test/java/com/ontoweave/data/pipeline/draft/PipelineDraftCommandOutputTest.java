@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -73,6 +74,32 @@ class PipelineDraftCommandOutputTest extends PipelineDraftCommandServiceTestSupp
         verify(outputs, never()).saveAndFlush(any());
         verify(datasets, never()).saveAndFlush(any());
         verify(drafts, never()).updateDefinition(any(), eq(5L), anyString(), anyString(), any());
+    }
+
+    @Test
+    void deleteNodeArchivesItsOutputAndDataset() {
+        UUID outputId = UUID.randomUUID();
+        lockDraft(5, outputDraft(outputId.toString()));
+        PipelineOutputEntity output = new PipelineOutputEntity(
+                outputId, PIPELINE_ID, NODE_ID, PipelineOutputType.DATASET, "orders"
+        );
+        PipelineDatasetEntity dataset = new PipelineDatasetEntity(
+                UUID.randomUUID(), outputId, PIPELINE_ID, "orders",
+                mapper.createArrayNode(), mapper.createArrayNode()
+        );
+        when(outputs.findByPipelineIdAndArchivedAtIsNull(PIPELINE_ID)).thenReturn(List.of(output));
+        when(datasets.findByOutputIdIn(List.of(outputId))).thenReturn(List.of(dataset));
+        when(drafts.updateDefinition(eq(PIPELINE_ID), eq(5L), anyString(), eq("user"), eq(OWNER_ID)))
+                .thenReturn(1);
+
+        service.apply(
+                PIPELINE_ID,
+                OWNER_ID,
+                new DeleteNode(5L, operationId(5), turnId(5), NODE_ID)
+        );
+
+        assertThat(output.isArchived()).isTrue();
+        assertThat(dataset.isArchived()).isTrue();
     }
 
     @Test
