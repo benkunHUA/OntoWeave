@@ -53,6 +53,7 @@ class PreviewRequest(_Request):
     draft_revision: int = Field(ge=0)
     node_id: uuid.UUID
     request_id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    row_limit: int = Field(default=100, ge=1, le=500)
 
 
 class BuildCreateRequest(_Request):

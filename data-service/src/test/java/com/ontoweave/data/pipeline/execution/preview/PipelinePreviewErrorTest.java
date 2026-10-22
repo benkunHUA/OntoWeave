@@ -49,9 +49,9 @@ class PipelinePreviewErrorTest {
     void mapsExecutionFailureToNodeAndInputPortWithoutInventingField() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
-        when(executor.execute(any(), eq(500), any(Duration.class)))
+        when(executor.execute(any(), eq(100), any(Duration.class)))
                 .thenThrow(new PipelineExecutionException(
                         "bad expression", NODE_ID.toString(), "in", null, new RuntimeException("bad expression")
                 ));
@@ -73,9 +73,9 @@ class PipelinePreviewErrorTest {
     void unknownExecutionFailureDoesNotLeakTheUnderlyingMessage() {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
-        when(executor.execute(any(), eq(500), any(Duration.class)))
+        when(executor.execute(any(), eq(100), any(Duration.class)))
                 .thenThrow(new IllegalStateException("password=secret"));
         PipelinePreviewService service = service();
 

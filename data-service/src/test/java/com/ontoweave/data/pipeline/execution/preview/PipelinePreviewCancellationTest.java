@@ -58,7 +58,7 @@ class PipelinePreviewCancellationTest {
     void newPreviewCancelsRunningOldPreviewAndThenContinues() throws Exception {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         BlockingOnceExecutor executor = new BlockingOnceExecutor();
         PreviewRegistry registry = new PreviewRegistry(Duration.ofSeconds(1));
@@ -96,9 +96,9 @@ class PipelinePreviewCancellationTest {
             return readyCheck(PIPELINE_ID, 4L);
         });
         ResolvedInput input = input(100L);
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(new IcebergPreview(
                         List.of(new PreviewColumn("id", "long", false)),
                         rows(1),
@@ -149,9 +149,9 @@ class PipelinePreviewCancellationTest {
             return readyCheck(PIPELINE_ID, 4L);
         });
         ResolvedInput input = input(100L);
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(new IcebergPreview(
                         List.of(new PreviewColumn("id", "long", false)),
                         rows(1),
@@ -198,9 +198,9 @@ class PipelinePreviewCancellationTest {
         org.mockito.Mockito.doThrow(new com.ontoweave.data.pipeline.draft.PipelineRevisionConflict())
                 .when(checks).validateRevision(PIPELINE_ID, OWNER_ID, 3L);
         ResolvedInput input = input(100L);
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(new IcebergPreview(
                         List.of(new PreviewColumn("id", "long", false)),
                         rows(1),
@@ -231,7 +231,7 @@ class PipelinePreviewCancellationTest {
     void buildPreemptionCancelsRunningPreview() throws Exception {
         ResolvedInput input = input(100L);
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         BlockingExecutor blocking = new BlockingExecutor();
         PipelinePreviewServiceImpl service = new PipelinePreviewServiceImpl(

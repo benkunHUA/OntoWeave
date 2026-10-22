@@ -5,8 +5,8 @@ import java.time.Duration;
 public final class PipelineExecutionLimits {
 
     public static final int DEFAULT_SCAN_LIMIT = 50_000;
-    public static final int OUTPUT_ROW_LIMIT = 500;
-    public static final int READ_ROW_LIMIT = OUTPUT_ROW_LIMIT + 1;
+    public static final int DEFAULT_PREVIEW_ROW_LIMIT = 100;
+    public static final int MAX_PREVIEW_ROW_LIMIT = 500;
     public static final int MAX_ACTIVE_PREVIEWS_PER_PIPELINE = 1;
     public static final int MAX_ACTIVE_PREVIEWS_PER_USER = 2;
     public static final int MAX_PREVIEW_WORKERS = 8;

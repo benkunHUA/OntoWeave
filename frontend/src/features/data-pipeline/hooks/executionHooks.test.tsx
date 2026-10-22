@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import { act, cleanup, renderHook, waitFor } from '../../../test/render'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpError } from '../../../shared/api/client'
 import type {
@@ -134,6 +134,11 @@ describe('execution hook generation isolation', () => {
       run = result.current.run('node-a')
     })
     await waitFor(() => expect(api.previewPipelineNode).toHaveBeenCalledTimes(1))
+    expect(api.previewPipelineNode).toHaveBeenCalledWith(
+      'pipeline-a',
+      expect.objectContaining({ draft_revision: 3, node_id: 'node-a', row_limit: 100 }),
+      expect.any(String),
+    )
 
     rerender({ pipelineId: 'pipeline-b' })
     act(() => pending.resolve(preview('pipeline-a', 'node-a')))

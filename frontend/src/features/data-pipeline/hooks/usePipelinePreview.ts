@@ -6,6 +6,7 @@ import {
   previewState,
   type PreviewRequestError,
 } from '../lib/preview'
+import { PIPELINE_PREVIEW_ROW_LIMIT } from '../lib/executionConstants'
 import { usePipelineGeneration } from './usePipelineGeneration'
 
 interface UsePipelinePreviewOptions {
@@ -56,6 +57,7 @@ export function usePipelinePreview({
         draft_revision: revision,
         node_id: targetNodeId,
         request_id: requestId,
+        row_limit: PIPELINE_PREVIEW_ROW_LIMIT,
       }, requestId)
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
       setPreview(result)

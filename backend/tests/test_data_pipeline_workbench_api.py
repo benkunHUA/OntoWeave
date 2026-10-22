@@ -60,6 +60,12 @@ def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_c
     assert preview["returned_rows"] == 1
     assert preview["input_versions"][0]["dataset_version_id"]
     assert "inputVersions" not in str(preview)
+    assert (
+        next(call[1]["payload"] for call in fake_pipeline_client.calls if call[0] == "preview")[
+            "rowLimit"
+        ]
+        == 100
+    )
     assert pipeline_client.post(f"{API}/{PIPELINE_ID}/previews/cancel").status_code == 204
     assert any(call[0] == "cancel-preview" for call in fake_pipeline_client.calls)
 
@@ -175,3 +181,13 @@ def test_java_422_single_field_preview_error_preserves_details(
 
     assert response.status_code == 422
     assert response.json()["details"] == details
+
+
+def test_preview_rejects_invalid_row_limit(pipeline_client, fake_pipeline_client):
+    response = pipeline_client.post(
+        f"{API}/{PIPELINE_ID}/previews",
+        json={"draft_revision": 3, "node_id": str(uuid.uuid4()), "row_limit": 0},
+    )
+
+    assert response.status_code == 422
+    assert not [call for call in fake_pipeline_client.calls if call[0] == "preview"]

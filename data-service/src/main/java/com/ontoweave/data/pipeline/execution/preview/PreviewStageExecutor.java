@@ -8,7 +8,6 @@ import com.ontoweave.data.pipeline.execution.flink.FlinkExecutionResult;
 import com.ontoweave.data.pipeline.execution.flink.FlinkTableExecutor;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlanNode;
-import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
 import com.ontoweave.data.pipeline.execution.plan.PreviewPlanBuilder;
 import com.ontoweave.data.sync.iceberg.IcebergPreview;
 import com.ontoweave.data.sync.iceberg.IcebergPreviewReader;
@@ -71,7 +70,9 @@ final class PreviewStageExecutor {
         );
         ensureActive(lease);
         ensureBudget(deadline);
-        PreviewResponseMapper.ExecutionResult result = execute(plan, remaining(deadline));
+        PreviewResponseMapper.ExecutionResult result = execute(
+                plan, request.rowLimit(), remaining(deadline)
+        );
         ensureActive(lease);
         ensureBudget(deadline);
         return new PreviewComputation(plan, result);
@@ -79,6 +80,7 @@ final class PreviewStageExecutor {
 
     private PreviewResponseMapper.ExecutionResult execute(
             LogicalPlan plan,
+            int rowLimit,
             Duration executionBudget
     ) {
         if (plan.root().node() instanceof LogicalPlanNode.ScanInput scan) {
@@ -87,7 +89,7 @@ final class PreviewStageExecutor {
                     scan.namespace(),
                     scan.table(),
                     scan.snapshotId(),
-                    PipelineExecutionLimits.READ_ROW_LIMIT
+                    rowLimit + 1
             ).orElseThrow(() -> new ApiException(
                     HttpStatus.NOT_FOUND,
                     "INPUT_PREVIEW_UNAVAILABLE",
@@ -104,7 +106,7 @@ final class PreviewStageExecutor {
             );
         }
         FlinkExecutionResult result = executor.execute(
-                plan, PipelineExecutionLimits.OUTPUT_ROW_LIMIT, executionBudget
+                plan, rowLimit, executionBudget
         );
         return new PreviewResponseMapper.ExecutionResult(
                 result.columns(),

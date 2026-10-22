@@ -97,10 +97,10 @@ class PipelinePreviewServiceTest {
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(new IcebergPreview(
                         List.of(new com.ontoweave.data.sync.iceberg.PreviewColumn("id", "long", false)),
-                        rows(501),
+                        rows(101),
                         true
                 )));
         PipelinePreviewService service = service(Duration.ofSeconds(1));
@@ -110,8 +110,8 @@ class PipelinePreviewServiceTest {
         );
 
         assertThat(response.previewId()).isEqualTo(REQUEST_ID);
-        assertThat(response.rows()).hasSize(500);
-        assertThat(response.returnedRows()).isEqualTo(500);
+        assertThat(response.rows()).hasSize(100);
+        assertThat(response.returnedRows()).isEqualTo(100);
         assertThat(response.truncated()).isTrue();
         assertThat(response.truncationReason()).isEqualTo("OUTPUT_ROW_LIMIT");
         assertThat(response.inputVersions()).singleElement();
@@ -124,7 +124,7 @@ class PipelinePreviewServiceTest {
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input, 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(new IcebergPreview(
                         List.of(new PreviewColumn("id", "long", false)),
                         rows(1),
@@ -142,6 +142,31 @@ class PipelinePreviewServiceTest {
     }
 
     @Test
+    void honorsRequestedRowLimit() {
+        ResolvedInput input = input(100L);
+        when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+                .thenReturn(inputPlan(NODE_ID, input, 4L));
+        when(reader.read("ontoweave", "sales", "orders", 100L, 6))
+                .thenReturn(Optional.of(new IcebergPreview(
+                        List.of(new PreviewColumn("id", "long", false)),
+                        rows(6),
+                        true
+                )));
+        PipelinePreviewService service = service(Duration.ofSeconds(1));
+
+        PreviewResponse response = service.preview(
+                PIPELINE_ID,
+                OWNER_ID,
+                new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID, 5)
+        );
+
+        assertThat(response.rows()).hasSize(5);
+        assertThat(response.returnedRows()).isEqualTo(5);
+        assertThat(response.truncated()).isTrue();
+    }
+
+    @Test
     void transformNodeUsesFlinkAndStripsExecutorIssues() {
         ResolvedInput input = input(100L);
         PreviewIssue issue = new PreviewIssue(
@@ -151,12 +176,12 @@ class PipelinePreviewServiceTest {
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
-        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(100),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
                 .thenReturn(new FlinkExecutionResult(
                         UUID.randomUUID(),
                         List.of(new PreviewColumn("id", "long", false)),
-                        rows(501),
+                        rows(101),
                         null,
                         false,
                         List.of(),
@@ -168,7 +193,7 @@ class PipelinePreviewServiceTest {
                 PIPELINE_ID, OWNER_ID, new PreviewRequest(4L, NODE_ID.toString(), REQUEST_ID)
         );
 
-        assertThat(response.rows()).hasSize(500);
+        assertThat(response.rows()).hasSize(100);
         assertThat(response.truncated()).isTrue();
         assertThat(response.scannedRows()).isNull();
         assertThat(response.warnings()).containsExactly(issue);
@@ -180,7 +205,7 @@ class PipelinePreviewServiceTest {
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
-        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(100),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
                 .thenReturn(new FlinkExecutionResult(
                         UUID.randomUUID(),
@@ -208,7 +233,7 @@ class PipelinePreviewServiceTest {
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
         when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
-        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(500),
+        when(executor.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(100),
                 org.mockito.ArgumentMatchers.any(Duration.class)))
                 .thenReturn(new FlinkExecutionResult(
                         UUID.randomUUID(),
@@ -276,7 +301,7 @@ class PipelinePreviewServiceTest {
                 .thenReturn(transformPlan(NODE_ID, input, 4L));
         when(executor.execute(
                 org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.eq(500),
+                org.mockito.ArgumentMatchers.eq(100),
                 org.mockito.ArgumentMatchers.any(Duration.class)
         )).thenAnswer(invocation -> {
             executionBudget.set(invocation.getArgument(2));

@@ -3,7 +3,6 @@ package com.ontoweave.data.pipeline.execution.preview;
 import com.ontoweave.data.pipeline.api.dto.PreviewRequest;
 import com.ontoweave.data.pipeline.api.dto.PreviewResponse;
 import com.ontoweave.data.pipeline.execution.plan.LogicalPlan;
-import com.ontoweave.data.pipeline.execution.plan.PipelineExecutionLimits;
 import com.ontoweave.data.sync.iceberg.PreviewColumn;
 
 import java.util.List;
@@ -22,9 +21,9 @@ final class PreviewResponseMapper {
             ExecutionResult result,
             long elapsedMs
     ) {
-        int returnedRows = Math.min(result.rows().size(), PipelineExecutionLimits.OUTPUT_ROW_LIMIT);
+        int returnedRows = Math.min(result.rows().size(), request.rowLimit());
         boolean truncated = result.truncated()
-                || result.rows().size() > PipelineExecutionLimits.OUTPUT_ROW_LIMIT;
+                || result.rows().size() > request.rowLimit();
         String truncationReason = truncated
                 ? "OUTPUT_ROW_LIMIT"
                 : result.scanLimited() ? "SCAN_ROW_LIMIT" : null;

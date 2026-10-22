@@ -103,7 +103,12 @@ export const OUTPUT_DATASET_COPY = {
   title: '输出数据集详情',
   datasetId: '数据集 ID',
   datasetVersionId: '数据版本 ID',
+  preview: '发布数据',
+  rows: '行',
   close: '关闭',
 } as const
+
+export const PIPELINE_PREVIEW_ROW_LIMIT = 100
+export const PIPELINE_DATASET_PREVIEW_LIMIT = 100
 
 export const BUILD_ACTIVE_STATUSES = new Set(['queued', 'running'])

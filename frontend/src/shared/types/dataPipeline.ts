@@ -137,6 +137,7 @@ export interface PipelinePreviewRequest {
   draft_revision: number
   node_id: string
   request_id: string
+  row_limit: number
 }
 
 export interface PipelineBuildRequest {

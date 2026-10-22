@@ -159,6 +159,7 @@ def preview_node(
                 "draftRevision": request.draft_revision,
                 "nodeId": str(request.node_id),
                 "requestId": str(request.request_id),
+                "rowLimit": request.row_limit,
             },
         )
     )

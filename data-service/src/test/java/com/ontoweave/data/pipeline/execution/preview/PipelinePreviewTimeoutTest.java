@@ -82,7 +82,7 @@ class PipelinePreviewTimeoutTest {
         CountDownLatch releaseFirstPlan = new CountDownLatch(1);
         AtomicInteger planCalls = new AtomicInteger();
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString())).thenAnswer(invocation -> {
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString())).thenAnswer(invocation -> {
             if (planCalls.getAndIncrement() == 0) {
                 firstPlanStarted.countDown();
                 awaitIgnoringInterruptions(releaseFirstPlan);
@@ -106,9 +106,9 @@ class PipelinePreviewTimeoutTest {
         CountDownLatch releaseFirstRead = new CountDownLatch(1);
         AtomicInteger readCalls = new AtomicInteger();
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input(100L), 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501)).thenAnswer(invocation -> {
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101)).thenAnswer(invocation -> {
             if (readCalls.getAndIncrement() == 0) {
                 firstReadStarted.countDown();
                 awaitIgnoringInterruptions(releaseFirstRead);
@@ -146,13 +146,13 @@ class PipelinePreviewTimeoutTest {
     }
 
     private void prepareInputPreview() {
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input(100L), 4L));
         prepareReader();
     }
 
     private void prepareReader() {
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501))
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101))
                 .thenReturn(Optional.of(preview()));
     }
 

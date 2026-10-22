@@ -57,9 +57,9 @@ class PipelinePreviewBuildCancellationTest {
         CountDownLatch releaseRead = new CountDownLatch(1);
         AtomicInteger reads = new AtomicInteger();
         when(checks.check(PIPELINE_ID, OWNER_ID, 4L)).thenReturn(readyCheck(PIPELINE_ID, 4L));
-        when(planBuilder.build(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
+        when(planBuilder.buildForPreview(PIPELINE_ID, OWNER_ID, 4L, NODE_ID.toString()))
                 .thenReturn(inputPlan(NODE_ID, input(100L), 4L));
-        when(reader.read("ontoweave", "sales", "orders", 100L, 501)).thenAnswer(invocation -> {
+        when(reader.read("ontoweave", "sales", "orders", 100L, 101)).thenAnswer(invocation -> {
             if (reads.getAndIncrement() == 0) {
                 readStarted.countDown();
                 awaitIgnoringInterruptions(releaseRead);
