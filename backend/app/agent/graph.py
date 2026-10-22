@@ -65,6 +65,9 @@ def build_checkpointer(database_url: str):
         conninfo=conninfo,
         max_size=10,
         kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+        # psycopg_pool 默认不探活，网络抖动或服务端断开旧连接后，取到坏连接才会在
+        # 执行 SQL 时失败。每次取连接前先执行一次空查询，失效连接会被自动替换。
+        check=ConnectionPool.check_connection,
         open=True,
     )
     # psycopg_pool 没能从 kwargs 里推断出 dict 行工厂，类型标注过不来；

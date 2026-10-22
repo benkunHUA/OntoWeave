@@ -8,6 +8,7 @@ AgentDefinition 提供，事件形状在 events.py，中断形状在 interrupts.
 
 from __future__ import annotations
 
+import logging
 import time
 import uuid
 from collections.abc import Iterator
@@ -22,6 +23,7 @@ from app.agent import observability
 from app.agent.definitions.base import AgentRunContext
 from app.agent.definitions.registry import get_definition
 from app.agent.runtime import subagent_trace
+from app.agent.runtime.errors import user_facing_run_error
 from app.agent.runtime.events import TurnBuilder, block_fragments, content_text, sse
 from app.agent.runtime.interrupts import normalize_interrupt
 from app.agent.runtime.runs import thread_config
@@ -40,6 +42,8 @@ _SUBGRAPH_SEP = "|"
 _STREAM_MODES = ("updates", "messages", "values", "custom")
 # deepagents 用这个工具名把活派给子智能体；参数里的 subagent_type 才是派给了谁。
 _TASK_TOOL = "task"
+
+logger = logging.getLogger(__name__)
 
 
 def _split_chunk(chunk: Any) -> tuple[tuple[str, ...], str, Any]:
@@ -261,19 +265,25 @@ def stream_run(
         # 两个都是 run.end，却要走向完全不同的交互。
         yield sse(RunEndEvent(messageId=message_id, paused=paused))
     except Exception as exc:
+        logger.exception(
+            "agent run failed: conversation=%s run=%s",
+            conversation_id,
+            run_id,
+        )
         session.rollback()
+        message = user_facing_run_error(exc)
         if run is not None:
             try:
                 conversation.add_message(
                     session,
                     conversation_id=conversation_id,
                     role="assistant",
-                    content=f"{type(exc).__name__}: {exc}",
+                    content=message,
                     kind="error",
                 )
                 session.commit()
             except Exception:
                 session.rollback()
-        yield sse(RunErrorEvent(message=f"{type(exc).__name__}: {exc}"))
+        yield sse(RunErrorEvent(message=message))
     finally:
         session.close()

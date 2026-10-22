@@ -12,9 +12,10 @@ if config.config_file_name is not None:
 
 # 调用方可以通过 config.attributes["sqlalchemy_url"] 指定目标库（测试夹具就这么用），
 # 没指定才回落到应用配置。
+database_url = config.attributes.get("sqlalchemy_url") or get_settings().database_url
 config.set_main_option(
     "sqlalchemy.url",
-    config.attributes.get("sqlalchemy_url") or get_settings().database_url,
+    database_url.replace("%", "%%"),
 )
 target_metadata = Base.metadata
 version_table_schema = config.attributes.get("version_table_schema")

@@ -1,6 +1,7 @@
 import json
 import uuid
 
+import psycopg
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.agent.definitions.base import AgentRunContext
@@ -43,6 +44,17 @@ class _TurnCapturingDefinition(_FakeDefinition):
     def build_graph(self, session, settings, run, *, checkpointer=None):  # noqa: ARG002
         self.turn_ids.append(run.turn_id)
         return _FakeAgent()
+
+
+class _DatabaseBrokenAgent:
+    def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
+        raise psycopg.OperationalError("consuming input failed: server closed the connection")
+        yield  # pragma: no cover
+
+
+class _DatabaseBrokenDefinition(_FakeDefinition):
+    def build_graph(self, session, settings, run, *, checkpointer=None):  # noqa: ARG002
+        return _DatabaseBrokenAgent()
 
 
 def _events(text: str) -> list[dict]:
@@ -134,3 +146,37 @@ def test_stream_run_injects_explicit_or_generated_turn_id(monkeypatch, session, 
     assert definition.turn_ids[0] == explicit
     assert isinstance(definition.turn_ids[1], uuid.UUID)
     assert definition.turn_ids[1] != explicit
+
+
+def test_stream_run_hides_database_disconnect_details(monkeypatch, session, session_factory):
+    owner = uuid.uuid4()
+    stored = conversation.create_conversation(
+        session,
+        owner_id=owner,
+        title="数据库断连",
+        kind=ConversationKind.DATA_CONNECTION,
+        resource_id=uuid.uuid4(),
+    )
+    session.commit()
+    monkeypatch.setattr(
+        "app.agent.runtime.stream.get_definition",
+        lambda kind: _DatabaseBrokenDefinition(),
+    )
+
+    frames = _events(
+        "".join(
+            stream_run(
+                session_factory,
+                Settings(),
+                owner,
+                conversation_id=stored.id,
+                text="继续",
+            )
+        )
+    )
+
+    assert frames[-1]["type"] == "run.error"
+    assert frames[-1]["message"] == "数据存储连接暂时中断，请重试。"
+    history = conversation.list_messages(session, stored.id, owner_id=owner)
+    assert history[-1].kind == "error"
+    assert history[-1].content == "数据存储连接暂时中断，请重试。"

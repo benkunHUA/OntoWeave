@@ -24,8 +24,7 @@ def _isolated_migration_schema(
     )
     schema_engine = create_engine(schema_url)
     schema_config = copy.copy(alembic_config)
-    # ConfigParser uses % for interpolation; escape the URL-encoded query separator.
-    rendered_url = schema_url.render_as_string(hide_password=False).replace("%", "%%")
+    rendered_url = schema_url.render_as_string(hide_password=False)
     schema_config.attributes = {
         **alembic_config.attributes,
         "sqlalchemy_url": rendered_url,

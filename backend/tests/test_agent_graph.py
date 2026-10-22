@@ -49,6 +49,35 @@ def test_build_agent_without_checkpointer_skips_interrupts(session):
     assert type(agent).__name__ == "CompiledStateGraph"
 
 
+def test_build_checkpointer_checks_connections_before_use(monkeypatch):
+    """池里可能留着服务端已关闭的旧连接，取连接时必须先探活。"""
+    import langgraph.checkpoint.postgres as checkpoint_postgres
+    from psycopg_pool import ConnectionPool
+
+    expected_check = ConnectionPool.check_connection
+    captured: dict = {}
+
+    class FakePool:
+        check_connection = expected_check
+
+        def __init__(self, **kwargs):  # noqa: ANN003
+            captured.update(kwargs)
+
+    class FakeSaver:
+        def __init__(self, pool):  # noqa: ANN001, ARG002
+            pass
+
+        def setup(self):
+            pass
+
+    monkeypatch.setattr(checkpoint_postgres, "PostgresSaver", FakeSaver)
+    monkeypatch.setattr("psycopg_pool.ConnectionPool", FakePool)
+
+    agent_graph.build_checkpointer("postgresql+psycopg://user:pass@localhost/db")
+
+    assert captured["check"] is expected_check
+
+
 def test_system_prompt_keeps_explicit_property_requests_as_properties():
     assert "用户明确说" in SYSTEM_PROMPT
     assert "必须按属性处理" in SYSTEM_PROMPT
