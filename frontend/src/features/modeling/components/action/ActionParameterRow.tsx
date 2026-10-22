@@ -1,4 +1,9 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
 import { PARAMETER_KIND_OPTIONS } from '../../lib/actionConfig'
 import type { ActionParameterDraft } from '../../lib/actionDraft'
@@ -28,88 +33,84 @@ export function ActionParameterRow({
   return (
     <div className={`action-row${issue ? ' is-invalid' : ''}`}>
       <div className="action-row__head">
-        <input
-          className="action-row__input"
+        <TextField
+          className="action-row__control"
           value={parameter.name}
           aria-label="参数名"
           placeholder="参数名"
           onChange={(event) => onChange({ name: event.target.value })}
         />
-        <select
-          className="action-row__input action-row__input--narrow"
+        <NativeSelectField
+          className="action-row__control action-row__control--narrow"
           value={parameter.kind}
           aria-label="参数种类"
+          data={PARAMETER_KIND_OPTIONS.map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
           onChange={(event) => onChange({ kind: event.target.value })}
-        >
-          {PARAMETER_KIND_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value} title={option.hint}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <button
+        />
+        <ActionIcon
           type="button"
-          className="field-row__remove"
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label={`删除参数 ${parameter.name || '未命名'}`}
           onClick={onRemove}
         >
           <Trash2 size={15} />
-        </button>
+        </ActionIcon>
       </div>
 
       <div className="action-row__fields">
         {isValue ? (
-          <select
-            className="action-row__input"
+          <NativeSelectField
+            className="action-row__control"
             value={parameter.datatype}
             aria-label="参数类型"
+            data={datatypeOptions(parameter.datatype)}
             onChange={(event) => onChange({ datatype: event.target.value })}
-          >
-            {datatypeOptions(parameter.datatype).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
-          <select
-            className="action-row__input"
+          <NativeSelectField
+            className="action-row__control"
             value={parameter.targetObjectTypeId}
             aria-label="参数指向的对象类型"
+            data={[
+              { value: '', label: '选对象类型' },
+              ...objectTypeOptions(snapshot),
+            ]}
             onChange={(event) => onChange({ targetObjectTypeId: event.target.value })}
-          >
-            <option value="">选对象类型</option>
-            {objectTypeOptions(snapshot).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
         )}
         <div className="action-row__flags">
-          <button
+          <Button
             type="button"
-            className={`field-row__flag${parameter.isArray ? ' is-on' : ''}`}
+            variant={parameter.isArray ? 'light' : 'default'}
+            size="compact-xs"
+            radius="xl"
             aria-pressed={parameter.isArray}
             title="允许多个值（数组）"
             onClick={() => onChange({ isArray: !parameter.isArray })}
           >
             多值
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className={`field-row__flag${parameter.isRequired ? ' is-on' : ''}`}
+            variant={parameter.isRequired ? 'light' : 'default'}
+            size="compact-xs"
+            radius="xl"
             aria-pressed={parameter.isRequired}
             title="执行动作时必须给这个参数"
             onClick={() => onChange({ isRequired: !parameter.isRequired })}
           >
             必填
-          </button>
+          </Button>
         </div>
       </div>
 
-      <input
-        className="action-row__input action-row__input--wide"
+      <TextField
+        className="action-row__control action-row__control--wide"
         value={parameter.description}
         aria-label="参数说明"
         placeholder="参数说明：给人和智能体看，写清这个参数指什么"

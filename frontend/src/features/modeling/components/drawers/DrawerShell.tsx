@@ -1,4 +1,5 @@
-import { CircleCheck, LoaderCircle, Save, X } from 'lucide-react'
+import { ActionIcon, Button } from '@mantine/core'
+import { CircleCheck, Save, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Status } from '../../../../shared/types'
 import type { DrawerSubmitOptions } from '../../lib/drawerSubmit'
@@ -46,14 +47,15 @@ export function DrawerShell({
           <strong>{title}</strong>
           <span className={`status-dot status-dot--${status}`}>{STATUS_LABEL[status]}</span>
         </div>
-        <button
+        <ActionIcon
           type="button"
-          className="icon-button icon-button--quiet"
+          variant="subtle"
+          color="gray"
           aria-label="关闭详情"
           onClick={onClose}
         >
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       <form
@@ -70,22 +72,26 @@ export function DrawerShell({
 
         <footer className="drawer__footer">
           {extraActions}
-          <button type="button" className="secondary-button" onClick={onClose}>
+          <Button type="button" variant="default" onClick={onClose}>
             关闭
-          </button>
-          <button type="submit" className="secondary-button" disabled={!canSave}>
-            <Save size={15} />
-            保存
-          </button>
-          <button
-            type="button"
-            className="primary-button"
+          </Button>
+          <Button
+            type="submit"
+            variant="default"
             disabled={!canSave}
+            leftSection={<Save size={15} />}
+          >
+            保存
+          </Button>
+          <Button
+            type="button"
+            disabled={!canSave}
+            loading={isSaving}
+            leftSection={isSaving ? undefined : <CircleCheck size={15} />}
             onClick={() => onSubmit({ confirm: true })}
           >
-            {isSaving ? <LoaderCircle size={15} /> : <CircleCheck size={15} />}
             {isSaving ? '处理中' : '保存并确认'}
-          </button>
+          </Button>
         </footer>
       </form>
     </aside>

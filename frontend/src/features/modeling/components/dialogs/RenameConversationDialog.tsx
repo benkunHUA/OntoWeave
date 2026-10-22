@@ -1,4 +1,6 @@
-import { ChevronLeft, LoaderCircle, Pencil } from 'lucide-react'
+import { Button } from '@mantine/core'
+import { ChevronLeft, Pencil } from 'lucide-react'
+import { TextField } from '../../../../shared/components/form/controls'
 import { DialogShell } from './DialogShell'
 
 interface RenameConversationDialogProps {
@@ -24,25 +26,24 @@ export function RenameConversationDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="secondary-button" onClick={onCancel}>
-            <ChevronLeft size={15} />
+          <Button type="button" variant="default" leftSection={<ChevronLeft size={15} />} onClick={onCancel}>
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="primary-button"
+            loading={isRenaming}
+            leftSection={isRenaming ? undefined : <Pencil size={15} />}
             onClick={onSubmit}
             disabled={!title.trim() || isRenaming}
           >
-            {isRenaming ? <LoaderCircle size={15} /> : <Pencil size={15} />}
             {isRenaming ? '保存中' : '保存'}
-          </button>
+          </Button>
         </>
       }
     >
-      <label>
-        会话名称
-        <input
+      <div className="view-dialog__body">
+        <TextField
+          label="会话名称"
           value={title}
           onChange={(event) => onTitleChange(event.target.value)}
           onKeyDown={(event) => {
@@ -53,7 +54,7 @@ export function RenameConversationDialog({
           }}
           autoFocus
         />
-      </label>
+      </div>
     </DialogShell>
   )
 }

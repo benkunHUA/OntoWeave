@@ -1,4 +1,6 @@
+import { ActionIcon } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
+import { NativeSelectField } from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
 import { VALUE_SOURCE_OPTIONS } from '../../lib/actionConfig'
 import type { ActionAssignmentDraft, ActionParameterDraft } from '../../lib/actionDraft'
@@ -32,56 +34,50 @@ export function ActionAssignmentRow({
   return (
     <div className={`action-row${issue ? ' is-invalid' : ''}`}>
       <div className="action-row__head">
-        <select
-          className="action-row__input"
+        <NativeSelectField
+          className="action-row__control"
           value={assignment.targetPropertyId}
           aria-label="赋值的目标属性"
+          data={[
+            { value: '', label: '选属性' },
+            ...propertiesOf(snapshot, targetObjectTypeId).map((property) => ({
+              value: property.id,
+              label: property.name,
+            })),
+          ]}
           onChange={(event) => onChange({ targetPropertyId: event.target.value })}
-        >
-          <option value="">选属性</option>
-          {propertiesOf(snapshot, targetObjectTypeId).map((property) => (
-            <option key={property.id} value={property.id}>
-              {property.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="action-row__input action-row__input--narrow"
+        />
+        <NativeSelectField
+          className="action-row__control action-row__control--narrow"
           value={assignment.valueSource}
           aria-label="值的来源"
+          data={VALUE_SOURCE_OPTIONS}
           onChange={(event) => onChange({ valueSource: event.target.value })}
-        >
-          {VALUE_SOURCE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <button
+        />
+        <ActionIcon
           type="button"
-          className="field-row__remove"
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label="删除这条赋值"
           onClick={onRemove}
         >
           <Trash2 size={15} />
-        </button>
+        </ActionIcon>
       </div>
 
       <div className="action-row__fields">
         {assignment.valueSource === 'parameter' ? (
-          <select
-            className="action-row__input"
+          <NativeSelectField
+            className="action-row__control"
             value={assignment.valueParameterId}
             aria-label="值的参数"
+            data={[
+              { value: '', label: '选值参数' },
+              ...valueParameterOptions(parameters),
+            ]}
             onChange={(event) => onChange({ valueParameterId: event.target.value })}
-          >
-            <option value="">选值参数</option>
-            {valueParameterOptions(parameters).map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          />
         ) : null}
 
         {assignment.valueSource === 'object_property' ? (

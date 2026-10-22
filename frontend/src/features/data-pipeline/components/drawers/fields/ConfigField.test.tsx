@@ -1,12 +1,12 @@
 import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { renderStatic } from '../../../../../test/render'
 import { WIDGETS } from '../../../lib/constants'
 import { ConfigField } from './ConfigField'
 import { rowsConfig } from './rowsConfig'
 
 function render(widget: string, field = 'value', value: unknown = undefined): string {
-  return renderToStaticMarkup(createElement(ConfigField, {
+  return renderStatic(createElement(ConfigField, {
     field,
     widget,
     schema: { type: 'object' },

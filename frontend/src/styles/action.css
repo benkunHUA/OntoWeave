@@ -182,31 +182,16 @@
   gap: 6px;
 }
 
-.action-row__input {
+.action-row__control {
   flex: 1 1 120px;
   min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--ink);
-  font-size: 12px;
 }
 
-.action-row__input:focus {
-  border-color: var(--blue);
-  outline: none;
-}
-
-.action-row__input:disabled {
-  color: var(--faint);
-}
-
-.action-row__input--narrow {
+.action-row__control--narrow {
   flex: 0 0 104px;
 }
 
-.action-row__input--wide {
+.action-row__control--wide {
   flex: 1 1 100%;
   width: 100%;
 }
@@ -215,7 +200,6 @@
   color: var(--muted);
   font-size: 11px;
 }
-
 .action-row__hint {
   margin: 0;
   color: var(--faint);
@@ -250,10 +234,4 @@
   gap: 8px;
   color: var(--muted);
   font-size: 11px;
-}
-
-.drawer__field-issue {
-  color: var(--red);
-  font-size: 11px;
-  font-style: normal;
 }

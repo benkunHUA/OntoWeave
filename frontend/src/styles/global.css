@@ -70,10 +70,7 @@ button {
   color: inherit;
 }
 
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
+button:focus-visible {
   outline: 2px solid rgba(59, 123, 255, 0.6);
   outline-offset: 2px;
 }

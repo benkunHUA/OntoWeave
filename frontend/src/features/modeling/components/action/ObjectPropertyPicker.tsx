@@ -1,3 +1,4 @@
+import { NativeSelectField } from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
 import type { ActionParameterDraft } from '../../lib/actionDraft'
 import { objectParameterOptions, propertiesOf } from '../../lib/actionOptions'
@@ -27,35 +28,29 @@ export function ObjectPropertyPicker({
 
   return (
     <>
-      <select
-        className="action-row__input"
+      <NativeSelectField
+        className="action-row__control"
         value={objectParameterId}
         aria-label={parameterLabel}
+        data={[
+          { value: '', label: '选对象参数' },
+          ...objectParameterOptions(parameters, snapshot),
+        ]}
         onChange={(event) =>
           onChange({ objectParameterId: event.target.value, objectPropertyId: '' })
         }
-      >
-        <option value="">选对象参数</option>
-        {objectParameterOptions(parameters, snapshot).map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <select
-        className="action-row__input"
+      />
+      <NativeSelectField
+        className="action-row__control"
         value={propertyId}
         aria-label={propertyLabel}
+        data={[
+          { value: '', label: '选属性' },
+          ...properties.map((property) => ({ value: property.id, label: property.name })),
+        ]}
         disabled={!selected}
         onChange={(event) => onChange({ objectPropertyId: event.target.value })}
-      >
-        <option value="">选属性</option>
-        {properties.map((property) => (
-          <option key={property.id} value={property.id}>
-            {property.name}
-          </option>
-        ))}
-      </select>
+      />
     </>
   )
 }

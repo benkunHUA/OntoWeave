@@ -1,3 +1,4 @@
+import { NativeSelectField, TextField } from '../../../../shared/components/form/controls'
 import { ENUM_DATATYPE } from '../../lib/datatypeOptions'
 import { staticValuePlaceholder } from '../../lib/actionConfig'
 
@@ -22,25 +23,22 @@ export function ActionStaticValueInput({
 }: ActionStaticValueInputProps) {
   if (datatype === ENUM_DATATYPE) {
     return (
-      <select
-        className="action-row__input"
+      <NativeSelectField
+        className="action-row__control"
         value={value}
         aria-label={ariaLabel}
+        data={[
+          { value: '', label: '选一个取值' },
+          ...(enumValues ?? []).map((item) => ({ value: item, label: item })),
+        ]}
         onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">选一个取值</option>
-        {(enumValues ?? []).map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </select>
+      />
     )
   }
 
   return (
-    <input
-      className="action-row__input"
+    <TextField
+      className="action-row__control"
       value={value}
       aria-label={ariaLabel}
       placeholder={staticValuePlaceholder(datatype, isArray)}

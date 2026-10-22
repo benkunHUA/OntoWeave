@@ -1,5 +1,11 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Plus, X } from 'lucide-react'
 import { useState } from 'react'
+import {
+  NativeSelectField,
+  NumberField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import type { JsonObject } from '../../../../../shared/types'
 import { EDITOR_COPY, EXPECTATION_TYPE_OPTIONS } from '../../../lib/editorOptions'
 import { FieldMultiSelect } from './FieldMultiSelect'
@@ -42,14 +48,15 @@ function ValuesEditor({ value, onChange }: { value: unknown; onChange: (values: 
         {values.map((item) => (
           <span className="pipeline-chip" key={item}>
             {item}
-            <button type="button" aria-label={`${EDITOR_COPY.remove}${item}`} onClick={() => onChange(values.filter((value) => value !== item))}>
+            <ActionIcon type="button" variant="transparent" color="gray" size="compact-xs" aria-label={`${EDITOR_COPY.remove}${item}`} onClick={() => onChange(values.filter((value) => value !== item))}>
               <X size={11} />
-            </button>
+            </ActionIcon>
           </span>
         ))}
       </div>
       <div className="pipeline-inline-add">
-        <input
+        <TextField
+          className="pipeline-inline-control"
           value={draft}
           placeholder={EDITOR_COPY.valuePlaceholder}
           onChange={(event) => setDraft(event.target.value)}
@@ -59,9 +66,9 @@ function ValuesEditor({ value, onChange }: { value: unknown; onChange: (values: 
             add()
           }}
         />
-        <button type="button" onClick={add}>
-          <Plus size={13} />{EDITOR_COPY.addValue}
-        </button>
+        <Button type="button" variant="default" size="compact-sm" leftSection={<Plus size={13} />} onClick={add}>
+          {EDITOR_COPY.addValue}
+        </Button>
       </div>
     </div>
   )
@@ -76,18 +83,16 @@ function ExpectationRow({ expectation, onChange, onRemove }: {
   return (
     <div className="pipeline-expectation-row">
       <div className="pipeline-ast-row">
-        <select
+        <NativeSelectField
+          className="pipeline-ast-control"
           aria-label="期望类型"
           value={type}
+          data={EXPECTATION_TYPE_OPTIONS}
           onChange={(event) => onChange(newExpectation(event.target.value))}
-        >
-          {EXPECTATION_TYPE_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <button type="button" className="icon-button icon-button--quiet" aria-label={EDITOR_COPY.remove} onClick={onRemove}>
+        />
+        <ActionIcon type="button" variant="subtle" color="red" aria-label={EDITOR_COPY.remove} onClick={onRemove}>
           <X size={13} />
-        </button>
+        </ActionIcon>
       </div>
       {type === 'PRIMARY_KEY_UNIQUE' || type === 'NOT_NULL' ? (
         <div className="pipeline-subfield">
@@ -100,26 +105,27 @@ function ExpectationRow({ expectation, onChange, onRemove }: {
       ) : null}
       {type === 'ROW_COUNT_RANGE' ? (
         <div className="pipeline-ast-row">
-          <input
-            type="number"
+
+          <NumberField
+            className="pipeline-ast-control"
             min={0}
             aria-label={EDITOR_COPY.minRows}
             placeholder={EDITOR_COPY.minRows}
             value={typeof expectation.min === 'number' ? expectation.min : ''}
-            onChange={(event) => onChange({
+            onChange={(next) => onChange({
               ...expectation,
-              min: event.target.value === '' ? undefined : Number(event.target.value),
+              min: next === '' ? undefined : Number(next),
             })}
           />
-          <input
-            type="number"
+          <NumberField
+            className="pipeline-ast-control"
             min={0}
             aria-label={EDITOR_COPY.maxRows}
             placeholder={EDITOR_COPY.maxRows}
             value={typeof expectation.max === 'number' ? expectation.max : ''}
-            onChange={(event) => onChange({
+            onChange={(next) => onChange({
               ...expectation,
-              max: event.target.value === '' ? undefined : Number(event.target.value),
+              max: next === '' ? undefined : Number(next),
             })}
           />
         </div>
@@ -127,7 +133,8 @@ function ExpectationRow({ expectation, onChange, onRemove }: {
       {type === 'VALUE_SET' ? (
         <div className="pipeline-subfield">
           <span>{EDITOR_COPY.column}</span>
-          <input
+          <TextField
+            className="pipeline-ast-control"
             value={typeof expectation.column === 'string' ? expectation.column : ''}
             placeholder={EDITOR_COPY.fieldPlaceholder}
             onChange={(event) => onChange({ ...expectation, column: event.target.value })}
@@ -153,13 +160,15 @@ export function ExpectationListEditor({ value, onChange }: ExpectationListEditor
         />
       ))}
       {!expectations.length ? <p className="pipeline-field-hint">可选：为输出增加主键、行数、取值或非空检查。</p> : null}
-      <button
+      <Button
         type="button"
-        className="pipeline-add-row"
+        variant="default"
+        size="compact-sm"
+        leftSection={<Plus size={13} />}
         onClick={() => onChange([...expectations, newExpectation()])}
       >
-        <Plus size={13} />{EDITOR_COPY.addExpectation}
-      </button>
+        {EDITOR_COPY.addExpectation}
+      </Button>
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { Button } from '@mantine/core'
 import { Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -29,10 +30,15 @@ export function ActionSection({
         <h4>
           {title} <em>{count}</em>
         </h4>
-        <button type="button" className="text-button" onClick={onAdd}>
-          <Plus size={14} />
+        <Button
+          type="button"
+          variant="subtle"
+          size="compact-sm"
+          leftSection={<Plus size={14} />}
+          onClick={onAdd}
+        >
           {actionLabel}
-        </button>
+        </Button>
       </div>
       <p className="action-section__hint">{hint}</p>
       {empty ? <p className="action-section__empty">{emptyCopy}</p> : children}

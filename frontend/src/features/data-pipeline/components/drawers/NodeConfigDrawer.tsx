@@ -1,3 +1,4 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { CircleAlert, Eye, Info, Trash2, X } from 'lucide-react'
 import {
   forwardRef,
@@ -19,6 +20,7 @@ import {
   ISSUE_COPY,
   NODE_CONFIG_COPY,
 } from '../../lib/constants'
+import { TextField } from '../../../../shared/components/form/controls'
 import { ConfigField } from './fields/ConfigField'
 import { OutputBuildStatus } from './OutputBuildStatus'
 import { OutputSelect } from './fields/OutputSelect'
@@ -156,26 +158,25 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
           <span className="eyebrow">{NODE_CONFIG_COPY.title}</span>
           <h2>{definition?.label ?? node.type}</h2>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" onClick={() => void close()} aria-label="关闭">
+        <ActionIcon type="button" variant="subtle" color="gray" onClick={() => void close()} aria-label="关闭">
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       <div className="pipeline-drawer__body" ref={bodyRef}>
         {!definition ? (
           <p className="pipeline-alert is-error">{NODE_CONFIG_COPY.unknownType}</p>
         ) : null}
-        <label className="pipeline-config-field">
-          <span>{NODE_CONFIG_COPY.name}</span>
-          <input
-            value={drawer.name}
-            disabled={isReadOnly}
-            onChange={(event) => {
-              setDrawer((current) => ({ ...current, name: event.target.value, dirty: true }))
-            }}
-          />
-          {!drawer.name.trim() ? <small className="pipeline-field-error">{NODE_CONFIG_COPY.invalidName}</small> : null}
-        </label>
+        <TextField
+          className="pipeline-config-field"
+          label={NODE_CONFIG_COPY.name}
+          value={drawer.name}
+          disabled={isReadOnly}
+          error={!drawer.name.trim() ? NODE_CONFIG_COPY.invalidName : undefined}
+          onChange={(event) => {
+            setDrawer((current) => ({ ...current, name: event.target.value, dirty: true }))
+          }}
+        />
 
         {orderedFields.map((field) => {
           const fieldIssues = sortedIssues.filter((issue) => issue.field === field)
@@ -237,40 +238,40 @@ export const NodeConfigDrawer = forwardRef<NodeConfigDrawerHandle, NodeConfigDra
         </span>
         <div className="pipeline-drawer__actions">
           {onPreview ? (
-            <button
+            <Button
               type="button"
-              className="secondary-button"
+              variant="default"
               disabled={isReadOnly}
+              leftSection={<Eye size={14} />}
               onClick={() => {
                 void save.flush().then((savedRevision) => {
                   if (savedRevision !== null) onPreview(node.id, savedRevision)
                 })
               }}
             >
-              <Eye size={14} />
               {NODE_CONFIG_COPY.preview}
-            </button>
+            </Button>
           ) : null}
           {confirmDelete ? (
             <div className="pipeline-delete-confirm">
               <span>{NODE_CONFIG_COPY.deleteConfirm}</span>
-              <button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>
+              <Button type="button" variant="default" onClick={() => setConfirmDelete(false)}>
                 {NODE_CONFIG_COPY.cancel}
-              </button>
-              <button type="button" className="danger-button" onClick={() => void onDelete(node.id)}>
+              </Button>
+              <Button type="button" color="red" onClick={() => void onDelete(node.id)}>
                 {NODE_CONFIG_COPY.delete}
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
+            <Button
               type="button"
-              className="danger-button"
+              color="red"
               disabled={isReadOnly}
+              leftSection={<Trash2 size={14} />}
               onClick={() => setConfirmDelete(true)}
             >
-              <Trash2 size={14} />
               {NODE_CONFIG_COPY.delete}
-            </button>
+            </Button>
           )}
         </div>
       </footer>

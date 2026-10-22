@@ -1063,7 +1063,7 @@
   background: #262626;
 }
 
-.composer textarea {
+.composer__input textarea {
   width: 100%;
   min-height: 72px;
   resize: vertical;
@@ -1076,11 +1076,11 @@
   transition: border-color 140ms ease;
 }
 
-.composer textarea::placeholder {
+.composer__input textarea::placeholder {
   color: #7a7a7a;
 }
 
-.composer textarea:focus {
+.composer__input textarea:focus {
   border-color: #4a6ba8;
   outline: none;
 }
@@ -1196,21 +1196,12 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  height: 32px;
-  padding: 0 11px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
   color: var(--muted);
-  background: var(--raised);
   font-size: 12px;
 }
 
-.toolbar-select select {
-  border: 0;
-  color: var(--ink);
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
+.toolbar-select__control {
+  width: 132px;
 }
 
 .canvas-stage {

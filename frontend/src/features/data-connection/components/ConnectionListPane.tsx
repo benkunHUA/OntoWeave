@@ -1,5 +1,6 @@
-import { ChevronRight, Database, House, Plus, Search } from 'lucide-react'
+import { ChevronRight, Database, House, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { SearchField } from '../../../shared/components/form/controls'
 import type { DataConnection } from '../../../shared/types'
 import { CONNECTION_STATUS_LABELS, RUN_STATUS_LABELS, TEST_STATUS_LABELS } from '../lib/labels'
 
@@ -49,15 +50,13 @@ export function ConnectionListPane({
         {isCreating ? '正在创建' : '新建数据连接'}
       </button>
 
-      <label className="connection-search">
-        <Search size={14} />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索数据连接"
-          aria-label="搜索数据连接"
-        />
-      </label>
+      <SearchField
+        className="connection-search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="搜索数据连接"
+        aria-label="搜索数据连接"
+      />
 
       <nav className="connection-list" aria-label="数据连接列表">
         {filtered.map((connection) => {

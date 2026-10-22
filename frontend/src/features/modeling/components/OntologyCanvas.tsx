@@ -22,6 +22,7 @@ import { useEffect, useState } from 'react'
 import { buildFlowElements, type FlowNode } from '../lib/flow'
 import { ActionNode } from './action/ActionNode'
 import { OntologyNode } from './OntologyNode'
+import { NativeSelectField } from '../../../shared/components/form/controls'
 import type { Changeset, GraphSnapshot, ViewSpec } from '../../../shared/types'
 
 const nodeTypes = { ontology: OntologyNode, action: ActionNode }
@@ -123,19 +124,22 @@ function CanvasInner({
         <div className="canvas-toolbar__actions">
           <label className="toolbar-select">
             <span>布局</span>
-            <select
+            <NativeSelectField
+              className="toolbar-select__control"
+              size="xs"
               value={viewSpec.layout?.kind ?? 'hierarchical'}
+              data={[
+                { value: 'hierarchical', label: '层级' },
+                { value: 'force', label: '力导向' },
+                { value: 'domain-grouped', label: '按域分组' },
+                { value: 'grid', label: '网格' },
+              ]}
               onChange={(event) =>
                 onLayoutChange(
                   event.target.value as NonNullable<ViewSpec['layout']>['kind'],
                 )
               }
-            >
-              <option value="hierarchical">层级</option>
-              <option value="force">力导向</option>
-              <option value="domain-grouped">按域分组</option>
-                <option value="grid">网格</option>
-              </select>
+            />
           </label>
         </div>
       </header>

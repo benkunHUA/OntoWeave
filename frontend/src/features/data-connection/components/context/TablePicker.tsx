@@ -1,5 +1,11 @@
-import { AlertTriangle, KeyRound, RefreshCw, Search, SlidersHorizontal, Table2 } from 'lucide-react'
+import { ActionIcon, Button } from '@mantine/core'
+import { AlertTriangle, KeyRound, RefreshCw, SlidersHorizontal, Table2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  CheckboxField,
+  NativeSelectField,
+  SearchField,
+} from '../../../../shared/components/form/controls'
 import type {
   SyncMode,
   SyncRun,
@@ -140,13 +146,21 @@ export function TablePicker({
   return (
     <div className="table-picker">
       <div className="table-toolbar">
-        <label className="connection-search">
-          <Search size={14} />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索表名" />
-        </label>
-        <button type="button" className="icon-button" aria-label="刷新表列表" onClick={() => void onRefresh()}>
+        <SearchField
+          className="connection-search"
+          value={query}
+          aria-label="搜索表名"
+          placeholder="搜索表名"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <ActionIcon
+          type="button"
+          variant="default"
+          aria-label="刷新表列表"
+          onClick={() => void onRefresh()}
+        >
           <RefreshCw size={15} />
-        </button>
+        </ActionIcon>
       </div>
 
       {warnings.map((warning) => (
@@ -169,8 +183,7 @@ export function TablePicker({
               className={`table-row ${draft ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${running ? 'is-running' : ''}`}
             >
               <div className="table-row__main">
-                <input
-                  type="checkbox"
+                <CheckboxField
                   checked={Boolean(draft)}
                   disabled={disabled || running}
                   onChange={() => toggle(table)}
@@ -197,36 +210,40 @@ export function TablePicker({
               ) : null}
               {draft ? (
                 <div className="table-row__settings">
-                  <select
+                  <NativeSelectField
+                    className="table-row__settings-control"
                     value={draft.mode}
                     disabled={running}
+                    data={[
+                      { value: 'cdc', label: SYNC_MODE_LABELS.cdc },
+                      { value: 'snapshot', label: SYNC_MODE_LABELS.snapshot },
+                    ]}
                     onChange={(event) => updateDraft(key, { mode: event.target.value as SyncMode })}
                     aria-label="同步方式"
-                  >
-                    <option value="cdc">{SYNC_MODE_LABELS.cdc}</option>
-                    <option value="snapshot">{SYNC_MODE_LABELS.snapshot}</option>
-                  </select>
+                  />
                   {draft.mode === 'cdc' ? (
-                    <select
+                    <NativeSelectField
+                      className="table-row__settings-control"
                       value={draft.interval}
                       disabled={running}
+                      data={VERSION_INTERVAL_OPTIONS.map((option) => ({
+                        value: String(option.value),
+                        label: option.label,
+                      }))}
                       onChange={(event) => updateDraft(key, { interval: Number(event.target.value) })}
                       aria-label="版本发布间隔"
-                    >
-                      {VERSION_INTERVAL_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    />
                   ) : null}
-                  <button
+                  <ActionIcon
                     type="button"
-                    className="icon-button icon-button--quiet"
+                    variant="subtle"
+                    color="gray"
                     aria-label="高级设置"
                     disabled={running}
                     onClick={() => setExpanded(expanded === key ? null : key)}
                   >
                     <SlidersHorizontal size={14} />
-                  </button>
+                  </ActionIcon>
                 </div>
               ) : null}
               {expanded === key && draft ? (
@@ -246,17 +263,22 @@ export function TablePicker({
         <span className="selection-count">
           {hasRunningSelection ? '选中的表正在同步，请先停止运行' : `已选 ${selectedCount} 张表`}
         </span>
-        <button type="button" className="secondary-button" disabled={isBusy || selectedCount === 0} onClick={() => void submit(false)}>
-          仅保存选择
-        </button>
-        <button
+        <Button
           type="button"
-          className="primary-button"
+          variant="default"
+          disabled={isBusy || selectedCount === 0}
+          onClick={() => void submit(false)}
+        >
+          仅保存选择
+        </Button>
+        <Button
+          type="button"
           disabled={isBusy || selectedCount === 0 || hasRunningSelection}
+          loading={isBusy}
           onClick={() => void submit(true)}
         >
           {isBusy ? '处理中…' : hasRunningSelection ? '请先停止运行中的表' : '保存并开始同步'}
-        </button>
+        </Button>
       </div>
     </div>
   )

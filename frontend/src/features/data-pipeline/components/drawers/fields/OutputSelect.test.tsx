@@ -1,10 +1,10 @@
 import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { renderStatic } from '../../../../../test/render'
 import { OutputSelect } from './OutputSelect'
 
 function render(outputId: string | null): string {
-  return renderToStaticMarkup(createElement(OutputSelect, {
+  return renderStatic(createElement(OutputSelect, {
     nodeId: '00000000-0000-4000-8000-000000000001',
     defaultName: 'Orders',
     outputId,

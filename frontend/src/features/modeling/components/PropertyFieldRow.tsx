@@ -1,4 +1,6 @@
+import { ActionIcon, Badge, Button } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
+import { SelectField, TextField } from '../../../shared/components/form/controls'
 import { ENUM_DATATYPE, datatypeOptions, type PropertyDraft } from '../lib/nodeDetails'
 import { EnumValuesEditor } from './EnumValuesEditor'
 
@@ -19,15 +21,17 @@ interface FlagToggleProps {
 /** 字段标记开关：多值 / 主键 / 标题键。 */
 function FlagToggle({ label, title, active, onToggle }: FlagToggleProps) {
   return (
-    <button
+    <Button
       type="button"
-      className={`field-row__flag${active ? ' is-on' : ''}`}
+      variant={active ? 'light' : 'default'}
+      size="compact-xs"
+      radius="xl"
       title={title}
       aria-pressed={active}
       onClick={onToggle}
     >
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -41,34 +45,34 @@ export function PropertyFieldRow({
   return (
     <div className="field-row">
       <div className="field-row__main">
-        <input
-          className="field-row__name"
+        <TextField
           value={property.name}
           aria-label="字段名"
           placeholder="字段名"
           onChange={(event) => onChange(property.key, { name: event.target.value })}
         />
-        <select
-          className="field-row__type"
+        <SelectField
           value={property.datatype}
           aria-label="字段类型"
-          onChange={(event) => onChange(property.key, { datatype: event.target.value })}
-        >
-          {datatypeOptions(property.datatype).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        {required ? <span className="field-row__required">必填</span> : null}
-        <button
+          data={datatypeOptions(property.datatype)}
+          allowDeselect={false}
+          onChange={(datatype) => datatype && onChange(property.key, { datatype })}
+        />
+        {required ? (
+          <Badge size="xs" variant="light" color="yellow">
+            必填
+          </Badge>
+        ) : null}
+        <ActionIcon
           type="button"
-          className="field-row__remove"
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label={`删除字段 ${property.name || '未命名'}`}
           onClick={() => onRemove(property.key)}
         >
           <Trash2 size={15} />
-        </button>
+        </ActionIcon>
       </div>
       {property.datatype === ENUM_DATATYPE ? (
         <EnumValuesEditor

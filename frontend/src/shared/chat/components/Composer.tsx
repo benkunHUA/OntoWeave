@@ -1,5 +1,7 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Send, Square } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
+import { TextAreaField } from '../../components/form/controls'
 import { INTERRUPT_PLACEHOLDER } from '../lib/interruptCopy'
 import type { PendingInterrupt } from '../lib/messageBlocks'
 
@@ -41,11 +43,14 @@ export function Composer({
 
   return (
     <form className="composer" onSubmit={submit}>
-      <textarea
+      <TextAreaField
+        className="composer__input"
         value={input}
         onChange={(event) => setInput(event.target.value)}
         placeholder={resolvedPlaceholder}
-        rows={3}
+        autosize
+        minRows={3}
+        maxRows={8}
         disabled={disabled}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) {
@@ -58,20 +63,19 @@ export function Composer({
         <span>{isRunning ? '智能体正在处理' : 'Enter 发送 · Shift + Enter 换行'}</span>
         <div className="composer__actions">
           {isRunning ? (
-            <button type="button" className="icon-button" aria-label="停止" onClick={onAbort}>
+            <ActionIcon type="button" variant="default" aria-label="停止" onClick={onAbort}>
               <Square size={15} />
-            </button>
+            </ActionIcon>
           ) : null}
-          <button
+          <Button
             type="submit"
-            className="send-button"
+            leftSection={<Send size={16} />}
             disabled={
               disabled || !input.trim() || isRunning || Boolean(interrupt && !waitingForFreeText)
             }
           >
-            <Send size={16} />
             发送
-          </button>
+          </Button>
         </div>
       </div>
     </form>

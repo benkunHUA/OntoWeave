@@ -1,4 +1,9 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 
 export interface ArrayRowColumn {
   key: string
@@ -49,20 +54,21 @@ export function ArrayRowsControl({
         <div className="pipeline-array-row" key={index}>
           {columns.map((column) => (
             column.options?.length ? (
-              <select
+              <NativeSelectField
                 key={column.key}
+                className="pipeline-array-control"
                 aria-label={column.label}
                 value={row[column.key]}
+                data={[
+                  { value: '', label: column.label },
+                  ...column.options.map((option) => ({ value: option, label: option })),
+                ]}
                 onChange={(event) => update(index, column.key, event.target.value)}
-              >
-                <option value="">{column.label}</option>
-                {column.options.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
+              />
             ) : (
-              <input
+              <TextField
                 key={column.key}
+                className="pipeline-array-control"
                 aria-label={column.label}
                 placeholder={column.label}
                 value={row[column.key]}
@@ -70,24 +76,26 @@ export function ArrayRowsControl({
               />
             )
           ))}
-          <button
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="red"
             aria-label={`删除${addLabel}`}
             onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}
           >
             <Trash2 size={14} />
-          </button>
+          </ActionIcon>
         </div>
       ))}
-      <button
+      <Button
         type="button"
-        className="pipeline-add-row"
+        variant="default"
+        size="compact-sm"
+        leftSection={<Plus size={14} />}
         onClick={() => onChange([...rows, { ...emptyRow }])}
       >
-        <Plus size={14} />
         {addLabel}
-      </button>
+      </Button>
     </div>
   )
 }

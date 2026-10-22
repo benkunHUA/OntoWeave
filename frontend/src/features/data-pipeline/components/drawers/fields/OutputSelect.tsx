@@ -1,4 +1,9 @@
+import { Button } from '@mantine/core'
 import { useState } from 'react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import type { JsonObject } from '../../../../../shared/types'
 import { EDITOR_COPY } from '../../../lib/editorOptions'
 import type { OutputDraftInput } from '../../../lib/outputCommand'
@@ -56,14 +61,20 @@ export function OutputSelect({
     <section className="pipeline-output-select" data-editor="output-select">
       <h3>{EDITOR_COPY.outputName}</h3>
       <div className="pipeline-subfield">
-        <span>{EDITOR_COPY.outputName}</span>
-        <input value={name} disabled={isReadOnly} onChange={(event) => setName(event.target.value)} />
+        <TextField
+          label={EDITOR_COPY.outputName}
+          value={name}
+          disabled={isReadOnly}
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       <div className="pipeline-subfield">
-        <span>{EDITOR_COPY.writeMode}</span>
-        <select value="snapshot" disabled>
-          <option value="snapshot">{EDITOR_COPY.snapshot}</option>
-        </select>
+        <NativeSelectField
+          label={EDITOR_COPY.writeMode}
+          value="snapshot"
+          data={[{ value: 'snapshot', label: EDITOR_COPY.snapshot }]}
+          disabled
+        />
       </div>
       <div className="pipeline-subfield">
         <span>{EDITOR_COPY.primaryKey}</span>
@@ -73,14 +84,14 @@ export function OutputSelect({
         <span>{EDITOR_COPY.expectations}</span>
         <ExpectationListEditor value={expectations} onChange={setExpectations} />
       </div>
-      <button
+      <Button
         type="button"
-        className="primary-button"
         disabled={isReadOnly || submitting || isSaving || !name.trim()}
+        loading={submitting || isSaving}
         onClick={() => void submit()}
       >
         {submitting || isSaving ? EDITOR_COPY.saving : EDITOR_COPY.saveOutput}
-      </button>
+      </Button>
       {!name.trim() ? <p className="pipeline-field-error">{EDITOR_COPY.outputInvalid}</p> : null}
     </section>
   )

@@ -1,5 +1,10 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { CalendarClock, LoaderCircle, Pause, Play, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../shared/components/form/controls'
 import type { Pipeline } from '../../../../shared/types'
 import { httpErrorText } from '../../../../shared/api/errors'
 import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
@@ -123,9 +128,9 @@ export function ScheduleDrawer({
           <h2>{SCHEDULE_COPY.title}</h2>
           <small>{SCHEDULE_COPY.subtitle}</small>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label="关闭" onClick={onClose}>
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label="关闭" onClick={onClose}>
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       <div className="pipeline-drawer__body">
@@ -145,38 +150,41 @@ export function ScheduleDrawer({
           <small>{SCHEDULE_COPY.lastRun}：{formatDateTime(schedules.schedule?.last_run_at, displayTimezone)} · {displayTimezone}</small>
         </section>
 
-        <label className="pipeline-config-field">
-          <span>{SCHEDULE_COPY.name}</span>
-          <input value={form.name} onChange={(event) => update({ name: event.target.value })} />
-        </label>
-        <label className="pipeline-config-field">
-          <span>{SCHEDULE_COPY.frequency}</span>
-          <select
-            value={preset}
-            onChange={(event) => {
-              const selected = SCHEDULE_PRESETS.find((item) => item.id === event.target.value)
-              if (selected) update({ cron: selected.cron })
-            }}
-          >
-            {SCHEDULE_PRESETS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            <option value="custom">自定义 cron</option>
-          </select>
-        </label>
-        <label className="pipeline-config-field">
-          <span>{SCHEDULE_COPY.customCron}</span>
-          <input value={form.cron} onChange={(event) => update({ cron: event.target.value })} />
-        </label>
-        <label className="pipeline-config-field">
-          <span>{SCHEDULE_COPY.timezone}</span>
-          <input
-            list="pipeline-timezones"
-            value={form.timezone}
-            onChange={(event) => update({ timezone: event.target.value })}
-          />
-          <datalist id="pipeline-timezones">
-            {[...timezones].map((timezone) => <option key={timezone} value={timezone} />)}
-          </datalist>
-        </label>
+        <TextField
+          className="pipeline-config-field"
+          label={SCHEDULE_COPY.name}
+          value={form.name}
+          onChange={(event) => update({ name: event.target.value })}
+        />
+        <NativeSelectField
+          className="pipeline-config-field"
+          label={SCHEDULE_COPY.frequency}
+          value={preset}
+          data={[
+            ...SCHEDULE_PRESETS.map((item) => ({ value: item.id, label: item.label })),
+            { value: 'custom', label: '自定义 cron' },
+          ]}
+          onChange={(event) => {
+            const selected = SCHEDULE_PRESETS.find((item) => item.id === event.target.value)
+            if (selected) update({ cron: selected.cron })
+          }}
+        />
+        <TextField
+          className="pipeline-config-field"
+          label={SCHEDULE_COPY.customCron}
+          value={form.cron}
+          onChange={(event) => update({ cron: event.target.value })}
+        />
+        <TextField
+          className="pipeline-config-field"
+          label={SCHEDULE_COPY.timezone}
+          list="pipeline-timezones"
+          value={form.timezone}
+          onChange={(event) => update({ timezone: event.target.value })}
+        />
+        <datalist id="pipeline-timezones">
+          {[...timezones].map((timezone) => <option key={timezone} value={timezone} />)}
+        </datalist>
 
         <ScheduleRunList
           runs={schedules.runs}
@@ -186,25 +194,24 @@ export function ScheduleDrawer({
       </div>
 
       <footer className="pipeline-drawer__foot pipeline-schedule-actions">
-        <button
+        <Button
           type="button"
-          className="primary-button"
           disabled={!form.name.trim() || !form.cron.trim() || schedules.isLoading}
+          leftSection={<CalendarClock size={14} />}
           onClick={() => setAction('save')}
         >
-          <CalendarClock size={14} />
           {schedules.missing ? SCHEDULE_COPY.create : SCHEDULE_COPY.save}
-        </button>
+        </Button>
         {!schedules.missing ? (
-          <button
+          <Button
             type="button"
-            className="secondary-button"
+            variant="default"
             disabled={schedules.isLoading}
+            leftSection={paused ? <Play size={14} /> : <Pause size={14} />}
             onClick={() => setAction(paused ? 'resume' : 'pause')}
           >
-            {paused ? <Play size={14} /> : <Pause size={14} />}
             {paused ? SCHEDULE_COPY.resume : SCHEDULE_COPY.pause}
-          </button>
+          </Button>
         ) : null}
       </footer>
 
@@ -215,18 +222,18 @@ export function ScheduleDrawer({
           subtitle={SCHEDULE_COPY.subtitle}
           onClose={() => setAction(null)}
           footer={<>
-            <button type="button" className="secondary-button" onClick={() => setAction(null)}>
+            <Button type="button" variant="default" onClick={() => setAction(null)}>
               取消
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="primary-button"
               disabled={submitting}
+              loading={submitting}
+              leftSection={submitting ? undefined : <CalendarClock size={14} />}
               onClick={() => void confirmAction()}
             >
-              {submitting ? <LoaderCircle size={14} /> : <CalendarClock size={14} />}
               {dialogCopy.confirm}
-            </button>
+            </Button>
           </>}
         >
           <div className="view-dialog__body">

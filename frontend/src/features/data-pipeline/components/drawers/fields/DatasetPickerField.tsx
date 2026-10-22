@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { NativeSelectField } from '../../../../../shared/components/form/controls'
 import { listPipelineInputDatasets } from '../../../../../shared/api'
 import { httpErrorText } from '../../../../../shared/api/errors'
 import type { InputDataset } from '../../../../../shared/types'
@@ -30,18 +31,20 @@ export function DatasetPickerField({ value, onChange }: DatasetPickerFieldProps)
 
   return (
     <div className="pipeline-dataset-picker">
-      <select value={selected} onChange={(event) => onChange(event.target.value)}>
-        <option value="">选择同步数据集</option>
-        {selected && !datasets.some((dataset) => dataset.id === selected) ? (
-          <option value={selected}>{selected}</option>
-        ) : null}
-        {datasets.map((dataset) => (
-          <option key={dataset.id} value={dataset.id}>
-            {dataset.name}
-            {dataset.current_version ? ` · v${dataset.current_version.version_number}` : ''}
-          </option>
-        ))}
-      </select>
+      <NativeSelectField
+        value={selected}
+        data={[
+          { value: '', label: '选择同步数据集' },
+          ...(selected && !datasets.some((dataset) => dataset.id === selected)
+            ? [{ value: selected, label: selected }]
+            : []),
+          ...datasets.map((dataset) => ({
+            value: dataset.id,
+            label: `${dataset.name}${dataset.current_version ? ` · v${dataset.current_version.version_number}` : ''}`,
+          })),
+        ]}
+        onChange={(event) => onChange(event.target.value)}
+      />
       {error ? <p className="pipeline-field-error">{error}</p> : null}
     </div>
   )

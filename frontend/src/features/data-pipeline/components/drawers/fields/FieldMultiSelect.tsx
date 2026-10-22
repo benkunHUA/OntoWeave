@@ -1,5 +1,10 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Plus, X } from 'lucide-react'
 import { useState } from 'react'
+import {
+  CheckboxField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import { EDITOR_COPY } from '../../../lib/editorOptions'
 
 interface FieldMultiSelectProps {
@@ -38,32 +43,35 @@ export function FieldMultiSelect({ value, options = [], onChange }: FieldMultiSe
     <div className="pipeline-multi-select" data-editor="field-multi-select">
       <div className="pipeline-checkbox-list">
         {available.map((field) => (
-          <label key={field} className="pipeline-checkbox">
-            <input
-              type="checkbox"
-              checked={selected.includes(field)}
-              onChange={(event) => toggle(field, event.target.checked)}
-            />
-            <span>{field}</span>
-          </label>
+          <CheckboxField
+            key={field}
+            className="pipeline-checkbox"
+            checked={selected.includes(field)}
+            label={field}
+            onChange={(event) => toggle(field, event.currentTarget.checked)}
+          />
         ))}
       </div>
       <div className="pipeline-chip-list">
         {selected.map((field) => (
           <span className="pipeline-chip" key={field}>
             {field}
-            <button
+            <ActionIcon
               type="button"
+              variant="transparent"
+              color="gray"
+              size="compact-xs"
               aria-label={`${EDITOR_COPY.remove}${field}`}
               onClick={() => toggle(field, false)}
             >
               <X size={11} />
-            </button>
+            </ActionIcon>
           </span>
         ))}
       </div>
       <div className="pipeline-inline-add">
-        <input
+        <TextField
+          className="pipeline-inline-control"
           value={draft}
           placeholder={EDITOR_COPY.fieldPlaceholder}
           onChange={(event) => setDraft(event.target.value)}
@@ -73,10 +81,16 @@ export function FieldMultiSelect({ value, options = [], onChange }: FieldMultiSe
             add()
           }}
         />
-        <button type="button" onClick={add} aria-label={EDITOR_COPY.addField}>
-          <Plus size={13} />
+        <Button
+          type="button"
+          variant="default"
+          size="compact-sm"
+          leftSection={<Plus size={13} />}
+          onClick={add}
+          aria-label={EDITOR_COPY.addField}
+        >
           {EDITOR_COPY.addField}
-        </button>
+        </Button>
       </div>
     </div>
   )

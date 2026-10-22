@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '../../../../test/render'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpError } from '../../../../shared/api/client'
 import type { Pipeline, PipelineSchedule, PipelineScheduleRun } from '../../../../shared/types'

@@ -1,4 +1,6 @@
+import { ActionIcon } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
+import { NativeSelectField, TextField } from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
 import { OPERATOR_OPTIONS, operatorLabel, operatorsForDatatype } from '../../lib/actionConfig'
 import type {
@@ -35,36 +37,37 @@ export function ActionCriteriaRow({
 }: ActionCriteriaRowProps) {
   const operators = operatorsForDatatype(leftDatatype)
   const unary = operators.find((item) => item.value === condition.operator)?.unary ?? false
+  const operatorData = OPERATOR_OPTIONS.filter((item) =>
+    operators.some((allowed) => allowed.value === item.value),
+  ).map((item) => ({ value: item.value, label: item.label }))
+  if (!operators.some((item) => item.value === condition.operator)) {
+    operatorData.unshift({
+      value: condition.operator,
+      label: operatorLabel(condition.operator),
+    })
+  }
 
   return (
     <div className={`action-row${issue ? ' is-invalid' : ''}`}>
       <div className="action-row__head">
         <span className="action-row__label">当</span>
-        <select
-          className="action-row__input action-row__input--narrow"
+        <NativeSelectField
+          className="action-row__control action-row__control--narrow"
           value={condition.operator}
           aria-label="运算符"
+          data={operatorData}
           onChange={(event) => onChange({ operator: event.target.value })}
-        >
-          {operators.some((item) => item.value === condition.operator) ? null : (
-            <option value={condition.operator}>{operatorLabel(condition.operator)}</option>
-          )}
-          {OPERATOR_OPTIONS.filter((item) =>
-            operators.some((allowed) => allowed.value === item.value),
-          ).map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-        <button
+        />
+        <ActionIcon
           type="button"
-          className="field-row__remove"
+          variant="subtle"
+          color="red"
+          size="sm"
           aria-label="删除这条校验"
           onClick={onRemove}
         >
           <Trash2 size={15} />
-        </button>
+        </ActionIcon>
       </div>
 
       <ActionOperandFields
@@ -91,8 +94,8 @@ export function ActionCriteriaRow({
         />
       )}
 
-      <input
-        className="action-row__input action-row__input--wide"
+      <TextField
+        className="action-row__control action-row__control--wide"
         value={condition.failureMessage}
         aria-label="校验失败时的提示"
         placeholder="校验不通过时提示什么"

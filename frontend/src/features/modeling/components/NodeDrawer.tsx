@@ -1,5 +1,7 @@
+import { Button, Text } from '@mantine/core'
 import { Box, Plus } from 'lucide-react'
 import { useState } from 'react'
+import { TextAreaField, TextField } from '../../../shared/components/form/controls'
 import type { GraphNode } from '../../../shared/types'
 import type { DrawerSubmitOptions } from '../lib/drawerSubmit'
 import {
@@ -88,39 +90,44 @@ export function NodeDrawer({
       onClose={onClose}
       onSubmit={(options) => onSubmit(draft, options)}
     >
-      <label className="drawer__field">
-        <span>名称</span>
-        <input
-          value={draft.name}
-          placeholder="对象名称"
-          onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-        />
-      </label>
+      <TextField
+        label="名称"
+        value={draft.name}
+        placeholder="对象名称"
+        onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+      />
 
-      <label className="drawer__field">
-        <span>描述</span>
-        <textarea
-          value={draft.description}
-          rows={3}
-          placeholder="这个对象代表什么？"
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, description: event.target.value }))
-          }
-        />
-      </label>
+      <TextAreaField
+        label="描述"
+        value={draft.description}
+        autosize
+        minRows={3}
+        maxRows={6}
+        placeholder="这个对象代表什么？"
+        onChange={(event) =>
+          setDraft((current) => ({ ...current, description: event.target.value }))
+        }
+      />
 
       <section className="drawer__fields">
         <div className="drawer__fields-head">
           <h4>
             字段 <em>{draft.properties.length}</em>
           </h4>
-          <button type="button" className="text-button" onClick={addProperty}>
-            <Plus size={14} />
+          <Button
+            type="button"
+            variant="subtle"
+            size="compact-sm"
+            leftSection={<Plus size={14} />}
+            onClick={addProperty}
+          >
             新增字段
-          </button>
+          </Button>
         </div>
         {pendingDeleteIds.size ? (
-          <p className="drawer__pending">{pendingDeleteIds.size} 个字段将在确认改动后删除</p>
+          <Text size="xs" c="dimmed">
+            {pendingDeleteIds.size} 个字段将在确认改动后删除
+          </Text>
         ) : null}
         {draft.properties.length ? (
           draft.properties.map((property) => (
@@ -133,7 +140,9 @@ export function NodeDrawer({
             />
           ))
         ) : (
-          <p className="drawer__empty">这个对象还没有字段</p>
+          <Text size="sm" c="dimmed">
+            这个对象还没有字段
+          </Text>
         )}
       </section>
     </DrawerShell>

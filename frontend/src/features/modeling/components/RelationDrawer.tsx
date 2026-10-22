@@ -1,5 +1,7 @@
+import { ActionIcon } from '@mantine/core'
 import { ArrowRightLeft, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { NativeSelectField, TextField } from '../../../shared/components/form/controls'
 import type { GraphRelation } from '../../../shared/types'
 import {
   CARDINALITY_OPTIONS,
@@ -59,16 +61,18 @@ export function RelationDrawer({
       onClose={onClose}
       onSubmit={(options) => onSubmit(draft, options)}
       extraActions={
-        <button
+        <ActionIcon
           type="button"
-          className="icon-button drawer__danger"
+          variant="subtle"
+          color="red"
+          className="drawer__danger"
           aria-label="删除关系"
           title="删除关系"
           disabled={isSaving}
           onClick={onDelete}
         >
           <Trash2 size={16} />
-        </button>
+        </ActionIcon>
       }
     >
       <div className="drawer__endpoints">
@@ -82,80 +86,68 @@ export function RelationDrawer({
         </div>
       </div>
 
-      <label className="drawer__field">
-        <span>关系名</span>
-        <input
-          value={draft.name}
-          placeholder="关系名"
-          onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-        />
-      </label>
+      <TextField
+        label="关系名"
+        value={draft.name}
+        placeholder="关系名"
+        onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+      />
 
-      <label className="drawer__field">
-        <span>基数</span>
-        <select
-          value={draft.cardinality}
-          onChange={(event) => {
-            const cardinality = event.target.value
-            setDraft((current) => ({
-              ...current,
-              cardinality,
-              // 多对多不用外键，切过去时清空，避免留下非法组合。
-              foreignKeyPropertyId: foreignKeyAllowed(cardinality)
-                ? current.foreignKeyPropertyId
-                : '',
-            }))
-          }}
-        >
-          {CARDINALITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}（{option.mark}）
-            </option>
-          ))}
-        </select>
-      </label>
+      <NativeSelectField
+        label="基数"
+        value={draft.cardinality}
+        data={CARDINALITY_OPTIONS.map((option) => ({
+          value: option.value,
+          label: `${option.label}（${option.mark}）`,
+        }))}
+        onChange={(event) => {
+          const cardinality = event.target.value
+          setDraft((current) => ({
+            ...current,
+            cardinality,
+            // 多对多不用外键，切过去时清空，避免留下非法组合。
+            foreignKeyPropertyId: foreignKeyAllowed(cardinality)
+              ? current.foreignKeyPropertyId
+              : '',
+          }))
+        }}
+      />
 
       {foreignKeyAllowed(draft.cardinality) ? (
-        <label className="drawer__field">
-          <span>外键属性</span>
-          <select
-            value={draft.foreignKeyPropertyId}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, foreignKeyPropertyId: event.target.value }))
-            }
-          >
-            <option value="">不绑定</option>
-            {foreignKeyCandidates.map((candidate) => (
-              <option key={candidate.value} value={candidate.value}>
-                {candidate.label}
-              </option>
-            ))}
-          </select>
-          <small className="drawer__hint">承载这条链接的属性，存的是对端主键的值。</small>
-        </label>
+        <NativeSelectField
+          label="外键属性"
+          description="承载这条链接的属性，存的是对端主键的值。"
+          value={draft.foreignKeyPropertyId}
+          data={[
+            { value: '', label: '不绑定' },
+            ...foreignKeyCandidates.map((candidate) => ({
+              value: candidate.value,
+              label: candidate.label,
+            })),
+          ]}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, foreignKeyPropertyId: event.target.value }))
+          }
+        />
       ) : null}
 
-      <label className="drawer__field">
-        <span>正向可读名</span>
-        <input
-          value={draft.forwardLabel}
-          placeholder={`默认沿用「${draft.name || '关系名'}」`}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, forwardLabel: event.target.value }))
-          }
-        />
-      </label>
+      <TextField
+        label="正向可读名"
+        value={draft.forwardLabel}
+        placeholder={`默认沿用「${draft.name || '关系名'}」`}
+        onChange={(event) =>
+          setDraft((current) => ({ ...current, forwardLabel: event.target.value }))
+        }
+      />
 
-      <label className="drawer__field">
-        <span>反向可读名</span>
-        <input
-          value={draft.reverseLabel}
-          placeholder={`默认沿用「${draft.name || '关系名'}」`}
-          onChange={(event) =>
-            setDraft((current) => ({ ...current, reverseLabel: event.target.value }))
-          }
-        />
-      </label>
+      <TextField
+        label="反向可读名"
+        value={draft.reverseLabel}
+        placeholder={`默认沿用「${draft.name || '关系名'}」`}
+        onChange={(event) =>
+          setDraft((current) => ({ ...current, reverseLabel: event.target.value }))
+        }
+      />
     </DrawerShell>
   )
 }

@@ -1,4 +1,6 @@
-import { LoaderCircle, Trash2 } from 'lucide-react'
+import { Button } from '@mantine/core'
+import { Trash2 } from 'lucide-react'
+import { RadioField } from '../../../../shared/components/form/controls'
 import type { DeleteScope } from '../../../../shared/types'
 import { DELETE_SCOPE_OPTIONS } from '../../lib/deleteScopes'
 import { DialogShell } from './DialogShell'
@@ -29,18 +31,19 @@ export function DeleteConversationDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="secondary-button" onClick={onCancel}>
+          <Button type="button" variant="default" onClick={onCancel}>
             取消
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="danger-button"
+            color="red"
+            loading={isDeleting}
+            leftSection={isDeleting ? undefined : <Trash2 size={15} />}
             onClick={onConfirm}
             disabled={isDeleting}
           >
-            {isDeleting ? <LoaderCircle size={15} /> : <Trash2 size={15} />}
             {isDeleting ? '删除中' : '删除'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -51,19 +54,20 @@ export function DeleteConversationDialog({
         <fieldset className="view-dialog__choices">
           <legend>图里的草稿对象和关系怎么处理</legend>
           {DELETE_SCOPE_OPTIONS.map((option) => (
-            <label key={option.value} className="view-dialog__choice">
-              <input
-                type="radio"
+            <div key={option.value} className="view-dialog__choice">
+              <RadioField
                 name="delete-scope"
                 value={option.value}
                 checked={scope === option.value}
                 onChange={() => onScopeChange(option.value)}
+                label={
+                  <span className="view-dialog__choice-copy">
+                    <strong>{option.title}</strong>
+                    <em>{option.hint}</em>
+                  </span>
+                }
               />
-              <span>
-                <strong>{option.title}</strong>
-                <em>{option.hint}</em>
-              </span>
-            </label>
+            </div>
           ))}
         </fieldset>
       </div>

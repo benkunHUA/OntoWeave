@@ -1,3 +1,4 @@
+import { NativeSelectField } from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
 import { VALUE_SOURCE_OPTIONS } from '../../lib/actionConfig'
 import type { ActionOperandDraft, ActionParameterDraft } from '../../lib/actionDraft'
@@ -33,33 +34,25 @@ export function ActionOperandFields({
 
   return (
     <div className="action-row__fields">
-      <select
-        className="action-row__input"
+      <NativeSelectField
+        className="action-row__control"
         value={operand.kind}
         aria-label={`${sideLabel}取值形态`}
+        data={kinds}
         onChange={(event) => onChange({ kind: event.target.value })}
-      >
-        {kinds.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      />
 
       {operand.kind === 'parameter' ? (
-        <select
-          className="action-row__input"
+        <NativeSelectField
+          className="action-row__control"
           value={operand.valueParameterId}
           aria-label={`${sideLabel}值参数`}
+          data={[
+            { value: '', label: '选值参数' },
+            ...valueParameterOptions(parameters),
+          ]}
           onChange={(event) => onChange({ valueParameterId: event.target.value })}
-        >
-          <option value="">选值参数</option>
-          {valueParameterOptions(parameters).map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        />
       ) : null}
 
       {operand.kind === 'object_property' ? (

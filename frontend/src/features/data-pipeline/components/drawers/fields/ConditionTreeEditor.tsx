@@ -1,4 +1,9 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import {
   changeConditionKind,
   changeConditionOperator,
@@ -31,21 +36,20 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
 
   return (
     <div className="pipeline-ast-row">
-      <input
+      <TextField
+        className="pipeline-ast-control"
         aria-label={EDITOR_COPY.field}
         value={node.field}
         placeholder={EDITOR_COPY.fieldPlaceholder}
         onChange={(event) => onChange({ ...node, field: event.target.value })}
       />
-      <select
+      <NativeSelectField
+        className="pipeline-ast-control"
         aria-label={EDITOR_COPY.operator}
         value={node.op}
+        data={CONDITION_OPERATOR_OPTIONS}
         onChange={(event) => onChange(changeConditionOperator(node, event.target.value))}
-      >
-        {CONDITION_OPERATOR_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
+      />
       {needsValue && node.value ? (
         <LiteralValueEditor
           value={node.value}
@@ -63,9 +67,10 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
                   values: (node.values ?? []).map((item, itemIndex) => itemIndex === index ? next : item),
                 })}
               />
-              <button
+              <ActionIcon
                 type="button"
-                className="icon-button icon-button--quiet"
+                variant="subtle"
+                color="red"
                 aria-label={EDITOR_COPY.remove}
                 onClick={() => onChange({
                   ...node,
@@ -73,16 +78,18 @@ function CompareEditor({ node, onChange }: { node: CompareCondition; onChange: (
                 })}
               >
                 <Trash2 size={12} />
-              </button>
+              </ActionIcon>
             </span>
           ))}
-          <button
+          <Button
             type="button"
-            className="pipeline-add-row"
+            variant="default"
+            size="compact-sm"
+            leftSection={<Plus size={12} />}
             onClick={() => onChange({ ...node, values: [...(node.values ?? []), literalValue()] })}
           >
-            <Plus size={12} />{EDITOR_COPY.addValue}
-          </button>
+            {EDITOR_COPY.addValue}
+          </Button>
         </div>
       ) : null}
     </div>
@@ -93,24 +100,23 @@ function ConditionNodeEditor({ node, onChange, onRemove }: NodeProps) {
   return (
     <div className="pipeline-ast-node">
       <div className="pipeline-ast-row">
-        <select
+        <NativeSelectField
+          className="pipeline-ast-control"
           aria-label={EDITOR_COPY.conditionKind}
           value={node.kind}
+          data={CONDITION_KIND_OPTIONS}
           onChange={(event) => onChange(changeConditionKind(node, event.target.value))}
-        >
-          {CONDITION_KIND_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+        />
         {onRemove ? (
-          <button
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="red"
             aria-label={EDITOR_COPY.remove}
             onClick={onRemove}
           >
             <Trash2 size={13} />
-          </button>
+          </ActionIcon>
         ) : null}
       </div>
       {node.kind === 'compare' ? (
@@ -131,13 +137,15 @@ function ConditionNodeEditor({ node, onChange, onRemove }: NodeProps) {
               }) : undefined}
             />
           ))}
-          <button
+          <Button
             type="button"
-            className="pipeline-add-row"
+            variant="default"
+            size="compact-sm"
+            leftSection={<Plus size={12} />}
             onClick={() => onChange({ ...node, conditions: [...node.conditions, emptyCompare()] })}
           >
-            <Plus size={12} />{EDITOR_COPY.addCondition}
-          </button>
+            {EDITOR_COPY.addCondition}
+          </Button>
         </div>
       )}
     </div>

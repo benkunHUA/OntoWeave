@@ -1,3 +1,4 @@
+import { ActionIcon } from '@mantine/core'
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
@@ -46,14 +47,15 @@ export function DialogShell({
               <span className="view-dialog__subtitle">{subtitle}</span>
             </div>
           </div>
-          <button
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="gray"
             aria-label="关闭"
             onClick={onClose}
           >
             <X size={16} />
-          </button>
+          </ActionIcon>
         </header>
         {children}
         <footer>{footer}</footer>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, renderHook, waitFor } from '@testing-library/react'
+import { cleanup, renderHook, waitFor } from '../../../test/render'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HttpError } from '../../../shared/api/client'
 import { usePipelineList } from './usePipelineList'

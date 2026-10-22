@@ -66,47 +66,26 @@
   font-weight: 700;
 }
 
-.pipeline-config-field input,
-.pipeline-config-field select,
-.pipeline-config-field textarea,
-.pipeline-array-row input,
-.pipeline-array-row select {
-  width: 100%;
-  min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  outline: 0;
-  color: var(--ink);
-  font: inherit;
-  font-size: 12px;
-  background: #1d1d1d;
-}
-
 .pipeline-config-field textarea {
   resize: vertical;
   font-family: "SFMono-Regular", Consolas, monospace;
   line-height: 1.5;
 }
 
-.pipeline-config-field input:focus,
-.pipeline-config-field select:focus,
-.pipeline-config-field textarea:focus,
-.pipeline-array-row input:focus,
-.pipeline-array-row select:focus {
-  border-color: #416bab;
-}
-
 .pipeline-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.pipeline-checkbox input {
-  width: auto;
+.pipeline-array-control,
+.pipeline-ast-control,
+.pipeline-literal-control,
+.pipeline-inline-control {
+  min-width: 0;
+}
+
+.pipeline-array-control {
+  width: 100%;
 }
 
 .pipeline-readonly {
@@ -168,8 +147,7 @@
   gap: 5px;
 }
 
-.pipeline-ast-row > input,
-.pipeline-ast-row > select {
+.pipeline-ast-control {
   flex: 1;
 }
 
@@ -187,17 +165,9 @@
   gap: 5px;
 }
 
-.pipeline-inline-add button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 7px 9px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--blue-ink);
-  font-size: 11px;
-  background: transparent;
-  cursor: pointer;
+.pipeline-literal-control,
+.pipeline-inline-control {
+  flex: 1;
 }
 
 .pipeline-checkbox-list,
@@ -247,26 +217,6 @@
 .pipeline-output-select h3 {
   color: var(--ink-dim);
   font-size: 12px;
-}
-
-.pipeline-add-row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 7px 9px;
-  border: 1px dashed var(--line);
-  border-radius: 7px;
-  color: var(--blue-ink);
-  font-size: 11px;
-  font-weight: 700;
-  background: transparent;
-  cursor: pointer;
-}
-
-.pipeline-add-row:hover {
-  border-color: #416bab;
-  background: var(--blue-soft);
 }
 
 .pipeline-issue-list {

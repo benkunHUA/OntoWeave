@@ -1,3 +1,9 @@
+import {
+  CheckboxField,
+  NativeSelectField,
+  NumberField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import type { ConfigSchema } from '../../../../../shared/types'
 
 interface ScalarProps {
@@ -8,8 +14,7 @@ interface ScalarProps {
 
 export function TextControl({ value, onChange }: ScalarProps) {
   return (
-    <input
-      type="text"
+    <TextField
       value={typeof value === 'string' ? value : ''}
       onChange={(event) => onChange(event.target.value)}
     />
@@ -18,11 +23,9 @@ export function TextControl({ value, onChange }: ScalarProps) {
 
 export function NumberControl({ value, onChange }: ScalarProps) {
   return (
-    <input
-      type="number"
+    <NumberField
       value={typeof value === 'number' ? value : ''}
-      onChange={(event) => {
-        const next = event.target.value
+      onChange={(next) => {
         onChange(next === '' ? undefined : Number(next))
       }}
     />
@@ -31,14 +34,12 @@ export function NumberControl({ value, onChange }: ScalarProps) {
 
 export function BooleanControl({ value, onChange }: ScalarProps) {
   return (
-    <label className="pipeline-checkbox">
-      <input
-        type="checkbox"
-        checked={value === true}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span>{value === true ? '开启' : '关闭'}</span>
-    </label>
+    <CheckboxField
+      className="pipeline-checkbox"
+      checked={value === true}
+      label={value === true ? '开启' : '关闭'}
+      onChange={(event) => onChange(event.currentTarget.checked)}
+    />
   )
 }
 
@@ -50,16 +51,13 @@ export function SelectControl({ value, schema, onChange }: ScalarProps) {
     return <TextControl value={value} schema={schema} onChange={onChange} />
   }
   return (
-    <select
+    <NativeSelectField
       value={typeof value === 'string' ? value : ''}
+      data={[
+        { value: '', label: '请选择' },
+        ...options.map((option) => ({ value: option, label: option })),
+      ]}
       onChange={(event) => onChange(event.target.value)}
-    >
-      <option value="">请选择</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+    />
   )
 }

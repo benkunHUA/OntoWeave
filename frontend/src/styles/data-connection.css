@@ -58,24 +58,8 @@
 }
 
 .connection-search {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  width: calc(100% - 28px);
   margin: 12px 14px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  color: var(--faint);
-  background: #1d1d1d;
-}
-
-.connection-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  color: var(--ink);
-  font: inherit;
-  background: transparent;
 }
 
 .connection-list {

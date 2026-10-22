@@ -1,6 +1,6 @@
 import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { renderStatic } from '../../../../test/render'
 import type { ConfigSchema, NodeDefinition, PipelineNode } from '../../../../shared/types'
 import { WIDGETS } from '../../lib/constants'
 import { NodeConfigDrawer } from './NodeConfigDrawer'
@@ -35,7 +35,7 @@ function definitionFor(
 }
 
 function render(node: PipelineNode, definition = outputDefinition): string {
-  return renderToStaticMarkup(createElement(NodeConfigDrawer, {
+  return renderStatic(createElement(NodeConfigDrawer, {
     pipelineId: '00000000-0000-4000-8000-000000000010',
     revision: 1,
     node,

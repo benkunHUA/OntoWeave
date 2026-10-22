@@ -1,5 +1,7 @@
+import { Text } from '@mantine/core'
 import { Zap } from 'lucide-react'
 import { useMemo } from 'react'
+import { TextAreaField, TextField } from '../../../../shared/components/form/controls'
 import type { ActionDetail, GraphSnapshot } from '../../../../shared/types'
 import { ACTION_COPY } from '../../lib/actionConfig'
 import { actionPendingDeleteIds, type ActionDraft } from '../../lib/actionDraft'
@@ -59,30 +61,28 @@ export function ActionDrawer({
       onClose={onClose}
       onSubmit={(options) => onSubmit(draft, options)}
     >
-      <label className="drawer__field">
-        <span>名称</span>
-        <input
-          value={draft.name}
-          placeholder="动作名称"
-          onChange={(event) => controller.setName(event.target.value)}
-        />
-        {nameIssue ? <em className="drawer__field-issue">{nameIssue}</em> : null}
-      </label>
+      <TextField
+        label="名称"
+        value={draft.name}
+        placeholder="动作名称"
+        error={nameIssue ?? undefined}
+        onChange={(event) => controller.setName(event.target.value)}
+      />
 
-      <label className="drawer__field">
-        <span>描述</span>
-        <textarea
-          value={draft.description}
-          rows={3}
-          placeholder="这个动作做成什么事？"
-          onChange={(event) => controller.setDescription(event.target.value)}
-        />
-      </label>
+      <TextAreaField
+        label="描述"
+        value={draft.description}
+        autosize
+        minRows={3}
+        maxRows={6}
+        placeholder="这个动作做成什么事？"
+        onChange={(event) => controller.setDescription(event.target.value)}
+      />
 
       {ownPendingDeletes.size ? (
-        <p className="drawer__pending">
+        <Text size="xs" c="dimmed">
           {ownPendingDeletes.size} 个元素{ACTION_COPY.pendingDeletes}
-        </p>
+        </Text>
       ) : null}
 
       <ActionParameterList controller={controller} snapshot={snapshot} />

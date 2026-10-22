@@ -1,4 +1,6 @@
+import { ActionIcon, Button, Text } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
+import { TextField } from '../../../shared/components/form/controls'
 import { MIN_ENUM_VALUES, hasUsableEnumValues } from '../lib/nodeDetails'
 
 interface EnumValuesEditorProps {
@@ -26,35 +28,43 @@ export function EnumValuesEditor({ propertyName, values, onChange }: EnumValuesE
 
   return (
     <div className="enum-values">
-      <span className="enum-values__title">取值</span>
+      <Text size="xs" c="dimmed" fw={700}>
+        取值
+      </Text>
       {values.map((value, index) => (
         <div className="enum-values__row" key={index}>
-          <input
-            className="enum-values__input"
+          <TextField
             value={value}
             aria-label={`${label} 的取值 ${index + 1}`}
             placeholder={`取值 ${index + 1}`}
             onChange={(event) => updateValue(index, event.target.value)}
           />
-          <button
+          <ActionIcon
             type="button"
-            className="field-row__remove"
+            variant="subtle"
+            color="red"
+            size="sm"
             aria-label={`删除取值 ${value || index + 1}`}
             onClick={() => removeValue(index)}
           >
             <Trash2 size={15} />
-          </button>
+          </ActionIcon>
         </div>
       ))}
       <div className="enum-values__foot">
-        <button type="button" className="text-button" onClick={() => onChange([...values, ''])}>
-          <Plus size={14} />
+        <Button
+          type="button"
+          variant="subtle"
+          size="compact-sm"
+          leftSection={<Plus size={14} />}
+          onClick={() => onChange([...values, ''])}
+        >
           新增取值
-        </button>
+        </Button>
         {hasUsableEnumValues(values) ? null : (
-          <span className="enum-values__hint">
+          <Text size="xs" c="yellow.4">
             至少 {MIN_ENUM_VALUES} 个互不相同的取值
-          </span>
+          </Text>
         )}
       </div>
     </div>

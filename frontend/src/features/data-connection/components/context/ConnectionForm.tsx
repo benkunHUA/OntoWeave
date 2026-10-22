@@ -1,4 +1,10 @@
+import { Button } from '@mantine/core'
 import { useState } from 'react'
+import {
+  CheckboxField,
+  PasswordField,
+  TextField,
+} from '../../../../shared/components/form/controls'
 import type { DataConnection } from '../../../../shared/types'
 import { emptyConnectionForm, hasErrors, validateConnectionForm, type ConnectionFormValues } from '../../lib/validation'
 
@@ -60,65 +66,74 @@ export function ConnectionForm({ connection, isBusy, onSave }: ConnectionFormPro
       ) : null}
 
       <div className="form-grid">
-        <label className="form-field form-field--wide">
-          <span>连接名称</span>
-          <input value={values.name} onChange={(event) => update('name', event.target.value)} />
-          {errors.name ? <em>{errors.name}</em> : null}
-        </label>
-        <label className="form-field">
-          <span>主机</span>
-          <input value={values.host} onChange={(event) => update('host', event.target.value)} placeholder="127.0.0.1" />
-          {errors.host ? <em>{errors.host}</em> : null}
-        </label>
-        <label className="form-field">
-          <span>端口</span>
-          <input value={values.port} onChange={(event) => update('port', event.target.value)} inputMode="numeric" />
-          {errors.port ? <em>{errors.port}</em> : null}
-        </label>
-        <label className="form-field form-field--wide">
-          <span>数据库</span>
-          <input value={values.database} onChange={(event) => update('database', event.target.value)} placeholder="demo" />
-          {errors.database ? <em>{errors.database}</em> : null}
-        </label>
-        <label className="form-field">
-          <span>用户名</span>
-          <input value={values.username} onChange={(event) => update('username', event.target.value)} />
-          {errors.username ? <em>{errors.username}</em> : null}
-        </label>
-        <label className="form-field">
-          <span>密码</span>
-          <input
-            type="password"
-            value={values.password}
-            onChange={(event) => update('password', event.target.value)}
-            placeholder={connection.secret_configured ? '留空表示不修改' : '必填'}
-          />
-          {errors.password ? <em>{errors.password}</em> : null}
-        </label>
-        <label className="form-check form-field--wide">
-          <input
-            type="checkbox"
-            checked={values.useSsl}
-            onChange={(event) => update('useSsl', event.target.checked)}
-          />
-          <span>使用加密连接（目标 MySQL 需支持 SSL）</span>
-        </label>
+        <TextField
+          className="form-field form-field--wide"
+          label="连接名称"
+          value={values.name}
+          error={errors.name}
+          onChange={(event) => update('name', event.target.value)}
+        />
+        <TextField
+          className="form-field"
+          label="主机"
+          value={values.host}
+          error={errors.host}
+          placeholder="127.0.0.1"
+          onChange={(event) => update('host', event.target.value)}
+        />
+        <TextField
+          className="form-field"
+          label="端口"
+          value={values.port}
+          error={errors.port}
+          inputMode="numeric"
+          onChange={(event) => update('port', event.target.value)}
+        />
+        <TextField
+          className="form-field form-field--wide"
+          label="数据库"
+          value={values.database}
+          error={errors.database}
+          placeholder="retail_sales"
+          onChange={(event) => update('database', event.target.value)}
+        />
+        <TextField
+          className="form-field"
+          label="用户名"
+          value={values.username}
+          error={errors.username}
+          onChange={(event) => update('username', event.target.value)}
+        />
+        <PasswordField
+          className="form-field"
+          label="密码"
+          value={values.password}
+          error={errors.password}
+          placeholder={connection.secret_configured ? '留空表示不修改' : '必填'}
+          onChange={(event) => update('password', event.target.value)}
+        />
+        <CheckboxField
+          className="form-field--wide"
+          label="使用加密连接（目标 MySQL 需支持 SSL）"
+          checked={values.useSsl}
+          onChange={(event) => update('useSsl', event.currentTarget.checked)}
+        />
       </div>
 
       <div className="context-footer">
         {dirty || connection.status === 'draft' ? (
-          <button type="button" className="secondary-button" disabled={isBusy} onClick={() => void submit(false)}>
+          <Button type="button" variant="default" disabled={isBusy} onClick={() => void submit(false)}>
             仅保存
-          </button>
+          </Button>
         ) : null}
-        <button
+        <Button
           type="button"
-          className="primary-button"
           disabled={isBusy}
+          loading={isBusy}
           onClick={() => void submit(dirty || connection.status === 'draft')}
         >
           {isBusy ? '处理中…' : dirty || connection.status === 'draft' ? '保存并测试' : '测试连接'}
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -1,4 +1,9 @@
+import { ActionIcon, Button } from '@mantine/core'
 import { Plus, Trash2 } from 'lucide-react'
+import {
+  NativeSelectField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import {
   emptyExpression,
   normalizeExpression,
@@ -31,23 +36,22 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
   return (
     <div className="pipeline-ast-node">
       <div className="pipeline-ast-row">
-        <select
+        <NativeSelectField
+          className="pipeline-ast-control"
           aria-label={EDITOR_COPY.expressionKind}
           value={node.kind}
+          data={EXPRESSION_KIND_OPTIONS}
           onChange={(event) => onChange(emptyExpression(event.target.value))}
-        >
-          {EXPRESSION_KIND_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
+        />
         {onRemove ? (
-          <button type="button" className="icon-button icon-button--quiet" aria-label={EDITOR_COPY.remove} onClick={onRemove}>
+          <ActionIcon type="button" variant="subtle" color="red" aria-label={EDITOR_COPY.remove} onClick={onRemove}>
             <Trash2 size={13} />
-          </button>
+          </ActionIcon>
         ) : null}
       </div>
       {node.kind === 'field' ? (
-        <input
+        <TextField
+          className="pipeline-ast-control"
           aria-label={EDITOR_COPY.field}
           value={node.field ?? ''}
           placeholder={EDITOR_COPY.fieldPlaceholder}
@@ -66,13 +70,13 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
             node={node.expression ?? emptyExpression()}
             onChange={(expression) => update({ expression })}
           />
-          <select
+          <NativeSelectField
+            className="pipeline-ast-control"
             aria-label={EDITOR_COPY.castType}
             value={node.dataType ?? 'string'}
+            data={DATA_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
             onChange={(event) => update({ dataType: event.target.value })}
-          >
-            {DATA_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
+          />
         </div>
       ) : null}
       {node.kind === 'case' ? (
@@ -93,24 +97,27 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
                 })}
               />
               {(node.branches?.length ?? 0) > 1 ? (
-                <button
+                <ActionIcon
                   type="button"
-                  className="icon-button icon-button--quiet"
+                  variant="subtle"
+                  color="red"
                   aria-label={EDITOR_COPY.remove}
                   onClick={() => update({ branches: (node.branches ?? []).filter((_, itemIndex) => itemIndex !== index) })}
                 >
                   <Trash2 size={12} />
-                </button>
+                </ActionIcon>
               ) : null}
             </div>
           ))}
-          <button
+          <Button
             type="button"
-            className="pipeline-add-row"
+            variant="default"
+            size="compact-sm"
+            leftSection={<Plus size={12} />}
             onClick={() => update({ branches: [...(node.branches ?? []), { when: emptyExpression(), then: emptyExpression() }] })}
           >
-            <Plus size={12} />{EDITOR_COPY.addBranch}
-          </button>
+            {EDITOR_COPY.addBranch}
+          </Button>
           <span>{EDITOR_COPY.otherwise}</span>
           <ExpressionEditorNode
             node={node.otherwise ?? emptyExpression()}
@@ -120,11 +127,13 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
       ) : null}
       {node.kind === 'compare' ? (
         <div className="pipeline-ast-list">
-          <select aria-label={EDITOR_COPY.operator} value={node.op ?? 'eq'} onChange={(event) => update({ op: event.target.value })}>
-            {COMPARISON_OPERATOR_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+          <NativeSelectField
+            className="pipeline-ast-control"
+            aria-label={EDITOR_COPY.operator}
+            value={node.op ?? 'eq'}
+            data={COMPARISON_OPERATOR_OPTIONS}
+            onChange={(event) => update({ op: event.target.value })}
+          />
           <span>{EDITOR_COPY.left}</span>
           <ExpressionEditorNode node={node.left ?? emptyExpression()} onChange={(left) => update({ left })} />
           <span>{EDITOR_COPY.right}</span>
@@ -133,10 +142,16 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
       ) : null}
       {node.kind === 'logical' ? (
         <div className="pipeline-ast-list">
-          <select aria-label={EDITOR_COPY.operator} value={node.op ?? 'and'} onChange={(event) => update({ op: event.target.value })}>
-            <option value="and">全部满足</option>
-            <option value="or">任一满足</option>
-          </select>
+          <NativeSelectField
+            className="pipeline-ast-control"
+            aria-label={EDITOR_COPY.operator}
+            value={node.op ?? 'and'}
+            data={[
+              { value: 'and', label: '全部满足' },
+              { value: 'or', label: '任一满足' },
+            ]}
+            onChange={(event) => update({ op: event.target.value })}
+          />
           {(node.expressions ?? []).map((expression, index) => (
             <ExpressionEditorNode
               key={index}
@@ -149,13 +164,15 @@ function ExpressionEditorNode({ node, onChange, onRemove }: NodeProps) {
               }) : undefined}
             />
           ))}
-          <button
+          <Button
             type="button"
-            className="pipeline-add-row"
+            variant="default"
+            size="compact-sm"
+            leftSection={<Plus size={12} />}
             onClick={() => update({ expressions: [...(node.expressions ?? []), emptyExpression()] })}
           >
-            <Plus size={12} />{EDITOR_COPY.addExpression}
-          </button>
+            {EDITOR_COPY.addExpression}
+          </Button>
         </div>
       ) : null}
       {node.kind === 'isNull' ? (

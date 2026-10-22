@@ -1,3 +1,8 @@
+import {
+  NativeSelectField,
+  NumberField,
+  TextField,
+} from '../../../../../shared/components/form/controls'
 import type { LiteralOperand } from '../../../lib/conditionAst'
 import { DATA_TYPE_OPTIONS, EDITOR_COPY } from '../../../lib/editorOptions'
 
@@ -22,25 +27,39 @@ export function LiteralValueEditor({ value, onChange }: LiteralValueEditorProps)
 
   return (
     <span className="pipeline-literal-editor" data-editor="literal-editor">
-      <select
+      <NativeSelectField
+        className="pipeline-literal-control"
         aria-label={EDITOR_COPY.dataType}
         value={value.dataType}
+        data={DATA_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
         onChange={(event) => changeType(event.target.value)}
-      >
-        {DATA_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}
-      </select>
+      />
       {value.dataType === 'boolean' ? (
-        <select
+        <NativeSelectField
+          className="pipeline-literal-control"
           aria-label={EDITOR_COPY.value}
           value={value.value === true ? 'true' : 'false'}
+          data={[
+            { value: 'true', label: 'true' },
+            { value: 'false', label: 'false' },
+          ]}
           onChange={(event) => onChange({ ...value, value: event.target.value === 'true' })}
-        >
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
+        />
       ) : (
-        <input
-          type={value.dataType === 'long' || value.dataType === 'double' ? 'number' : 'text'}
+        value.dataType === 'long' || value.dataType === 'double' ? (
+          <NumberField
+            className="pipeline-literal-control"
+            aria-label={EDITOR_COPY.value}
+            value={typeof value.value === 'number' ? value.value : ''}
+            placeholder={EDITOR_COPY.value}
+            onChange={(next) => onChange({
+              ...value,
+              value: convertedValue(value.dataType, next),
+            })}
+          />
+        ) : (
+          <TextField
+            className="pipeline-literal-control"
           aria-label={EDITOR_COPY.value}
           value={typeof value.value === 'string' || typeof value.value === 'number' ? value.value : ''}
           placeholder={EDITOR_COPY.value}
@@ -48,7 +67,8 @@ export function LiteralValueEditor({ value, onChange }: LiteralValueEditorProps)
             ...value,
             value: convertedValue(value.dataType, event.target.value),
           })}
-        />
+          />
+        )
       )}
     </span>
   )
