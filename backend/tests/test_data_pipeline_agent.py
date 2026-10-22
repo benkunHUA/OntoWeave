@@ -69,6 +69,9 @@ def test_data_pipeline_tools_include_exact_order(session):
     ]
     for name in ("delete_pipeline_node", "set_pipeline_output", "build_pipeline"):
         assert "confirmed" not in tools[name].args
+    for name in ("add_pipeline_node", "update_pipeline_node"):
+        assert "node_config" in tools[name].args
+        assert "config" not in tools[name].args
 
 
 def test_read_only_tools_map_java_payloads(session):
@@ -124,7 +127,7 @@ def test_write_tools_send_current_revision_turn_and_unique_operation(session, mo
     edge_id = str(uuid.uuid4())
 
     tools["add_pipeline_node"].invoke(
-        {"type": "filter", "name": "筛选", "config": {"condition": "id > 0"}}
+        {"type": "filter", "name": "筛选", "node_config": {"condition": "id > 0"}}
     )
     tools["update_pipeline_node"].invoke({"node_id": node_id, "name": "重命名"})
     tools["connect_pipeline_nodes"].invoke(
@@ -157,6 +160,7 @@ def test_write_tools_send_current_revision_turn_and_unique_operation(session, mo
     ]
     assert [item["baseRevision"] for item in commands] == [3, 4, 5, 6, 7, 8]
     assert "position" not in commands[0]
+    assert commands[0]["config"] == {"condition": "id > 0"}
     assert all(item["turnId"] == str(turn_id) for item in commands)
     operation_ids = {item["operationId"] for item in commands}
     assert len(operation_ids) == 6
@@ -164,6 +168,37 @@ def test_write_tools_send_current_revision_turn_and_unique_operation(session, mo
     assert ctx.last_check_result["revision"] == 9
     checks = [kwargs for name, kwargs in client.calls if name == "check"]
     assert [item["revision"] for item in checks] == [4, 5, 6, 7, 8, 9]
+
+
+def test_write_tools_parse_json_string_config(session):
+    client = FakePipelineClient()
+    ctx = _context(session, client, uuid.uuid4())
+    tools = _tools(ctx)
+    node_id = str(uuid.uuid4())
+    dataset_id = str(uuid.uuid4())
+
+    result = tools["update_pipeline_node"].invoke(
+        {
+            "node_id": node_id,
+            "node_config": f'{{"datasetKind":"sync","datasetId":"{dataset_id}"}}',
+        }
+    )
+
+    assert result["revision"] == 4
+    command = next(kwargs["payload"] for name, kwargs in client.calls if name == "command")
+    assert command["config"] == {"datasetKind": "sync", "datasetId": dataset_id}
+
+
+def test_write_tools_reject_invalid_json_string_config(session):
+    client = FakePipelineClient()
+    ctx = _context(session, client, uuid.uuid4())
+
+    result = _tools(ctx)["update_pipeline_node"].invoke(
+        {"node_id": str(uuid.uuid4()), "node_config": "{bad json"}
+    )
+
+    assert result["error"] == "INVALID_ARGUMENT"
+    assert not [name for name, _ in client.calls if name == "command"]
 
 
 def test_write_tool_returns_structured_revision_conflict(session, monkeypatch):
@@ -308,6 +343,8 @@ def test_preview_tool_uses_preview_node_without_building(session):
 
     assert result["node_id"] == node_id
     assert result["draft_revision"] == 3
+    payload = next(kwargs["payload"] for name, kwargs in client.calls if name == "preview")
+    assert payload["rowLimit"] == 5
     assert "build" not in [name for name, _ in client.calls]
 
 

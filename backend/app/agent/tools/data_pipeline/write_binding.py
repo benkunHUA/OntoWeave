@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Callable
 from typing import Any
@@ -12,6 +13,28 @@ from app.agent.tools.data_pipeline import common, constants, ops
 from app.agent.tools.data_pipeline.context import DataPipelineToolContext
 
 
+class ToolArgumentError(ValueError):
+    """模型传入了工具 schema 之外的参数形状。"""
+
+
+def _object_argument(value: Any, field: str) -> dict[str, Any] | None:
+    """兼容模型把 JSON 对象序列化成字符串再调用工具的情况。"""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        if not value.strip():
+            return None
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ToolArgumentError(f"{field} 必须是 JSON 对象，不能是无效 JSON 字符串") from exc
+        if isinstance(parsed, dict):
+            return parsed
+    raise ToolArgumentError(f"{field} 必须是 JSON 对象")
+
+
 def build_write_tools(
     ctx: DataPipelineToolContext,
     interrupt_fn: Callable[[dict], Any],
@@ -20,19 +43,23 @@ def build_write_tools(
     def add_pipeline_node(
         type: str,
         name: str,
-        config: dict | None = None,
+        node_config: dict[str, Any] | str | None = None,
         position: dict | None = None,
         node_id: str | None = None,
     ) -> dict:
-        """新增一个节点；type 必须来自节点目录，配置必须是结构化 JSON。"""
+        """新增节点；type 必须来自目录，node_config 传 JSON 对象而非 JSON 字符串。"""
         blocked = common.write_guard(ctx)
         if blocked is not None:
             return blocked
+        try:
+            normalized_config = _object_argument(node_config, "node_config") or {}
+        except ToolArgumentError as exc:
+            return {"error": "INVALID_ARGUMENT", "message": str(exc)}
         fields = {
             "nodeId": node_id or str(uuid.uuid4()),
             "nodeType": type,
             "name": name,
-            "config": config or {},
+            "config": normalized_config,
         }
         if position is not None:
             fields["position"] = position
@@ -47,15 +74,25 @@ def build_write_tools(
     def update_pipeline_node(
         node_id: str,
         name: str | None = None,
-        config: dict | None = None,
+        node_config: dict[str, Any] | str | None = None,
     ) -> dict:
-        """更新节点名称或配置；至少提供 name 与 config 之一。"""
+        """更新节点名称或配置；node_config 传 JSON 对象而非 JSON 字符串。"""
         blocked = common.write_guard(ctx)
         if blocked is not None:
             return blocked
+        try:
+            normalized_config = _object_argument(node_config, "node_config")
+        except ToolArgumentError as exc:
+            return {"error": "INVALID_ARGUMENT", "message": str(exc)}
         return common.write(
             ctx,
-            common.payload(ctx, "update_node", nodeId=node_id, name=name, config=config),
+            common.payload(
+                ctx,
+                "update_node",
+                nodeId=node_id,
+                name=name,
+                config=normalized_config,
+            ),
         )
 
     @tool("delete_pipeline_node")
@@ -132,7 +169,7 @@ def build_write_tools(
 
     @tool("preview_pipeline_node")
     def preview_pipeline_node(node_id: str) -> dict:
-        """以当前草稿 revision 预览节点，最多返回有限样例行。"""
+        """以当前草稿 revision 预览节点，最多返回 5 条样例行。"""
         blocked = common.write_guard(ctx)
         if blocked is not None:
             return blocked
@@ -145,6 +182,7 @@ def build_write_tools(
                     "draftRevision": common.write_revision(ctx),
                     "nodeId": node_id,
                     "requestId": str(uuid.uuid4()),
+                    "rowLimit": constants.PREVIEW_ROW_LIMIT,
                 },
             )
         )
