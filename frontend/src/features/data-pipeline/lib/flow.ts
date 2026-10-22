@@ -7,12 +7,18 @@ import type {
   PipelineNodePort,
   PipelineNodePosition,
 } from '../../../shared/types'
-import { NODE_GAP_X, NODE_GAP_Y, NODE_HEIGHT, NODE_WIDTH } from './constants'
-import { findNodeDefinition, inputPorts, outputPorts } from './nodeCatalog'
+import { NODE_GAP_X, NODE_GAP_Y, NODE_SIZE } from './constants'
+import {
+  findNodeDefinition,
+  inputPorts,
+  nodeCategory,
+  outputPorts,
+} from './nodeCatalog'
 
 export interface PipelineFlowNodeData extends Record<string, unknown> {
   label: string
   nodeType: string
+  category: string
   node: PipelineNode
   inputs: PipelineNodePort[]
   outputs: PipelineNodePort[]
@@ -20,29 +26,63 @@ export interface PipelineFlowNodeData extends Record<string, unknown> {
 
 export type PipelineFlowNode = Node<PipelineFlowNodeData, 'pipeline'>
 
+export type NodeSize = { width: number; height: number }
+
+export function nodeSize(category: string): NodeSize {
+  return NODE_SIZE[category as keyof typeof NODE_SIZE] ?? NODE_SIZE.default
+}
+
+function addEdgePort(
+  ports: PipelineNodePort[],
+  id: string | null,
+  role: PipelineNodePort['role'],
+): void {
+  if (!id || ports.some((port) => port.id === id)) return
+  ports.push({ id, role, data_type: 'table', required: false, multiple: false })
+}
+
+function nodePorts(
+  node: PipelineNode,
+  definition: ReturnType<typeof findNodeDefinition>,
+  edges: PipelineDraftResponse['definition']['edges'],
+): { inputs: PipelineNodePort[]; outputs: PipelineNodePort[] } {
+  const inputs = inputPorts(definition)
+  const outputs = outputPorts(definition)
+  edges.forEach((edge) => {
+    if (edge.targetNodeId === node.id) addEdgePort(inputs, edge.targetPort, 'input')
+    if (edge.sourceNodeId === node.id) addEdgePort(outputs, edge.sourcePort, 'output')
+  })
+  return { inputs, outputs }
+}
+
 export function draftToFlow(
   draft: PipelineDraftResponse,
   catalog: NodeCatalog | null,
   selectedNodeId: string | null,
 ): { nodes: PipelineFlowNode[]; edges: Edge[] } {
+  const draftEdges = draft.definition.edges
   const nodes = draft.definition.nodes.map((node) => {
     const definition = findNodeDefinition(catalog, node.type)
+    const category = nodeCategory(definition, node.type)
+    const ports = nodePorts(node, definition, draftEdges)
+    const size = nodeSize(category)
     return {
       id: node.id,
       type: 'pipeline' as const,
       position: { ...node.position },
       selected: node.id === selectedNodeId,
-      style: { width: NODE_WIDTH, height: NODE_HEIGHT },
+      style: { width: size.width, height: size.height },
       data: {
         label: node.name,
         nodeType: definition?.label ?? node.type,
+        category,
         node: { ...node, config: { ...node.config }, position: { ...node.position } },
-        inputs: inputPorts(definition),
-        outputs: outputPorts(definition),
+        inputs: ports.inputs,
+        outputs: ports.outputs,
       },
     }
   })
-  const edges = draft.definition.edges.map((edge) => ({
+  const edges = draftEdges.map((edge) => ({
     id: edge.id,
     source: edge.sourceNodeId,
     sourceHandle: edge.sourcePort,
@@ -56,37 +96,30 @@ export function draftToFlow(
 
 export function layoutPipeline(
   draft: PipelineDraftResponse,
+  catalog: NodeCatalog | null,
 ): Array<{ node_id: string } & PipelineNodePosition> {
   const graph = new dagre.graphlib.Graph()
   graph.setDefaultEdgeLabel(() => ({}))
   graph.setGraph({ rankdir: 'LR', nodesep: NODE_GAP_Y, ranksep: NODE_GAP_X })
   draft.definition.nodes.forEach((node) => {
-    graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
+    const definition = findNodeDefinition(catalog, node.type)
+    graph.setNode(node.id, nodeSize(nodeCategory(definition, node.type)))
   })
   draft.definition.edges.forEach((edge) => graph.setEdge(edge.sourceNodeId, edge.targetNodeId))
   dagre.layout(graph)
   return draft.definition.nodes.map((node) => {
+    const definition = findNodeDefinition(catalog, node.type)
+    const size = nodeSize(nodeCategory(definition, node.type))
     const placed = graph.node(node.id) as { x?: number; y?: number } | undefined
     if (!placed || typeof placed.x !== 'number' || typeof placed.y !== 'number') {
       return { node_id: node.id, ...node.position }
     }
     return {
       node_id: node.id,
-      x: placed.x - NODE_WIDTH / 2,
-      y: placed.y - NODE_HEIGHT / 2,
+      x: placed.x - size.width / 2,
+      y: placed.y - size.height / 2,
     }
   })
-}
-
-/** 节点面板点击添加时的落点：空图放在固定原点，否则排在最右节点右侧。 */
-export function nextNodePosition(draft: PipelineDraftResponse | null): PipelineNodePosition {
-  const centerY = 160 + NODE_HEIGHT / 2
-  if (!draft?.definition.nodes.length) return { x: 80 + NODE_WIDTH / 2, y: centerY }
-  const right = draft.definition.nodes.reduce(
-    (max, node) => Math.max(max, node.position.x),
-    0,
-  )
-  return { x: right + NODE_WIDTH + NODE_GAP_X + NODE_WIDTH / 2, y: centerY }
 }
 
 export function changedPositionUpdates(

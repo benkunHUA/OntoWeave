@@ -1,22 +1,19 @@
-import { Plus } from 'lucide-react'
 import type { NodeCatalog } from '../../../shared/types'
 import { NODE_DRAG_MIME } from '../lib/constants'
 import { groupedNodeDefinitions } from '../lib/nodeCatalog'
 
 interface NodePaletteProps {
   catalog: NodeCatalog | null
-  onAdd: (type: string) => void
 }
 
 /** 节点目录完全由 /pipelines/node-catalog 驱动。 */
-export function NodePalette({ catalog, onAdd }: NodePaletteProps) {
+export function NodePalette({ catalog }: NodePaletteProps) {
   const groups = groupedNodeDefinitions(catalog)
 
   return (
     <aside className="pipeline-palette" aria-label="节点目录">
       <header className="pipeline-palette__head">
         <span>节点</span>
-        <span className="pipeline-palette__meta">{catalog?.catalog_version ?? '读取中'}</span>
       </header>
       <div className="pipeline-palette__body">
         {groups.map((group) => (
@@ -32,11 +29,9 @@ export function NodePalette({ catalog, onAdd }: NodePaletteProps) {
                   event.dataTransfer.setData(NODE_DRAG_MIME, definition.type)
                   event.dataTransfer.effectAllowed = 'move'
                 }}
-                onClick={() => onAdd(definition.type)}
-                title={`拖入画布或点击添加：${definition.label}`}
+                title={`拖入画布：${definition.label}`}
               >
                 <span>{definition.label}</span>
-                <Plus size={13} />
               </button>
             ))}
           </section>

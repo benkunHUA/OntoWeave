@@ -33,8 +33,9 @@ function portStyle(index: number, count: number): CSSProperties {
 
 export function PipelineNode({ data, selected }: NodeProps<PipelineFlowNode>) {
   const Icon = NODE_ICONS[data.node.type] ?? Database
+  const isTransform = data.category === 'transform'
   return (
-    <article className={`pipeline-node ${selected ? 'is-selected' : ''}`}>
+    <article className={`pipeline-node is-${data.category} ${selected ? 'is-selected' : ''}`}>
       {data.inputs.map((port, index) => (
         <Handle
           key={port.id}
@@ -45,11 +46,20 @@ export function PipelineNode({ data, selected }: NodeProps<PipelineFlowNode>) {
           title={port.id}
         />
       ))}
-      <div className="pipeline-node__head">
-        <span className="pipeline-node__icon"><Icon size={15} /></span>
-        <span className="pipeline-node__name">{data.label}</span>
-      </div>
-      <span className="pipeline-node__type">{data.nodeType}</span>
+      {isTransform ? (
+        <div className="pipeline-node__transform">
+          <span className="pipeline-node__icon pipeline-node__icon--large"><Icon size={24} /></span>
+          <span className="pipeline-node__name">{data.label}</span>
+        </div>
+      ) : (
+        <>
+          <div className="pipeline-node__head">
+            <span className="pipeline-node__icon"><Icon size={15} /></span>
+            <span className="pipeline-node__name">{data.label}</span>
+          </div>
+          <span className="pipeline-node__type">{data.nodeType}</span>
+        </>
+      )}
       {data.outputs.map((port, index) => (
         <Handle
           key={port.id}

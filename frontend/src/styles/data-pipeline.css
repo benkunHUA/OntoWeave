@@ -3,8 +3,9 @@
 .data-pipeline-page {
   display: grid;
   grid-template-columns:
-    280px 1px minmax(380px, 1fr) 6px
-    var(--pipeline-canvas-w, 640px);
+    var(--workbench-left-w, 268px) 1px
+    var(--workbench-center-w, 400px) 6px
+    minmax(420px, 1fr);
   height: 100vh;
   overflow: hidden;
   color: var(--ink);
@@ -32,32 +33,6 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-.pipeline-create-form {
-  display: grid;
-  gap: 8px;
-  margin: 14px 14px 0;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-soft);
-}
-
-.pipeline-create-form input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--ink);
-  background: #1d1d1d;
-}
-
-.pipeline-create-form > div {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
 .pipeline-new-button {
   display: flex;
   align-items: center;
@@ -81,24 +56,8 @@
 }
 
 .pipeline-search {
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  width: calc(100% - 28px);
   margin: 12px 14px;
-  padding: 8px 10px;
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  color: var(--faint);
-  background: #1d1d1d;
-}
-
-.pipeline-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  color: var(--ink);
-  font: inherit;
-  background: transparent;
 }
 
 .pipeline-list {
@@ -112,17 +71,13 @@
 
 .pipeline-list__item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
   width: 100%;
-  padding: 10px;
   border: 1px solid transparent;
   border-radius: 10px;
   color: var(--ink-dim);
-  text-align: left;
   background: transparent;
-  cursor: pointer;
 }
 
 .pipeline-list__item:hover {
@@ -132,6 +87,38 @@
 .pipeline-list__item.is-active {
   border-color: #35538a;
   background: var(--blue-soft);
+}
+
+.pipeline-list__select {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pipeline-list__delete {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  margin-right: 6px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  color: var(--faint);
+  background: transparent;
+  cursor: pointer;
+}
+
+.pipeline-list__delete:hover {
+  color: var(--red);
+  background: var(--red-soft);
 }
 
 .pipeline-list__status {
@@ -219,6 +206,16 @@
   line-height: 1.5;
 }
 
+.pipeline-delete-dialog {
+  display: grid;
+  gap: 10px;
+}
+
+.pipeline-delete-dialog strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
 .data-pipeline-chat {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
@@ -261,7 +258,6 @@
 
 @media (max-width: 1180px) {
   .data-pipeline-page {
-    grid-template-columns: 240px 1px minmax(320px, 1fr) 6px
-      var(--pipeline-canvas-w, 560px);
+    grid-template-columns: 240px 1px minmax(320px, 380px) 6px minmax(360px, 1fr);
   }
 }

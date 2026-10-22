@@ -1,16 +1,19 @@
 export const DATA_PIPELINE_PATH = '/pipelines'
 
-export const PIPELINE_LIST_WIDTH = 280
-export const PIPELINE_CANVAS_WIDTH = {
-  default: 640,
-  min: 480,
-  max: 920,
+export const PIPELINE_LIST_WIDTH = 268
+export const PIPELINE_CHAT_WIDTH = {
+  default: 400,
+  min: 320,
+  max: 640,
 } as const
-export const PIPELINE_CANVAS_STORAGE_KEY = 'ontoweave.data-pipeline.canvas-pane-width'
-export const PIPELINE_CANVAS_VAR = '--pipeline-canvas-w'
+export const PIPELINE_CHAT_STORAGE_KEY = 'ontoweave.data-pipeline.chat-pane-width'
 
-export const NODE_WIDTH = 224
-export const NODE_HEIGHT = 82
+export const NODE_SIZE = {
+  default: { width: 224, height: 82 },
+  source: { width: 224, height: 82 },
+  transform: { width: 148, height: 148 },
+  output: { width: 224, height: 82 },
+} as const
 export const NODE_GAP_X = 96
 export const NODE_GAP_Y = 48
 export const CONFIG_SAVE_DELAY_MS = 400
@@ -18,6 +21,32 @@ export const BUILD_POLL_INTERVAL_MS = 2_000
 export const BUILD_STORAGE_PREFIX = 'ontoweave.data-pipeline.build.'
 
 export const NODE_DRAG_MIME = 'application/ontoweave-pipeline-node'
+
+export const PIPELINE_DEFAULT_NAME = '新数据整理流程'
+
+export const PIPELINE_NEW_COPY = {
+  create: '新建数据整理流程',
+  creating: '创建中',
+} as const
+
+export const PIPELINE_RENAME_COPY = {
+  title: '重命名数据整理流程',
+  subtitle: '名称会同步到流程列表和画布标题',
+  label: '流程名称',
+  cancel: '取消',
+  save: '保存',
+  saving: '保存中',
+} as const
+
+export const PIPELINE_DELETE_COPY = {
+  action: '删除流程',
+  title: '删除数据整理流程',
+  subtitle: '删除后流程将不再出现在工作台',
+  body: '删除后流程及其对话会从工作台移除，且无法恢复。',
+  cancel: '取消',
+  confirm: '删除',
+  deleting: '删除中…',
+} as const
 
 export const CATEGORY_LABELS: Record<string, string> = {
   source: '输入',

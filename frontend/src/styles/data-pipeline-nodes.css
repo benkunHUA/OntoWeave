@@ -28,6 +28,9 @@
 }
 
 .pipeline-node {
+  --node-border: #3b3b3b;
+  --node-accent: var(--blue);
+  --node-accent-soft: var(--blue-soft);
   position: relative;
   display: flex;
   width: 100%;
@@ -36,13 +39,36 @@
   justify-content: center;
   gap: 4px;
   padding: 12px 14px;
-  border: 1px solid #3b3b3b;
+  border: 1px solid var(--node-border);
   border-radius: 10px;
   background: linear-gradient(160deg, #292929, #222222);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
 }
 
+.pipeline-node.is-source {
+  --node-border: rgba(90, 145, 255, 0.5);
+  --node-accent: #6f9dff;
+  --node-accent-soft: rgba(59, 123, 255, 0.2);
+  background: linear-gradient(160deg, #263044, #20252f);
+}
+
+.pipeline-node.is-transform {
+  --node-border: rgba(232, 163, 61, 0.52);
+  --node-accent: var(--amber-ink);
+  --node-accent-soft: rgba(232, 163, 61, 0.2);
+  padding: 10px;
+  background: linear-gradient(160deg, #353027, #26231e);
+}
+
+.pipeline-node.is-output {
+  --node-border: rgba(62, 207, 154, 0.48);
+  --node-accent: var(--green);
+  --node-accent-soft: rgba(62, 207, 154, 0.18);
+  background: linear-gradient(160deg, #24352f, #202824);
+}
+
 .pipeline-node.is-selected {
+  --node-border: var(--blue);
   border-color: var(--blue);
   box-shadow:
     0 0 0 1px rgba(59, 123, 255, 0.45),
@@ -63,8 +89,14 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 7px;
-  color: var(--blue-ink);
-  background: var(--blue-soft);
+  color: var(--node-accent);
+  background: var(--node-accent-soft);
+}
+
+.pipeline-node__icon--large {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
 }
 
 .pipeline-node__name {
@@ -84,13 +116,36 @@
   white-space: nowrap;
 }
 
+.pipeline-node__transform {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.pipeline-node__transform .pipeline-node__name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .pipeline-node .react-flow__handle {
   width: 9px;
   height: 9px;
   border: 2px solid #1b1b1b;
-  background: #6f8fc9;
+  background: var(--node-accent);
 }
 
 .pipeline-node .react-flow__handle:hover {
-  background: var(--blue-hi);
+  background: var(--node-accent);
+  box-shadow: 0 0 0 3px var(--node-accent-soft);
 }

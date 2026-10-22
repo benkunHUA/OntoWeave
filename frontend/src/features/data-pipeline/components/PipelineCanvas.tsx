@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck, LayoutGrid, RefreshCw } from 'lucide-react'
+import { CircleAlert, CircleCheck, LayoutGrid, Pencil, RefreshCw } from 'lucide-react'
 import {
   Background,
   BackgroundVariant,
@@ -25,8 +25,6 @@ import {
   CANVAS_COPY,
   CONFLICT_COPY,
   NODE_DRAG_MIME,
-  NODE_HEIGHT,
-  NODE_WIDTH,
   PIPELINE_STATUS_LABELS,
 } from '../lib/constants'
 import { validateConnection } from '../lib/connectionValidation'
@@ -34,14 +32,18 @@ import {
   changedPositionUpdates,
   draftToFlow,
   layoutPipeline,
-  nextNodePosition,
+  nodeSize,
   type PipelineFlowNode,
 } from '../lib/flow'
 import {
   defaultNodeConfig,
   findNodeDefinition,
+  inputPorts,
+  nodeCategory,
+  outputPorts,
   uniqueNodeName,
 } from '../lib/nodeCatalog'
+import { RenamePipelineDialog } from './dialogs/RenamePipelineDialog'
 import { NodePalette } from './NodePalette'
 import { PipelineNode as PipelineNodeView } from './nodes/PipelineNode'
 
@@ -62,6 +64,7 @@ interface PipelineCanvasProps {
   onConnect: (edge: PipelineEdge) => Promise<boolean>
   onDisconnect: (edgeId: string) => Promise<boolean>
   onMove: (positions: PipelineNodePositionUpdate[]) => Promise<unknown> | null
+  onRename: (name: string) => Promise<boolean>
   onClearError: () => void
   onReloadConflict: () => void
 }
@@ -82,6 +85,7 @@ function CanvasSurface(props: PipelineCanvasProps) {
     onConnect,
     onDisconnect,
     onMove,
+    onRename,
     onClearError,
     onReloadConflict,
   } = props
@@ -92,6 +96,9 @@ function CanvasSurface(props: PipelineCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(flow.nodes)
   const selectedRef = useRef(selectedNodeId)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameName, setRenameName] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
   const { screenToFlowPosition, fitView } = useReactFlow<PipelineFlowNode>()
 
   useEffect(() => {
@@ -112,14 +119,15 @@ function CanvasSurface(props: PipelineCanvasProps) {
   async function createNode(type: string, position: { x: number; y: number }) {
     const definition = findNodeDefinition(catalog, type)
     if (!definition || !draft) return
+    const size = nodeSize(nodeCategory(definition, type))
     const node: PipelineNode = {
       id: crypto.randomUUID(),
       type,
       name: uniqueNodeName(definition, draft.definition.nodes),
       config: defaultNodeConfig(definition),
       position: {
-        x: Math.round(position.x - NODE_WIDTH / 2),
-        y: Math.round(position.y - NODE_HEIGHT / 2),
+        x: Math.round(position.x - size.width / 2),
+        y: Math.round(position.y - size.height / 2),
       },
     }
     if (await onAddNode(node)) onSelectNode(node.id)
@@ -134,14 +142,17 @@ function CanvasSurface(props: PipelineCanvasProps) {
 
   async function handleConnect(connection: Connection) {
     if (!draft || !connection.source || !connection.target) return
+    const source = draft.definition.nodes.find((node) => node.id === connection.source)
+    const sourceDefinition = findNodeDefinition(catalog, source?.type ?? '')
     const target = draft.definition.nodes.find((node) => node.id === connection.target)
     const targetDefinition = findNodeDefinition(catalog, target?.type ?? '')
     const targetPort = connection.targetHandle ??
-      targetDefinition?.ports.find((port) => port.role === 'input')?.id
-    if (!targetPort) return
+      inputPorts(targetDefinition)[0]?.id
+    const sourcePort = connection.sourceHandle ?? outputPorts(sourceDefinition)[0]?.id
+    if (!sourcePort || !targetPort) return
     const candidate = {
       sourceNodeId: connection.source,
-      sourcePort: connection.sourceHandle ?? 'out',
+      sourcePort,
       targetNodeId: connection.target,
       targetPort,
     }
@@ -166,9 +177,24 @@ function CanvasSurface(props: PipelineCanvasProps) {
 
   function arrange() {
     if (!draft) return
-    const positions = layoutPipeline(draft)
+    const positions = layoutPipeline(draft, catalog)
     void onMove(positions)
     window.setTimeout(() => void fitView({ duration: 220, padding: 0.2 }), 80)
+  }
+
+  function openRename() {
+    if (!pipeline) return
+    setRenameName(pipeline.name)
+    setRenameOpen(true)
+  }
+
+  async function submitRename() {
+    const name = renameName.trim()
+    if (!name || isRenaming) return
+    setIsRenaming(true)
+    const renamed = await onRename(name)
+    setIsRenaming(false)
+    if (renamed) setRenameOpen(false)
   }
 
   const blocking = check?.blocking_issues.length ?? 0
@@ -179,7 +205,19 @@ function CanvasSurface(props: PipelineCanvasProps) {
       <header className="pipeline-canvas-head">
         <div className="pipeline-canvas-title">
           <span className="eyebrow">Data pipeline</span>
-          <h1>{pipeline?.name || '数据整理'}</h1>
+          <div className="pipeline-canvas-heading">
+            <h1>{pipeline?.name || '数据整理'}</h1>
+            {pipeline ? (
+              <button
+                type="button"
+                className="icon-button icon-button--quiet"
+                aria-label="重命名数据整理流程"
+                onClick={openRename}
+              >
+                <Pencil size={13} />
+              </button>
+            ) : null}
+          </div>
           <div className="pipeline-canvas-meta">
             {pipeline ? (
               <span className={`status-pill is-${pipeline.status}`}>
@@ -240,7 +278,7 @@ function CanvasSurface(props: PipelineCanvasProps) {
       ) : null}
 
       <div className="pipeline-canvas-body">
-        <NodePalette catalog={catalog} onAdd={(type) => void createNode(type, nextNodePosition(draft))} />
+        <NodePalette catalog={catalog} />
         <div
           className="pipeline-flow"
           onDrop={handleDrop}
@@ -273,11 +311,20 @@ function CanvasSurface(props: PipelineCanvasProps) {
           {!draft?.definition.nodes.length ? (
             <div className="pipeline-canvas-empty">
               <strong>{pipeline ? '画布还是空的' : '选择一条流程'}</strong>
-              <p>{pipeline ? '从节点面板拖入或点击节点开始搭建。' : '在左侧新建或选择一条数据整理流程。'}</p>
+              <p>{pipeline ? '从节点面板拖入节点开始搭建。' : '在左侧新建或选择一条数据整理流程。'}</p>
             </div>
           ) : null}
         </div>
       </div>
+      {renameOpen ? (
+        <RenamePipelineDialog
+          name={renameName}
+          isSaving={isRenaming}
+          onNameChange={setRenameName}
+          onCancel={() => setRenameOpen(false)}
+          onSubmit={() => void submitRename()}
+        />
+      ) : null}
     </section>
   )
 }

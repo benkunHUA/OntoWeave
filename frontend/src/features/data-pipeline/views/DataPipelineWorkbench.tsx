@@ -27,7 +27,11 @@ import { usePipelineDraft } from '../hooks/usePipelineDraft'
 import { usePipelineExecutionUi } from '../hooks/usePipelineExecutionUi'
 import { usePipelineLayout } from '../hooks/usePipelineLayout'
 import { usePipelineList } from '../hooks/usePipelineList'
-import { DATA_PIPELINE_PATH, PIPELINE_LIST_WIDTH } from '../lib/constants'
+import {
+  DATA_PIPELINE_PATH,
+  PIPELINE_DEFAULT_NAME,
+  PIPELINE_LIST_WIDTH,
+} from '../lib/constants'
 import { pipelineStateFromEvent } from '../lib/draft'
 import { findNodeDefinition } from '../lib/nodeCatalog'
 
@@ -54,7 +58,11 @@ export function DataPipelineWorkbench() {
     setOutput: queueSetOutput,
   } = queue
   const { reload: reloadDraft, setCheck: setDraftCheck } = draftView
-  const { create: createPipelineRecord } = list
+  const {
+    archive: archivePipelineRecord,
+    create: createPipelineRecord,
+    rename: renamePipelineRecord,
+  } = list
   const refreshList = list.refresh
   const reloadDraftView = draftView.reload
   const layout = usePipelineLayout()
@@ -155,12 +163,31 @@ export function DataPipelineWorkbench() {
   )
 
   const createPipeline = useCallback(
-    async (name: string) => {
-      const created = await createPipelineRecord(name)
+    async () => {
+      const created = await createPipelineRecord(PIPELINE_DEFAULT_NAME)
       if (created) navigate(`${DATA_PIPELINE_PATH}/${created.id}`)
       return created
     },
     [createPipelineRecord, navigate],
+  )
+
+  const renamePipeline = useCallback(
+    async (name: string) => {
+      if (!pipelineId) return false
+      return Boolean(await renamePipelineRecord(pipelineId, name))
+    },
+    [pipelineId, renamePipelineRecord],
+  )
+
+  const deletePipeline = useCallback(
+    async (target: Pipeline) => {
+      const deleted = await archivePipelineRecord(target.id)
+      if (!deleted || target.id !== pipelineId) return deleted
+      const next = list.items.find((item) => item.id !== target.id)
+      navigate(next ? `${DATA_PIPELINE_PATH}/${next.id}` : DATA_PIPELINE_PATH, { replace: true })
+      return true
+    },
+    [archivePipelineRecord, list.items, navigate, pipelineId],
   )
 
   const prepareBuild = useCallback(async () => {
@@ -173,17 +200,17 @@ export function DataPipelineWorkbench() {
       pageClassName="data-pipeline-page"
       dividerClassName="data-pipeline-divider"
       leftWidth={PIPELINE_LIST_WIDTH}
-      rightWidth={layout.width}
+      centerWidth={layout.width}
       dragging={layout.dragging}
-      resizerLabel="拖拽调整流程画布宽度"
+      resizerLabel="拖拽调整对话栏宽度"
       onStartResize={layout.startResize}
-      styleVars={layout.styleVars}
       left={<PipelineListPane
         pipelines={list.items}
         activeId={pipelineId ?? null}
         isLoading={list.isLoading}
         error={list.error}
         onCreate={createPipeline}
+        onDelete={deletePipeline}
         onSelect={(item) => navigate(`${DATA_PIPELINE_PATH}/${item.id}`)}
         onHome={() => navigate('/')}
       />}
@@ -228,6 +255,7 @@ export function DataPipelineWorkbench() {
           onConnect={connectNodes}
           onDisconnect={disconnectNodes}
           onMove={moveNodes}
+          onRename={renamePipeline}
           onClearError={queue.clearError}
           onReloadConflict={queue.resumeAfterConflict}
         />

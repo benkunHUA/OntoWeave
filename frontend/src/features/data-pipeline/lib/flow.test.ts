@@ -14,9 +14,19 @@ describe('draftToFlow', () => {
     ])
     expect(result.nodes[1].position).toEqual({ x: 320, y: 180 })
     expect(result.nodes[1].selected).toBe(true)
+    expect(result.nodes[0].data.category).toBe('source')
+    expect(result.nodes[1].data.category).toBe('transform')
+    expect(result.nodes[1].style).toEqual({ width: 148, height: 148 })
 
     result.nodes[1].position.x = 999
     expect(draft.definition.nodes[1].position.x).toBe(320)
+  })
+
+  it('keeps edge handles when the catalog has not arrived yet', () => {
+    const result = draftToFlow(draftFixture(), null, null)
+
+    expect(result.nodes[1].data.inputs.map((port) => port.id)).toEqual(['in'])
+    expect(result.nodes[1].data.outputs.map((port) => port.id)).toEqual(['out'])
   })
 })
 

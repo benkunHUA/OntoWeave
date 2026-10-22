@@ -30,12 +30,20 @@
 }
 
 .pipeline-canvas-title h1 {
-  margin-top: 3px;
+  min-width: 0;
   overflow: hidden;
   color: #f2f2f2;
   font-size: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pipeline-canvas-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 3px;
 }
 
 .pipeline-canvas-meta {
@@ -125,22 +133,13 @@
 .pipeline-palette__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
   padding: 11px 12px;
   border-bottom: 1px solid var(--line-soft);
   color: var(--ink-dim);
   font-size: 12px;
   font-weight: 800;
-}
-
-.pipeline-palette__meta {
-  overflow: hidden;
-  color: var(--faint);
-  font-size: 9px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .pipeline-palette__body {
@@ -167,19 +166,24 @@
   gap: 6px;
   width: 100%;
   padding: 7px 8px;
-  border: 1px solid transparent;
-  border-radius: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   color: var(--muted);
   font-size: 11px;
   text-align: left;
-  background: transparent;
+  background: var(--raised);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.24);
   cursor: grab;
 }
 
+.pipeline-palette__item + .pipeline-palette__item {
+  margin-top: 6px;
+}
+
 .pipeline-palette__item:hover {
-  border-color: var(--line);
+  border-color: #454545;
   color: var(--ink);
-  background: var(--raised);
+  background: var(--raised-hi);
 }
 
 .pipeline-palette__empty {

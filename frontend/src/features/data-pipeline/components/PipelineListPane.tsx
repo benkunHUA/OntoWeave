@@ -1,14 +1,22 @@
-import { ChevronRight, House, Plus, Search, Workflow } from 'lucide-react'
-import { useMemo, useState, type FormEvent } from 'react'
+import { House, Plus, Trash2, Workflow } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { SearchField } from '../../../shared/components/form/controls'
 import type { Pipeline } from '../../../shared/types'
-import { PIPELINE_EMPTY_COPY, PIPELINE_STATUS_LABELS } from '../lib/constants'
+import {
+  PIPELINE_DELETE_COPY,
+  PIPELINE_EMPTY_COPY,
+  PIPELINE_NEW_COPY,
+  PIPELINE_STATUS_LABELS,
+} from '../lib/constants'
+import { DeletePipelineDialog } from './dialogs/DeletePipelineDialog'
 
 interface PipelineListPaneProps {
   pipelines: Pipeline[]
   activeId: string | null
   isLoading: boolean
   error: string | null
-  onCreate: (name: string) => Promise<Pipeline | null>
+  onCreate: () => Promise<Pipeline | null>
+  onDelete: (pipeline: Pipeline) => Promise<boolean>
   onSelect: (pipeline: Pipeline) => void
   onHome: () => void
 }
@@ -19,13 +27,14 @@ export function PipelineListPane({
   isLoading,
   error,
   onCreate,
+  onDelete,
   onSelect,
   onHome,
 }: PipelineListPaneProps) {
   const [query, setQuery] = useState('')
-  const [creating, setCreating] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
-  const [name, setName] = useState('新数据流程')
+  const [pendingDelete, setPendingDelete] = useState<Pipeline | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const filtered = useMemo(() => {
     const keyword = query.trim().toLowerCase()
@@ -33,17 +42,19 @@ export function PipelineListPane({
     return pipelines.filter((pipeline) => pipeline.name.toLowerCase().includes(keyword))
   }, [pipelines, query])
 
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed || isCreating) return
+  async function create() {
+    if (isCreating) return
     setIsCreating(true)
-    const created = await onCreate(trimmed)
+    await onCreate()
     setIsCreating(false)
-    if (created) {
-      setCreating(false)
-      setName('新数据流程')
-    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || isDeleting) return
+    setIsDeleting(true)
+    const deleted = await onDelete(pendingDelete)
+    setIsDeleting(false)
+    if (deleted) setPendingDelete(null)
   }
 
   return (
@@ -61,64 +72,58 @@ export function PipelineListPane({
         </button>
       </header>
 
-      {creating ? (
-        <form className="pipeline-create-form" onSubmit={(event) => void submit(event)}>
-          <input
-            autoFocus
-            value={name}
-            maxLength={200}
-            aria-label="流程名称"
-            onChange={(event) => setName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setCreating(false)
-            }}
-          />
-          <div>
-            <button type="button" className="text-button" onClick={() => setCreating(false)}>取消</button>
-            <button type="submit" className="primary-button" disabled={isCreating || !name.trim()}>
-              {isCreating ? '创建中' : '创建'}
-            </button>
-          </div>
-        </form>
-      ) : (
-        <button type="button" className="pipeline-new-button" onClick={() => setCreating(true)}>
-          <Plus size={16} />
-          新建数据整理流程
-        </button>
-      )}
+      <button
+        type="button"
+        className="pipeline-new-button"
+        onClick={() => void create()}
+        disabled={isCreating}
+      >
+        <Plus size={16} />
+        {isCreating ? PIPELINE_NEW_COPY.creating : PIPELINE_NEW_COPY.create}
+      </button>
 
-      <label className="pipeline-search">
-        <Search size={14} />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="搜索数据整理流程"
-          aria-label="搜索数据整理流程"
-        />
-      </label>
+      <SearchField
+        className="pipeline-search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="搜索数据整理流程"
+        aria-label="搜索数据整理流程"
+      />
 
       <nav className="pipeline-list" aria-label="数据整理流程列表">
         {filtered.map((pipeline) => {
           const active = pipeline.id === activeId
           return (
-            <button
-              type="button"
+            <div
               key={pipeline.id}
               className={`pipeline-list__item ${active ? 'is-active' : ''}`}
-              onClick={() => onSelect(pipeline)}
             >
-              <span className={`pipeline-list__status is-${pipeline.status}`} />
-              <span className="pipeline-list__body">
-                <span className="pipeline-list__name">{pipeline.name}</span>
-                <span className="pipeline-list__meta">
-                  {pipeline.current_version_id ? '已发布版本可用' : '尚未发布'}
+              <button
+                type="button"
+                className="pipeline-list__select"
+                onClick={() => onSelect(pipeline)}
+                aria-current={active ? 'page' : undefined}
+              >
+                <span className={`pipeline-list__status is-${pipeline.status}`} />
+                <span className="pipeline-list__body">
+                  <span className="pipeline-list__name">{pipeline.name}</span>
+                  <span className="pipeline-list__meta">
+                    {pipeline.current_version_id ? '已发布版本可用' : '尚未发布'}
+                  </span>
                 </span>
-              </span>
-              <span className={`pipeline-list__badge is-${pipeline.status}`}>
-                {PIPELINE_STATUS_LABELS[pipeline.status] ?? pipeline.status}
-              </span>
-              <ChevronRight size={14} />
-            </button>
+                <span className={`pipeline-list__badge is-${pipeline.status}`}>
+                  {PIPELINE_STATUS_LABELS[pipeline.status] ?? pipeline.status}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="pipeline-list__delete"
+                aria-label={`${PIPELINE_DELETE_COPY.action}：${pipeline.name}`}
+                onClick={() => setPendingDelete(pipeline)}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           )
         })}
         {isLoading ? <div className="pipeline-list__empty">正在读取流程…</div> : null}
@@ -130,6 +135,14 @@ export function PipelineListPane({
         ) : null}
         {error ? <div className="pipeline-list__error">{error}</div> : null}
       </nav>
+      {pendingDelete ? (
+        <DeletePipelineDialog
+          name={pendingDelete.name}
+          isDeleting={isDeleting}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void confirmDelete()}
+        />
+      ) : null}
     </aside>
   )
 }

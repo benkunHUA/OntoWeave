@@ -9,6 +9,7 @@ import type {
   ConversationEvent,
   InterruptOption,
 } from '../../../shared/types'
+import { isVisiblePipelineEvent } from '../lib/eventVisibility'
 
 interface PipelineConversationPaneProps {
   title: string
@@ -27,12 +28,6 @@ interface PipelineConversationPaneProps {
 type TimelineItem =
   | { kind: 'message'; at: string; message: ChatMessage }
   | { kind: 'event'; at: string; event: ConversationEvent }
-
-const HIDDEN_EVENT_PREFIXES = ['pipeline.agent.turn', 'pipeline.agent.question']
-
-function visibleEvent(event: ConversationEvent): boolean {
-  return !HIDDEN_EVENT_PREFIXES.some((prefix) => event.event_type.startsWith(prefix))
-}
 
 function timeOf(value: string): number {
   const parsed = Date.parse(value)
@@ -60,7 +55,7 @@ export function PipelineConversationPane({
         at: message.created_at ?? new Date(0).toISOString(),
         message,
       })),
-      ...events.filter(visibleEvent).map((event) => ({
+      ...events.filter(isVisiblePipelineEvent).map((event) => ({
         kind: 'event' as const,
         at: event.created_at,
         event,

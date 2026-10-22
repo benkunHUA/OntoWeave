@@ -5,7 +5,8 @@ interface WorkbenchPaneLayoutProps {
   pageClassName: string
   dividerClassName: string
   leftWidth: number
-  rightWidth: number
+  rightWidth?: number
+  centerWidth?: number
   left: ReactNode
   center: ReactNode
   right: ReactNode
@@ -21,6 +22,7 @@ export function WorkbenchPaneLayout({
   dividerClassName,
   leftWidth,
   rightWidth,
+  centerWidth,
   left,
   center,
   right,
@@ -32,7 +34,8 @@ export function WorkbenchPaneLayout({
   const layoutStyle = {
     ...styleVars,
     '--workbench-left-w': `${leftWidth}px`,
-    '--workbench-right-w': `${rightWidth}px`,
+    ...(rightWidth === undefined ? {} : { '--workbench-right-w': `${rightWidth}px` }),
+    ...(centerWidth === undefined ? {} : { '--workbench-center-w': `${centerWidth}px` }),
   } as CSSProperties
 
   return (
