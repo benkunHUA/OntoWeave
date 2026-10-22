@@ -30,6 +30,15 @@ class PipelineNodeCatalogControllerTest {
         String version = body.path("catalogVersion").asText();
         assertThat(version).isEqualTo(catalog.catalogVersion());
         assertThat(body.path("nodes")).hasSize(catalog.nodes().size());
+        JsonNode inputNode = null;
+        for (JsonNode node : body.path("nodes")) {
+            if (node.path("type").asText().equals("input")) {
+                inputNode = node;
+                break;
+            }
+        }
+        assertThat(inputNode).isNotNull();
+        assertThat(inputNode.path("ports").get(0).path("role").asText()).isEqualTo("output");
         assertThat(result.getResponse().getHeader("ETag")).isEqualTo("\"" + version + "\"");
     }
 }

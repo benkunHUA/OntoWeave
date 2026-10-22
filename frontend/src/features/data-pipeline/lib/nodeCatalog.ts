@@ -26,12 +26,27 @@ export function groupedNodeDefinitions(
   })).filter((group) => group.nodes.length > 0)
 }
 
+/** 兼容旧版 Java 目录里大写端口角色，浏览器契约统一按小写消费。 */
+export function portHasRole(port: PipelineNodePort, role: PipelineNodePort['role']): boolean {
+  return String(port.role).toLowerCase() === role
+}
+
 export function inputPorts(definition: NodeDefinition | null): PipelineNodePort[] {
-  return definition?.ports.filter((port) => port.role === 'input') ?? []
+  return definition?.ports.filter((port) => portHasRole(port, 'input')) ?? []
 }
 
 export function outputPorts(definition: NodeDefinition | null): PipelineNodePort[] {
-  return definition?.ports.filter((port) => port.role === 'output') ?? []
+  return definition?.ports.filter((port) => portHasRole(port, 'output')) ?? []
+}
+
+export function nodeCategory(
+  definition: NodeDefinition | null,
+  nodeType: string,
+): string {
+  if (definition?.category) return definition.category
+  if (nodeType === 'input') return 'source'
+  if (nodeType === 'output') return 'output'
+  return 'transform'
 }
 
 function defaultValue(schema: ConfigSchema | undefined): unknown {

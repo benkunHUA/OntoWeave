@@ -1,5 +1,5 @@
 import type { NodeCatalog, PipelineDraftResponse } from '../../../shared/types'
-import { findNodeDefinition } from './nodeCatalog'
+import { findNodeDefinition, portHasRole } from './nodeCatalog'
 
 export type ConnectionReason = 'NODE_MISSING' | 'SELF_CONNECTION' | 'PORT_INVALID' | 'INPUT_OCCUPIED' | 'CYCLE'
 
@@ -65,7 +65,10 @@ export function validateConnection(
   if (catalog) {
     const sourcePort = sourceDefinition?.ports.find((port) => port.id === candidate.sourcePort)
     const targetPort = targetDefinition?.ports.find((port) => port.id === candidate.targetPort)
-    if (!sourcePort || sourcePort.role !== 'output' || !targetPort || targetPort.role !== 'input') {
+    if (
+      !sourcePort || !portHasRole(sourcePort, 'output') ||
+      !targetPort || !portHasRole(targetPort, 'input')
+    ) {
       return fail('PORT_INVALID')
     }
     const occupied = edges.some(

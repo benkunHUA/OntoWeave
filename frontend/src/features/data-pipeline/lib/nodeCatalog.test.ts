@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ConfigSchema, NodeCatalog, NodeDefinition } from '../../../shared/types'
-import { defaultNodeConfig } from './nodeCatalog'
+import { defaultNodeConfig, inputPorts, outputPorts } from './nodeCatalog'
 
 function definition(type: string, properties: Record<string, ConfigSchema>): NodeDefinition {
   return {
@@ -112,5 +112,18 @@ describe('defaultNodeConfig', () => {
         expect(config[field], `${node.type}.${field} 不应被猜测`).toBeUndefined()
       }
     }
+  })
+})
+
+describe('port roles', () => {
+  it('accepts uppercase roles from older data-service versions', () => {
+    const node = definition('input', {})
+    node.ports = [
+      { id: 'out', role: 'OUTPUT' as 'output', data_type: 'table', required: true, multiple: false },
+      { id: 'in', role: 'INPUT' as 'input', data_type: 'table', required: true, multiple: false },
+    ]
+
+    expect(inputPorts(node).map((port) => port.id)).toEqual(['in'])
+    expect(outputPorts(node).map((port) => port.id)).toEqual(['out'])
   })
 })
