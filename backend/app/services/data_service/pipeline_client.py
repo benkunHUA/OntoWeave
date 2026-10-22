@@ -204,6 +204,13 @@ class PipelineDataServiceMixin:
             params={"ownerId": str(owner_id)},
         )
 
+    def get_latest_build(self, pipeline_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:
+        return self._request(
+            "GET",
+            f"/internal/v1/pipelines/{pipeline_id}/builds/latest",
+            params={"ownerId": str(owner_id)},
+        )
+
     def cancel_build(
         self,
         pipeline_id: uuid.UUID,
@@ -233,6 +240,24 @@ class PipelineDataServiceMixin:
         return self._request(
             "GET",
             f"/internal/v1/pipelines/{pipeline_id}/datasets/{dataset_id}/sources",
+            params=params,
+        )
+
+    def get_pipeline_dataset_preview(
+        self,
+        pipeline_id: uuid.UUID,
+        dataset_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        version_id: uuid.UUID | None = None,
+        limit: int = 100,
+    ) -> dict:
+        params: dict[str, Any] = {"ownerId": str(owner_id), "limit": limit}
+        if version_id is not None:
+            params["versionId"] = str(version_id)
+        return self._request(
+            "GET",
+            f"/internal/v1/pipelines/{pipeline_id}/datasets/{dataset_id}/preview",
             params=params,
         )
 

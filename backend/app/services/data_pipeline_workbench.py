@@ -204,6 +204,15 @@ def get_build(
     return mapping.build(client.get_build(pipeline_id, build_id, owner_id=owner_id))
 
 
+def get_latest_build(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    pipeline_id: uuid.UUID,
+) -> dict:
+    return mapping.build(client.get_latest_build(pipeline_id, owner_id=owner_id))
+
+
 def cancel_build(
     client: DataServiceClient,
     *,
@@ -235,5 +244,25 @@ def output_sources(
             dataset_id,
             owner_id=owner_id,
             version_id=version_id,
+        )
+    )
+
+
+def output_preview(
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    pipeline_id: uuid.UUID,
+    dataset_id: uuid.UUID,
+    version_id: uuid.UUID | None = None,
+    limit: int = 100,
+) -> dict:
+    return mapping.dataset_preview(
+        client.get_pipeline_dataset_preview(
+            pipeline_id,
+            dataset_id,
+            owner_id=owner_id,
+            version_id=version_id,
+            limit=limit,
         )
     )

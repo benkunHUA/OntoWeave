@@ -204,6 +204,10 @@ class FakePipelineClient:
         self._record("get-build", pipeline_id=pipeline_id, build_id=build_id)
         return self._build()
 
+    def get_latest_build(self, pipeline_id, *, owner_id):  # noqa: ANN001
+        self._record("get-latest-build", pipeline_id=pipeline_id)
+        return self._build()
+
     def cancel_build(self, pipeline_id, build_id, *, owner_id, operation_id=None):  # noqa: ANN001
         self._record("cancel-build", pipeline_id=pipeline_id, build_id=build_id)
         return self._build()
@@ -279,6 +283,37 @@ class FakePipelineClient:
                     "metadataStatus": "available",
                 }
             ],
+        }
+
+    def get_pipeline_dataset_preview(  # noqa: ANN001
+        self,
+        pipeline_id,
+        dataset_id,
+        *,
+        owner_id,
+        version_id=None,
+        limit=100,
+    ):
+        self._record(
+            "dataset-preview",
+            pipeline_id=pipeline_id,
+            dataset_id=dataset_id,
+            version_id=version_id,
+            limit=limit,
+        )
+        return {
+            "datasetId": str(dataset_id),
+            "versionId": str(version_id or uuid.uuid4()),
+            "versionNumber": 3,
+            "snapshotId": 901,
+            "live": False,
+            "columns": [
+                {"name": "id", "type": "long", "nullable": False},
+                {"name": "customer_name", "type": "string", "nullable": True},
+            ],
+            "rowCount": 2,
+            "rows": [{"id": 1, "customerName": "Ada"}][:limit],
+            "truncated": False,
         }
 
     def get_schedule(self, pipeline_id, *, owner_id):  # noqa: ANN001

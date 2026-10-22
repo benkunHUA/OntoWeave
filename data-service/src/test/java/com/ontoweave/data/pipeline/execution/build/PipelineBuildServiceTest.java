@@ -206,6 +206,19 @@ class PipelineBuildServiceTest {
         verify(builds).save(build);
     }
 
+    @Test
+    void returnsTheMostRecentBuildForTheOwnedPipeline() {
+        PipelineBuildEntity latest = build(PipelineBuildStatus.SUCCEEDED);
+        List<BuildOutputResponse> outputs = List.of();
+        BuildResponse expected = response(latest, outputs);
+        when(builds.findTopByPipelineIdOrderByCreatedAtDesc(PIPELINE_ID))
+                .thenReturn(Optional.of(latest));
+        when(this.outputs.findByBuildIdOrderByCreatedAtAsc(latest.getId())).thenReturn(List.of());
+        when(responseMapper.toResponse(latest, List.of())).thenReturn(expected);
+
+        assertThat(service.latest(PIPELINE_ID, OWNER_ID)).isSameAs(expected);
+    }
+
     private PipelineCheckResult ready() {
         return new PipelineCheckResult(
                 PIPELINE_ID, REVISION, PipelineStage.READY, List.of(), List.of(), List.of()

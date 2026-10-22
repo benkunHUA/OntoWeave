@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '../../../../test/render'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HttpError } from '../../../../shared/api/client'
 import type { PipelineBuild, PipelineSource } from '../../../../shared/types'
 import { BuildDetailsDrawer } from './BuildDetailsDrawer'
 
-const api = vi.hoisted(() => ({ getPipelineOutputSources: vi.fn() }))
+const api = vi.hoisted(() => ({
+  getPipelineDatasetPreview: vi.fn(),
+  getPipelineOutputSources: vi.fn(),
+}))
 vi.mock('../../../../shared/api', () => api)
 
 const source: PipelineSource = {
@@ -89,6 +92,20 @@ const build: PipelineBuild = {
 
 beforeEach(() => {
   api.getPipelineOutputSources.mockResolvedValue(source)
+  api.getPipelineDatasetPreview.mockResolvedValue({
+    dataset_id: 'dataset-1',
+    version_id: 'dataset-version-1',
+    version_number: 3,
+    snapshot_id: 901,
+    live: false,
+    columns: [
+      { name: 'id', type: 'long', nullable: false },
+      { name: 'customer_name', type: 'string', nullable: true },
+    ],
+    row_count: 42,
+    rows: [{ id: 1, customer_name: 'Ada' }],
+    truncated: false,
+  })
 })
 
 afterEach(() => {
@@ -121,6 +138,9 @@ describe('BuildDetailsDrawer', () => {
     expect(screen.getByText('输出数据集详情')).toBeTruthy()
 
     await waitFor(() => expect(screen.getByText('orders_raw')).toBeTruthy())
+    expect(screen.getByText('发布数据')).toBeTruthy()
+    expect(screen.getByText('Ada')).toBeTruthy()
+    expect(screen.getAllByText('42 行').length).toBeGreaterThan(0)
     expect(screen.getByText(/v9/)).toBeTruthy()
     expect(screen.getByText(/ERP/)).toBeTruthy()
     expect(screen.getByText(/sales\.orders/)).toBeTruthy()
@@ -130,6 +150,12 @@ describe('BuildDetailsDrawer', () => {
       'pipeline-1',
       'dataset-1',
       'dataset-version-1',
+    )
+    expect(api.getPipelineDatasetPreview).toHaveBeenCalledWith(
+      'pipeline-1',
+      'dataset-1',
+      'dataset-version-1',
+      100,
     )
 
     fireEvent.click(screen.getAllByRole('button', { name: '关闭' }).at(-1)!)

@@ -198,24 +198,6 @@ class DatasetRead(BaseModel):
     updated_at: datetime
 
 
-class PreviewColumnRead(BaseModel):
-    name: str
-    type: str
-    nullable: bool
-
-
-class DatasetPreviewRead(BaseModel):
-    dataset_id: uuid.UUID
-    version_id: uuid.UUID | None = None
-    version_number: int | None = None
-    snapshot_id: int
-    live: bool = False
-    columns: list[PreviewColumnRead]
-    row_count: int = 0
-    rows: list[dict[str, Any]]
-    truncated: bool = False
-
-
 class DataConnectionStateRead(BaseModel):
     connection: DataConnectionRead
     tasks: list[SyncTaskRead]

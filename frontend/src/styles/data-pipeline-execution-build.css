@@ -25,6 +25,27 @@
   margin: 0 0 10px;
 }
 
+.pipeline-output-dataset-dialog {
+  display: grid;
+  gap: 14px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.pipeline-output-dataset-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.pipeline-output-dataset-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
 .pipeline-output-dataset-dialog dl > div {
   display: flex;
   justify-content: space-between;

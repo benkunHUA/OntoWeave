@@ -32,6 +32,7 @@ from app.services.data_service.pipeline_mapping import (
     source_output,
     source_pipeline_version,
 )
+from app.services.data_service.preview_mapping import dataset_preview
 
 __all__ = [
     "build",
@@ -239,20 +240,6 @@ def dataset(row: dict) -> dict:
         "source_table": row.get("sourceTable"),
         "created_at": row.get("createdAt"),
         "updated_at": row.get("updatedAt"),
-    }
-
-
-def dataset_preview(row: dict) -> dict:
-    return {
-        "dataset_id": row.get("datasetId"),
-        "version_id": row.get("versionId"),
-        "version_number": row.get("versionNumber"),
-        "snapshot_id": row.get("snapshotId"),
-        "live": row.get("live", False),
-        "columns": row.get("columns") or [],
-        "row_count": row.get("rowCount", 0),
-        "rows": row.get("rows") or [],
-        "truncated": row.get("truncated", False),
     }
 
 

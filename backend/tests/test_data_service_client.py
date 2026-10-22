@@ -158,6 +158,11 @@ def test_pipeline_client_uses_documented_paths(monkeypatch):
         payload={"name": "每日", "cronExpression": "0 2 * * *", "timezone": "Asia/Shanghai"},
     )
     client.get_output_sources(pipeline, dataset, owner_id=owner)
+    version = uuid.uuid4()
+    client.get_pipeline_dataset_preview(
+        pipeline, dataset, owner_id=owner, version_id=version, limit=50
+    )
+    client.get_latest_build(pipeline, owner_id=owner)
 
     assert captured[0][0] == "POST"
     assert captured[0][1] == "http://java:18001/internal/v1/pipelines"
@@ -168,6 +173,15 @@ def test_pipeline_client_uses_documented_paths(monkeypatch):
     assert captured[2][1] == (
         f"http://java:18001/internal/v1/pipelines/{pipeline}/datasets/{dataset}/sources"
     )
+    assert captured[3][1] == (
+        f"http://java:18001/internal/v1/pipelines/{pipeline}/datasets/{dataset}/preview"
+    )
+    assert captured[3][2]["params"] == {
+        "ownerId": str(owner),
+        "limit": 50,
+        "versionId": str(version),
+    }
+    assert captured[4][1] == f"http://java:18001/internal/v1/pipelines/{pipeline}/builds/latest"
 
 
 def test_schedule_runs_accepts_json_array_through_http_transport():

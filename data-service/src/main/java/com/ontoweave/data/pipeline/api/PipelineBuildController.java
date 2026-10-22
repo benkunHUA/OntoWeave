@@ -43,6 +43,14 @@ public class PipelineBuildController {
         return builds.get(pipelineId, buildId, ownerId);
     }
 
+    @GetMapping("/internal/v1/pipelines/{pipelineId}/builds/latest")
+    public BuildResponse latest(
+            @PathVariable UUID pipelineId,
+            @RequestParam @NotNull UUID ownerId
+    ) {
+        return builds.latest(pipelineId, ownerId);
+    }
+
     @PostMapping("/internal/v1/pipelines/{pipelineId}/builds/{buildId}/cancel")
     public void cancel(
             @PathVariable UUID pipelineId,

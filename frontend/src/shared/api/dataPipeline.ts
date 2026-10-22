@@ -1,4 +1,5 @@
 import type {
+  DatasetPreview,
   DatasetSchema,
   InputDatasetPage,
   NodeCatalog,
@@ -163,6 +164,10 @@ export function getPipelineBuild(pipelineId: string, buildId: string): Promise<P
   return request<PipelineBuild>(`/pipelines/${pipelineId}/builds/${buildId}`)
 }
 
+export function getLatestPipelineBuild(pipelineId: string): Promise<PipelineBuild> {
+  return request<PipelineBuild>(`/pipelines/${pipelineId}/builds/latest`)
+}
+
 export function cancelPipelineBuild(
   pipelineId: string,
   buildId: string,
@@ -182,6 +187,19 @@ export function getPipelineOutputSources(
   const query = versionId ? `?version_id=${encodeURIComponent(versionId)}` : ''
   return request<PipelineSource>(
     `/pipelines/${pipelineId}/datasets/${datasetId}/sources${query}`,
+  )
+}
+
+export function getPipelineDatasetPreview(
+  pipelineId: string,
+  datasetId: string,
+  versionId?: string | null,
+  limit = 100,
+): Promise<DatasetPreview> {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (versionId) params.set('version_id', versionId)
+  return request<DatasetPreview>(
+    `/pipelines/${pipelineId}/datasets/${datasetId}/preview?${params.toString()}`,
   )
 }
 

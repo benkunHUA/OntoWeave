@@ -1,10 +1,10 @@
-import type { DatasetPreview } from '../../../../shared/types'
-import { DATASET_PREVIEW_LIMIT } from '../../lib/constants'
+import type { DatasetPreview } from '../types'
 
 interface DatasetPreviewTableProps {
   preview: DatasetPreview | null
   loading: boolean
   error: string | null
+  limit: number
 }
 
 function cellText(value: unknown): string {
@@ -14,14 +14,19 @@ function cellText(value: unknown): string {
   return JSON.stringify(value)
 }
 
-export function DatasetPreviewTable({ preview, loading, error }: DatasetPreviewTableProps) {
+export function DatasetPreviewTable({
+  preview,
+  loading,
+  error,
+  limit,
+}: DatasetPreviewTableProps) {
   if (loading) return <div className="empty-panel">正在读取数据预览…</div>
   if (error) return <div className="inline-alert is-error">{error}</div>
   if (!preview) return null
   if (preview.rows.length === 0) {
     return <div className="empty-panel">{preview.live ? '还没有可预览的数据行' : '这个版本还没有数据行'}</div>
   }
-  const rows = preview.rows.slice(0, DATASET_PREVIEW_LIMIT)
+  const rows = preview.rows.slice(0, limit)
   const truncated = preview.truncated || preview.rows.length > rows.length
   const columnNames = preview.columns.map((column) => column.name)
 

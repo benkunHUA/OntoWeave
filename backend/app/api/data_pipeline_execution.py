@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 
 from app.deps import get_current_user_id, get_data_service_client
 from app.schemas.data_pipeline import BuildCreateRequest, PreviewRead, PreviewRequest
-from app.schemas.data_pipeline_execution import BuildRead, SourceRead
+from app.schemas.data_pipeline_execution import BuildRead, PipelineDatasetPreviewRead, SourceRead
 from app.services import data_pipeline_workbench
 from app.services.data_service.client import DataServiceClient
 
@@ -58,6 +58,20 @@ def create_build(
             pipeline_id=pipeline_id,
             draft_revision=payload.draft_revision,
             operation_id=payload.operation_id,
+        )
+    )
+
+
+@router.get("/pipelines/{pipeline_id}/builds/latest", response_model=BuildRead)
+def get_latest_build(
+    pipeline_id: uuid.UUID,
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> BuildRead:
+    return BuildRead.model_validate(
+        data_pipeline_workbench.get_latest_build(
+            client,
+            owner_id=get_current_user_id(),
+            pipeline_id=pipeline_id,
         )
     )
 
@@ -111,5 +125,28 @@ def get_output_sources(
             pipeline_id=pipeline_id,
             dataset_id=dataset_id,
             version_id=version_id,
+        )
+    )
+
+
+@router.get(
+    "/pipelines/{pipeline_id}/datasets/{dataset_id}/preview",
+    response_model=PipelineDatasetPreviewRead,
+)
+def get_output_preview(
+    pipeline_id: uuid.UUID,
+    dataset_id: uuid.UUID,
+    version_id: uuid.UUID | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> PipelineDatasetPreviewRead:
+    return PipelineDatasetPreviewRead.model_validate(
+        data_pipeline_workbench.output_preview(
+            client,
+            owner_id=get_current_user_id(),
+            pipeline_id=pipeline_id,
+            dataset_id=dataset_id,
+            version_id=version_id,
+            limit=limit,
         )
     )

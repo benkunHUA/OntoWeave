@@ -1,0 +1,29 @@
+/* ===== 跨页面数据集预览 ===== */
+
+.preview-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+}
+
+.preview-table {
+  min-width: max-content;
+}
+
+.preview-table td {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-note {
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.preview-note.is-live {
+  color: var(--green);
+}

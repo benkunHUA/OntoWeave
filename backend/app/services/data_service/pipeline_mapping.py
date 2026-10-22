@@ -16,10 +16,12 @@ from app.services.data_service.pipeline_execution_mapping import (
     source_output,
     source_pipeline_version,
 )
+from app.services.data_service.preview_mapping import dataset_preview
 
 __all__ = [
     "build",
     "build_output",
+    "dataset_preview",
     "input_version",
     "output_sources",
     "preview",

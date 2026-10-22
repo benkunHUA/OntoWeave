@@ -10,5 +10,7 @@ public interface PipelineBuildService {
 
     BuildResponse get(UUID pipelineId, UUID buildId, UUID ownerId);
 
+    BuildResponse latest(UUID pipelineId, UUID ownerId);
+
     void requestCancel(UUID pipelineId, UUID buildId, UUID ownerId);
 }

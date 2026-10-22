@@ -21,6 +21,7 @@ const api = vi.hoisted(() => ({
   cancelPipelinePreview: vi.fn(),
   createPipelineBuild: vi.fn(),
   getPipelineBuild: vi.fn(),
+  getLatestPipelineBuild: vi.fn(),
   getPipelineSchedule: vi.fn(),
   getPipelineOutputSources: vi.fn(),
   listPipelineScheduleRuns: vi.fn(),
@@ -108,6 +109,10 @@ beforeEach(() => {
   api.cancelPipelinePreview.mockReset()
   api.cancelPipelinePreview.mockResolvedValue(undefined)
   api.getPipelineBuild.mockReset()
+  api.getLatestPipelineBuild.mockReset()
+  api.getLatestPipelineBuild.mockRejectedValue(
+    new HttpError(404, '{"code":"NOT_FOUND","message":"还没有构建记录"}'),
+  )
   api.getPipelineSchedule.mockReset()
   api.getPipelineOutputSources.mockReset()
   api.listPipelineScheduleRuns.mockReset()
@@ -214,6 +219,15 @@ describe('execution hook generation isolation', () => {
     })
 
     expect(result.current.detailsOpen).toBe(false)
+  })
+
+  it('loads the latest build when localStorage has no build reference', async () => {
+    api.getLatestPipelineBuild.mockResolvedValue(build('pipeline-a'))
+    const { result } = renderHook(() => usePipelineBuild('pipeline-a'))
+
+    await waitFor(() => expect(result.current.build?.id).toBe('build-pipeline-a'))
+    expect(api.getLatestPipelineBuild).toHaveBeenCalledWith('pipeline-a')
+    expect(result.current.error).toBeNull()
   })
 
   it('cancels an in-flight preview when the panel closes', async () => {

@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from app.schemas.dataset_preview import DatasetPreviewRead
+
 
 class BuildOutputRead(BaseModel):
     id: uuid.UUID
@@ -86,6 +88,10 @@ class SourceRead(BaseModel):
     build: SourceBuildRead | None = None
     pipeline_version: SourcePipelineVersionRead | None = None
     inputs: list[SourceInputRead]
+
+
+class PipelineDatasetPreviewRead(DatasetPreviewRead):
+    pass
 
 
 class ScheduleRead(BaseModel):

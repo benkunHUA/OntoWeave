@@ -2,12 +2,12 @@ import { ArrowLeft, Database, KeyRound, Maximize2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { getDataset, getDatasetPreview } from '../../../../shared/api'
 import type { Dataset, DatasetPreview } from '../../../../shared/types'
+import { DatasetPreviewTable } from '../../../../shared/components/DatasetPreviewTable'
 import { DATASET_PREVIEW_LIMIT } from '../../lib/constants'
 import { DatasetPreviewDialog } from '../../dialogs/DatasetPreviewDialog'
 import { schemaFields } from '../../lib/datasetSchema'
 import { formatBytes, formatDateTime, formatRows } from '../../lib/format'
 import { PREVIEW_MODE_LABELS } from '../../lib/labels'
-import { DatasetPreviewTable } from './DatasetPreviewTable'
 
 interface DatasetDetailProps {
   datasetId: string
@@ -182,7 +182,12 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
               </div>
             </div>
             {live || version ? (
-              <DatasetPreviewTable preview={preview} loading={previewLoading} error={previewError} />
+              <DatasetPreviewTable
+                preview={preview}
+                loading={previewLoading}
+                error={previewError}
+                limit={DATASET_PREVIEW_LIMIT}
+              />
             ) : <div className="empty-panel">还没有已发布版本</div>}
           </section>
         </>

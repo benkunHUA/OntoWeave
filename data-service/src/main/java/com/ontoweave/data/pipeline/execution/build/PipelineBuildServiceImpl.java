@@ -147,6 +147,15 @@ public class PipelineBuildServiceImpl implements PipelineBuildService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public BuildResponse latest(UUID pipelineId, UUID ownerId) {
+        requireReadableOwned(pipelineId, ownerId);
+        PipelineBuildEntity build = builds.findTopByPipelineIdOrderByCreatedAtDesc(pipelineId)
+                .orElseThrow(() -> notFound("还没有构建记录"));
+        return response(build);
+    }
+
+    @Override
     @Transactional
     public void requestCancel(UUID pipelineId, UUID buildId, UUID ownerId) {
         requireActiveOwned(pipelineId, ownerId);

@@ -1,7 +1,8 @@
 import { Maximize2, X } from 'lucide-react'
 import type { DatasetPreview } from '../../../shared/types'
+import { DatasetPreviewTable } from '../../../shared/components/DatasetPreviewTable'
 import { DialogShell } from '../../modeling/components/dialogs/DialogShell'
-import { DatasetPreviewTable } from '../components/context/DatasetPreviewTable'
+import { DATASET_PREVIEW_LIMIT } from '../lib/constants'
 
 interface DatasetPreviewDialogProps {
   title: string
@@ -38,7 +39,12 @@ export function DatasetPreviewDialog({
             共 {preview.row_count.toLocaleString()} 行，当前显示前 {Math.min(preview.rows.length, 100)} 行
           </p>
         ) : null}
-        <DatasetPreviewTable preview={preview} loading={loading} error={error} />
+        <DatasetPreviewTable
+          preview={preview}
+          loading={loading}
+          error={error}
+          limit={DATASET_PREVIEW_LIMIT}
+        />
       </div>
     </DialogShell>
   )

@@ -78,12 +78,29 @@ def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_c
     assert "pipelineVersionId" not in str(build)
 
     assert pipeline_client.get(f"{API}/{PIPELINE_ID}/builds/{BUILD_ID}").status_code == 200
+    latest = pipeline_client.get(f"{API}/{PIPELINE_ID}/builds/latest")
+    assert latest.status_code == 200
+    assert latest.json()["id"] == str(BUILD_ID)
     assert pipeline_client.post(f"{API}/{PIPELINE_ID}/builds/{BUILD_ID}/cancel").status_code == 200
 
     sources = pipeline_client.get(f"{API}/{PIPELINE_ID}/datasets/{DATASET_ID}/sources").json()
     assert sources["pipeline_version"]["version_number"] == 1
     assert sources["inputs"][0]["source_table_name"] == "orders"
     assert "pipelineVersion" not in str(sources)
+
+    preview = pipeline_client.get(
+        f"{API}/{PIPELINE_ID}/datasets/{DATASET_ID}/preview",
+        params={"version_id": str(uuid.uuid4()), "limit": 50},
+    ).json()
+    assert preview["row_count"] == 2
+    assert preview["rows"][0]["id"] == 1
+    assert preview["snapshot_id"] == 901
+    assert "datasetId" not in str(preview)
+    forwarded_preview = next(
+        call for call in fake_pipeline_client.calls if call[0] == "dataset-preview"
+    )[1]
+    assert forwarded_preview["limit"] == 50
+    assert forwarded_preview["version_id"] is not None
 
 
 def test_schedule_routes_map_camel_case(pipeline_client, fake_pipeline_client):

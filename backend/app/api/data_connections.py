@@ -16,7 +16,6 @@ from app.schemas.data_connection import (
     DataConnectionRead,
     DataConnectionStateRead,
     DataConnectionUpdate,
-    DatasetPreviewRead,
     DatasetRead,
     DatasetVersionRead,
     DatasetVersionsRead,
@@ -28,6 +27,7 @@ from app.schemas.data_connection import (
     TableDetailRead,
     TableListRead,
 )
+from app.schemas.dataset_preview import DatasetPreviewRead
 from app.services import data_connection
 from app.services.data_service.client import DataServiceClient
 

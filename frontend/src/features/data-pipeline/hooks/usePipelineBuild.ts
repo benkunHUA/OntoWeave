@@ -3,6 +3,7 @@ import {
   cancelPipelineBuild,
   createPipelineBuild,
   getPipelineBuild,
+  getLatestPipelineBuild,
 } from '../../../shared/api'
 import { HttpError } from '../../../shared/api/client'
 import { httpErrorInfo, httpErrorText } from '../../../shared/api/errors'
@@ -48,14 +49,18 @@ export function usePipelineBuild(pipelineId: string | undefined) {
     setDetailsOpen(false)
   }, [])
 
-  const load = useCallback(async (buildId: string, open = false) => {
+  const fetchBuild = useCallback(async (
+    requestBuild: () => Promise<PipelineBuild>,
+    options: { open?: boolean; missingIsEmpty?: boolean } = {},
+  ) => {
     if (!pipelineId) return null
+    const { open = false, missingIsEmpty = false } = options
     const requestToken = ++requestRef.current
     const detailsToken = open ? ++detailsTokenRef.current : null
     setIsLoading(true)
     setError(null)
     try {
-      const next = await getPipelineBuild(pipelineId, buildId)
+      const next = await requestBuild()
       if (!isCurrent(pipelineId, token) || requestRef.current !== requestToken) return null
       setBuild(next)
       storeBuild(pipelineId, next.id)
@@ -67,7 +72,11 @@ export function usePipelineBuild(pipelineId: string | undefined) {
         storeBuild(pipelineId, null)
         setBuild(null)
         closeDetails()
-        setError(httpErrorInfo(reason, '读取构建失败').message)
+        setError(
+          missingIsEmpty && reason.status === 404
+            ? null
+            : httpErrorInfo(reason, '读取构建失败').message,
+        )
       } else {
         setError(httpErrorText(reason, '读取构建失败'))
       }
@@ -79,6 +88,17 @@ export function usePipelineBuild(pipelineId: string | undefined) {
     }
   }, [closeDetails, isCurrent, pipelineId, token])
 
+  const load = useCallback(
+    (buildId: string, open = false) =>
+      fetchBuild(() => getPipelineBuild(pipelineId!, buildId), { open }),
+    [fetchBuild, pipelineId],
+  )
+
+  const loadLatest = useCallback(
+    () => fetchBuild(() => getLatestPipelineBuild(pipelineId!), { missingIsEmpty: true }),
+    [fetchBuild, pipelineId],
+  )
+
   useEffect(() => {
     requestRef.current += 1
     detailsTokenRef.current += 1
@@ -89,8 +109,9 @@ export function usePipelineBuild(pipelineId: string | undefined) {
     setIsLoading(false)
     const stored = readStoredBuild(pipelineId)
     if (stored && pipelineId) void load(stored)
+    else if (pipelineId) void loadLatest()
     return stopPolling
-  }, [load, pipelineId, stopPolling, token])
+  }, [load, loadLatest, pipelineId, stopPolling, token])
 
   useEffect(() => {
     if (!pipelineId || !build || !BUILD_ACTIVE_STATUSES.has(build.status)) return
