@@ -52,6 +52,27 @@ class PipelinePlanCompilerTableEnvironmentTest extends PipelinePlanCompilerTestS
                 .containsExactly("parsed", "id");
     }
 
+    @Test
+    void joinResolvesKeysWhenBothSidesShareColumnNames() {
+        StreamTableEnvironment environment = environment();
+        Table orders = environment.fromValues(Row.of(1L, 10L), Row.of(2L, 20L))
+                .select(Expressions.$("f0").as("id"), Expressions.$("f1").as("customer_id"));
+        Table customers = environment.fromValues(Row.of(10L, "A"), Row.of(30L, "C"))
+                .select(Expressions.$("f0").as("id"), Expressions.$("f1").as("name"));
+        PlanStep join = step("join", new LogicalPlanNode.Join(
+                "left", List.of(new LogicalPlanNode.JoinKey("customer_id", "id"))
+        ), scan("orders"), scan("customers"));
+
+        CompiledTablePlan compiled = compiler.compile(
+                plan(join),
+                environment,
+                scan -> "orders".equals(scan.table()) ? orders : customers
+        );
+
+        assertThat(compiled.table().getResolvedSchema().getColumnNames())
+                .containsExactly("id", "customer_id", "right_id", "name");
+    }
+
     private StreamTableEnvironment environment() {
         Configuration configuration = new Configuration();
         configuration.setString("security.delegation.token.provider.hadoopfs.enabled", "false");

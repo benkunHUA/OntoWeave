@@ -2,6 +2,8 @@ package com.ontoweave.data.sync;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ontoweave.data.sync.domain.SyncRunStatus;
+import com.ontoweave.data.sync.repository.SyncRunRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
@@ -60,6 +63,9 @@ class SyncApiIntegrationTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    SyncRunRepository runs;
 
     @BeforeAll
     static void createSourceTables() throws Exception {
@@ -163,6 +169,41 @@ class SyncApiIntegrationTest {
         assertThat(body.path("code").asText()).isEqualTo("TABLE_VALIDATION_FAILED");
         Integer tasks = jdbc.queryForObject("SELECT count(*) FROM data.sync_task", Integer.class);
         assertThat(tasks).isZero();
+    }
+
+    @Test
+    void lateDispatchAckDoesNotStrandRequeuedRun() throws Exception {
+        UUID owner = UUID.randomUUID();
+        UUID connectionId = createConnection(owner);
+        mvc.perform(post("/internal/v1/data-connections/{id}/sync-tasks", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tables":[{"schema":"demo","table":"customers","syncMode":"snapshot"}]}
+                                """))
+                .andExpect(status().isOk());
+
+        JsonNode triggered = json(mvc.perform(post("/internal/v1/data-connections/{id}/sync-runs", connectionId)
+                        .header("X-Internal-Token", "test-internal-token")
+                        .param("ownerId", owner.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(triggerBody(UUID.randomUUID())))
+                .andExpect(status().isAccepted())
+                .andReturn().getResponse().getContentAsString());
+        UUID runId = UUID.fromString(triggered.path("runs").get(0).path("id").asText());
+        Instant now = Instant.now();
+
+        assertThat(runs.beginDispatch(runId, 5)).isEqualTo(1);
+        assertThat(runs.releaseDispatch(runId, SyncRunStatus.QUEUED, now)).isEqualTo(1);
+        assertThat(runs.confirmDispatched(runId, now)).isZero();
+
+        Map<String, Object> row = jdbc.queryForMap(
+                "SELECT dispatched_at, dispatch_attempts FROM data.sync_run WHERE id = ?",
+                runId
+        );
+        assertThat(row.get("dispatched_at")).isNull();
+        assertThat(row.get("dispatch_attempts")).isEqualTo(0);
     }
 
     @Test

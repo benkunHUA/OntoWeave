@@ -382,7 +382,7 @@ public interface SyncRunRepository extends JpaRepository<SyncRunEntity, UUID> {
     @Query("""
             update SyncRunEntity r
             set r.dispatchedAt = :dispatchedAt
-            where r.id = :id and r.dispatchedAt is null
+            where r.id = :id and r.dispatchedAt is null and r.dispatchAttempts > 0
             """)
     int confirmDispatched(@Param("id") UUID id, @Param("dispatchedAt") Instant dispatchedAt);
 

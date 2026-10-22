@@ -20,8 +20,8 @@ import java.util.function.Function;
 
 final class PlanStepCompiler {
 
-    private static final String JOIN_ALIAS_LEFT = "l";
-    private static final String JOIN_ALIAS_RIGHT = "r";
+    private static final String JOIN_LEFT_COLUMN_PREFIX = "__ontoweave_join_left_";
+    private static final String JOIN_RIGHT_COLUMN_PREFIX = "__ontoweave_join_right_";
 
     private final FlinkExpressionCompiler expressions = new FlinkExpressionCompiler();
     private final Function<LogicalPlanNode.ScanInput, Table> scanSource;
@@ -189,8 +189,10 @@ final class PlanStepCompiler {
             requireUserField(key.left());
             requireUserField(key.right());
         });
-        Table aliasedLeft = left.table().as(JOIN_ALIAS_LEFT);
-        Table aliasedRight = right.table().as(JOIN_ALIAS_RIGHT);
+        List<String> leftColumns = left.table().getResolvedSchema().getColumnNames();
+        List<String> rightColumns = right.table().getResolvedSchema().getColumnNames();
+        Table aliasedLeft = aliasColumns(left.table(), leftColumns, JOIN_LEFT_COLUMN_PREFIX);
+        Table aliasedRight = aliasColumns(right.table(), rightColumns, JOIN_RIGHT_COLUMN_PREFIX);
         ApiExpression condition = joinCondition(join);
         Table joined = switch (join.joinType()) {
             case "left" -> aliasedLeft.leftOuterJoin(aliasedRight, condition);
@@ -201,16 +203,16 @@ final class PlanStepCompiler {
 
         List<Expression> selected = new ArrayList<>();
         Set<String> names = new LinkedHashSet<>();
-        for (String column : aliasedLeft.getResolvedSchema().getColumnNames()) {
+        for (String column : leftColumns) {
             names.add(column);
-            selected.add(Expressions.$(JOIN_ALIAS_LEFT + "." + column).as(column));
+            selected.add(Expressions.$(JOIN_LEFT_COLUMN_PREFIX + column).as(column));
         }
         Map<String, String> rightNames = new LinkedHashMap<>();
-        for (String column : aliasedRight.getResolvedSchema().getColumnNames()) {
+        for (String column : rightColumns) {
             String outputName = HiddenColumns.uniqueJoinName(column, names);
             names.add(outputName);
             rightNames.put(column, outputName);
-            selected.add(Expressions.$(JOIN_ALIAS_RIGHT + "." + column).as(outputName));
+            selected.add(Expressions.$(JOIN_RIGHT_COLUMN_PREFIX + column).as(outputName));
         }
         List<CompiledTablePlan.HiddenErrorColumn> hidden = new ArrayList<>(left.hiddenColumns());
         for (CompiledTablePlan.HiddenErrorColumn column : right.hiddenColumns()) {
@@ -225,14 +227,20 @@ final class PlanStepCompiler {
     private ApiExpression joinCondition(LogicalPlanNode.Join join) {
         ApiExpression condition = null;
         for (LogicalPlanNode.JoinKey key : join.keys()) {
-            ApiExpression current = Expressions.$(JOIN_ALIAS_LEFT + "." + key.left())
-                    .isEqual(Expressions.$(JOIN_ALIAS_RIGHT + "." + key.right()));
+            ApiExpression current = Expressions.$(JOIN_LEFT_COLUMN_PREFIX + key.left())
+                    .isEqual(Expressions.$(JOIN_RIGHT_COLUMN_PREFIX + key.right()));
             condition = condition == null ? current : condition.and(current);
         }
         if (condition == null) {
             throw new IllegalArgumentException("Join requires at least one key");
         }
         return condition;
+    }
+
+    private Table aliasColumns(Table table, List<String> columns, String prefix) {
+        return table.select(columns.stream()
+                .map(column -> (Expression) Expressions.$(column).as(prefix + column))
+                .toArray(Expression[]::new));
     }
 
     private CompiledStep union(PlanStep step) {
