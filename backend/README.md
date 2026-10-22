@@ -287,7 +287,9 @@ Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过
   关闭时记得 `pool.close()`。
 - **安装有个坑。** deepagents 把 `langchain-google-genai` 声明成硬依赖，但代码里
   从没 import 过它；它拖来的 `google-auth → cryptography` 在部分机器上要从源码
-  编译而失败。目前的处理是跳过它。**升级 deepagents 时要重新验证这条。**
+  编译而失败。当前 `deepagents==0.7.22` 的应用镜像已完整安装该依赖，
+  `cryptography==50.0.2` 命中 Linux x86_64 的 manylinux 预编译 wheel，无需 Rust
+  工具链。**升级 deepagents 时仍要重新验证镜像构建。**
 
 ## 数据库连接
 
