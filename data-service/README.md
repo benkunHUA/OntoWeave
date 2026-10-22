@@ -22,7 +22,7 @@ curl -H 'X-Internal-Token: dev-internal-token' http://127.0.0.1:18001/actuator/h
 Compose 会启动：
 
 - PostgreSQL `127.0.0.1:15432`（库 `ontoweave`，Flyway 自动建 `data` schema）
-- MySQL `127.0.0.1:13306`（库 `demo`，已开启 ROW binlog）
+- MySQL `127.0.0.1:13306`（库 `retail_sales`，已开启 ROW binlog）
 - RabbitMQ `127.0.0.1:5673`，管理端 `http://127.0.0.1:15673`
 - Flink JobManager `127.0.0.1:18081`，TaskManager 与共享 checkpoint/savepoint 卷
 - Java 服务 `127.0.0.1:18001`
@@ -92,9 +92,9 @@ curl -sS -X POST http://127.0.0.1:18001/internal/v1/data-connections \
   -d '{
     "ownerId": "00000000-0000-0000-0000-000000000001",
     "conversationId": "00000000-0000-0000-0000-000000000002",
-    "name": "本地 demo",
+    "name": "本地零售数据",
     "kind": "mysql",
-    "config": {"host":"mysql","port":3306,"database":"demo","username":"ontoweave"},
+    "config": {"host":"mysql","port":3306,"database":"retail_sales","username":"ontoweave"},
     "secret": {"password":"ontoweave"}
   }'
 ```
@@ -114,7 +114,7 @@ curl -sS -X POST \
   -H 'Content-Type: application/json' \
   -d '{
     "operationId":"00000000-0000-0000-0000-000000000003",
-    "tables":[{"schema":"demo","table":"orders"}]
+    "tables":[{"schema":"retail_sales","table":"orders"}]
   }'
 ```
 

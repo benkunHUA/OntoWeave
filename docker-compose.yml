@@ -10,6 +10,7 @@ services:
     volumes:
       - ontoweave-db:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-schemas.sql:ro
+      - ./backend/scripts/init-test-db.sql:/docker-entrypoint-initdb.d/20-test-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ontoweave -d ontoweave"]
       interval: 5s
@@ -28,7 +29,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: demo
+      MYSQL_DATABASE: retail_sales
       MYSQL_USER: ontoweave
       MYSQL_PASSWORD: ontoweave
     ports:
@@ -153,7 +154,7 @@ services:
       SYNC_CHECKPOINT_INTERVAL_SECONDS: "30"
       SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS: "30"
       SYNC_MAX_CONCURRENT_RUNS: "4"
-      SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION: "1"
+      SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION: "2"
     volumes:
       - ontoweave-iceberg-warehouse:/data/iceberg/warehouse
       - ontoweave-flink-checkpoints:/data/flink/checkpoints

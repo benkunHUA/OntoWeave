@@ -7,6 +7,7 @@ Agent。动作层只定义「一次能做哪些改动」，不执行实例，执
 ## 用容器跑整套
 
 ```bash
+cd ..
 docker compose up -d --build
 curl http://127.0.0.1:18000/health
 ```
@@ -19,7 +20,9 @@ http://127.0.0.1:18000/docs。
 ## 本地开发
 
 ```bash
+cd ..
 docker compose up -d db
+cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
@@ -55,7 +58,9 @@ cp .env.example .env
 ## 跑测试
 
 ```bash
+cd ..
 docker compose up -d db
+cd backend
 source .venv/bin/activate
 pytest -v
 ```
@@ -63,7 +68,8 @@ pytest -v
 测试连 `TEST_DATABASE_URL`（默认本地的 `ontoweave_test`），每次会话重建该库的 schema。
 
 **保护机制：** 库名不以 `_test` 结尾时，pytest 直接拒绝启动，避免误清开发库。测试库由
-`scripts/init-test-db.sql` 在数据卷首次初始化时创建；已有数据卷需要手工
+根目录 Compose 挂载的 `scripts/init-test-db.sql` 在数据卷首次初始化时创建；已有数据卷需要手工
+在项目根目录执行
 `docker compose exec db psql -U ontoweave -d postgres -c "CREATE DATABASE ontoweave_test OWNER ontoweave;"`
 或 `docker compose down -v` 后重建。
 

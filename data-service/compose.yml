@@ -27,7 +27,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: demo
+      MYSQL_DATABASE: retail_sales
       MYSQL_USER: ontoweave
       MYSQL_PASSWORD: ontoweave
     ports:
@@ -82,6 +82,7 @@ services:
       FLINK_SAVEPOINT_DIR: file:///data/flink/savepoints
       SYNC_CHECKPOINT_INTERVAL_SECONDS: "30"
       SYNC_STOP_SAVEPOINT_TIMEOUT_SECONDS: "30"
+      SYNC_MAX_CONCURRENT_RUNS_PER_CONNECTION: "2"
     volumes:
       - iceberg-warehouse:/data/iceberg/warehouse
       - flink-checkpoints:/data/flink/checkpoints

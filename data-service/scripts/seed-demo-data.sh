@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 向 Docker 中的 demo 库追加测试数据；每次运行从当前最大 id 往后递增，可重复执行。
+# 向 Docker 中的 retail_sales 库追加测试数据；每次运行从当前最大 id 往后递增，可重复执行。
 #
 # 用法：
 #   ./scripts/seed-demo-data.sh                 # 1000 客户 + 5000 订单
@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-CONTAINER="${MYSQL_CONTAINER:-data-service-mysql-1}"
-DATABASE="${MYSQL_DATABASE:-demo}"
+CONTAINER="${MYSQL_CONTAINER:-ontoweave-mysql-1}"
+DATABASE="${MYSQL_DATABASE:-retail_sales}"
 DB_USER="${MYSQL_USER:-ontoweave}"
 DB_PASSWORD="${MYSQL_PASSWORD:-ontoweave}"
 CUSTOMERS="${CUSTOMERS:-1000}"

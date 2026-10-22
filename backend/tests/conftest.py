@@ -23,7 +23,7 @@ os.environ["EVENT_CONSUMER_ENABLED"] = "false"
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://ontoweave:ontoweave@localhost:5432/ontoweave_test",
+    "postgresql+psycopg://ontoweave:ontoweave@localhost:15432/ontoweave_test",
 )
 
 # 防呆：测试会重建 public schema，库名不以 _test 结尾就直接拒绝启动。

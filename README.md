@@ -79,8 +79,7 @@ frontend/                 React + TypeScript 建模工作台（详见 frontend/R
 **1. 起后端（含数据库）**
 
 ```bash
-cd backend
-docker compose up -d --build
+docker compose up -d --build app
 curl http://127.0.0.1:18000/health   # {"status":"ok"}
 ```
 
@@ -120,7 +119,7 @@ cp .env.example .env
 
 | 场景 | 命令 |
 |---|---|
-| 后端本地开发 | `cd backend && docker compose up -d db && alembic upgrade head && uvicorn app.main:app --reload --port 18000` |
+| 后端本地开发 | `docker compose up -d db && cd backend && alembic upgrade head && uvicorn app.main:app --reload --port 18000` |
 | 后端测试 | `cd backend && pytest -v` |
 | 后端静态检查 | `cd backend && ruff check . && ruff format --check . && mypy app` |
 | 前端开发 | `cd frontend && npm run dev` |
