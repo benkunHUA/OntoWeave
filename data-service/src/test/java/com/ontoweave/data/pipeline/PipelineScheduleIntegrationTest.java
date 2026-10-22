@@ -199,6 +199,20 @@ class PipelineScheduleIntegrationTest extends PipelineScheduleIntegrationTestSup
     }
 
     @Test
+    void dispatchAfterPauseIsIgnoredWithSchedulePausedReason() {
+        PublishedPipeline published = publishedPipeline();
+        Instant dueAt = Instant.parse("2026-03-07T10:00:00Z");
+        UUID scheduleId = insertSchedule(published.pipelineId(), dueAt);
+
+        schedules.pause(published.pipelineId(), ownerId);
+        ScheduleRunResponse run = schedules.dispatch(schedule(scheduleId), dueAt);
+
+        assertThat(run.status()).isEqualTo("ignored");
+        assertThat(run.reasonCode()).isEqualTo("SCHEDULE_PAUSED");
+        assertThat(count("data.pipeline_build")).isZero();
+    }
+
+    @Test
     void concurrentPauseAndDispatchNeverLeavePendingWork() throws Exception {
         PublishedPipeline published = publishedPipeline();
         Instant dueAt = Instant.parse("2026-03-07T10:00:00Z");

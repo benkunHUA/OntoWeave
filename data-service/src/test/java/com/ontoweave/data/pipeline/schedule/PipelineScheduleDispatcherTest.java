@@ -161,6 +161,19 @@ class PipelineScheduleDispatcherTest {
         verify(inputs, never()).resolve(any());
     }
 
+    @Test
+    void pausedScheduleIsIgnoredWithoutResolvingInputsOrCreatingABuild() {
+        schedule.pause(UUID.randomUUID(), Instant.now());
+
+        var run = dispatcher.dispatch(schedule, dueAt);
+
+        assertThat(run.status()).isEqualTo("ignored");
+        assertThat(run.reasonCode()).isEqualTo(PipelineScheduleConstants.REASON_SCHEDULE_PAUSED);
+        assertThat(run.buildId()).isNull();
+        verify(buildService, never()).enqueueScheduled(any());
+        verify(inputs, never()).resolve(any());
+    }
+
     private PipelineBuildEntity build(PipelineBuildStatus status, String hash) {
         PipelineBuildEntity build = new PipelineBuildEntity(
                 UUID.randomUUID(), pipelineId, versionId, status, PipelineBuildTrigger.SCHEDULE,
