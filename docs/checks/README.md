@@ -6,6 +6,7 @@
 |---|---|---|---|
 | 2026-10-20 | P1「数据进来」10 个设计议题 | 核心完成、有条件通过 | [2026-10-20-p1-data-ingestion-check.md](2026-10-20-p1-data-ingestion-check.md) |
 | 2026-10-20 | P1 检查问题修复复检 | 设计落实通过，保留已知限制 | [2026-10-20-p1-data-ingestion-recheck.md](2026-10-20-p1-data-ingestion-recheck.md) |
+| 2026-10-22 | P2「数据整理」端到端验收 | 主链路通过，保留环境和部署限制 | [2026-10-20-p2-data-preparation-smoke.md](2026-10-20-p2-data-preparation-smoke.md) |
 
 ## 判定口径
 

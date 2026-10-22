@@ -246,7 +246,7 @@ flowchart LR
 
 P1「数据进来」已完成并合并到 `main`（基线 `7c8e240`），实施记录见 `2026-10-17-data-connection-sync-technical-design.md` 第 12 节。
 
-当前进入 P2「数据整理」，技术设计已启动，见 `2026-10-19-data-preparation-technical-design.md`。MVP 处理算子范围已确定，下一步确定处理流程、运行记录与派生数据集版本的数据模型，之后依次确定预览与字段错误、构建与版本生成、调度、来源追踪和前端复用方式。P2 当前没有实施计划，暂不写实现代码。
+P2「数据整理」已完成并通过 2026-10-22 端到端验收，技术设计见 `2026-10-19-data-preparation-technical-design.md`，验收报告见 `../checks/2026-10-20-p2-data-preparation-smoke.md`。下一步进入 P3「变成对象」，先确定字段映射、对象唯一标识、显示名称和关系生成方式，再写实施计划。
 
 阶段目标、执行状态和沟通记录索引见 [`../ROADMAP.md`](../ROADMAP.md) 与 [`../phases/`](../phases/)。
 
