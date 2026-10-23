@@ -39,6 +39,22 @@ management:
         include: health,info
 
 ontoweave:
+  ontology:
+    index:
+      worker-enabled: ${ONTOWEAVE_ONTOLOGY_INDEX_WORKER_ENABLED:true}
+      poll-interval-ms: ${ONTOWEAVE_ONTOLOGY_INDEX_POLL_INTERVAL_MS:1000}
+      initial-delay-ms: ${ONTOWEAVE_ONTOLOGY_INDEX_INITIAL_DELAY_MS:1000}
+      heartbeat-interval: ${ONTOWEAVE_ONTOLOGY_INDEX_HEARTBEAT_INTERVAL:10s}
+      lease-duration: ${ONTOWEAVE_ONTOLOGY_INDEX_LEASE_DURATION:60s}
+      recovery-interval: ${ONTOWEAVE_ONTOLOGY_INDEX_RECOVERY_INTERVAL:30s}
+      concurrency: ${ONTOWEAVE_ONTOLOGY_INDEX_CONCURRENCY:2}
+      batch-size: ${ONTOWEAVE_ONTOLOGY_INDEX_BATCH_SIZE:10000}
+      cleanup-enabled: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_ENABLED:true}
+      cleanup-initial-delay-ms: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_INITIAL_DELAY_MS:30000}
+      cleanup-interval-ms: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_INTERVAL_MS:30000}
+      cleanup-delay: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_DELAY:5m}
+      cleanup-batch-size: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_BATCH_SIZE:5000}
+      cleanup-versions-per-scan: ${ONTOWEAVE_ONTOLOGY_INDEX_CLEANUP_VERSIONS_PER_SCAN:20}
   internal-token: ${ONTOWEAVE_INTERNAL_TOKEN:dev-internal-token}
   secret:
     current-version: ${ONTOWEAVE_SECRET_KEY_VERSION:1}

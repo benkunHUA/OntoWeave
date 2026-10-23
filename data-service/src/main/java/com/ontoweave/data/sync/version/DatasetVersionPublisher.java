@@ -1,5 +1,7 @@
 package com.ontoweave.data.sync.version;
 
+import com.ontoweave.data.ontology.common.DatasetKind;
+import com.ontoweave.data.ontology.store.IndexEnqueuer;
 import com.ontoweave.data.outbox.OutboxWriter;
 import com.ontoweave.data.sync.domain.DatasetEntity;
 import com.ontoweave.data.sync.domain.DatasetVersionEntity;
@@ -11,6 +13,7 @@ import com.ontoweave.data.sync.iceberg.IcebergSnapshotInfo;
 import com.ontoweave.data.sync.repository.DatasetRepository;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import com.ontoweave.data.sync.repository.SyncRunRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,9 @@ public class DatasetVersionPublisher {
     private final SyncRunRepository runs;
     private final IcebergCatalogClient iceberg;
     private final OutboxWriter outbox;
+
+    @Autowired(required = false)
+    private IndexEnqueuer indexEnqueuer;
 
     public DatasetVersionPublisher(
             DatasetRepository datasets,
@@ -115,6 +121,9 @@ public class DatasetVersionPublisher {
             );
             datasets.save(dataset);
             markPublished(run, info.snapshotId());
+            if (indexEnqueuer != null) {
+                indexEnqueuer.enqueueOnPublish(DatasetKind.SYNC, dataset.getId(), version.getId());
+            }
             outbox.write("dataset", dataset.getId(), "dataset.version.published", payload(dataset, version, run));
             return Optional.of(version);
         } catch (RuntimeException exception) {
