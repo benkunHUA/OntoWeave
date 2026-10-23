@@ -78,11 +78,6 @@ public abstract class P3AcceptanceSupport {
                     data.ontology_relation_definition
                 CASCADE
                 """);
-        jdbc.execute("""
-                CREATE INDEX IF NOT EXISTS ix_p3_acceptance_relation_stage_pair
-                ON data.ontology_relation_stage
-                    (run_id, relation_id, from_primary_key, to_primary_key)
-                """);
     }
 
     protected DatasetFixture createDataset(
