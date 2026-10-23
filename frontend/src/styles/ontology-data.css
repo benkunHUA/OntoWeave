@@ -1,0 +1,32 @@
+/* ===== 对象/关系数据占位：W3 在这里接入表格、筛选与运行详情 ===== */
+
+.ontology-data-placeholder {
+  justify-content: flex-start;
+  border-style: solid;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 90px),
+    var(--panel-soft);
+}
+
+.ontology-data-placeholder .ontology-tab-panel__icon {
+  margin-top: 42px;
+}
+
+.ontology-data-placeholder h2,
+.ontology-data-placeholder p,
+.ontology-data-placeholder .ontology-tab-panel__aside {
+  align-self: center;
+}
+
+.ontology-data-placeholder .ontology-tab-panel__aside {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  width: min(420px, 100%);
+}
+
+@media (max-width: 900px) {
+  .ontology-data-placeholder .ontology-tab-panel__icon {
+    margin-top: 18px;
+  }
+}
