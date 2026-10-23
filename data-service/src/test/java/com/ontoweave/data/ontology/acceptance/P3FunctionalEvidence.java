@@ -17,6 +17,7 @@ final class P3FunctionalEvidence {
         System.out.printf(
                 "P3_FUNCTIONAL_COUNTS orderV1=%d orderV2=%d customers=%d products=%d "
                         + "fkInstancesAllVersions=%d m2mInstances=%d "
+                        + "fkActiveVersions=%d "
                         + "fkInstancesCurrent=%d m2mInstancesCurrent=%d "
                         + "orderValuesV1=%d orderValuesV2=%d failedRun=%s failedCode=%s%n",
                 support.objectRows(fixture.orderV1VersionId()),
@@ -25,6 +26,7 @@ final class P3FunctionalEvidence {
                 objectRows(support, fixture.productTypeId()),
                 relationRows(support, fixture.fkRelationId()),
                 relationRows(support, fixture.m2mRelationId()),
+                activeVersions(support, fixture.fkRelationId()),
                 currentRelationRows(relationQueries, fixture, fixture.fkRelationId()),
                 currentRelationRows(relationQueries, fixture, fixture.m2mRelationId()),
                 valueRows(support, fixture.orderV1VersionId()),
@@ -43,6 +45,13 @@ final class P3FunctionalEvidence {
     private static long relationRows(P3AcceptanceSupport support, UUID relationId) {
         return support.count("""
                 SELECT count(*) FROM data.ontology_relation_instance WHERE relation_id = ?
+                """, relationId);
+    }
+
+    private static long activeVersions(P3AcceptanceSupport support, UUID relationId) {
+        return support.count("""
+                SELECT count(*) FROM data.ontology_relation_version
+                WHERE relation_id = ? AND relation_kind = 'FK' AND status = 'ACTIVE'
                 """, relationId);
     }
 

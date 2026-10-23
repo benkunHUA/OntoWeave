@@ -161,6 +161,10 @@ class P3FunctionalAcceptanceTest extends P3AcceptanceSupport {
         RelationInstancePageResponse fkInstances = relationQueries.instances(
                 fixture.fkRelationId(), fixture.ownerId(), null, null, 1, 20);
         assertThat(fkInstances.total()).isEqualTo(20_001);
+        assertThat(count("""
+                SELECT count(*) FROM data.ontology_relation_version
+                WHERE relation_id = ? AND relation_kind = 'FK' AND status = 'ACTIVE'
+                """, fixture.fkRelationId())).isEqualTo(1);
 
         RelatedObjectPageResponse products = relationQueries.related(
                 fixture.orderTypeId(), fixture.ownerId(), "1",

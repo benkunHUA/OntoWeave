@@ -1,9 +1,9 @@
 # P3「变成对象」后端验收与性能证据
 
 - 验收日期：2026-10-24
-- 验收基线：`be67eaf`（W1 已合入）
+- 验收基线：`be67eaf`（W1 已合入）；验收发现的生产缺陷在 `0bf23cf` 修复后复测
 - 验收分支：`codex/p3-w8-acceptance`
-- 结论：后端功能验收通过；性能证据为有条件通过（20 万行降级完成，50 万行尝试未完成，存在 2 项已确认生产缺陷和 1 项待验证性能风险）
+- 结论：后端功能验收通过；验收中发现的 2 项生产缺陷已修复并复测，1 项性能风险已通过索引迁移缓解；性能证据为有条件通过（20 万行降级完成，50 万行尝试未完成）
 
 ## 1. 验收范围与方法
 
@@ -14,6 +14,7 @@
 - 性能数据：20 万行、8 个属性，批大小 1k / 10k / 50k。
 - Iceberg 读取使用现有 `IcebergSnapshotReader` mock，数据由 `P3SnapshotData` 惰性生成；PostgreSQL 使用 `pgvector/pgvector:pg16` 容器。
 - 重负载测试默认跳过，只有显式传入 `-Dp3.acceptance=true` 或 `-Dp3.performance=true` 才执行。
+- 首次功能验收发现外键旧版本不退役；修复后重新执行全量功能验收，并新增“仅 1 个 ACTIVE 外键版本”断言。
 
 ## 2. 验收环境
 
@@ -57,7 +58,7 @@ P3_PERFORMANCE_ROWS=200000 ./scripts/p3-acceptance.sh performance
 ./scripts/p3-acceptance.sh functional
 ```
 
-结果：`P3FunctionalAcceptanceTest`，`6 tests, 0 failures, 0 errors, 0 skipped`，Surefire 耗时 189.3 秒，脚本总耗时 206 秒。
+结果：`P3FunctionalAcceptanceTest`，`6 tests, 0 failures, 0 errors, 0 skipped`，修复后 Surefire 耗时 141.0 秒，脚本总耗时 159 秒。
 
 | 测试方法 | 覆盖点 | 结果 |
 |---|---|---|
@@ -74,10 +75,10 @@ P3_PERFORMANCE_ROWS=200000 ./scripts/p3-acceptance.sh performance
 
 ```text
 P3_FUNCTIONAL_COUNTS orderV1=20000 orderV2=20001 customers=2000 products=2000
-fkInstancesAllVersions=40001 m2mInstances=20000
+fkInstancesAllVersions=40001 m2mInstances=20000 fkActiveVersions=1
 fkInstancesCurrent=20001 m2mInstancesCurrent=20000
 orderValuesV1=158000 orderValuesV2=158008
-failedRun=d0f174c1-bb89-45cd-8f0c-abf6fa9337d0 failedCode=STAGE_VALIDATION_FAILED
+failedRun=9f246ebe-d3b6-48c0-b746-960ebc4ed61e failedCode=STAGE_VALIDATION_FAILED
 ```
 
 | 表/口径 | 数量 |
@@ -90,9 +91,10 @@ failedRun=d0f174c1-bb89-45cd-8f0c-abf6fa9337d0 failedCode=STAGE_VALIDATION_FAILE
 | 商品实例 | 2,000 |
 | 外键关系实例，当前版本 | 20,001 |
 | 外键关系实例，全部版本 | 40,001 |
+| 外键关系 ACTIVE 版本 | 1 |
 | 多对多关系实例，当前版本 | 20,000 |
 
-`fkInstancesAllVersions=40001` 不是测试造数重复，而是生产版本切换缺陷：订单 v1 和 v2 的外键关系版本都被保留为 `ACTIVE`。详见第 7 节。
+`fkInstancesAllVersions=40001` 包含订单 v1 的旧关系实例：旧版本已置为 `RETIRED`，实例等待 5 分钟延迟清理；当前只有 1 个 `ACTIVE` 外键版本，不会再无界增长。详见第 7.1 节。
 
 ### 4.2 查询与关系断言
 
@@ -106,7 +108,7 @@ failedRun=d0f174c1-bb89-45cd-8f0c-abf6fa9337d0 failedCode=STAGE_VALIDATION_FAILE
 
 ### 4.3 失败保留旧版本
 
-失败 run：`d0f174c1-bb89-45cd-8f0c-abf6fa9337d0`，错误码 `STAGE_VALIDATION_FAILED`，错误详情包含 `duplicate`。失败 run 没有生成对象版本，stage 也已清理；订单绑定仍指向 v2，列表总数和详情查询均正常。Testcontainers 容器在本轮结束后删除，因此 run id 不能在此后继续查询，但可用同一命令稳定复现。
+失败 run：`9f246ebe-d3b6-48c0-b746-960ebc4ed61e`，错误码 `STAGE_VALIDATION_FAILED`，错误详情包含 `duplicate`。失败 run 没有生成对象版本，stage 也已清理；订单绑定仍指向 v2，列表总数和详情查询均正常。Testcontainers 容器在本轮结束后删除，因此 run id 不能在此后继续查询，但可用同一命令稳定复现。
 
 ## 5. 性能验收结果
 
@@ -164,16 +166,17 @@ P3_PERFORMANCE_ROWS=200000 ./scripts/p3-acceptance.sh performance
 | `P3PerformanceAcceptanceTest`（20 万降级） | 1/1 通过 |
 | `OntologyObjectPipelineIntegrationTest` | 6/6 通过 |
 | `OntologyRelationPipelineIntegrationTest` | 3/3 通过 |
+| `OntologyIndexSwitchIntegrationTest`（含外键退役回归） | 3/3 通过 |
 | `OntologyObjectQueryApiTest` | 5/5 通过 |
 | `OntologyRelationQueryTest` | 6/6 通过 |
 
 本轮没有运行 Java 全量 `mvn test`，也没有修复已知基线失败。新增功能测试默认受 JUnit condition 保护，不会进入普通测试反馈环。
 
-## 7. 发现的生产问题（未修复）
+## 7. 验收中发现并修复的问题
 
-### 7.1 外键关系旧版本不会退役，实例表持续增长
+### 7.1 外键关系旧版本不会退役，实例表持续增长（已修复）
 
-**证据**：订单从 v1 切到 v2 后，外键关系当前查询返回 20,001 条，但 `ontology_relation_instance` 按 `relation_id` 统计为 40,001 条；两个关系版本都是 `ACTIVE`。
+**修复前证据**：订单从 v1 切到 v2 后，外键关系当前查询返回 20,001 条，但 `ontology_relation_instance` 按 `relation_id` 统计为 40,001 条；两个关系版本都是 `ACTIVE`。
 
 **根因**：
 
@@ -182,29 +185,39 @@ P3_PERFORMANCE_ROWS=200000 ./scripts/p3-acceptance.sh performance
 - `VersionCleanupService.java:36` 只清理 `RETIRED` 版本。
 - `JdbcRelationQuery.java:17-34` 查询时选择最新的 `ACTIVE` FK 版本，所以读数仍正确，但旧版本和实例永远不会被清理。
 
-**影响**：外键关系每次对象重建都会新增一整份关系版本和实例，数据库占用无界增长。查询正确性当前不受影响。
+**影响**：修复前外键关系每次对象重建都会新增一整份关系版本和实例，数据库占用无界增长。查询正确性不受影响。
 
-### 7.2 多对多去重 SQL 缺少匹配索引
+**修复**：`IndexSwitcher.activateRelation` 对 `bindingId = null` 的 FK 版本退役同 relation 下所有其他 `ACTIVE` 版本；旧实例仍由既有延迟清理任务删除。新增 `OntologyIndexSwitchIntegrationTest.objectSwitchRetiresThePreviousForeignKeyRelationVersion` 回归测试，功能验收新增 `fkActiveVersions=1` 断言。修复提交：`0bf23cf`。
+
+### 7.2 多对多去重 SQL 缺少匹配索引（已修复）
 
 `ManyToManyRelationBuilder.java:150-168` 的 `DELETE ... USING` 自连接依赖 `run_id + relation_id + from_primary_key + to_primary_key`。生产迁移 `V9__ontology_mapping.sql` 只在 relation stage 上建了 `ix_relation_stage_run (run_id)`。未加索引的首次 2 万连接行运行超过 3 分钟。
 
-本轮在 `P3AcceptanceSupport.truncateOntology()` 中创建验收专用索引：
+修复：新增生产迁移 `V10__ontology_index_performance.sql`：
 
 ```sql
-CREATE INDEX ix_p3_acceptance_relation_stage_pair
+CREATE INDEX ix_relation_stage_pair
 ON data.ontology_relation_stage
     (run_id, relation_id, from_primary_key, to_primary_key);
 ```
 
-这不是生产迁移，验收测试通过不代表生产去重已经优化。
+验收夹具已移除专用索引，复测通过，确认生产迁移生效。修复提交：`0bf23cf`。
 
-### 7.3 外键关系 JOIN 缺少对象值联合索引
+### 7.3 外键关系 JOIN 缺少对象值联合索引（已加索引，未单独 benchmark）
 
-`ForeignKeyRelationBuilder.java:55-86` 以 `version_id + primary_key_value` 连接 `ontology_object_value`，但 `V9__ontology_mapping.sql:238-248` 的主键是 `(version_id, attribute_id, primary_key_value)`，没有 `(version_id, primary_key_value, attribute_id)` 或等价索引。该路径在大版本重建时会退化为大量扫描/重复索引查找。功能夹具可完成，但没有独立 microbenchmark；建议在单独任务中用 `EXPLAIN (ANALYZE, BUFFERS)` 和 20 万行以上数据验证后再决定索引顺序。
+`ForeignKeyRelationBuilder.java:55-86` 以 `version_id + primary_key_value` 连接 `ontology_object_value`，但原主键是 `(version_id, attribute_id, primary_key_value)`，缺少以 `primary_key_value` 为第二列的路径。V10 新增：
+
+```sql
+CREATE INDEX ix_object_value_primary_key
+ON data.ontology_object_value
+    (version_id, primary_key_value, attribute_id);
+```
+
+功能链路已通过，但本轮没有单独用 `EXPLAIN (ANALYZE, BUFFERS)` 对比该索引的收益；仍建议在真实 20 万行以上外键重建场景补一次执行计划验证。
 
 ## 8. 未覆盖项与已知限制
 
-- 前端建模页、对象工作台、画布和字段映射 UI：待 W2/W3 合入后补；本轮没有截图或前端结果。
+- 前端建模页、对象工作台、画布和字段映射 UI：不在本报告范围；W2/W3 已合入并通过前端全量测试，但没有浏览器级截图或拖拽 E2E。
 - Agent 建议映射、解释错误、确认链路、409 重读：未覆盖。
 - P1 新版本自动入队、队列领取/恢复、取消、并发保存 409：未覆盖；本轮直接构造 run 并调用执行器。
 - 换源、解绑、字段删除/改名后的 `NEEDS_REPAIR`：未覆盖。
@@ -214,10 +227,10 @@ ON data.ontology_relation_stage
 - 性能测试只测对象类型索引，不测外键/多对多关系构建、并发 worker 或关系版本切换。
 - 50 万行三批未完成；本报告只把 20 万行三批作为正式性能证据。
 - 峰值堆是 `Runtime.totalMemory - freeMemory` 的 50 ms 采样近似值，不包含 PostgreSQL 容器内存。
-- 测试专用索引绕过了多对多去重性能问题；生产环境仍会走未优化 SQL。
+- 性能测试只覆盖对象索引，不覆盖新增索引后的外键关系重建耗时。
 
 ## 9. 结论
 
-P3 后端对象主链路的功能验收通过：2 万订单生成、原子切换、分页/总数/搜索、代表操作符、三条件 AND、详情、外键与多对多双向查询、失败保留旧版本均有可重复断言。性能在 20 万行降级数据上完成三批对比，推荐本机单 worker 使用 50k（内存受限时用 10k）；50 万行在本机本轮不可承受，已如实记录中止点。由于外键关系版本泄漏和多对多去重索引缺失仍需单独修复，本轮结论为“功能通过、性能有条件通过”，不是 P3 全部完成。
+P3 后端对象主链路的功能验收通过：2 万订单生成、原子切换、分页/总数/搜索、代表操作符、三条件 AND、详情、外键与多对多双向查询、失败保留旧版本均有可重复断言。外键版本泄漏和多对多去重索引缺失已在 `0bf23cf` 修复并复测；外键 JOIN 索引已随 V10 添加，但未单独 benchmark。性能在 20 万行降级数据上完成三批对比，推荐本机单 worker 使用 50k（内存受限时用 10k）；50 万行在本机本轮不可承受，已如实记录中止点。本轮结论为“功能通过、性能有条件通过”。
 
-前端场景待 W2/W3 合入后补，不以本轮 Java 验收替代前端截图或 Agent 闭环结果。
+前端场景由 W2/W3 的前端全量测试覆盖；本报告不替代浏览器截图、Agent 确认链路或真实 Flink/Iceberg 端到端结果。
