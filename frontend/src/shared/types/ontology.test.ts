@@ -36,6 +36,7 @@ describe('ontology shared contract', () => {
           enum_values: null,
         },
       ],
+      required_attribute_ids: [],
     }
     const validation: MappingValidation = {
       blocking: [],
@@ -52,6 +53,7 @@ describe('ontology shared contract', () => {
 
     expect(dataset.kind).toBe('PIPELINE')
     expect(mapping.attributes[0]?.column).toBe('order_id')
+    expect(mapping.required_attribute_ids).toEqual([])
     expect(validation.valid).toBe(true)
   })
 

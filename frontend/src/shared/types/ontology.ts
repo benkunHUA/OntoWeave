@@ -49,6 +49,7 @@ export interface ObjectMapping {
   primary_key_attribute_id: string
   title_key_attribute_id: string | null
   attributes: AttributeMapping[]
+  required_attribute_ids: string[]
 }
 
 export interface RelationMapping {

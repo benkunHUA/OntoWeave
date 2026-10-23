@@ -103,6 +103,7 @@ describe('ontology API writes', () => {
         primary_key_attribute_id: 'attribute-1',
         title_key_attribute_id: null,
         attributes: [],
+        required_attribute_ids: ['attribute-1'],
       },
     }
 
