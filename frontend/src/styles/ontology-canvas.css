@@ -1,26 +1,315 @@
-/* ===== 对象映射画布占位：W3 在这里替换为 React Flow ===== */
+/* ===== 对象 / 多对多映射画布 ===== */
 
-.ontology-canvas-placeholder {
-  border-style: solid;
-  border-color: var(--line);
-  background:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0) 0 0 / 24px 24px,
-    linear-gradient(180deg, #232323, #1f1f1f);
+.mapping-canvas {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
 }
 
-.ontology-canvas-placeholder .ontology-tab-panel__icon {
-  box-shadow: 0 8px 22px rgba(59, 123, 255, 0.16);
+.mapping-canvas__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-.ontology-canvas-placeholder h2::after {
-  content: ' · 画布';
-  color: var(--faint);
+.mapping-canvas__head h2 { margin-top: 4px; font-size: 18px; }
+.mapping-canvas__head p { max-width: 560px; margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+
+.mapping-dataset-picker {
+  display: grid;
+  gap: 5px;
+  min-width: min(300px, 100%);
+}
+
+.mapping-dataset-picker label { display: grid; gap: 4px; }
+.mapping-dataset-picker label > span { display: inline-flex; align-items: center; gap: 5px; color: var(--faint); font-size: 10px; font-weight: 700; }
+.mapping-dataset-picker select,
+.mapping-node__keys select {
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-dim);
   font-size: 11px;
-  font-weight: 500;
+  background: var(--raised);
+}
+
+.mapping-dataset-picker select:focus-visible,
+.mapping-node__keys select:focus-visible,
+.mapping-toolbar button:focus-visible,
+.mapping-edge__remove:focus-visible,
+.mapping-confirm button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.mapping-dataset-picker__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.mapping-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--panel-soft);
+}
+
+.mapping-toolbar__status,
+.mapping-toolbar__actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mapping-toolbar__status span { padding: 2px 6px; border-radius: 999px; color: var(--faint); font-size: 9px; background: var(--raised); }
+.mapping-toolbar__status .is-dirty,
+.mapping-toolbar__status .is-warning { color: #e0ad51; background: rgba(224, 173, 81, 0.12); }
+.mapping-toolbar__status .is-blocking { color: var(--red); background: var(--red-soft); }
+.mapping-toolbar__status .is-saved,
+.mapping-toolbar__status .is-ok { color: var(--green); background: var(--green-soft); }
+.mapping-toolbar .secondary-button,
+.mapping-toolbar .primary-button { min-height: 30px; padding: 0 9px; font-size: 11px; }
+.mapping-toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.mapping-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.mapping-banner > span { flex: 1; }
+.mapping-banner.is-error { color: var(--red); background: var(--red-soft); }
+.mapping-banner.is-info { color: var(--blue-ink); background: var(--blue-soft); }
+
+.mapping-canvas__stage {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.07) 1px, transparent 0) 0 0 / 24px 24px,
+    linear-gradient(180deg, #222, #1e1e1e);
+}
+
+.mapping-canvas__stage .react-flow { background: transparent; }
+.mapping-canvas__stage .react-flow__controls { background: var(--raised); border: 1px solid var(--line); }
+.mapping-canvas__stage .react-flow__controls button { border-bottom-color: var(--line); color: var(--ink-dim); background: transparent; }
+.mapping-canvas__stage .react-flow__controls button:hover { background: var(--raised-hi); }
+.mapping-canvas__stage .react-flow__node { background: transparent; border: 0; box-shadow: none; }
+
+.mapping-canvas__empty {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 7px;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+  pointer-events: none;
+  background: rgba(30, 30, 30, 0.82);
+}
+
+.mapping-canvas__empty strong { color: var(--ink-dim); font-size: 13px; }
+.mapping-canvas__empty p { max-width: 300px; font-size: 11px; line-height: 1.55; }
+
+.mapping-node {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #3a3a3a;
+  border-radius: 12px;
+  background: #232323;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.34);
+}
+
+.mapping-node__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #2b2b2b, #252525);
+}
+
+.mapping-node__icon { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: var(--blue-ink); background: var(--blue-soft); }
+.mapping-node__head > span:nth-child(2) { display: grid; gap: 2px; min-width: 0; }
+.mapping-node__head strong { overflow: hidden; color: #f0f0f0; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.mapping-node__head small { color: var(--faint); font-size: 9px; }
+.mapping-node__count { margin-left: auto; padding: 2px 6px; border-radius: 999px; color: var(--muted); font-size: 9px; background: var(--raised); }
+
+.mapping-node__keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #202020;
+}
+
+.mapping-node__keys label { display: grid; gap: 3px; min-width: 0; }
+.mapping-node__keys label > span { color: var(--faint); font-size: 9px; font-weight: 700; }
+.mapping-node__keys select { min-width: 0; min-height: 28px; padding: 0 6px; font-size: 10px; }
+
+.mapping-node__fields { overflow-y: auto; max-height: 360px; scrollbar-width: thin; }
+.mapping-node__empty { padding: 18px 12px; color: var(--faint); font-size: 10px; text-align: center; }
+
+.mapping-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 7px 13px;
+  border-bottom: 1px solid #2e2e2e;
+  background: #242424;
+}
+
+.mapping-field:last-child { border-bottom: 0; }
+.mapping-field:hover { background: #282828; }
+.mapping-field.is-mapped { background: rgba(59, 123, 255, 0.06); }
+.mapping-field.is-blocking { background: rgba(220, 80, 70, 0.08); }
+.mapping-field.is-warning { background: rgba(224, 173, 81, 0.06); }
+.mapping-field__title { display: grid; gap: 2px; min-width: 0; }
+.mapping-field__title strong { overflow: hidden; color: var(--ink-dim); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.mapping-field__title small { color: var(--faint); font-size: 9px; }
+.mapping-field__meta { display: grid; justify-items: end; gap: 2px; }
+.mapping-field__meta > small { color: var(--faint); font-size: 8px; }
+.mapping-field__badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
+.mapping-field__badges em { padding: 1px 4px; border-radius: 4px; color: var(--muted); font-size: 8px; font-style: normal; background: var(--raised); white-space: nowrap; }
+.mapping-field > svg.is-error { color: var(--red); }
+.mapping-field > svg.is-warning { color: #e0ad51; }
+.mapping-field > svg.is-ok { color: var(--green); }
+
+.mapping-handle.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #202020;
+  background: var(--blue);
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.mapping-handle.react-flow__handle:hover { box-shadow: 0 0 0 4px rgba(59, 123, 255, 0.22); }
+.mapping-handle.is-disabled { background: #555; cursor: not-allowed; }
+
+.mapping-edge { stroke: #5d8fff; stroke-width: 1.6; }
+.mapping-edge.is-selected { stroke: #9bbaff; stroke-width: 2.4; }
+.mapping-edge__remove {
+  position: absolute;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 1px solid #45659e;
+  border-radius: 50%;
+  color: #dce7ff;
+  background: #253752;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  opacity: 0.78;
+}
+.mapping-edge__remove:hover { color: #fff; background: #34527f; opacity: 1; }
+
+.mapping-issues { display: flex; gap: 12px; max-height: 86px; overflow: auto; padding: 7px 9px; border: 1px solid var(--line-soft); border-radius: 9px; background: var(--panel-soft); }
+.mapping-issues__group { display: flex; align-items: flex-start; gap: 7px; min-width: 0; font-size: 10px; }
+.mapping-issues__group strong { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.mapping-issues__group.is-blocking strong { color: var(--red); }
+.mapping-issues__group.is-warning strong { color: #e0ad51; }
+.mapping-issues__group ul { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--muted); }
+.mapping-issues__group li { list-style: disc; margin-left: 12px; }
+
+.mapping-preview {
+  position: absolute;
+  inset: 8px 8px 8px auto;
+  z-index: 7;
+  display: flex;
+  width: min(360px, calc(100% - 16px));
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid #3c4a64;
+  border-radius: 11px;
+  background: rgba(31, 34, 40, 0.98);
+  box-shadow: -12px 0 34px rgba(0, 0, 0, 0.38);
+}
+
+.mapping-preview__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.mapping-preview__head h2 { margin-top: 3px; font-size: 15px; }
+.mapping-preview__note { margin-top: 6px; color: var(--faint); font-size: 9px; }
+.mapping-preview__section { margin-top: 13px; }
+.mapping-preview__section h3 { margin-bottom: 6px; color: var(--muted); font-size: 10px; letter-spacing: 0.03em; }
+.mapping-preview__rows { display: grid; gap: 7px; }
+.mapping-preview__rows article { display: grid; gap: 3px; padding: 8px; border: 1px solid var(--line-soft); border-radius: 7px; background: #24272d; }
+.mapping-preview__rows strong { color: var(--ink-dim); font-size: 11px; }
+.mapping-preview__rows code { color: var(--faint); font-size: 9px; }
+.mapping-preview__rows dl { display: grid; gap: 2px; margin-top: 3px; }
+.mapping-preview__rows dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 9px; }
+.mapping-preview__rows dt { color: var(--faint); }
+.mapping-preview__rows dd { color: var(--ink-dim); }
+.mapping-preview__pairs { display: grid; gap: 4px; }
+.mapping-preview__pairs div { display: flex; justify-content: space-between; gap: 8px; padding: 5px 7px; border-radius: 6px; color: var(--ink-dim); font-size: 9px; background: #24272d; }
+.mapping-preview__reasons { display: grid; gap: 3px; }
+.mapping-preview__reasons li { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 9px; }
+.mapping-preview__reasons code { color: var(--faint); }
+.mapping-preview__empty { color: var(--faint); font-size: 9px; }
+.mapping-preview__skip { margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+
+.mapping-confirm-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, 0.58); }
+.mapping-confirm { width: min(410px, 100%); padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+.mapping-confirm h2 { font-size: 16px; }
+.mapping-confirm p { margin-top: 8px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.mapping-confirm__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+/* ===== 外键关系只读概览 ===== */
+
+.relation-overview { display: flex; flex: 1; flex-direction: column; gap: 18px; min-height: 0; padding: 8px 4px; }
+.relation-overview--state { align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
+.relation-overview__head h2 { margin-top: 4px; font-size: 18px; }
+.relation-overview__head p { margin-top: 5px; color: var(--muted); font-size: 11px; }
+.relation-overview__flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.relation-overview__node { display: grid; gap: 5px; min-height: 150px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft); }
+.relation-overview__icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; color: var(--blue-ink); background: var(--blue-soft); }
+.relation-overview__node small { color: var(--faint); font-size: 9px; }
+.relation-overview__node strong { color: var(--ink); font-size: 14px; }
+.relation-overview__node span { color: var(--muted); font-size: 10px; }
+.relation-overview__node em { width: fit-content; padding: 2px 6px; border-radius: 5px; color: var(--blue-ink); font-size: 9px; font-style: normal; background: var(--blue-soft); }
+.relation-overview__arrow { display: grid; justify-items: center; gap: 3px; color: var(--blue-ink); }
+.relation-overview__arrow small { color: var(--faint); font-size: 9px; }
+.relation-overview__meta { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.relation-overview__meta span { padding: 3px 7px; border-radius: 999px; color: var(--muted); font-size: 9px; background: var(--raised); }
+
+@media (max-width: 1280px) {
+  .mapping-canvas__head { flex-direction: column; gap: 8px; }
+  .mapping-dataset-picker { width: 100%; min-width: 0; }
+  .mapping-dataset-picker__meta { justify-content: flex-start; }
+  .mapping-toolbar { align-items: flex-start; flex-direction: column; }
+  .mapping-toolbar__actions { width: 100%; }
+  .mapping-toolbar__actions .secondary-button,
+  .mapping-toolbar__actions .primary-button { flex: 1; }
 }
 
 @media (max-width: 900px) {
-  .ontology-canvas-placeholder {
-    padding: 20px;
-  }
+  .mapping-canvas__stage { min-height: 260px; }
+  .relation-overview__flow { grid-template-columns: 1fr; }
+  .relation-overview__arrow { transform: rotate(90deg); }
 }
