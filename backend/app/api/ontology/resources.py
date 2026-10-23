@@ -14,6 +14,7 @@ from app.schemas.ontology import (
     DatasetColumn,
     DatasetKind,
     OntologyDatasetPage,
+    OntologyResourceDefinitionRead,
     OntologyResourcesRead,
 )
 from app.services import ontology
@@ -29,6 +30,26 @@ def list_resources(
 ) -> OntologyResourcesRead:
     return OntologyResourcesRead.model_validate(
         ontology.list_resources(session, client, owner_id=get_current_user_id())
+    )
+
+
+@router.get(
+    "/resources/{resource_kind}/{resource_id}",
+    response_model=OntologyResourceDefinitionRead,
+)
+def get_resource_definition(
+    resource_kind: str,
+    resource_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> OntologyResourceDefinitionRead:
+    """返回画布所需的完整定义：属性列表与关系两端主键类型。"""
+    return OntologyResourceDefinitionRead.model_validate(
+        ontology.get_subject_definition(
+            session,
+            owner_id=get_current_user_id(),
+            subject_kind=resource_kind,
+            subject_id=resource_id,
+        )
     )
 
 

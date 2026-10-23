@@ -2,6 +2,7 @@ from app.main import _create_app
 
 EXPECTED_PATHS = {
     "/api/v1/ontology/resources",
+    "/api/v1/ontology/resources/{resource_kind}/{resource_id}",
     "/api/v1/ontology/conversations",
     "/api/v1/ontology/bindable-datasets",
     "/api/v1/ontology/bindable-datasets/{kind}/{dataset_id}/columns",

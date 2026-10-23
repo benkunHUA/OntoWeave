@@ -452,3 +452,51 @@ class OntologyResourcesRead(BaseModel):
     object_types: list[OntologyResourceRead] = Field(default_factory=list)
     foreign_key_relations: list[OntologyResourceRead] = Field(default_factory=list)
     many_to_many_relations: list[OntologyResourceRead] = Field(default_factory=list)
+
+
+class OntologyPropertyRead(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: uuid.UUID
+    name: str
+    datatype: PropertyDatatype
+    required: bool
+    is_array: bool
+    is_primary_key: bool
+    is_title_key: bool
+    enum_values: list[str] | None = None
+    status: str
+
+
+class OntologyTypeDefinitionRead(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    status: str
+    properties: list[OntologyPropertyRead] = Field(default_factory=list)
+
+
+class OntologyResourceDefinitionRead(BaseModel):
+    """对象类型返回 properties；关系返回两端完整定义与外键属性。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    id: uuid.UUID
+    name: str
+    kind: str
+    status: str
+    description: str | None = None
+    properties: list[OntologyPropertyRead] = Field(default_factory=list)
+    cardinality: str | None = None
+    source_type_id: uuid.UUID | None = None
+    source_type_name: str | None = None
+    target_type_id: uuid.UUID | None = None
+    target_type_name: str | None = None
+    forward_label: str | None = None
+    reverse_label: str | None = None
+    foreign_key_property_id: uuid.UUID | None = None
+    foreign_key_property: OntologyPropertyRead | None = None
+    source: OntologyTypeDefinitionRead | None = None
+    target: OntologyTypeDefinitionRead | None = None

@@ -1,4 +1,4 @@
-import { ArrowRight, Clock3, Database, Network, Plus, Workflow } from 'lucide-react'
+import { ArrowRight, Boxes, Clock3, Database, Network, Plus, Workflow } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConversation, listConversations } from '../../../shared/api'
@@ -96,6 +96,24 @@ export function HomePage() {
           <span className="feature-card__body">
             <strong>数据整理</strong>
             <span>把已同步的数据集组合成可重复执行的清洗流程</span>
+          </span>
+          <span className="feature-card__action">
+            进入
+            <ArrowRight size={17} />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="feature-card"
+          onClick={() => navigate('/ontology')}
+        >
+          <span className="feature-card__icon">
+            <Boxes size={30} />
+          </span>
+          <span className="feature-card__body">
+            <strong>对象数据</strong>
+            <span>把已发布数据集持续映射成可查询的对象与关系</span>
           </span>
           <span className="feature-card__action">
             进入

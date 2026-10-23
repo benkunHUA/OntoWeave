@@ -1,72 +1,16 @@
 import type { Status } from './common'
+import type { OntologyResourceKind, PropertyDatatype } from './ontologyResource'
 
-export interface GraphProperty {
-  id: string
-  name: string
-  datatype: string
-  required: boolean
-  is_array: boolean
-  is_primary_key: boolean
-  is_title_key: boolean
-  /** datatype = enum 时的候选值；其余类型为 null。 */
-  enum_values: string[] | null
-  status: Status
-}
-
-export interface GraphNode {
-  id: string
-  name: string
-  description: string | null
-  status: Status
-  properties: GraphProperty[]
-}
-
-export interface GraphRelation {
-  id: string
-  name: string
-  source_type_id: string
-  target_type_id: string
-  direction: string
-  cardinality: string
-  forward_label: string | null
-  reverse_label: string | null
-  /** 一对一 / 一对多：承载这条链接的外键属性 id（存对端主键）；多对多为 null。 */
-  foreign_key_property_id: string | null
-  status: Status
-}
-
-export type PropertyDatatype =
-  | 'text'
-  | 'integer'
-  | 'decimal'
-  | 'boolean'
-  | 'date'
-  | 'timestamp'
-  | 'enum'
+export type * from './ontologyResource'
 
 export type DatasetKind = 'SYNC' | 'PIPELINE'
 export type SubjectKind = 'OBJECT_TYPE' | 'RELATION'
 export type RelationKind = 'FK' | 'MANY_TO_MANY'
-export type RunStatus =
-  | 'QUEUED'
-  | 'RUNNING'
-  | 'SUCCEEDED'
-  | 'FAILED'
-  | 'CANCELLED'
-  | 'SUPERSEDED'
+export type RunStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'SUPERSEDED'
 export type RunPhase = 'READING' | 'VALIDATING' | 'WRITING' | 'SWITCHING'
 export type TriggerType = 'MANUAL' | 'DATASET_PUBLISHED' | 'RETRY'
 export type ValidationState = 'OK' | 'NEEDS_REPAIR'
-export type FilterOp =
-  | 'eq'
-  | 'ne'
-  | 'contains'
-  | 'gt'
-  | 'gte'
-  | 'lt'
-  | 'lte'
-  | 'is_null'
-  | 'is_not_null'
+export type FilterOp = 'eq' | 'ne' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'is_null' | 'is_not_null'
 
 export interface DatasetColumn {
   name: string
@@ -80,7 +24,7 @@ export interface OntologyDataset {
   id: string
   name: string
   version_id: string
-  version_number: number
+  version_number: number | null
   row_count: number
   columns: DatasetColumn[]
 }
@@ -105,6 +49,7 @@ export interface ObjectMapping {
   primary_key_attribute_id: string
   title_key_attribute_id: string | null
   attributes: AttributeMapping[]
+  required_attribute_ids: string[]
 }
 
 export interface RelationMapping {
@@ -136,6 +81,15 @@ export interface ObjectPreviewRow {
 export interface ObjectPreview {
   rows: ObjectPreviewRow[]
   validation: MappingValidation
+  skipped: PreviewSkip[]
+  skipped_count: number
+  skipped_reasons: Record<string, number>
+}
+
+export interface PreviewSkip {
+  code: string
+  message: string
+  reference: string | null
 }
 
 export interface RelationPreviewPair {
@@ -148,11 +102,7 @@ export interface RelationPreview {
   skipped_count: number
   skipped_reasons: Record<string, number>
   validation: MappingValidation
-}
-
-export interface MappingUpdateRequest {
-  base_revision: number
-  mapping: ObjectMapping | RelationMapping
+  skipped: PreviewSkip[]
 }
 
 export interface GenerateMappingRequest {
@@ -161,6 +111,37 @@ export interface GenerateMappingRequest {
 
 export interface GenerateMappingResponse {
   run_id: string
+}
+
+export interface BindingDraftRequest {
+  base_revision: number
+  dataset_kind: DatasetKind
+  dataset_id: string
+  mapping: ObjectMapping | RelationMapping
+}
+
+export interface BindingProbeRequest {
+  dataset_kind?: DatasetKind
+  dataset_id?: string
+  mapping?: ObjectMapping | RelationMapping
+}
+
+export interface PreviewBindingRequest extends BindingProbeRequest {
+  limit?: number
+}
+
+export interface MappingSuggestionReason {
+  attribute_id: string | null
+  column: string
+  reason: string
+  score: number
+}
+
+export interface MappingSuggestion {
+  dataset_kind: DatasetKind
+  dataset_id: string
+  mapping: ObjectMapping | RelationMapping
+  reasons: MappingSuggestionReason[]
 }
 
 export interface IndexRun {
@@ -182,6 +163,53 @@ export interface IndexRun {
   error_code: string | null
   error_message: string | null
   stats: Record<string, unknown>
+}
+
+export interface BindingRead {
+  binding_id?: string | null
+  id?: string | null
+  object_type_id?: string | null
+  relation_id?: string | null
+  status?: string | null
+  revision?: number | null
+  draft_dataset_kind?: DatasetKind | null
+  draft_dataset_id?: string | null
+  draft_mapping?: ObjectMapping | RelationMapping | null
+  active_dataset_kind?: DatasetKind | null
+  active_dataset_id?: string | null
+  active_dataset_version_id?: string | null
+  active_mapping_revision?: number | null
+  current_index_version_id?: string | null
+  validation_state?: ValidationState | null
+  validation_error?: Record<string, unknown> | null
+  validation?: MappingValidation | null
+  mapping?: ObjectMapping | RelationMapping | null
+  recent_run?: IndexRun | null
+  latest_run?: IndexRun | null
+}
+
+export interface OntologyResource {
+  id: string
+  name: string
+  status: Status
+  kind: OntologyResourceKind
+  binding: BindingRead | null
+  cardinality: string | null
+  relation_kind: RelationKind | null
+  source_type_id: string | null
+  source_type_name: string | null
+  target_type_id: string | null
+  target_type_name: string | null
+  forward_label: string | null
+  reverse_label: string | null
+  direction_label: string | null
+  foreign_key_property_id: string | null
+}
+
+export interface OntologyResources {
+  object_types: OntologyResource[]
+  foreign_key_relations: OntologyResource[]
+  many_to_many_relations: OntologyResource[]
 }
 
 export interface OntologyObject {
@@ -218,6 +246,45 @@ export interface RelationInstancePage {
   total: number
   page: number
   page_size: number
+}
+
+export interface OntologyRelatedObject {
+  primary_key: string
+  title: string | null
+}
+
+export interface ObjectRelationGroup {
+  relation_id: string
+  direction: 'outgoing' | 'incoming' | 'both'
+  direction_label: string | null
+  label: string | null
+  source_type_id: string | null
+  source_type_name: string | null
+  target_type_id: string | null
+  target_type_name: string | null
+  total: number
+  items: OntologyRelatedObject[]
+}
+
+export interface ObjectRelationPage {
+  items: OntologyObject[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface RelationOverview {
+  relation_id: string
+  relation_kind: RelationKind | null
+  relation_name: string | null
+  source_type_id: string | null
+  target_type_id: string | null
+  foreign_key_property_id: string | null
+  warnings: MappingIssue[]
+  latest_version: Record<string, unknown> | null
+  latest_run: IndexRun | null
+  source: Record<string, unknown> | null
+  target: Record<string, unknown> | null
 }
 
 export interface FilterCondition {

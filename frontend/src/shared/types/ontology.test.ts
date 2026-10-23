@@ -9,6 +9,7 @@ import type {
   OntologyObject,
   RelationInstance,
   RelationMapping,
+  OntologyResourceDefinition,
 } from './ontology'
 
 describe('ontology shared contract', () => {
@@ -35,6 +36,7 @@ describe('ontology shared contract', () => {
           enum_values: null,
         },
       ],
+      required_attribute_ids: [],
     }
     const validation: MappingValidation = {
       blocking: [],
@@ -51,6 +53,7 @@ describe('ontology shared contract', () => {
 
     expect(dataset.kind).toBe('PIPELINE')
     expect(mapping.attributes[0]?.column).toBe('order_id')
+    expect(mapping.required_attribute_ids).toEqual([])
     expect(validation.valid).toBe(true)
   })
 
@@ -104,5 +107,62 @@ describe('ontology shared contract', () => {
     expect(run.status).toBe('QUEUED')
     expect(object.primary_key).toBe('42')
     expect(instance.to_primary_key).toBe('42')
+  })
+
+  it('constructs a relation resource definition with both primary key types', () => {
+    const definition: OntologyResourceDefinition = {
+      id: 'relation-1',
+      name: '下订单',
+      kind: 'relation',
+      status: 'confirmed',
+      description: null,
+      properties: [],
+      cardinality: 'many_to_many',
+      source_type_id: 'customer-type',
+      source_type_name: '客户',
+      target_type_id: 'order-type',
+      target_type_name: '订单',
+      forward_label: '下订单',
+      reverse_label: '被下单',
+      foreign_key_property_id: null,
+      foreign_key_property: null,
+      source: {
+        id: 'customer-type',
+        name: '客户',
+        description: null,
+        status: 'confirmed',
+        properties: [{
+          id: 'customer-id',
+          name: 'id',
+          datatype: 'text',
+          required: true,
+          is_array: false,
+          is_primary_key: true,
+          is_title_key: false,
+          enum_values: null,
+          status: 'confirmed',
+        }],
+      },
+      target: {
+        id: 'order-type',
+        name: '订单',
+        description: null,
+        status: 'confirmed',
+        properties: [{
+          id: 'order-id',
+          name: 'id',
+          datatype: 'integer',
+          required: true,
+          is_array: false,
+          is_primary_key: true,
+          is_title_key: false,
+          enum_values: null,
+          status: 'confirmed',
+        }],
+      },
+    }
+
+    expect(definition.source?.properties[0]?.datatype).toBe('text')
+    expect(definition.target?.properties[0]?.datatype).toBe('integer')
   })
 })
