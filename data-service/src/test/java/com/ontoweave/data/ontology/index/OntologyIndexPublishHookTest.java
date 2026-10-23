@@ -36,6 +36,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -46,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,6 +66,26 @@ class OntologyIndexPublishHookTest {
     private OutboxWriter outbox;
     @Mock
     private IndexEnqueuer enqueuer;
+
+    @Test
+    void defersEnqueueUntilThePublicationTransactionCommits() {
+        UUID datasetId = UUID.randomUUID();
+        UUID versionId = UUID.randomUUID();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            IndexPublishHook.enqueueAfterCommit(
+                    enqueuer, DatasetKind.SYNC, datasetId, versionId
+            );
+            verifyNoInteractions(enqueuer);
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(enqueuer).enqueueOnPublish(DatasetKind.SYNC, datasetId, versionId);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
 
     @Test
     void syncPublicationEnqueuesThePublishedVersion() {
