@@ -6,12 +6,14 @@ from app.agent.definitions.base import AgentDefinition
 from app.agent.definitions.data_connection import DataConnectionAgentDefinition
 from app.agent.definitions.data_pipeline import DataPipelineAgentDefinition
 from app.agent.definitions.ontology import OntologyAgentDefinition
+from app.agent.definitions.ontology_workbench import OntologyWorkbenchAgentDefinition
 from app.errors import InvariantViolationError
 
 _DEFINITIONS: dict[str, AgentDefinition] = {
     OntologyAgentDefinition.kind: OntologyAgentDefinition(),
     DataConnectionAgentDefinition.kind: DataConnectionAgentDefinition(),
     DataPipelineAgentDefinition.kind: DataPipelineAgentDefinition(),
+    OntologyWorkbenchAgentDefinition.kind: OntologyWorkbenchAgentDefinition(),
 }
 
 

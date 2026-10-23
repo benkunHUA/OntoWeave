@@ -22,6 +22,7 @@ def test_ontology_workbench_conversation_kind_is_available() -> None:
 
 
 def test_dataset_and_mapping_contracts_accept_snake_case_payloads() -> None:
+    required_attribute_id = uuid.uuid4()
     dataset = OntologyDataset.model_validate(
         {
             "kind": "PIPELINE",
@@ -47,6 +48,7 @@ def test_dataset_and_mapping_contracts_accept_snake_case_payloads() -> None:
                     "enum_values": None,
                 }
             ],
+            "required_attribute_ids": [str(required_attribute_id)],
         }
     )
     relation = RelationMapping.model_validate(
@@ -60,6 +62,7 @@ def test_dataset_and_mapping_contracts_accept_snake_case_payloads() -> None:
 
     assert dataset.kind is DatasetKind.PIPELINE
     assert mapping.attributes[0].datatype.value == "integer"
+    assert mapping.required_attribute_ids == [required_attribute_id]
     assert relation.to_key_datatype.value == "integer"
 
 
