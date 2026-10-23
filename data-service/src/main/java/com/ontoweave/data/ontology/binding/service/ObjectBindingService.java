@@ -197,7 +197,8 @@ public class ObjectBindingService {
                 mapping.fromKeyDatatype(),
                 mapping.toKeyColumn(),
                 mapping.toKeyDatatype(),
-                revision
+                revision,
+                mapping.requiredAttributeIds()
         );
     }
 

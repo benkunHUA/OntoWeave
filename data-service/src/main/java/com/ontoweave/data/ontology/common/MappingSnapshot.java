@@ -15,11 +15,38 @@ public record MappingSnapshot(
         @JsonProperty("fromKeyDatatype") String fromKeyDatatype,
         @JsonProperty("toKeyColumn") String toKeyColumn,
         @JsonProperty("toKeyDatatype") String toKeyDatatype,
-        @JsonProperty("revision") long revision
+        @JsonProperty("revision") long revision,
+        @JsonProperty("requiredAttributeIds") List<UUID> requiredAttributeIds
 ) {
+
+    public MappingSnapshot(
+            UUID primaryKeyAttributeId,
+            UUID titleKeyAttributeId,
+            List<AttributeMapping> attributes,
+            String fromKeyColumn,
+            String fromKeyDatatype,
+            String toKeyColumn,
+            String toKeyDatatype,
+            long revision
+    ) {
+        this(
+                primaryKeyAttributeId,
+                titleKeyAttributeId,
+                attributes,
+                fromKeyColumn,
+                fromKeyDatatype,
+                toKeyColumn,
+                toKeyDatatype,
+                revision,
+                List.of()
+        );
+    }
 
     public MappingSnapshot {
         attributes = attributes == null ? List.of() : List.copyOf(attributes);
+        requiredAttributeIds = requiredAttributeIds == null
+                ? List.of()
+                : List.copyOf(requiredAttributeIds);
     }
 
     public static MappingSnapshot object(
@@ -37,6 +64,26 @@ public record MappingSnapshot(
                 null,
                 null,
                 revision
+        );
+    }
+
+    public static MappingSnapshot object(
+            UUID primaryKeyAttributeId,
+            UUID titleKeyAttributeId,
+            List<AttributeMapping> attributes,
+            long revision,
+            List<UUID> requiredAttributeIds
+    ) {
+        return new MappingSnapshot(
+                primaryKeyAttributeId,
+                titleKeyAttributeId,
+                attributes,
+                null,
+                null,
+                null,
+                null,
+                revision,
+                requiredAttributeIds
         );
     }
 
@@ -60,7 +107,9 @@ public record MappingSnapshot(
     }
 
     public boolean isObjectMapping() {
-        return primaryKeyAttributeId != null || !attributes.isEmpty();
+        return primaryKeyAttributeId != null
+                || !attributes.isEmpty()
+                || !requiredAttributeIds.isEmpty();
     }
 
     public boolean isRelationMapping() {

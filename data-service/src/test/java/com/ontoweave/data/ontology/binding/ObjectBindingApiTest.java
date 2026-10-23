@@ -193,6 +193,48 @@ class ObjectBindingApiTest extends BindingIntegrationTestSupport {
     }
 
     @Test
+    void blocksRequiredAttributeThatIsCompletelyUnmapped() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID objectTypeId = UUID.randomUUID();
+        UUID datasetId = insertSyncDataset(ownerId, "missing-required");
+        UUID primaryKey = UUID.randomUUID();
+        UUID name = UUID.randomUUID();
+        UUID missingRequired = UUID.randomUUID();
+        String mapping = objectMappingJson(primaryKey, name, List.of(missingRequired));
+
+        mvc.perform(put("/internal/v1/ontology/object-types/{id}/binding", objectTypeId)
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(saveBody(ownerId, 0, datasetId, primaryKey, name,
+                                List.of(missingRequired))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.validation.valid").value(false))
+                .andExpect(jsonPath("$.validation.blocking[*].code")
+                        .value(org.hamcrest.Matchers.hasItem("REQUIRED_ATTRIBUTE_UNMAPPED")))
+                .andExpect(jsonPath("$.validation.blocking[*].attributeId")
+                        .value(org.hamcrest.Matchers.hasItem(missingRequired.toString())));
+
+        assertThat(jdbc.queryForObject("""
+                SELECT validation_state FROM data.ontology_object_binding
+                WHERE object_type_id = ?
+                """, String.class, objectTypeId)).isEqualTo("NEEDS_REPAIR");
+        assertThat(jdbc.queryForObject("""
+                SELECT validation_error::text FROM data.ontology_object_binding
+                WHERE object_type_id = ?
+                """, String.class, objectTypeId))
+                .contains("REQUIRED_ATTRIBUTE_UNMAPPED", missingRequired.toString());
+
+        mvc.perform(post("/internal/v1/ontology/object-types/{id}/binding/validate", objectTypeId)
+                        .header("X-Internal-Token", TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ownerId\":\"" + ownerId + "\",\"mapping\":" + mapping + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.valid").value(false))
+                .andExpect(jsonPath("$.blocking[*].code")
+                        .value(org.hamcrest.Matchers.hasItem("REQUIRED_ATTRIBUTE_UNMAPPED")));
+    }
+
+    @Test
     void duplicateColumnsAreBlockedByTheOneToOneRule() throws Exception {
         UUID ownerId = UUID.randomUUID();
         UUID objectTypeId = UUID.randomUUID();
@@ -490,17 +532,50 @@ class ObjectBindingApiTest extends BindingIntegrationTestSupport {
             UUID primaryKey,
             UUID name
     ) {
+        return saveBody(ownerId, baseRevision, datasetId, primaryKey, name, List.of());
+    }
+
+    private String saveBody(
+            UUID ownerId,
+            long baseRevision,
+            UUID datasetId,
+            UUID primaryKey,
+            UUID name,
+            List<UUID> extraRequiredAttributeIds
+    ) {
         return """
                 {"ownerId":"%s","baseRevision":%d,"datasetKind":"SYNC","datasetId":"%s",
-                 "mapping":{"primaryKeyAttributeId":"%s","titleKeyAttributeId":"%s",
-                   "attributes":[
-                     {"attributeId":"%s","column":"id","datatype":"text",
-                      "required":true,"isArray":false},
-                     {"attributeId":"%s","column":"name","datatype":"text",
-                      "required":false,"isArray":false}
-                   ]}}
-                """.formatted(ownerId, baseRevision, datasetId, primaryKey, name,
-                primaryKey, name);
+                 "mapping":%s}
+                """.formatted(
+                ownerId,
+                baseRevision,
+                datasetId,
+                objectMappingJson(primaryKey, name, extraRequiredAttributeIds)
+        );
+    }
+
+    private String objectMappingJson(
+            UUID primaryKey,
+            UUID name,
+            List<UUID> extraRequiredAttributeIds
+    ) {
+        StringBuilder requiredAttributeIds = new StringBuilder()
+                .append('"').append(primaryKey).append('"');
+        for (UUID attributeId : extraRequiredAttributeIds) {
+            if (attributeId != null) {
+                requiredAttributeIds.append(",\"").append(attributeId).append('"');
+            }
+        }
+        return """
+                {"primaryKeyAttributeId":"%s","titleKeyAttributeId":"%s",
+                 "requiredAttributeIds":[%s],
+                 "attributes":[
+                   {"attributeId":"%s","column":"id","datatype":"text",
+                    "required":true,"isArray":false},
+                   {"attributeId":"%s","column":"name","datatype":"text",
+                    "required":false,"isArray":false}
+                 ]}
+                """.formatted(primaryKey, name, requiredAttributeIds, primaryKey, name);
     }
 
     private void insertRun(
