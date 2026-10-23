@@ -174,6 +174,8 @@ public class IndexSwitcher {
         if (relation.getBindingId() != null) {
             previous = currentRelationVersion(run.getOwnerId(), relation.getRelationId());
             retireRelation(previous, relation.getId());
+        } else {
+            retireForeignKeyVersions(run.getOwnerId(), relation.getRelationId(), relation.getId());
         }
         if (jdbc.update("""
                 UPDATE data.ontology_relation_version
@@ -248,6 +250,15 @@ public class IndexSwitcher {
                     WHERE id = ? AND status = 'ACTIVE'
                     """, Timestamp.from(Instant.now()), previous);
         }
+    }
+
+    private void retireForeignKeyVersions(UUID ownerId, UUID relationId, UUID next) {
+        jdbc.update("""
+                UPDATE data.ontology_relation_version
+                SET status = 'RETIRED', retired_at = ?
+                WHERE owner_id = ? AND relation_id = ? AND relation_kind = 'FK'
+                  AND status = 'ACTIVE' AND id <> ?
+                """, Timestamp.from(Instant.now()), ownerId, relationId, next);
     }
 
     private UUID currentObjectVersion(UUID ownerId, UUID objectTypeId) {

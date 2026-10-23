@@ -81,6 +81,28 @@ class OntologyIndexSwitchIntegrationTest extends OntologyIndexIntegrationTestSup
         assertThat(currentObjectVersion(fixture.bindingId())).isEqualTo(fixture.newVersionId());
     }
 
+    @Test
+    void objectSwitchRetiresThePreviousForeignKeyRelationVersion() {
+        Fixture fixture = fixture();
+        UUID relationId = UUID.randomUUID();
+        UUID previousRelationVersion = UUID.randomUUID();
+        UUID nextRelationVersion = UUID.randomUUID();
+        insertRelationVersion(previousRelationVersion, fixture.ownerId(), null, relationId,
+                fixture.objectTypeId(), UUID.randomUUID(), fixture.oldVersionId(), "ACTIVE");
+        insertRelationVersion(nextRelationVersion, fixture.ownerId(), null, relationId,
+                fixture.objectTypeId(), fixture.run().getId(), fixture.newVersionId(), "BUILDING");
+        ObjectBuildResult result = new ObjectBuildResult(
+                fixture.newVersionId(), 1, 0,
+                List.of(new RelationBuildResult(nextRelationVersion, relationId, 1, 0)),
+                Map.of("rows", 1)
+        );
+
+        switcher.switchObject(fixture.run(), "worker-a", result);
+
+        assertThat(relationStatus(previousRelationVersion)).isEqualTo("RETIRED");
+        assertThat(relationStatus(nextRelationVersion)).isEqualTo("ACTIVE");
+    }
+
     private Fixture fixture() {
         UUID ownerId = UUID.randomUUID();
         UUID objectTypeId = UUID.randomUUID();
