@@ -97,7 +97,7 @@ class OntologyDataset(BaseModel):
     id: uuid.UUID
     name: str
     version_id: uuid.UUID
-    version_number: int
+    version_number: int | None = None
     row_count: int
     columns: list[DatasetColumn] = Field(default_factory=list)
 
@@ -126,6 +126,7 @@ class ObjectMapping(BaseModel):
     primary_key_attribute_id: uuid.UUID
     title_key_attribute_id: uuid.UUID | None = None
     attributes: list[AttributeMapping] = Field(default_factory=list)
+    required_attribute_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class RelationMapping(BaseModel):
@@ -149,6 +150,19 @@ class MappingValidation(BaseModel):
     warnings: list[MappingIssue] = Field(default_factory=list)
     valid: bool
 
+    @model_validator(mode="before")
+    @classmethod
+    def derive_valid(cls, value: Any) -> Any:
+        if isinstance(value, dict) and "valid" not in value:
+            return {**value, "valid": not bool(value.get("blocking"))}
+        return value
+
+
+class PreviewSkip(BaseModel):
+    code: str
+    message: str
+    reference: str | None = None
+
 
 class ObjectPreviewRow(BaseModel):
     primary_key: str
@@ -159,6 +173,9 @@ class ObjectPreviewRow(BaseModel):
 class ObjectPreview(BaseModel):
     rows: list[ObjectPreviewRow] = Field(default_factory=list)
     validation: MappingValidation
+    skipped: list[PreviewSkip] = Field(default_factory=list)
+    skipped_count: int = 0
+    skipped_reasons: dict[str, int] = Field(default_factory=dict)
 
 
 class RelationPreviewPair(BaseModel):
@@ -171,6 +188,7 @@ class RelationPreview(BaseModel):
     skipped_count: int = 0
     skipped_reasons: dict[str, int] = Field(default_factory=dict)
     validation: MappingValidation
+    skipped: list[PreviewSkip] = Field(default_factory=list)
 
 
 class MappingUpdateRequest(BaseModel):
@@ -230,6 +248,13 @@ class OntologyObjectDetail(BaseModel):
     title: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
     index_version_id: uuid.UUID
+
+
+class OntologyRelatedObject(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    primary_key: str
+    title: str | None = None
 
 
 class RelationInstance(BaseModel):
@@ -309,6 +334,7 @@ class BindingRead(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
+    binding_id: uuid.UUID | None = None
     id: uuid.UUID | None = None
     object_type_id: uuid.UUID | None = None
     relation_id: uuid.UUID | None = None
@@ -324,7 +350,28 @@ class BindingRead(BaseModel):
     current_index_version_id: uuid.UUID | None = None
     validation_state: ValidationState | None = None
     validation_error: dict[str, Any] | None = None
+    validation: MappingValidation | None = None
+    recent_run: dict[str, Any] | None = None
     latest_run: dict[str, Any] | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def keep_compatible_fields(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        data = dict(value)
+        binding_id = data.get("binding_id", data.get("bindingId", data.get("id")))
+        if binding_id is not None:
+            data.setdefault("binding_id", binding_id)
+            data.setdefault("id", binding_id)
+        recent_run = data.get(
+            "recent_run",
+            data.get("recentRun", data.get("latest_run", data.get("latestRun"))),
+        )
+        if recent_run is not None:
+            data.setdefault("recent_run", recent_run)
+            data.setdefault("latest_run", recent_run)
+        return data
 
 
 class MappingSuggestionReason(BaseModel):
@@ -348,10 +395,15 @@ class RelationOverviewRead(BaseModel):
 
     relation_id: uuid.UUID | None = None
     relation_kind: RelationKind | None = None
+    relation_name: str | None = None
     source_type_id: uuid.UUID | None = None
     target_type_id: uuid.UUID | None = None
     foreign_key_property_id: uuid.UUID | None = None
+    warnings: list[MappingIssue] = Field(default_factory=list)
+    latest_version: dict[str, Any] | None = None
     latest_run: dict[str, Any] | None = None
+    source: dict[str, Any] | None = None
+    target: dict[str, Any] | None = None
 
 
 class ObjectRelationGroupRead(BaseModel):
@@ -366,7 +418,7 @@ class ObjectRelationGroupRead(BaseModel):
     target_type_id: uuid.UUID | None = None
     target_type_name: str | None = None
     total: int = 0
-    items: list[OntologyObject] = Field(default_factory=list)
+    items: list[OntologyRelatedObject] = Field(default_factory=list)
 
 
 class ObjectRelationPage(BaseModel):

@@ -139,7 +139,14 @@ def build_read_tools(ctx: OntologyWorkbenchToolContext) -> list[BaseTool]:
                     payload={**(payload or {}), "limit": 1},
                 )
                 validation = preview.get("validation")
-                return validation if isinstance(validation, dict) else preview
+                if isinstance(validation, dict):
+                    return validation
+                blocking = preview.get("blocking") or []
+                return {
+                    "blocking": blocking,
+                    "warnings": preview.get("warnings") or [],
+                    "valid": not blocking,
+                }
 
             return ctx.invoke(validate_relation)
         return ctx.invoke(

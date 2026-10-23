@@ -19,6 +19,7 @@ from app.errors import (
 )
 from app.logging_config import configure_logging
 from app.middleware import RequestContextMiddleware
+from app.services.data_service.client import RevisionConflict
 from app.services.event_bus import ConversationEventBus
 
 SessionFactory = Callable[[], Session]
@@ -131,6 +132,19 @@ def _create_app(
         return JSONResponse(
             status_code=409,
             content={"error": "invalid_transition", "message": str(exc)},
+        )
+
+    @app.exception_handler(RevisionConflict)
+    async def _revision_conflict(_: Request, exc: RevisionConflict) -> JSONResponse:
+        logger.warning("revision conflict: %s", exc)
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error": "revision_conflict",
+                "message": str(exc),
+                "code": exc.code,
+                "details": exc.details,
+            },
         )
 
     @app.exception_handler(InvariantViolationError)
