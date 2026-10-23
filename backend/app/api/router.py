@@ -10,11 +10,13 @@ from app.api import (
     data_pipelines,
     graphs,
     object_types,
+    ontology,
     view_state,
 )
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(object_types.router)
+api_router.include_router(ontology.router)
 api_router.include_router(graphs.router)
 api_router.include_router(conversations.router)
 api_router.include_router(conversation_events.router)
