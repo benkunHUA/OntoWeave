@@ -24,6 +24,7 @@ const properties = [
   property({ id: 'text-1', name: '名称', datatype: 'text' }),
   property({ id: 'num-1', name: '金额', datatype: 'integer' }),
   property({ id: 'bool-1', name: '有效', datatype: 'boolean' }),
+  property({ id: 'enum-1', name: '状态', datatype: 'enum', enum_values: ['ACTIVE', 'INACTIVE'] }),
   property({ id: 'array-1', name: '标签', is_array: true }),
 ]
 
@@ -42,6 +43,9 @@ describe('FilterBar', () => {
     expect(Array.from(operator.options).map((option) => option.value)).not.toContain('contains')
     expect(Array.from((screen.getByLabelText('属性') as HTMLSelectElement).options)
       .map((option) => option.value)).not.toContain('array-1')
+
+    fireEvent.change(screen.getByLabelText('属性'), { target: { value: 'enum-1' } })
+    expect(Array.from(operator.options).map((option) => option.value)).toEqual(['eq', 'ne'])
 
     fireEvent.click(screen.getByRole('button', { name: '删除条件' }))
     expect(screen.getByText('暂无筛选条件')).toBeTruthy()

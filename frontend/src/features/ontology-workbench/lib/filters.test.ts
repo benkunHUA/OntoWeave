@@ -24,6 +24,7 @@ function property(overrides: Partial<OntologyProperty> = {}): OntologyProperty {
 
 describe('ontology filter rules', () => {
   it('narrows operators by datatype', () => {
+    expect(operatorsFor('enum').map((item) => item.value)).toEqual(['eq', 'ne'])
     expect(operatorsFor('boolean').map((item) => item.value)).toEqual(['eq'])
     expect(operatorsFor('integer').map((item) => item.value)).toEqual([
       'eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'is_null', 'is_not_null',
@@ -59,7 +60,10 @@ describe('ontology filter rules', () => {
   it('rejects operators that are not valid for the current datatype', () => {
     const flag = property({ datatype: 'boolean' })
     const draft = { ...createFilterDraft(flag), op: 'contains' as const, value: 'true' }
+    const status = property({ id: 'attribute-3', datatype: 'enum', enum_values: ['ACTIVE', 'INACTIVE'] })
+    const enumDraft = { ...createFilterDraft(status), op: 'contains' as const, value: 'ACT' }
 
     expect(buildFilterConditions([draft], [flag]).valid).toBe(false)
+    expect(buildFilterConditions([enumDraft], [status]).valid).toBe(false)
   })
 })

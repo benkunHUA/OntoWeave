@@ -33,9 +33,6 @@ export const FILTER_OPERATORS: Record<PropertyDatatype, readonly FilterOperatorO
   enum: [
     { value: 'eq', label: '等于', unary: false },
     { value: 'ne', label: '不等于', unary: false },
-    { value: 'contains', label: '包含', unary: false },
-    { value: 'is_null', label: '为空', unary: true },
-    { value: 'is_not_null', label: '不为空', unary: true },
   ],
   integer: [
     { value: 'eq', label: '等于', unary: false },
