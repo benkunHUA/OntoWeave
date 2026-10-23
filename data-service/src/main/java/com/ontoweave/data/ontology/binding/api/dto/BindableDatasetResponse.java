@@ -9,6 +9,7 @@ public record BindableDatasetResponse(
         UUID id,
         String name,
         UUID versionId,
+        int versionNumber,
         long rowCount
 ) {
 }

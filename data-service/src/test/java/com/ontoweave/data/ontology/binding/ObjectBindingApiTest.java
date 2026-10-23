@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -43,8 +44,8 @@ class ObjectBindingApiTest extends BindingIntegrationTestSupport {
     @Test
     void listsBindableSyncAndPipelineDatasetsForTheOwner() throws Exception {
         UUID ownerId = UUID.randomUUID();
-        UUID syncId = insertSyncDataset(ownerId, "customers");
-        UUID pipelineId = insertPipelineDataset(ownerId, "orders");
+        UUID syncId = insertSyncDataset(ownerId, "customers", 7);
+        UUID pipelineId = insertPipelineDataset(ownerId, "orders", 3);
         insertSyncDataset(UUID.randomUUID(), "someone-else");
 
         mvc.perform(get("/internal/v1/ontology/bindable-datasets")
@@ -66,7 +67,52 @@ class ObjectBindingApiTest extends BindingIntegrationTestSupport {
                         org.hamcrest.Matchers.containsInAnyOrder(
                                 syncId.toString(), pipelineId.toString()
                         )
-                ));
+                ))
+                .andExpect(jsonPath("$.items[?(@.kind == 'SYNC')].versionNumber")
+                        .value(org.hamcrest.Matchers.hasItem(7)))
+                .andExpect(jsonPath("$.items[?(@.kind == 'PIPELINE')].versionNumber")
+                        .value(org.hamcrest.Matchers.hasItem(3)));
+    }
+
+    @Test
+    void bindableDatasetPageHasCompleteJsonContractWithCurrentVersionNumbers() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID syncId = insertSyncDataset(ownerId, "customers", 7);
+        UUID pipelineId = insertPipelineDataset(ownerId, "orders", 3);
+        UUID syncVersionId = currentVersion("data.dataset", syncId);
+        UUID pipelineVersionId = currentVersion("data.pipeline_dataset", pipelineId);
+
+        mvc.perform(get("/internal/v1/ontology/bindable-datasets")
+                        .header("X-Internal-Token", TOKEN)
+                        .param("ownerId", ownerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().json("""
+                        {
+                          "items": [
+                            {
+                              "kind": "SYNC",
+                              "id": "%s",
+                              "name": "customers",
+                              "versionId": "%s",
+                              "versionNumber": 7,
+                              "rowCount": 0
+                            },
+                            {
+                              "kind": "PIPELINE",
+                              "id": "%s",
+                              "name": "orders",
+                              "versionId": "%s",
+                              "versionNumber": 3,
+                              "rowCount": 0
+                            }
+                          ],
+                          "total": 2,
+                          "page": 1,
+                          "size": 20
+                        }
+                        """.formatted(
+                                syncId, syncVersionId, pipelineId, pipelineVersionId
+                        ), true));
     }
 
     @Test

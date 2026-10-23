@@ -58,24 +58,40 @@ public class OntologyDatasetService {
     }
 
     private BindableDatasetResponse response(DatasetRef dataset) {
+        DatasetMetadata metadata = metadata(dataset);
         return new BindableDatasetResponse(
                 dataset.kind(),
                 dataset.datasetId(),
-                name(dataset),
+                metadata.name(),
                 dataset.versionId(),
+                metadata.versionNumber(),
                 dataset.rowCount()
         );
     }
 
-    private String name(DatasetRef dataset) {
-        String table = dataset.kind() == DatasetKind.SYNC
-                ? "data.dataset"
-                : "data.pipeline_dataset";
-        List<String> names = jdbc.queryForList(
-                "SELECT name FROM " + table + " WHERE id = ?",
-                String.class,
-                dataset.datasetId()
-        );
-        return names.isEmpty() ? dataset.table() : names.get(0);
+    private DatasetMetadata metadata(DatasetRef dataset) {
+        return jdbc.queryForObject("""
+                SELECT d.name, v.version_number
+                FROM data.dataset_catalog d
+                JOIN data.dataset_version_catalog v
+                  ON v.dataset_kind = d.dataset_kind
+                 AND v.dataset_id = d.dataset_id
+                WHERE d.dataset_kind = ?
+                  AND d.dataset_id = ?
+                  AND v.version_id = ?
+                """, (row, rowNumber) -> new DatasetMetadata(
+                        row.getString("name"), row.getInt("version_number")
+                ),
+                viewKind(dataset.kind()), dataset.datasetId(), dataset.versionId());
+    }
+
+    private String viewKind(DatasetKind kind) {
+        return kind == DatasetKind.SYNC ? "sync" : "pipeline";
+    }
+
+    private record DatasetMetadata(
+            String name,
+            int versionNumber
+    ) {
     }
 }

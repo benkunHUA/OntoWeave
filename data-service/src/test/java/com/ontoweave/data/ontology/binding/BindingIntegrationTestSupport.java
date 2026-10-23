@@ -88,12 +88,16 @@ abstract class BindingIntegrationTestSupport {
     }
 
     protected UUID insertSyncDataset(UUID ownerId, String name) {
+        return insertSyncDataset(ownerId, name, 1);
+    }
+
+    protected UUID insertSyncDataset(UUID ownerId, String name, int versionNumber) {
         return insertSyncDataset(ownerId, name, 1L, java.util.UUID.randomUUID(), """
                 {"fields":[
                   {"name":"id","type":"string","required":true},
                   {"name":"name","type":"string","required":false}
                 ]}
-                """);
+                """, versionNumber);
     }
 
     protected UUID insertSyncDataset(
@@ -102,6 +106,17 @@ abstract class BindingIntegrationTestSupport {
             long snapshotId,
             UUID versionId,
             String schemaJson
+    ) {
+        return insertSyncDataset(ownerId, name, snapshotId, versionId, schemaJson, 1);
+    }
+
+    protected UUID insertSyncDataset(
+            UUID ownerId,
+            String name,
+            long snapshotId,
+            UUID versionId,
+            String schemaJson,
+            int versionNumber
     ) {
         UUID connectionId = UUID.randomUUID();
         UUID datasetId = UUID.randomUUID();
@@ -128,15 +143,19 @@ abstract class BindingIntegrationTestSupport {
                      iceberg_table, iceberg_snapshot_id, row_count, row_count_estimated,
                      byte_size, schema_json, column_count, committed_at, published_at,
                      version_source)
-                VALUES (?, ?, 1, 'ontoweave', 'sync_ns', ?, ?, 0, false, 128,
+                VALUES (?, ?, ?, 'ontoweave', 'sync_ns', ?, ?, 0, false, 128,
                         CAST(? AS jsonb), 2, now(), now(), 'snapshot_end')
-                """, versionId, datasetId, name, snapshotId, schemaJson);
+                """, versionId, datasetId, versionNumber, name, snapshotId, schemaJson);
         jdbc.update("UPDATE data.dataset SET current_version_id = ? WHERE id = ?",
                 versionId, datasetId);
         return datasetId;
     }
 
     protected UUID insertPipelineDataset(UUID ownerId, String name) {
+        return insertPipelineDataset(ownerId, name, 1);
+    }
+
+    protected UUID insertPipelineDataset(UUID ownerId, String name, int versionNumber) {
         UUID pipelineId = UUID.randomUUID();
         UUID pipelineVersionId = UUID.randomUUID();
         UUID buildId = UUID.randomUUID();
@@ -179,9 +198,9 @@ abstract class BindingIntegrationTestSupport {
                     (id, dataset_id, build_output_id, version_number, iceberg_catalog,
                      iceberg_namespace, iceberg_table, iceberg_snapshot_id, schema_json,
                      row_count, byte_size, committed_at, published_at)
-                VALUES (?, ?, ?, 1, 'ontoweave', 'pipeline_outputs', ?, 1,
+                VALUES (?, ?, ?, ?, 'ontoweave', 'pipeline_outputs', ?, 1,
                         CAST(? AS jsonb), 0, 256, now(), now())
-                """, versionId, datasetId, buildOutputId, name, """
+                """, versionId, datasetId, buildOutputId, versionNumber, name, """
                 {"fields":[
                   {"name":"id","type":"string","required":true},
                   {"name":"name","type":"string","required":false}
@@ -190,6 +209,14 @@ abstract class BindingIntegrationTestSupport {
         jdbc.update("UPDATE data.pipeline_dataset SET current_version_id = ? WHERE id = ?",
                 versionId, datasetId);
         return datasetId;
+    }
+
+    protected UUID currentVersion(String table, UUID datasetId) {
+        return jdbc.queryForObject(
+                "SELECT current_version_id FROM " + table + " WHERE id = ?",
+                UUID.class,
+                datasetId
+        );
     }
 
     protected long seedRows(
