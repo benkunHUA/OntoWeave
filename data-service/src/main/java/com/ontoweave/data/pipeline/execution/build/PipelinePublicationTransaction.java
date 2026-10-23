@@ -17,6 +17,8 @@ import com.ontoweave.data.pipeline.repository.PipelineBuildRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetRepository;
 import com.ontoweave.data.pipeline.repository.PipelineDatasetVersionRepository;
 import com.ontoweave.data.pipeline.repository.PipelineRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,8 @@ import java.util.UUID;
 
 @Service
 public class PipelinePublicationTransaction {
+
+    private static final Logger log = LoggerFactory.getLogger(PipelinePublicationTransaction.class);
 
     private final PipelineBuildRepository builds;
     private final PipelineBuildOutputRepository buildOutputs;
@@ -123,7 +127,16 @@ public class PipelinePublicationTransaction {
                 );
             }
             if (indexEnqueuer != null) {
-                indexEnqueuer.enqueueOnPublish(DatasetKind.PIPELINE, dataset.getId(), version.getId());
+                try {
+                    indexEnqueuer.enqueueOnPublish(DatasetKind.PIPELINE, dataset.getId(), version.getId());
+                } catch (RuntimeException exception) {
+                    log.warn(
+                            "failed to enqueue ontology index for dataset {} version {}",
+                            dataset.getId(),
+                            version.getId(),
+                            exception
+                    );
+                }
             }
             String branch = snapshot.branch() == null
                     ? PipelineBuildConstants.BRANCH_PREFIX + buildId

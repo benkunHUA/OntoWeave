@@ -13,6 +13,8 @@ import com.ontoweave.data.sync.iceberg.IcebergSnapshotInfo;
 import com.ontoweave.data.sync.repository.DatasetRepository;
 import com.ontoweave.data.sync.repository.DatasetVersionRepository;
 import com.ontoweave.data.sync.repository.SyncRunRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,8 @@ import java.util.UUID;
 
 @Service
 public class DatasetVersionPublisher {
+
+    private static final Logger log = LoggerFactory.getLogger(DatasetVersionPublisher.class);
 
     private final DatasetRepository datasets;
     private final DatasetVersionRepository versions;
@@ -122,7 +126,16 @@ public class DatasetVersionPublisher {
             datasets.save(dataset);
             markPublished(run, info.snapshotId());
             if (indexEnqueuer != null) {
-                indexEnqueuer.enqueueOnPublish(DatasetKind.SYNC, dataset.getId(), version.getId());
+                try {
+                    indexEnqueuer.enqueueOnPublish(DatasetKind.SYNC, dataset.getId(), version.getId());
+                } catch (RuntimeException exception) {
+                    log.warn(
+                            "failed to enqueue ontology index for dataset {} version {}",
+                            dataset.getId(),
+                            version.getId(),
+                            exception
+                    );
+                }
             }
             outbox.write("dataset", dataset.getId(), "dataset.version.published", payload(dataset, version, run));
             return Optional.of(version);

@@ -66,6 +66,70 @@ class OntologyIndexPublishHookTest {
 
     @Test
     void syncPublicationEnqueuesThePublishedVersion() {
+        SyncFixture fixture = syncFixture();
+
+        UUID versionId = fixture.publisher().publish(
+                fixture.run().getId(), VersionSource.SCHEDULED
+        ).orElseThrow().getId();
+
+        verify(enqueuer).enqueueOnPublish(DatasetKind.SYNC, fixture.dataset().getId(), versionId);
+    }
+
+    @Test
+    void syncPublicationStillSucceedsWhenIndexEnqueueFails() {
+        SyncFixture fixture = syncFixture();
+        when(enqueuer.enqueueOnPublish(
+                eq(DatasetKind.SYNC), eq(fixture.dataset().getId()), any()
+        )).thenThrow(new IllegalStateException("index unavailable"));
+
+        assertThat(fixture.publisher().publish(
+                fixture.run().getId(), VersionSource.SCHEDULED
+        )).isPresent();
+
+        verify(versions).save(any());
+        verify(outbox).write(
+                eq("dataset"),
+                eq(fixture.dataset().getId()),
+                eq("dataset.version.published"),
+                any()
+        );
+    }
+
+    @Test
+    void pipelinePublicationEnqueuesEveryActivatedOutputVersion() {
+        PipelineFixture fixture = pipelineFixture();
+
+        fixture.transaction().publish(fixture.buildId());
+
+        ArgumentCaptor<PipelineDatasetVersionEntity> versionCaptor =
+                ArgumentCaptor.forClass(PipelineDatasetVersionEntity.class);
+        verify(fixture.versions()).save(versionCaptor.capture());
+        verify(enqueuer).enqueueOnPublish(
+                DatasetKind.PIPELINE, fixture.dataset().getId(), versionCaptor.getValue().getId()
+        );
+    }
+
+    @Test
+    void pipelinePublicationStillSucceedsWhenIndexEnqueueFails() {
+        PipelineFixture fixture = pipelineFixture();
+        when(enqueuer.enqueueOnPublish(
+                eq(DatasetKind.PIPELINE), eq(fixture.dataset().getId()), any()
+        )).thenThrow(new IllegalStateException("index unavailable"));
+
+        PipelinePublicationTransaction.Publication publication =
+                fixture.transaction().publish(fixture.buildId());
+
+        assertThat(publication.datasets()).hasSize(1);
+        assertThat(fixture.build().getStatus()).isEqualTo(PipelineBuildStatus.SUCCEEDED);
+        verify(fixture.outbox()).write(
+                eq("pipeline"),
+                eq(fixture.build().getPipelineId()),
+                eq("pipeline.build.succeeded"),
+                any()
+        );
+    }
+
+    private SyncFixture syncFixture() {
         UUID datasetId = UUID.randomUUID();
         SyncRunEntity run = new SyncRunEntity(
                 UUID.randomUUID(), UUID.randomUUID(), datasetId, UUID.randomUUID(),
@@ -81,14 +145,10 @@ class OntologyIndexPublishHookTest {
                 datasets, versions, runs, iceberg, outbox
         );
         ReflectionTestUtils.setField(publisher, "indexEnqueuer", enqueuer);
-
-        UUID versionId = publisher.publish(run.getId(), VersionSource.SCHEDULED).orElseThrow().getId();
-
-        verify(enqueuer).enqueueOnPublish(DatasetKind.SYNC, datasetId, versionId);
+        return new SyncFixture(run, dataset, publisher);
     }
 
-    @Test
-    void pipelinePublicationEnqueuesEveryActivatedOutputVersion() {
+    private PipelineFixture pipelineFixture() {
         ObjectMapper mapper = new ObjectMapper();
         UUID buildId = UUID.randomUUID();
         UUID pipelineId = UUID.randomUUID();
@@ -129,14 +189,7 @@ class OntologyIndexPublishHookTest {
         when(pipelines.lockById(pipelineId)).thenReturn(Optional.of(pipeline));
         when(pipelines.activateVersion(pipelineId, pipelineVersionId)).thenReturn(1);
 
-        transaction.publish(buildId);
-
-        ArgumentCaptor<PipelineDatasetVersionEntity> versionCaptor =
-                ArgumentCaptor.forClass(PipelineDatasetVersionEntity.class);
-        verify(pipelineVersions).save(versionCaptor.capture());
-        verify(enqueuer).enqueueOnPublish(
-                DatasetKind.PIPELINE, datasetId, versionCaptor.getValue().getId()
-        );
+        return new PipelineFixture(transaction, build, dataset, buildId, pipelineVersions, pipelineOutbox);
     }
 
     private IcebergSnapshotInfo snapshot() {
@@ -157,5 +210,22 @@ class OntologyIndexPublishHookTest {
         snapshot.put("byteSize", 1L);
         snapshot.put("committedAt", Instant.now().toString());
         return result;
+    }
+
+    private record SyncFixture(
+            SyncRunEntity run,
+            DatasetEntity dataset,
+            DatasetVersionPublisher publisher
+    ) {
+    }
+
+    private record PipelineFixture(
+            PipelinePublicationTransaction transaction,
+            PipelineBuildEntity build,
+            PipelineDatasetEntity dataset,
+            UUID buildId,
+            PipelineDatasetVersionRepository versions,
+            OutboxWriter outbox
+    ) {
     }
 }
