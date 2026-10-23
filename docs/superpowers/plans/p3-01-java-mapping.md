@@ -77,16 +77,16 @@ POST .../binding/generate {ownerId, mappingRevision}
 
 ## 实施步骤
 
-- [ ] 1. 数据集列表/字段接口 + 集成测试（P1/P2 各一例）。
-- [ ] 2. 关系定义 upsert + 校验 + 测试。
-- [ ] 3. 对象绑定 get/put/delete + revision CAS + 占用冲突测试。
-- [ ] 4. 多对多绑定 get/put/delete + 测试。
-- [ ] 5. `BindingCheckService` 测试：列一对一、主键/标题唯一、外键兼容；类型矩阵用例由 W0 覆盖。
-- [ ] 6. 预览服务 + 对象/关系预览测试。
-- [ ] 7. 生成入口接 `IndexEnqueuer` + 409/422 测试。
-- [ ] 8. runs 列表接口（读 `ontology_index_run`）+ 测试。
-- [ ] 9. 外键关系 overview 接口（读关系定义 + 对象绑定）+ 测试。
-- [ ] 10. 全量 `./mvnw -q test` 并更新阶段文档。
+- [x] 1. 数据集列表/字段接口 + 集成测试（P1/P2 各一例）。
+- [x] 2. 关系定义 upsert + 校验 + 测试。
+- [x] 3. 对象绑定 get/put/delete + revision CAS + 占用冲突测试。
+- [x] 4. 多对多绑定 get/put/delete + 测试。
+- [x] 5. `BindingCheckService` 测试：列一对一、主键/标题唯一、外键兼容；类型矩阵用例由 W0 覆盖。
+- [x] 6. 预览服务 + 对象/关系预览测试。
+- [x] 7. 生成入口接 `IndexEnqueuer` + 409/422 测试。
+- [x] 8. runs 列表接口（读 `ontology_index_run`）+ 测试。
+- [x] 9. 外键关系 overview 接口（读关系定义 + 对象绑定）+ 测试。
+- [x] 10. 全量 `./mvnw -q test` 并更新阶段文档。
 
 ## 验收命令
 

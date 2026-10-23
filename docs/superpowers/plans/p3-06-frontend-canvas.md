@@ -61,16 +61,16 @@ styles/ontology-canvas.css
 
 ## 实施步骤
 
-- [ ] 1. `lib/mapping.ts` 约束函数 + 单测（一对一、类型、必填）。
-- [ ] 2. `useMappingDraft` + undo/redo/409 测试。
-- [ ] 3. `MappingNode`/`MappingEdge` 渲染与删除。
-- [ ] 4. `MappingCanvas` 对象模式。
-- [ ] 5. 多对多模式与两条边约束。
-- [ ] 6. 工具栏建议/校验/预览。
-- [ ] 7. 主键/标题切换确认。
-- [ ] 8. 只读外键概览。
-- [ ] 9. 样式与可访问性（键盘删除、焦点）。
-- [ ] 10. 前端全量校验。
+- [x] 1. `lib/mapping.ts` 约束函数 + 单测（一对一、类型、必填）。
+- [x] 2. `useMappingDraft` + undo/redo/409 测试。
+- [x] 3. `MappingNode`/`MappingEdge` 渲染与删除。
+- [x] 4. `MappingCanvas` 对象模式。
+- [x] 5. 多对多模式与两条边约束。
+- [x] 6. 工具栏建议/校验/预览。
+- [x] 7. 主键/标题切换确认。
+- [x] 8. 只读外键概览。
+- [x] 9. 样式与可访问性（键盘删除、焦点）。
+- [x] 10. 前端全量校验。
 
 ## 验收命令
 

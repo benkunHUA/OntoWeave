@@ -1,8 +1,8 @@
 # 数据集成与 Agent 闭环 · 总体路线图
 
-- 最后更新：2026-10-22
+- 最后更新：2026-10-24
 - 当前分支：`main`
-- 当前基线：`fba99c2`（P1 验收基线为 `7c8e240`；P2 验收在工作区完成，尚未提交）
+- 当前基线：P3 验收合并后的 `main`（P1 验收基线 `7c8e240`，P2 验收基线 `fba99c2`）
 - 总体设计：[2026-10-17-data-integration-and-agent-loop-design.md](specs/2026-10-17-data-integration-and-agent-loop-design.md)
 - 用途：新对话从这里判断「做到哪、下一步做什么」；本文件只维护阶段目标和状态，详细沟通记录见各阶段文件。
 
@@ -12,7 +12,7 @@
 |---|---|---|---|
 | P1 数据进来 | 外部数据可连接、可同步，生成不可变数据集版本 | ✅ 已完成（2026-10-20 复检通过） | [p1-data-ingestion.md](phases/p1-data-ingestion.md) |
 | P2 数据整理 | 可视化处理、构建派生版本、定时调度、来源元数据 | ✅ 已完成（2026-10-22 端到端验收通过；有部署环境限制） | [p2-data-preparation.md](phases/p2-data-preparation.md) |
-| P3 变成对象 | 数据集映射为对象类型，生成对象实例和关系实例 | ⏳ 未开始 | [p3-ontology-mapping.md](phases/p3-ontology-mapping.md) |
+| P3 变成对象 | 数据集映射为对象类型，生成对象实例和关系实例 | ✅ 已完成（2026-10-24 验收通过；性能 20 万行降级） | [p3-ontology-mapping.md](phases/p3-ontology-mapping.md) |
 | P4 Agent 使用 | 动作执行、审计记录、Agent 查询与操作闭环 | ⏳ 未开始 | [p4-agent-loop.md](phases/p4-agent-loop.md) |
 
 ## 2. 当前执行位置
@@ -23,7 +23,11 @@ P2「数据整理」已完成并通过 2026-10-22 端到端验收：预览、手
 
 当前已知限制：Python API 容器镜像缺少 `deepagents`，本次使用本地 uvicorn 验收；Testcontainers 因 Docker Hub 拉取超时未执行；Java 预览取消/超时测试和 Python `test_changeset.py` 仍受本地环境限制。
 
-下一步进入 P3「变成对象」：先讨论字段映射、对象唯一标识、显示名称和关系生成，确认设计后再写实施计划。
+P3「变成对象」已完成并通过 2026-10-24 验收：对象/多对多映射画布、字段级映射校验、对象与关系实例生成、整批重建与原子切换、分页/搜索/组合筛选、详情与双向关系、运行记录、Agent 映射工具均已交付。验收中发现的“外键旧版本不退役”和“多对多去重缺索引”已在 `0bf23cf` 修复。完整证据见 [P3 验收报告](../checks/2026-10-23-p3-ontology-mapping-smoke.md)。
+
+P3 已知限制：性能验收在 20 万行 × 8 属性上完成三批对比，50 万行因本机资源未跑完；真实 Flink/Iceberg/MySQL/RabbitMQ 端到端、浏览器拖拽 E2E 和 Agent 线上确认链路未在本轮覆盖；前端与 Java/Python 全量测试已分别通过。
+
+下一步进入 P4「Agent 使用」：先讨论动作定义、参数绑定、人工确认、审计记录与回读闭环，确认设计后再写实施计划。
 
 ## 3. 阶段依赖
 
@@ -55,9 +59,9 @@ P1 数据进来
 继续 OntoWeave 数据集成与 Agent 闭环计划。
 
 先读 docs/superpowers/ROADMAP.md 和对应阶段文件，确认当前执行位置。
-当前 main 基线为 fba99c2（P1 验收基线为 7c8e240），P1「数据进来」已完成并通过 2026-10-20 复检。
-P2「数据整理」已完成并通过 2026-10-22 端到端验收，报告见 docs/checks/2026-10-20-p2-data-preparation-smoke.md。
-下一步进入 P3「变成对象」，先讨论字段映射、对象唯一标识、显示名称和关系生成，不要直接写实现代码。
+P1「数据进来」、P2「数据整理」、P3「变成对象」均已完成。
+P3 验收报告见 docs/checks/2026-10-23-p3-ontology-mapping-smoke.md，阶段记录见 docs/superpowers/phases/p3-ontology-mapping.md。
+下一步进入 P4「Agent 使用」，先讨论动作定义、参数绑定、人工确认、审计记录与回读闭环，不要直接写实现代码。
 一次只推进一个设计议题，结论回填到阶段文件和技术设计稿。
 ```
 

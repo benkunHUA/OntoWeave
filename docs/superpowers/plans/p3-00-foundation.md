@@ -86,16 +86,16 @@
 
 ## 实施步骤
 
-- [ ] 1. 写 `V9__ontology_mapping.sql`，本地 `mvn test` 让 Flyway 跑通。
-- [ ] 2. 建 Java 枚举、`MappingSnapshot`、`PrimaryKeyCodec`，先写编码单测。
-- [ ] 2.1 建 `MappingValidator` 与结果模型，用表驱动用例覆盖设计稿 §5.2/§5.4。
-- [ ] 3. 建 `DatasetRef`/`DatasetColumn`/`OntologyDatasetCatalog`，用 P1/P2 测试数据验证两类数据集都能解析。
-- [ ] 4. 建 `IcebergSnapshotReader`，用现有预览测试的 Iceberg 夹具验证固定 snapshot 读取。
-- [ ] 5. 建 JPA 实体与仓储，写 `lockNextQueued` 并发测试和 `upsertQueued` 合并测试。
-- [ ] 6. 建 `IndexEnqueuer` 与 writer 接口，只放接口和空实现占位，不写业务逻辑。
-- [ ] 7. 建 Alembic 迁移、`ConversationKind`、Python schema。
-- [ ] 8. 建前端类型与样例。
-- [ ] 9. 跑全量校验并更新阶段文档进度。
+- [x] 1. 写 `V9__ontology_mapping.sql`，本地 `mvn test` 让 Flyway 跑通。
+- [x] 2. 建 Java 枚举、`MappingSnapshot`、`PrimaryKeyCodec`，先写编码单测。
+- [x] 2.1 建 `MappingValidator` 与结果模型，用表驱动用例覆盖设计稿 §5.2/§5.4。
+- [x] 3. 建 `DatasetRef`/`DatasetColumn`/`OntologyDatasetCatalog`，用 P1/P2 测试数据验证两类数据集都能解析。
+- [x] 4. 建 `IcebergSnapshotReader`，用现有预览测试的 Iceberg 夹具验证固定 snapshot 读取。
+- [x] 5. 建 JPA 实体与仓储，写 `lockNextQueued` 并发测试和 `upsertQueued` 合并测试。
+- [x] 6. 建 `IndexEnqueuer` 与 writer 接口，只放接口和空实现占位，不写业务逻辑。
+- [x] 7. 建 Alembic 迁移、`ConversationKind`、Python schema。
+- [x] 8. 建前端类型与样例。
+- [x] 9. 跑全量校验并更新阶段文档进度。
 
 ## 验收命令
 

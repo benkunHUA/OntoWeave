@@ -91,14 +91,14 @@ GET    /api/v1/ontology/relation-types/{relation_id}/instances
 
 ## 实施步骤
 
-- [ ] 1. `ontology_client` 全量方法 + `MockTransport` 测试。
-- [ ] 2. BFF 路由与错误映射 + 测试。
-- [ ] 3. 详情合并本体定义 + 测试。
-- [ ] 4. 关系定义同步 + 测试。
-- [ ] 5. Agent 读工具 + 测试。
-- [ ] 6. Agent 写工具 + 确认中断测试。
-- [ ] 7. 注册 definition 与对话 kind + 集成测试。
-- [ ] 8. 全量后端校验。
+- [x] 1. `ontology_client` 全量方法 + `MockTransport` 测试。
+- [x] 2. BFF 路由与错误映射 + 测试。
+- [x] 3. 详情合并本体定义 + 测试。
+- [x] 4. 关系定义同步 + 测试。
+- [x] 5. Agent 读工具 + 测试。
+- [x] 6. Agent 写工具 + 确认中断测试。
+- [x] 7. 注册 definition 与对话 kind + 集成测试。
+- [x] 8. 全量后端校验。
 
 ## 验收命令
 

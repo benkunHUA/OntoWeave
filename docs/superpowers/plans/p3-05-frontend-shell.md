@@ -42,15 +42,15 @@ frontend/src/features/ontology-workbench/
 
 ## 实施步骤
 
-- [ ] 1. `shared/api/ontology.ts` + 类型检查。
-- [ ] 2. 抽取 `ConversationTimeline`，改 `PipelineConversationPane`，跑现有前端测试确保无回归。
-- [ ] 3. `OntologyWorkbenchView` 三栏布局 + 路由 + 首页入口。
-- [ ] 4. `ResourceSidebar` 分组、选中、URL 同步。
-- [ ] 5. 标签切换与三个占位组件。
-- [ ] 6. `useOntologyConversation` 接 `useConversationAgent`，会话按资源创建/复用。
-- [ ] 7. `useIndexRun` 轮询与停止条件。
-- [ ] 8. 建 `ontology-workbench.css` / `ontology-canvas.css` / `ontology-data.css`，在 `App.tsx` 按序 import。
-- [ ] 9. 跑 `tsc/lint/test/build`。
+- [x] 1. `shared/api/ontology.ts` + 类型检查。
+- [x] 2. 抽取 `ConversationTimeline`，改 `PipelineConversationPane`，跑现有前端测试确保无回归。
+- [x] 3. `OntologyWorkbenchView` 三栏布局 + 路由 + 首页入口。
+- [x] 4. `ResourceSidebar` 分组、选中、URL 同步。
+- [x] 5. 标签切换与三个占位组件。
+- [x] 6. `useOntologyConversation` 接 `useConversationAgent`，会话按资源创建/复用。
+- [x] 7. `useIndexRun` 轮询与停止条件。
+- [x] 8. 建 `ontology-workbench.css` / `ontology-canvas.css` / `ontology-data.css`，在 `App.tsx` 按序 import。
+- [x] 9. 跑 `tsc/lint/test/build`。
 
 ## 验收命令
 
