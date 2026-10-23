@@ -1,0 +1,26 @@
+/* ===== 对象映射画布占位：W3 在这里替换为 React Flow ===== */
+
+.ontology-canvas-placeholder {
+  border-style: solid;
+  border-color: var(--line);
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.08) 1px, transparent 0) 0 0 / 24px 24px,
+    linear-gradient(180deg, #232323, #1f1f1f);
+}
+
+.ontology-canvas-placeholder .ontology-tab-panel__icon {
+  box-shadow: 0 8px 22px rgba(59, 123, 255, 0.16);
+}
+
+.ontology-canvas-placeholder h2::after {
+  content: ' · 画布';
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .ontology-canvas-placeholder {
+    padding: 20px;
+  }
+}

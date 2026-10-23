@@ -17,6 +17,9 @@ import '../styles/data-pipeline-execution-preview.css'
 import '../styles/data-pipeline-execution-build.css'
 import '../styles/data-pipeline-execution-source.css'
 import '../styles/data-pipeline-execution-schedule.css'
+import '../styles/ontology-workbench.css'
+import '../styles/ontology-canvas.css'
+import '../styles/ontology-data.css'
 import { HomePage } from '../features/home/views/HomePage'
 import { queryClient } from '../shared/query/client'
 
@@ -38,6 +41,12 @@ const DataPipelineWorkbench = lazy(() =>
   })),
 )
 
+const OntologyWorkbenchView = lazy(() =>
+  import('../features/ontology-workbench/views/OntologyWorkbenchView').then((module) => ({
+    default: module.OntologyWorkbenchView,
+  })),
+)
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -51,6 +60,7 @@ export default function App() {
             <Route path="/data-connections/:connectionId" element={<DataConnectionWorkbench />} />
             <Route path="/pipelines" element={<DataPipelineWorkbench />} />
             <Route path="/pipelines/:pipelineId" element={<DataPipelineWorkbench />} />
+            <Route path="/ontology" element={<OntologyWorkbenchView />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>
         </Suspense>
