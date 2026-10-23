@@ -77,6 +77,93 @@ def test_conversations_are_deterministic_per_resource(client):
     assert uuid.UUID(first.json()["resource_id"]) == uuid.UUID(created["id"])
 
 
+def test_resource_definition_returns_full_object_properties(client, session_factory):
+    object_type = client.post("/api/v1/object-types", json={"name": "客户"}).json()
+    object_type_id = uuid.UUID(object_type["id"])
+    with session_factory() as session:
+        ontology.create_property(
+            session,
+            owner_type_id=object_type_id,
+            name="id",
+            datatype="text",
+            is_primary_key=True,
+        )
+        ontology.create_property(
+            session,
+            owner_type_id=object_type_id,
+            name="name",
+            datatype="text",
+            is_title_key=True,
+        )
+        session.commit()
+
+    response = client.get(f"{API}/resources/object_type/{object_type_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "object_type"
+    assert body["id"] == str(object_type_id)
+    assert {item["name"] for item in body["properties"]} == {"id", "name"}
+    assert next(item for item in body["properties"] if item["name"] == "id")["is_primary_key"]
+
+
+def test_resource_definition_returns_relation_endpoints(client, session_factory):
+    owner = uuid.UUID(get_settings().default_user_id)
+    with session_factory() as session:
+        customer = ontology.create_object_type(session, owner_id=owner, name="客户")
+        order = ontology.create_object_type(session, owner_id=owner, name="订单")
+        customer_id = ontology.create_property(
+            session,
+            owner_type_id=customer.id,
+            name="id",
+            datatype="text",
+            is_primary_key=True,
+        )
+        ontology.create_property(
+            session,
+            owner_type_id=order.id,
+            name="id",
+            datatype="text",
+            is_primary_key=True,
+        )
+        foreign_key = ontology.create_property(
+            session, owner_type_id=order.id, name="customer_id", datatype="text"
+        )
+        relation = ontology.create_relation(
+            session,
+            owner_id=owner,
+            source_type_id=order.id,
+            target_type_id=customer.id,
+            name="属于",
+            cardinality="one_to_many",
+            foreign_key_property_id=foreign_key.id,
+        )
+        session.commit()
+        relation_id = relation.id
+        customer_id_value = customer_id.id
+        order_id = order.id
+        customer_type_id = customer.id
+
+    response = client.get(f"{API}/resources/relation/{relation_id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "relation"
+    assert body["source"]["id"] == str(order_id)
+    assert body["target"]["id"] == str(customer_type_id)
+    assert [item["name"] for item in body["target"]["properties"]] == ["id"]
+    assert body["target"]["properties"][0]["id"] == str(customer_id_value)
+    assert body["foreign_key_property"]["name"] == "customer_id"
+
+
+def test_resource_definition_rejects_unknown_kind_and_missing_resource(client):
+    response = client.get(f"{API}/resources/unknown/{uuid.uuid4()}")
+    assert response.status_code == 400
+
+    response = client.get(f"{API}/resources/object_type/{uuid.uuid4()}")
+    assert response.status_code == 404
+
+
 def test_object_detail_merges_all_defined_properties_in_order(client, session_factory, fake_client):
     object_type = client.post("/api/v1/object-types", json={"name": "客户"}).json()
     object_type_id = uuid.UUID(object_type["id"])

@@ -26,7 +26,7 @@ def get_subject_definition(
     kind = require_subject(session, owner_id, subject_kind, subject_id)
     if kind == OBJECT_TYPE:
         obj = get_object_type(session, subject_id)
-        return {**object_brief(obj), "properties": properties(session, obj.id)}
+        return {**object_brief(obj), "kind": kind, "properties": properties(session, obj.id)}
     relation = get_relation(session, subject_id)
     source = get_object_type(session, relation.source_type_id)
     target = get_object_type(session, relation.target_type_id)
@@ -37,6 +37,7 @@ def get_subject_definition(
     )
     return {
         **relation_brief(relation, source_name=source.name, target_name=target.name),
+        "kind": kind,
         "source": {**object_brief(source), "properties": properties(session, source.id)},
         "target": {**object_brief(target), "properties": properties(session, target.id)},
         "foreign_key_property": property_brief(foreign_key) if foreign_key else None,
