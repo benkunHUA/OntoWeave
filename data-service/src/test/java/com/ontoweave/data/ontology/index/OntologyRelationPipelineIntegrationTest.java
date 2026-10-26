@@ -103,6 +103,27 @@ class OntologyRelationPipelineIntegrationTest extends OntologyIndexIntegrationTe
     }
 
     @Test
+    void firstManyToManyBuildSucceedsBeforeDatasetVersionIsActivated() {
+        M2MFixture fixture = m2mFixture(true);
+        jdbc.update("""
+                UPDATE data.ontology_relation_binding
+                SET active_dataset_version_id = NULL WHERE id = ?
+                """, fixture.bindingId());
+        when(snapshots.open(any(), anyLong())).thenReturn(read(pair("c1", "o1")));
+        OntologyIndexRunEntity run = insertRunningRelationRun(fixture);
+
+        RelationRunResult result = relationPipeline.execute(run, () -> { });
+        switcher.switchRelation(run, "worker-a", result);
+
+        assertThat(runs.findById(run.getId()).orElseThrow().getStatus())
+                .isEqualTo(RunStatus.SUCCEEDED);
+        assertThat(jdbc.queryForObject("""
+                SELECT current_index_version_id FROM data.ontology_relation_binding WHERE id = ?
+                """, UUID.class, fixture.bindingId()))
+                .isEqualTo(result.relation().relationVersionId());
+    }
+
+    @Test
     void buildsForeignKeyRelationsAgainstTheTargetVersionAndSkipsMissingTargets() {
         UUID ownerId = UUID.randomUUID();
         UUID sourceType = UUID.randomUUID();

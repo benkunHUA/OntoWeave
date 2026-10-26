@@ -207,16 +207,19 @@ public class IndexSwitcher {
                     || !endpointCurrent(run, relation.getToObjectTypeId(),
                     relation.getToObjectVersionId(), rebuiltObjectVersionId);
         }
-        UUID currentDatasetVersion = jdbc.query("""
+        List<UUID> activeDatasetVersions = jdbc.queryForList("""
                 SELECT active_dataset_version_id FROM data.ontology_relation_binding
                 WHERE relation_id = ? AND owner_id = ? AND status = 'ACTIVE'
-                """, (rs, rowNum) -> rs.getObject("active_dataset_version_id", UUID.class),
-                relation.getRelationId(), run.getOwnerId()).stream().findFirst().orElse(null);
+                """, UUID.class, relation.getRelationId(), run.getOwnerId());
+        UUID currentDatasetVersion = activeDatasetVersions.isEmpty()
+                ? null
+                : activeDatasetVersions.get(0);
         return !endpointCurrent(run, relation.getFromObjectTypeId(),
                 relation.getFromObjectVersionId(), rebuiltObjectVersionId)
                 || !endpointCurrent(run, relation.getToObjectTypeId(),
                 relation.getToObjectVersionId(), rebuiltObjectVersionId)
-                || !relation.getSourceDatasetVersionId().equals(currentDatasetVersion);
+                || (currentDatasetVersion != null
+                && !relation.getSourceDatasetVersionId().equals(currentDatasetVersion));
     }
 
     private boolean endpointCurrent(

@@ -12,6 +12,7 @@ import com.ontoweave.data.ontology.index.pipeline.ObjectIndexPipeline;
 import com.ontoweave.data.ontology.index.switching.IndexSwitcher;
 import com.ontoweave.data.ontology.index.worker.OntologyIndexExecutor;
 import com.ontoweave.data.ontology.repository.OntologyIndexRunRepository;
+import com.ontoweave.data.ontology.store.ObjectStoreWriter;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,6 +59,9 @@ class OntologyObjectPipelineIntegrationTest extends OntologyIndexIntegrationTest
 
     @Autowired
     private OntologyIndexRunRepository runs;
+
+    @Autowired
+    private ObjectStoreWriter store;
 
     private final Schema icebergSchema = new Schema(
             Types.NestedField.required(1, "customer_id", Types.StringType.get()),
@@ -98,6 +103,36 @@ class OntologyObjectPipelineIntegrationTest extends OntologyIndexIntegrationTest
                 SELECT count(*) FROM data.outbox_event
                 WHERE aggregate_id = ? AND event_type = 'ontology.index.run.succeeded'
                 """, Integer.class, run.getId())).isEqualTo(1);
+    }
+
+    @Test
+    void writesTimestampValuesIntoTimestampWithTimeZoneColumns() {
+        UUID runId = UUID.randomUUID();
+        UUID objectTypeId = UUID.randomUUID();
+        UUID attributeId = UUID.randomUUID();
+        Instant occurredAt = Instant.parse("2026-10-24T17:20:45Z");
+
+        store.write(runId, List.of(new ObjectStoreWriter.ObjectStageRow(
+                objectTypeId,
+                "ts-1",
+                null,
+                null,
+                occurredAt,
+                "Timestamp row",
+                null,
+                List.of(new ObjectStoreWriter.ObjectValueStageRow(
+                        attributeId, "ts-1", null, null, null, occurredAt, null))
+        )));
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM data.ontology_object_stage
+                WHERE run_id = ? AND primary_key_ts IS NOT NULL
+                """, Integer.class, runId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM data.ontology_object_value_stage
+                WHERE run_id = ? AND ts_value IS NOT NULL
+                """, Integer.class, runId)).isEqualTo(1);
+        store.deleteStage(runId);
     }
 
     @Test

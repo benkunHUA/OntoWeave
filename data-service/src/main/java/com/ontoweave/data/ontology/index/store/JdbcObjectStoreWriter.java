@@ -6,9 +6,11 @@ import com.ontoweave.data.ontology.store.StageValidation;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -176,7 +178,7 @@ public class JdbcObjectStoreWriter implements ObjectStoreWriter {
         );
     }
 
-    private Timestamp timestamp(java.time.Instant value) {
-        return value == null ? null : Timestamp.from(value);
+    private OffsetDateTime timestamp(Instant value) {
+        return value == null ? null : OffsetDateTime.ofInstant(value, ZoneOffset.UTC);
     }
 }
