@@ -165,6 +165,18 @@ Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过
 
 每个响应都带 `X-Request-ID`；请求里带了就透传，没带就生成一个，并出现在日志里。
 
+### 数据集向量检索
+
+- 对象和属性带可空 `name_en`。对象英文名在创建时生成，属性英文名在定稿时按对象批量补齐；
+  只补 `NULL`，之后改中文名不会回写，用户手工填写的英文名也不会被覆盖。
+- Java 发布 `dataset.version.published` / `pipeline.build.succeeded` 后，Python 消费事件，
+  取当前版本的名称与字段写入 `app.dataset_search_index`（pgvector）。向量只负责召回，
+  主键、必填字段与类型兼容仍由确定性规则复核。
+- 检索只查 `is_current = true AND status = 'ready'` 的当前版本。embedding 失败会落成
+  `failed`，不会阻塞数据集发布。
+- 历史数据用 `cd backend && .venv/bin/python scripts/backfill_dataset_search.py --owner-id <uuid>`
+  回填；不传 owner 时使用 `DEFAULT_USER_ID`。索引表可随时按 Java 当前版本重建。
+
 ### 改动集的语义
 
 - `create`：元素在草稿阶段就已入库（`status='draft'`），确认时翻成 `confirmed`，撤销时删除。

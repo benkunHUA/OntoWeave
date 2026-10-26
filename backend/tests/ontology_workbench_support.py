@@ -7,7 +7,7 @@ import uuid
 from app.agent.tools.ontology.workbench_binding import build_workbench_tools
 from app.agent.tools.ontology.workbench_context import OntologyWorkbenchToolContext
 from app.errors import NotFoundError
-from app.services import conversation, ontology
+from app.services import conversation, embedding, ontology
 from app.services.data_service.client import RevisionConflict
 from app.vocabulary import ConversationKind
 
@@ -160,6 +160,7 @@ def context(session, owner, obj, client, *, revision=4):
         subject_kind=ontology.OBJECT_TYPE,
         subject_id=obj.id,
         client=client,
+        embedder=embedding.HashingEmbedder(),
         state={"binding": None, "mapping": None},
         revision=revision,
     )

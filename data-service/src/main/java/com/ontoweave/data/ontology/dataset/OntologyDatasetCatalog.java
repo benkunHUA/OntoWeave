@@ -102,8 +102,17 @@ public class OntologyDatasetCatalog {
                 .orElseThrow(() -> new DatasetUnavailableException(kind, datasetId));
     }
 
+    /** 仅供内部发布事件建立搜索索引：索引需要按数据集 ID 读取，不携带用户上下文。 */
+    public DatasetRef resolveCurrent(DatasetKind kind, UUID datasetId) {
+        return resolve(kind, datasetId)
+                .orElseThrow(() -> new DatasetUnavailableException(kind, datasetId));
+    }
+
     public List<DatasetColumn> listColumns(DatasetKind kind, UUID datasetId, UUID ownerId) {
-        DatasetRef ref = requireCurrent(kind, datasetId, ownerId);
+        return listColumns(requireCurrent(kind, datasetId, ownerId));
+    }
+
+    public List<DatasetColumn> listColumns(DatasetRef ref) {
         return DatasetSchema.columns(ref.schemaJson());
     }
 

@@ -15,7 +15,8 @@ import pika
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
-from app.services import conversation_event
+from app.services import conversation_event, dataset_search, embedding
+from app.services.data_service.ontology_client import OntologyDataServiceClient
 from app.services.event_bus import ConversationEventBus
 
 logger = logging.getLogger(__name__)
@@ -27,10 +28,15 @@ class DataEventConsumer:
         settings: Settings,
         factory: sessionmaker[Session],
         bus: ConversationEventBus,
+        *,
+        index_client: OntologyDataServiceClient | None = None,
+        index_embedder: embedding.Embedder | None = None,
     ) -> None:
         self._settings = settings
         self._factory = factory
         self._bus = bus
+        self._index_client = index_client or OntologyDataServiceClient(settings)
+        self._index_embedder = index_embedder or embedding.build_embedder(settings)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="data-event-consumer", daemon=True)
 
@@ -104,4 +110,16 @@ class DataEventConsumer:
             channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
             self._stop.wait(1)
             return
+        try:
+            dataset_search.consume_published_event(
+                self._factory,
+                envelope,
+                client=self._index_client,
+                embedder=self._index_embedder,
+            )
+        except Exception:
+            # 索引是派生数据；失败只记录，不能让发布事件无限重投。
+            logger.exception(
+                "failed to update dataset search index for %s", envelope.get("eventId")
+            )
         channel.basic_ack(delivery_tag=method.delivery_tag)

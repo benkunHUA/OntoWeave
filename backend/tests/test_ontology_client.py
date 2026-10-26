@@ -133,6 +133,42 @@ def test_client_reads_columns_and_sends_json_filters():
     assert page["page_size"] == 20
 
 
+def test_client_reads_bindable_dataset_detail_for_indexing():
+    captured = {}
+    dataset_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["request"] = request
+        return httpx.Response(
+            200,
+            json={
+                "kind": "SYNC",
+                "id": str(dataset_id),
+                "name": "retail.orders",
+                "versionId": str(version_id),
+                "versionNumber": 3,
+                "rowCount": 42,
+                "ownerId": str(uuid.uuid4()),
+                "publishedAt": "2026-10-24T10:00:00Z",
+                "columns": [
+                    {"name": "order_id", "type": "string", "optional": False, "example": "o-1"}
+                ],
+            },
+        )
+
+    result = _client(handler).get_bindable_dataset(
+        dataset_kind="SYNC", dataset_id=dataset_id, version_id=version_id
+    )
+
+    request = captured["request"]
+    assert request.url.path.endswith(f"/bindable-datasets/SYNC/{dataset_id}")
+    assert request.url.params["versionId"] == str(version_id)
+    assert "ownerId" not in request.url.params
+    assert result["name"] == "retail.orders"
+    assert result["columns"][0]["name"] == "order_id"
+
+
 def test_any_409_is_a_revision_conflict_with_details():
     def handler(request: httpx.Request) -> httpx.Response:  # noqa: ARG001
         return httpx.Response(

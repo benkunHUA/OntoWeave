@@ -10,17 +10,25 @@ from langchain_core.tools import BaseTool, tool
 from app.agent.tools.ontology import workbench_constants
 from app.agent.tools.ontology.workbench_common import binding_mapping, parse_mapping
 from app.agent.tools.ontology.workbench_context import OntologyWorkbenchToolContext
-from app.services import ontology
+from app.services import dataset_search, ontology
 
 
 def build_read_tools(ctx: OntologyWorkbenchToolContext) -> list[BaseTool]:
-    @tool("list_bindable_datasets")
-    def list_bindable_datasets(keyword: str | None = None, limit: int = 20) -> dict:
-        """列出当前用户可绑定的、已发布且有当前版本的数据集。"""
+    @tool("find_bindable_datasets")
+    def find_bindable_datasets(limit: int = 10) -> dict:
+        """按当前对象/关系定义召回语义相近且字段结构可绑定的数据集候选。"""
+        blocked = ctx.check_subject(ctx.subject_kind, str(ctx.subject_id))
+        if blocked is not None:
+            return blocked
         size = max(1, min(limit, workbench_constants.DATASET_LIMIT_MAX))
         return ctx.invoke(
-            lambda: ctx.client.list_bindable_datasets(
-                owner_id=ctx.owner_id, keyword=keyword, page=1, size=size
+            lambda: dataset_search.find_bindable_datasets(
+                ctx.session,
+                owner_id=ctx.owner_id,
+                subject_kind=ctx.subject_kind,
+                subject_id=ctx.subject_id,
+                embedder=ctx.embedder,
+                limit=size,
             )
         )
 
@@ -215,7 +223,7 @@ def build_read_tools(ctx: OntologyWorkbenchToolContext) -> list[BaseTool]:
         return ctx.invoke(lambda: ctx.client.get_run(uuid.UUID(run_id), owner_id=ctx.owner_id))
 
     return [
-        list_bindable_datasets,
+        find_bindable_datasets,
         get_dataset_schema,
         get_subject_definition,
         get_mapping,

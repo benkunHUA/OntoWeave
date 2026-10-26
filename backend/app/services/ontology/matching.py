@@ -17,6 +17,20 @@ from app.services.ontology.common import (
 )
 from app.services.relation import get_relation
 
+TYPE_COMPATIBILITY: dict[str, set[str]] = {
+    "text": {"string", "uuid", "varchar", "char", "text"},
+    "integer": {"int", "integer", "long", "bigint", "smallint"},
+    "decimal": {"decimal", "numeric", "int", "integer", "long", "bigint"},
+    "boolean": {"boolean", "bool"},
+    "date": {"date"},
+    "timestamp": {"timestamp", "timestamptz", "datetime"},
+    "enum": {"string", "varchar", "char", "text"},
+}
+
+
+def compatible_column_types(datatype: str) -> set[str]:
+    return set(TYPE_COMPATIBILITY.get(str(datatype).lower(), set()))
+
 
 def suggest_object_mapping(
     session: Session,
@@ -217,18 +231,8 @@ def column_type(column: dict[str, Any] | None) -> str:
 
 
 def type_compatible(datatype: str, column: dict[str, Any] | None) -> bool:
-    expected = str(datatype).lower()
     actual = column_type(column)
-    allowed = {
-        "text": {"string", "uuid", "varchar", "char", "text"},
-        "integer": {"int", "integer", "long", "bigint", "smallint"},
-        "decimal": {"decimal", "numeric", "int", "integer", "long", "bigint"},
-        "boolean": {"boolean", "bool"},
-        "date": {"date"},
-        "timestamp": {"timestamp", "timestamptz", "datetime"},
-        "enum": {"string", "varchar", "char", "text"},
-    }
-    return actual in allowed.get(expected, set())
+    return actual in compatible_column_types(datatype)
 
 
 def name_similarity(left: str, right: str) -> float:

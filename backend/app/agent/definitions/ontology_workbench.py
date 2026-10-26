@@ -20,7 +20,7 @@ from app.agent.tools.ontology import (
 from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Conversation
-from app.services import ontology
+from app.services import embedding, ontology
 from app.services.data_service.ontology_client import OntologyDataServiceClient
 from app.vocabulary import ConversationKind
 
@@ -80,6 +80,7 @@ class OntologyWorkbenchAgentDefinition:
             subject_kind=workbench_run.subject_kind,
             subject_id=workbench_run.subject_id,
             client=client,
+            embedder=embedding.build_embedder(settings),
             state=state,
             revision=_revision(state),
             load_error=state.get("load_error"),

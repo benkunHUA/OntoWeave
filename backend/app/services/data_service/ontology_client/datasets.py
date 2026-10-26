@@ -30,5 +30,22 @@ class DatasetClientMixin:
         path = f"/bindable-datasets/{dataset_kind}/{dataset_id}/columns"
         return self._ontology_list(path, params={"ownerId": str(owner_id)})
 
+    def get_bindable_dataset(
+        self,
+        *,
+        dataset_kind: str,
+        dataset_id: uuid.UUID,
+        version_id: uuid.UUID,
+        owner_id: uuid.UUID | None = None,
+    ) -> dict:
+        params: dict[str, Any] = {"versionId": str(version_id)}
+        if owner_id is not None:
+            params["ownerId"] = str(owner_id)
+        return self._ontology_request(
+            "GET",
+            f"/bindable-datasets/{dataset_kind}/{dataset_id}",
+            params=params,
+        )
+
 
 __all__ = ["DatasetClientMixin"]

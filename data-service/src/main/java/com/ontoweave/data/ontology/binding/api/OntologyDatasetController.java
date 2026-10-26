@@ -1,6 +1,7 @@
 package com.ontoweave.data.ontology.binding.api;
 
 import com.ontoweave.data.ontology.binding.api.dto.BindableDatasetPageResponse;
+import com.ontoweave.data.ontology.binding.api.dto.BindableDatasetDetailResponse;
 import com.ontoweave.data.ontology.binding.api.dto.DatasetColumnResponse;
 import com.ontoweave.data.ontology.binding.service.OntologyDatasetService;
 import com.ontoweave.data.ontology.common.DatasetKind;
@@ -38,5 +39,15 @@ public class OntologyDatasetController {
             @RequestParam UUID ownerId
     ) {
         return datasets.columns(kind, datasetId, ownerId);
+    }
+
+    @GetMapping("/internal/v1/ontology/bindable-datasets/{kind}/{datasetId}")
+    public BindableDatasetDetailResponse detail(
+            @PathVariable DatasetKind kind,
+            @PathVariable UUID datasetId,
+            @RequestParam(required = false) UUID ownerId,
+            @RequestParam(required = false) UUID versionId
+    ) {
+        return datasets.detail(kind, datasetId, ownerId, versionId);
     }
 }

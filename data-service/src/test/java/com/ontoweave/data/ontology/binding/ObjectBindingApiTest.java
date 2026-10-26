@@ -132,6 +132,26 @@ class ObjectBindingApiTest extends BindingIntegrationTestSupport {
     }
 
     @Test
+    void exposesCurrentDatasetDetailForSearchIndexing() throws Exception {
+        UUID ownerId = UUID.randomUUID();
+        UUID datasetId = insertSyncDataset(ownerId, "searchable", 4);
+        UUID versionId = currentVersion("data.dataset", datasetId);
+
+        mvc.perform(get("/internal/v1/ontology/bindable-datasets/{kind}/{datasetId}",
+                                DatasetKind.SYNC, datasetId)
+                        .header("X-Internal-Token", TOKEN)
+                        .param("versionId", versionId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.kind").value("SYNC"))
+                .andExpect(jsonPath("$.id").value(datasetId.toString()))
+                .andExpect(jsonPath("$.name").value("searchable"))
+                .andExpect(jsonPath("$.versionId").value(versionId.toString()))
+                .andExpect(jsonPath("$.versionNumber").value(4))
+                .andExpect(jsonPath("$.ownerId").value(ownerId.toString()))
+                .andExpect(jsonPath("$.columns[0].name").value("id"));
+    }
+
+    @Test
     void createsBindingWithRevisionOneAndValidatedMapping() throws Exception {
         UUID ownerId = UUID.randomUUID();
         UUID objectTypeId = UUID.randomUUID();

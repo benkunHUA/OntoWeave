@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import replace
 
-from app.services import ontology
+from app.services import dataset_search, ontology
 from tests.ontology_workbench_support import (
     FakeWorkbenchClient,
     context,
@@ -21,7 +21,7 @@ def test_tool_names_and_order_are_frozen(session):
     available = tools(context(session, owner, obj, FakeWorkbenchClient()), confirm=False)
 
     assert list(available) == [
-        "list_bindable_datasets",
+        "find_bindable_datasets",
         "get_dataset_schema",
         "get_subject_definition",
         "get_mapping",
@@ -64,3 +64,46 @@ def test_relation_validate_mapping_uses_preview_validation(session):
     )
 
     assert result == {"blocking": [], "warnings": [], "valid": True}
+
+
+def test_find_bindable_datasets_uses_semantic_index(session):
+    owner = uuid.uuid4()
+    obj, _ = object_with_properties(session, owner)
+    base = context(session, owner, obj, FakeWorkbenchClient())
+    dataset_id = uuid.uuid4()
+    version_id = uuid.uuid4()
+    detail = {
+        "kind": "SYNC",
+        "id": str(dataset_id),
+        "name": "crm.customers",
+        "version_id": str(version_id),
+        "version_number": 1,
+        "row_count": 10,
+        "owner_id": str(owner),
+        "published_at": "2026-10-24T10:00:00Z",
+        "columns": [
+            {"name": "id", "type": "string", "optional": False},
+            {"name": "name", "type": "string", "optional": True},
+        ],
+    }
+
+    class DatasetClient:
+        def get_bindable_dataset(self, *, dataset_kind, dataset_id, version_id, owner_id=None):
+            del dataset_kind, dataset_id, version_id, owner_id
+            return detail
+
+    dataset_search.index_dataset_version(
+        session,
+        client=DatasetClient(),
+        embedder=base.embedder,
+        dataset_kind="SYNC",
+        dataset_id=dataset_id,
+        version_id=version_id,
+    )
+    available = tools(base, confirm=False)
+
+    result = available["find_bindable_datasets"].invoke({"limit": 5})
+
+    assert result["items"][0]["name"] == "crm.customers"
+    assert result["items"][0]["status"] == "READY"
+    assert result["items"][0]["primary_key_column"] == "id"

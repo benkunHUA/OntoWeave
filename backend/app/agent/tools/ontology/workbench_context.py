@@ -14,6 +14,7 @@ from app.errors import (
     NotFoundError,
     UnprocessableEntityError,
 )
+from app.services import embedding
 from app.services.data_service.client import RevisionConflict
 from app.services.data_service.ontology_client import OntologyDataServiceClient
 
@@ -24,6 +25,7 @@ class OntologyWorkbenchToolContext(ToolContext):
     subject_kind: str
     subject_id: uuid.UUID
     client: OntologyDataServiceClient
+    embedder: embedding.Embedder
     state: dict[str, Any]
     revision: int | None = None
     load_error: str | None = None
