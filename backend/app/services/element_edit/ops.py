@@ -78,6 +78,7 @@ class ObjectTypeCreate:
     """新建一个草稿对象类型。"""
 
     name: str
+    name_en: str | None = None
     description: str | None = None
 
 
@@ -94,6 +95,7 @@ class PropertyCreate:
 
     owner_type_id: uuid.UUID
     name: str
+    name_en: str | None = None
     datatype: str = DEFAULT_DATATYPE
     required: bool = False
     is_array: bool = False

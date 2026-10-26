@@ -32,6 +32,7 @@ export interface PropertyCreateEdit {
   op: 'create_property'
   owner_type_id: string
   name: string
+  name_en?: string | null
   datatype: string
   is_array: boolean
   is_primary_key: boolean
@@ -125,6 +126,7 @@ export interface ActionCriteriaSetEdit {
 export interface ObjectTypeCreateEdit {
   op: 'create_object_type'
   name: string
+  name_en?: string | null
   description?: string | null
 }
 

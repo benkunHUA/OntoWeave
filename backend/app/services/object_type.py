@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import NotFoundError
 from app.models import ObjectType
-from app.services import status
+from app.services import english_names, status
 
 
 def create_object_type(
@@ -17,18 +17,22 @@ def create_object_type(
     *,
     owner_id: uuid.UUID,
     name: str,
+    name_en: str | None = None,
     description: str | None = None,
     home_graph_id: uuid.UUID | None = None,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> ObjectType:
     obj = ObjectType(
         owner_id=owner_id,
         name=name,
+        name_en=name_en,
         description=description,
         status=status.DRAFT,
         home_graph_id=home_graph_id,
     )
     session.add(obj)
     session.flush()
+    english_names.fill_object_english_names(session, object_type=obj, generator=name_generator)
     return obj
 
 

@@ -27,6 +27,8 @@ export interface PropertyDraft {
   /** 后端 id；null 表示这次新增、还没保存。 */
   id: string | null
   name: string
+  /** 英文标识；为空表示还没生成或用户主动清空。 */
+  nameEn: string
   datatype: string
   /** 多值属性（数组）。 */
   isArray: boolean
@@ -39,6 +41,7 @@ export interface PropertyDraft {
 
 export interface NodeDraft {
   name: string
+  nameEn: string
   description: string
   properties: PropertyDraft[]
   /** 被删掉的已有字段 id，保存时转成 delete 操作。 */
@@ -50,6 +53,7 @@ export function newPropertyDraft(): PropertyDraft {
     key: crypto.randomUUID(),
     id: null,
     name: '',
+    nameEn: '',
     datatype: DEFAULT_DATATYPE,
     isArray: false,
     isPrimaryKey: false,
@@ -64,6 +68,7 @@ export function draftFromNode(
 ): NodeDraft {
   return {
     name: node.name,
+    nameEn: node.name_en ?? '',
     description: node.description ?? '',
     properties: node.properties
       .filter((property) => !pendingDeleteIds?.has(property.id))
@@ -71,6 +76,7 @@ export function draftFromNode(
         key: property.id,
         id: property.id,
         name: property.name,
+        nameEn: property.name_en ?? '',
         datatype: property.datatype,
         isArray: property.is_array,
         isPrimaryKey: property.is_primary_key,
@@ -86,6 +92,11 @@ function normalizeDescription(value: string): string | null {
   return trimmed ? trimmed : null
 }
 
+function normalizeNameEn(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
 /**
  * 把抽屉草稿和原节点比对，产出后端要记的编辑操作。
  * 只带真正变了的字段：改动的走 update，新增走 create_property，删掉的走 delete。
@@ -96,6 +107,8 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
   const objectPatch: Record<string, string | null> = {}
   const name = draft.name.trim()
   if (name !== node.name) objectPatch.name = name
+  const nameEn = normalizeNameEn(draft.nameEn)
+  if (nameEn !== (node.name_en ?? null)) objectPatch.name_en = nameEn
   const description = normalizeDescription(draft.description)
   if (description !== (node.description ?? null)) objectPatch.description = description
   if (Object.keys(objectPatch).length) {
@@ -107,10 +120,12 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
     const propertyName = property.name.trim()
     if (property.id === null) {
       const enumValues = enumValuesFor(property.datatype, property.enumValues)
+      const nameEn = normalizeNameEn(property.nameEn)
       edits.push({
         op: 'create_property',
         owner_type_id: node.id,
         name: propertyName,
+        ...(nameEn ? { name_en: nameEn } : {}),
         datatype: property.datatype,
         is_array: property.isArray,
         is_primary_key: property.isPrimaryKey,
@@ -124,6 +139,8 @@ export function buildElementEdits(node: GraphNode, draft: NodeDraft): GraphEditO
     if (!original) continue
     const patch: Record<string, EditPatchValue> = {}
     if (propertyName !== original.name) patch.name = propertyName
+    const nameEn = normalizeNameEn(property.nameEn)
+    if (nameEn !== (original.name_en ?? null)) patch.name_en = nameEn
     if (property.datatype !== original.datatype) patch.datatype = property.datatype
     if (property.isArray !== original.is_array) patch.is_array = property.isArray
     if (property.isPrimaryKey !== original.is_primary_key) {

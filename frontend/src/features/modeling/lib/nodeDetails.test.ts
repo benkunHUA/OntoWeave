@@ -48,6 +48,20 @@ describe('buildElementEdits', () => {
     ])
   })
 
+  it('sends a changed object english name', () => {
+    const source = node({ name_en: 'customer' })
+    const draft = { ...draftFromNode(source), nameEn: 'client' }
+
+    expect(buildElementEdits(source, draft)).toEqual([
+      {
+        op: 'update',
+        element_kind: 'object_type',
+        element_id: 'obj1',
+        patch: { name_en: 'client' },
+      },
+    ])
+  })
+
   it('normalises an emptied description to null', () => {
     const source = node()
     const draft = { ...draftFromNode(source), description: '   ' }
@@ -88,6 +102,47 @@ describe('buildElementEdits', () => {
         owner_type_id: 'obj1',
         name: '等级',
         datatype: 'integer',
+        is_array: false,
+        is_primary_key: false,
+        is_title_key: false,
+      },
+    ])
+  })
+
+  it('carries english names on property creates and updates', () => {
+    const source = node({
+      properties: [
+        {
+          id: 'p1',
+          name: '客户名',
+          name_en: 'customer_name',
+          datatype: 'text',
+          required: true,
+          is_array: false,
+          is_primary_key: false,
+          is_title_key: false,
+          enum_values: null,
+          status: 'confirmed',
+        },
+      ],
+    })
+    const draft = draftFromNode(source)
+    draft.properties[0] = { ...draft.properties[0], nameEn: 'customer_full_name' }
+    draft.properties.push({ ...newPropertyDraft(), name: '等级', nameEn: 'level' })
+
+    expect(buildElementEdits(source, draft)).toEqual([
+      {
+        op: 'update',
+        element_kind: 'property',
+        element_id: 'p1',
+        patch: { name_en: 'customer_full_name' },
+      },
+      {
+        op: 'create_property',
+        owner_type_id: 'obj1',
+        name: '等级',
+        name_en: 'level',
+        datatype: 'text',
         is_array: false,
         is_primary_key: false,
         is_title_key: false,

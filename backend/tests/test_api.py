@@ -71,12 +71,14 @@ def test_graph_relation_endpoint_invariant_returns_409(client, session_factory):
 
 def test_object_type_response_has_no_internal_fields(client):
     body = client.post(f"{API}/object-types", json={"name": "产品"}).json()
-    assert set(body) == {"id", "name", "description", "status"}
+    assert set(body) == {"id", "name", "name_en", "description", "status"}
 
 
 def test_graph_snapshot_endpoint_returns_canvas_data(client):
     graph_id = client.post(f"{API}/conversations", json={"title": "快照"}).json()["resource_id"]
-    customer = client.post(f"{API}/object-types", json={"name": "客户"}).json()
+    customer = client.post(
+        f"{API}/object-types", json={"name": "客户", "name_en": "customer"}
+    ).json()
     client.post(
         f"{API}/graphs/{graph_id}/objects",
         json={"object_type_id": customer["id"]},
@@ -88,6 +90,7 @@ def test_graph_snapshot_endpoint_returns_canvas_data(client):
     body = snapshot.json()
     assert body["graph"]["name"] == "快照"
     assert [node["name"] for node in body["nodes"]] == ["客户"]
+    assert body["nodes"][0]["name_en"] == "customer"
     assert body["nodes"][0]["properties"] == []
     assert body["relations"] == []
 

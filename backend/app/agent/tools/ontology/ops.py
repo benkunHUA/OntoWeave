@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.tools.graph_read import load_membership, object_type_brief, render_slice
 from app.errors import NotFoundError
-from app.services import element_edit, embedding
+from app.services import element_edit, embedding, english_names
 from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE
 
 
@@ -47,6 +47,7 @@ def propose_type(
     owner_id: uuid.UUID,
     name: str,
     description: str | None = None,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> dict:
     """新建草稿对象类型。要不要复用已有类型，由调用方先 search_ontology 再决定。"""
     obj = element_edit.create_object_type(
@@ -55,6 +56,7 @@ def propose_type(
         owner_id=owner_id,
         name=name,
         description=description,
+        name_generator=name_generator,
     )
     return object_type_brief(obj)
 

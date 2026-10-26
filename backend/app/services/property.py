@@ -19,6 +19,7 @@ def create_property(
     *,
     owner_type_id: uuid.UUID,
     name: str,
+    name_en: str | None = None,
     datatype: str = DEFAULT_DATATYPE,
     required: bool = False,
     is_array: bool = False,
@@ -38,6 +39,7 @@ def create_property(
     prop = Property(
         owner_type_id=owner_type_id,
         name=name,
+        name_en=name_en,
         datatype=datatype,
         required=required,
         is_array=is_array,

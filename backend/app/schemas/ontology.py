@@ -11,6 +11,7 @@ from app.vocabulary import PropertyDatatype
 
 class ObjectTypeCreate(BaseModel):
     name: str
+    name_en: str | None = None
     description: str | None = None
 
 
@@ -19,6 +20,7 @@ class ObjectTypeRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     description: str | None
     status: str
 
@@ -433,6 +435,7 @@ class OntologyResourceRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     status: str
     kind: str
     binding: dict[str, Any] | None = None
@@ -459,6 +462,7 @@ class OntologyPropertyRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     datatype: PropertyDatatype
     required: bool
     is_array: bool
@@ -473,6 +477,7 @@ class OntologyTypeDefinitionRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     description: str | None = None
     status: str
     properties: list[OntologyPropertyRead] = Field(default_factory=list)
@@ -485,6 +490,7 @@ class OntologyResourceDefinitionRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     kind: str
     status: str
     description: str | None = None

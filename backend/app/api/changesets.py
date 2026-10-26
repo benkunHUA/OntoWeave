@@ -27,7 +27,7 @@ from app.schemas.changeset import (
     SetActionCriteriaEdit,
     UpdateEdit,
 )
-from app.services import changeset, changeset_review, element_edit, embedding
+from app.services import changeset, changeset_review, element_edit, embedding, english_names
 
 router = APIRouter(tags=["changesets"])
 
@@ -85,6 +85,7 @@ def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
                 element_edit.PropertyCreate(
                     owner_type_id=edit.owner_type_id,
                     name=edit.name,
+                    name_en=edit.name_en,
                     datatype=edit.datatype,
                     required=edit.required,
                     is_array=edit.is_array,
@@ -94,7 +95,13 @@ def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
                 )
             )
         elif isinstance(edit, CreateObjectTypeEdit):
-            ops.append(element_edit.ObjectTypeCreate(name=edit.name, description=edit.description))
+            ops.append(
+                element_edit.ObjectTypeCreate(
+                    name=edit.name,
+                    name_en=edit.name_en,
+                    description=edit.description,
+                )
+            )
         elif isinstance(edit, ReuseObjectTypeEdit):
             ops.append(element_edit.ObjectTypeReuse(object_type_id=edit.object_type_id))
         elif isinstance(edit, CreateRelationEdit):
@@ -186,6 +193,7 @@ def edit_graph_elements(
         ops=_edit_ops(payload),
         owner_id=get_current_user_id(),
         embedder=_request_embedder(),
+        name_generator=_request_name_generator(),
     )
     return _detail(session, cs)
 
@@ -236,6 +244,10 @@ def _request_embedder() -> embedding.Embedder:
     return embedding.build_embedder(get_settings())
 
 
+def _request_name_generator() -> english_names.EnglishNameGenerator | None:
+    return english_names.build_english_name_generator(get_settings())
+
+
 @router.post("/changesets/{changeset_id}/confirm", response_model=ChangesetRead)
 def confirm_changeset(
     changeset_id: uuid.UUID, request: Request, session: Session = Depends(get_session)
@@ -248,6 +260,7 @@ def confirm_changeset(
             owner_id=get_current_user_id(),
             notify=_thread_notifier(request),
             embedder=_request_embedder(),
+            name_generator=_request_name_generator(),
         )
     )
 

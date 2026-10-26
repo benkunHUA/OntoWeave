@@ -40,6 +40,7 @@ def list_resources(
         {
             "id": obj.id,
             "name": obj.name,
+            "name_en": obj.name_en,
             "status": obj.status,
             "kind": OBJECT_TYPE,
             "binding": safe_binding(

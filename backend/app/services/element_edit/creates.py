@@ -24,7 +24,7 @@ from app.models import (
     Property,
     Relation,
 )
-from app.services import action, action_rules, changeset, graph, ontology, status
+from app.services import action, action_rules, changeset, english_names, graph, ontology, status
 from app.services.element_edit.ops import (
     ACTION_PARAMETER,
     ACTION_RULE,
@@ -43,12 +43,20 @@ def create_object_type(
     changeset_id: uuid.UUID,
     owner_id: uuid.UUID,
     name: str,
+    name_en: str | None = None,
     description: str | None = None,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> ObjectType:
     """新建草稿对象类型，并把它挂进当前图。"""
     cs = changeset.get_changeset(session, changeset_id, owner_id=owner_id)
     obj = ontology.create_object_type(
-        session, owner_id=owner_id, name=name, description=description, home_graph_id=cs.graph_id
+        session,
+        owner_id=owner_id,
+        name=name,
+        name_en=name_en,
+        description=description,
+        home_graph_id=cs.graph_id,
+        name_generator=name_generator,
     )
     graph.add_object_to_graph(session, cs.graph_id, obj.id, owner_id=owner_id)
     changeset.record_op(
@@ -137,6 +145,7 @@ def create_property(
     owner_id: uuid.UUID | None,
     owner_type_id: uuid.UUID,
     name: str,
+    name_en: str | None = None,
     datatype: str = DEFAULT_DATATYPE,
     required: bool = False,
     is_array: bool = False,
@@ -151,6 +160,7 @@ def create_property(
         session,
         owner_type_id=owner_type_id,
         name=name,
+        name_en=name_en,
         datatype=datatype,
         required=required,
         is_array=is_array,

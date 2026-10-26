@@ -55,6 +55,7 @@ def object_brief(obj: ObjectType) -> dict[str, Any]:
     return {
         "id": obj.id,
         "name": obj.name,
+        "name_en": obj.name_en,
         "description": obj.description,
         "status": obj.status,
     }
@@ -73,6 +74,7 @@ def property_brief(prop: Property) -> dict[str, Any]:
     return {
         "id": prop.id,
         "name": prop.name,
+        "name_en": prop.name_en,
         "datatype": prop.datatype,
         "required": prop.required,
         "is_array": prop.is_array,

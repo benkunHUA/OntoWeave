@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from app.agent.tools.context import ToolContext
-from app.services import embedding
+from app.services import embedding, english_names
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -16,3 +16,4 @@ class OntologyToolContext(ToolContext):
     graph_id: uuid.UUID
     changeset_id: uuid.UUID
     embedder: embedding.Embedder
+    name_generator: english_names.EnglishNameGenerator | None = None

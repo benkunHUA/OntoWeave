@@ -45,12 +45,20 @@ export function PropertyFieldRow({
   return (
     <div className="field-row">
       <div className="field-row__main">
-        <TextField
-          value={property.name}
-          aria-label="字段名"
-          placeholder="字段名"
-          onChange={(event) => onChange(property.key, { name: event.target.value })}
-        />
+        <div className="field-row__names">
+          <TextField
+            value={property.name}
+            aria-label="字段名"
+            placeholder="字段名"
+            onChange={(event) => onChange(property.key, { name: event.target.value })}
+          />
+          <TextField
+            value={property.nameEn}
+            aria-label="字段英文名"
+            placeholder="英文名"
+            onChange={(event) => onChange(property.key, { nameEn: event.target.value })}
+          />
+        </div>
         <SelectField
           value={property.datatype}
           aria-label="字段类型"

@@ -70,6 +70,7 @@ class CreatePropertyEdit(BaseModel):
     op: Literal["create_property"] = "create_property"
     owner_type_id: uuid.UUID
     name: str
+    name_en: str | None = None
     datatype: str = DEFAULT_DATATYPE
     required: bool = False
     is_array: bool = False
@@ -83,6 +84,7 @@ class CreateObjectTypeEdit(BaseModel):
 
     op: Literal["create_object_type"] = "create_object_type"
     name: str
+    name_en: str | None = None
     description: str | None = None
 
 

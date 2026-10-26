@@ -24,7 +24,7 @@ from app.agent.tools.action.subagent import ACTION_AGENT_NAME
 from app.config import Settings
 from app.errors import InvariantViolationError
 from app.models import Conversation
-from app.services import changeset, embedding, view_state
+from app.services import changeset, embedding, english_names, view_state
 from app.vocabulary import ConversationKind
 
 # 破坏性操作要人批。日常草稿不在这里拦——它们走改动集整体确认（REST 那套）。
@@ -96,6 +96,7 @@ class OntologyAgentDefinition:
             graph_id=ontology_run.graph_id,
             changeset_id=ontology_run.changeset_id,
             embedder=embedding.build_embedder(settings),
+            name_generator=english_names.build_english_name_generator(settings),
         )
         return agent_graph.build_agent(
             llm.build_chat_model(settings),

@@ -4,6 +4,7 @@ import type { Status } from './common'
 export interface GraphProperty {
   id: string
   name: string
+  name_en?: string | null
   datatype: string
   required: boolean
   is_array: boolean
@@ -17,6 +18,7 @@ export interface GraphProperty {
 export interface GraphNode {
   id: string
   name: string
+  name_en?: string | null
   description: string | null
   status: Status
   properties: GraphProperty[]

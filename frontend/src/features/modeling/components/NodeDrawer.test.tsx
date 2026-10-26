@@ -8,12 +8,14 @@ import { NodeDrawer } from './NodeDrawer'
 const node: GraphNode = {
   id: 'object-1',
   name: '客户',
+  name_en: 'customer',
   description: '购买商品的人',
   status: 'confirmed',
   properties: [
     {
       id: 'property-1',
       name: '客户名',
+      name_en: 'customer_name',
       datatype: 'text',
       required: true,
       is_array: false,
@@ -46,7 +48,9 @@ describe('NodeDrawer', () => {
     renderDrawer()
 
     expect(screen.getByLabelText('名称')).toBeTruthy()
+    expect(screen.getByLabelText('英文名')).toBeTruthy()
     expect(screen.getByLabelText('描述')).toBeTruthy()
+    expect(screen.getByDisplayValue('customer_name')).toBeTruthy()
     expect(screen.getByDisplayValue('客户名')).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: '新增字段' }))
@@ -58,10 +62,11 @@ describe('NodeDrawer', () => {
     const onSubmit = renderDrawer()
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: '终端客户' } })
+    fireEvent.change(screen.getByLabelText('英文名'), { target: { value: 'client' } })
     fireEvent.click(screen.getByRole('button', { name: '保存并确认' }))
 
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ name: '终端客户' }),
+      expect.objectContaining({ name: '终端客户', nameEn: 'client' }),
       { confirm: true },
     )
   })

@@ -29,7 +29,7 @@ from app.models import (
     Relation,
 )
 from app.services import changeset as changeset_service
-from app.services import conversation, element_kinds, embedding
+from app.services import conversation, element_kinds, embedding, english_names
 
 logger = logging.getLogger(__name__)
 
@@ -183,9 +183,11 @@ def confirm(
     owner_id: uuid.UUID | None = None,
     notify: ThreadNotifier | None = None,
     embedder: embedding.Embedder | None = None,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> Changeset:
     _, detail = _inspect(session, changeset_id, owner_id=owner_id)
     cs = changeset_service.confirm_changeset(session, changeset_id, owner_id=owner_id)
+    _refresh_english_names(session, changeset_id, name_generator)
     _refresh_embeddings(session, changeset_id, embedder)
     _record(session, cs, CONFIRM, detail=detail, owner_id=owner_id, notify=notify)
     return cs
@@ -234,6 +236,29 @@ def _refresh_embeddings(
             embedding.try_refresh_action_type_embedding(
                 session, action_type_id=op.target_id, embedder=embedder
             )
+
+
+def _refresh_english_names(
+    session: Session,
+    changeset_id: uuid.UUID,
+    generator: english_names.EnglishNameGenerator | None,
+) -> None:
+    """只补本次涉及对象里仍为空的英文名；已有值不回写，也不看中文名是否改过。"""
+    object_type_ids: set[uuid.UUID] = set()
+    for op in changeset_service.list_ops(session, changeset_id):
+        if op.target_id is None:
+            continue
+        kind = op.payload.get("kind")
+        if kind == element_kinds.OBJECT_TYPE:
+            object_type_ids.add(op.target_id)
+        elif kind == element_kinds.PROPERTY:
+            prop = session.get(Property, op.target_id)
+            if prop is not None:
+                object_type_ids.add(prop.owner_type_id)
+    for object_type_id in object_type_ids:
+        obj = session.get(ObjectType, object_type_id)
+        if obj is not None:
+            english_names.fill_object_english_names(session, object_type=obj, generator=generator)
 
 
 def _inspect(

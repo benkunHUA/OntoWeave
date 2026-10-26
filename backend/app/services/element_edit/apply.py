@@ -19,7 +19,13 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError
 from app.models import Changeset, ChangesetOp
-from app.services import action_references, changeset, element_kinds, embedding
+from app.services import (
+    action_references,
+    changeset,
+    element_kinds,
+    embedding,
+    english_names,
+)
 from app.services.element_edit import creates
 from app.services.element_edit.criteria import replace_action_criteria
 from app.services.element_edit.ops import (
@@ -74,6 +80,7 @@ def apply_edits(
     ops: list[EditOp],
     owner_id: uuid.UUID | None = None,
     embedder: embedding.Embedder | None = None,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> Changeset:
     """把一批编辑登记进图上未定稿的改动集，返回那个改动集。
 
@@ -107,7 +114,13 @@ def apply_edits(
                 element_id=op.element_id,
             )
         else:
-            _apply_write_op(session, op, changeset_id=cs.id, owner_id=owner_id)
+            _apply_write_op(
+                session,
+                op,
+                changeset_id=cs.id,
+                owner_id=owner_id,
+                name_generator=name_generator,
+            )
     return cs
 
 
@@ -117,11 +130,15 @@ def _apply_write_op(
     *,
     changeset_id: uuid.UUID,
     owner_id: uuid.UUID,
+    name_generator: english_names.EnglishNameGenerator | None = None,
 ) -> None:
     handler = _WRITE_HANDLERS.get(type(op))
     if handler is None:
         raise InvariantViolationError(f"unsupported edit op: {op!r}")
-    handler(session, changeset_id=changeset_id, owner_id=owner_id, **dataclasses.asdict(op))
+    kwargs = dataclasses.asdict(op)
+    if isinstance(op, ObjectTypeCreate):
+        kwargs["name_generator"] = name_generator
+    handler(session, changeset_id=changeset_id, owner_id=owner_id, **kwargs)
 
 
 def record_update(

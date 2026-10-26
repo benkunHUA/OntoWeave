@@ -34,6 +34,7 @@ def get_graph_snapshot(
             GraphNodeRead(
                 id=node.id,
                 name=node.name,
+                name_en=node.name_en,
                 description=node.description,
                 status=node.status,
                 properties=[

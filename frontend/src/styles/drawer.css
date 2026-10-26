@@ -147,6 +147,13 @@
   align-items: center;
   gap: 8px;
 }
+.field-row__names {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .field-row__flags {
   display: flex;
   gap: 6px;

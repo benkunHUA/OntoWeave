@@ -97,6 +97,13 @@ export function NodeDrawer({
         onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
       />
 
+      <TextField
+        label="英文名"
+        value={draft.nameEn}
+        placeholder="例如 customer"
+        onChange={(event) => setDraft((current) => ({ ...current, nameEn: event.target.value }))}
+      />
+
       <TextAreaField
         label="描述"
         value={draft.description}

@@ -42,6 +42,7 @@ def build_model_tools(ctx: OntologyToolContext) -> list[BaseTool]:
                 owner_id=ctx.owner_id,
                 name=name,
                 description=description,
+                name_generator=ctx.name_generator,
             ),
         )
 

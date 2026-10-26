@@ -221,7 +221,7 @@ class ElementKind:
 REGISTRY: dict[str, ElementKind] = {
     OBJECT_TYPE: ElementKind(
         model=ObjectType,
-        restorable_fields=frozenset({"name", "description"}),
+        restorable_fields=frozenset({"name", "name_en", "description"}),
         delete_phase=4,
         load_owner_id=_owner_id_attribute,
         promote=_promote_object_type,
@@ -231,6 +231,7 @@ REGISTRY: dict[str, ElementKind] = {
         restorable_fields=frozenset(
             {
                 "name",
+                "name_en",
                 "datatype",
                 "required",
                 "is_array",

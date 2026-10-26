@@ -14,6 +14,7 @@ export type OntologyResourceKind = 'object_type' | 'relation'
 export interface OntologyProperty {
   id: string
   name: string
+  name_en?: string | null
   datatype: PropertyDatatype
   required: boolean
   is_array: boolean
@@ -26,6 +27,7 @@ export interface OntologyProperty {
 export interface OntologyTypeDefinition {
   id: string
   name: string
+  name_en?: string | null
   description: string | null
   status: Status
   properties: OntologyProperty[]
@@ -34,6 +36,7 @@ export interface OntologyTypeDefinition {
 export interface OntologyResourceDefinition {
   id: string
   name: string
+  name_en?: string | null
   kind: OntologyResourceKind
   status: Status
   description: string | null

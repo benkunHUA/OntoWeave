@@ -29,6 +29,7 @@ class GraphPropertyRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     datatype: str
     required: bool
     is_array: bool
@@ -43,6 +44,7 @@ class GraphNodeRead(BaseModel):
 
     id: uuid.UUID
     name: str
+    name_en: str | None = None
     description: str | None
     status: str
     properties: list[GraphPropertyRead]
