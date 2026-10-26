@@ -32,6 +32,14 @@ public final class BindingErrors {
         );
     }
 
+    public static ApiException runNotFound() {
+        return new ApiException(
+                HttpStatus.NOT_FOUND,
+                "ONTOLOGY_RUN_NOT_FOUND",
+                "运行记录不存在或不属于当前用户"
+        );
+    }
+
     public static ApiException bindingConflict(DatasetKind kind, UUID datasetId) {
         return new ApiException(
                 HttpStatus.CONFLICT,

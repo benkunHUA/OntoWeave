@@ -21,7 +21,7 @@ from app.services.ontology.relation_sync import sync_subject_relations_best_effo
 
 
 def get_run(client: Any, *, owner_id: uuid.UUID, run_id: uuid.UUID) -> dict[str, Any]:
-    return client.get_run(run_id, owner_id=owner_id)
+    return _normalize_run(client.get_run(run_id, owner_id=owner_id))
 
 
 def cancel_run(
@@ -31,7 +31,12 @@ def cancel_run(
     run_id: uuid.UUID,
     operation_id: uuid.UUID | None = None,
 ) -> dict[str, Any]:
-    return client.cancel_run(run_id, owner_id=owner_id, operation_id=operation_id)
+    return _normalize_run(client.cancel_run(run_id, owner_id=owner_id, operation_id=operation_id))
+
+
+def _normalize_run(payload: dict[str, Any]) -> dict[str, Any]:
+    # Java 在排队 / 运行阶段会把 stats 序列化为 null，浏览层按空对象展示。
+    return {**payload, "stats": payload.get("stats") or {}}
 
 
 def list_objects(

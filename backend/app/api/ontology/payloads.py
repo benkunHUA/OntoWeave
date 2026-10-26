@@ -76,7 +76,8 @@ def preview_model(result: dict, *, relation: bool = False) -> ObjectPreview | Re
 
 
 def runs(rows: list[dict]) -> list[IndexRun]:
-    return [IndexRun.model_validate(row) for row in rows]
+    # Java 在排队 / 运行阶段会把 stats 序列化为 null，浏览层按空对象展示。
+    return [IndexRun.model_validate({**row, "stats": row.get("stats") or {}}) for row in rows]
 
 
 def filter_payload(raw: str | None) -> list[dict] | None:

@@ -6,9 +6,11 @@ import com.ontoweave.data.ontology.binding.support.BindingErrors;
 import com.ontoweave.data.ontology.common.SubjectKind;
 import com.ontoweave.data.ontology.domain.OntologyIndexRunEntity;
 import com.ontoweave.data.ontology.domain.OntologyRelationVersionEntity;
+import com.ontoweave.data.ontology.index.run.OntologyRunStateStore;
 import com.ontoweave.data.ontology.repository.OntologyIndexRunRepository;
 import com.ontoweave.data.ontology.repository.OntologyObjectBindingRepository;
 import com.ontoweave.data.ontology.repository.OntologyRelationVersionRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,17 +28,37 @@ public class BindingRunService {
     private final OntologyObjectBindingRepository objectBindings;
     private final OntologyRelationVersionRepository relationVersions;
     private final RelationDefinitionService definitions;
+    private final OntologyRunStateStore stateStore;
+    private final EntityManager entityManager;
 
     public BindingRunService(
             OntologyIndexRunRepository runs,
             OntologyObjectBindingRepository objectBindings,
             OntologyRelationVersionRepository relationVersions,
-            RelationDefinitionService definitions
+            RelationDefinitionService definitions,
+            OntologyRunStateStore stateStore,
+            EntityManager entityManager
     ) {
         this.runs = runs;
         this.objectBindings = objectBindings;
         this.relationVersions = relationVersions;
         this.definitions = definitions;
+        this.stateStore = stateStore;
+        this.entityManager = entityManager;
+    }
+
+    @Transactional(readOnly = true)
+    public IndexRunResponse run(UUID runId, UUID ownerId) {
+        return IndexRunResponse.from(requireRun(runId, ownerId));
+    }
+
+    @Transactional
+    public IndexRunResponse cancel(UUID runId, UUID ownerId) {
+        requireRun(runId, ownerId);
+        stateStore.cancel(runId);
+        entityManager.flush();
+        entityManager.clear();
+        return IndexRunResponse.from(requireRun(runId, ownerId));
     }
 
     @Transactional(readOnly = true)
@@ -106,5 +128,11 @@ public class BindingRunService {
                 version.getRunId(),
                 version.getActivatedAt()
         );
+    }
+
+    private OntologyIndexRunEntity requireRun(UUID runId, UUID ownerId) {
+        return runs.findById(runId)
+                .filter(run -> ownerId.equals(run.getOwnerId()))
+                .orElseThrow(BindingErrors::runNotFound);
     }
 }

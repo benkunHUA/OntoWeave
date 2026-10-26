@@ -94,3 +94,34 @@ def test_relation_groups_add_readable_label_and_direction(session):
     assert groups[0]["source_type_name"] == "客户"
     assert groups[0]["target_type_name"] == "订单"
     assert groups[0]["total"] == 1
+
+
+class RunClient:
+    def __init__(self, stats):
+        self.stats = stats
+
+    def get_run(self, run_id, *, owner_id):
+        return {"id": str(run_id), "stats": self.stats}
+
+    def cancel_run(self, run_id, *, owner_id, operation_id=None):
+        return {"id": str(run_id), "stats": self.stats}
+
+
+def test_run_detail_and_cancel_normalize_null_stats():
+    run_id = uuid.uuid4()
+    owner = uuid.uuid4()
+
+    detail = ontology.get_run(RunClient(None), owner_id=owner, run_id=run_id)
+    cancelled = ontology.cancel_run(RunClient(None), owner_id=owner, run_id=run_id)
+
+    assert detail["stats"] == {}
+    assert cancelled["stats"] == {}
+
+
+def test_run_detail_keeps_stats_payload():
+    stats = {"objectRowCount": 2002}
+    run_id = uuid.uuid4()
+
+    detail = ontology.get_run(RunClient(stats), owner_id=uuid.uuid4(), run_id=run_id)
+
+    assert detail["stats"] == stats
