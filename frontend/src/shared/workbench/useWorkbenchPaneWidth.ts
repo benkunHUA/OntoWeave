@@ -6,6 +6,8 @@ interface WorkbenchPaneWidthOptions {
   min: number
   max: number
   cssVariable: string
+  /** 拖拽把手位于可调栏的哪一侧；决定鼠标移动方向与宽度的增减关系。 */
+  resizerSide?: 'left' | 'right'
 }
 
 function clamp(width: number, min: number, max: number): number {
@@ -18,6 +20,7 @@ export function useWorkbenchPaneWidth({
   min,
   max,
   cssVariable,
+  resizerSide = 'left',
 }: WorkbenchPaneWidthOptions) {
   const readWidth = useCallback(() => {
     const stored = Number(window.localStorage.getItem(storageKey))
@@ -31,7 +34,9 @@ export function useWorkbenchPaneWidth({
     if (!drag) return
     const activeDrag = drag
     function handleMove(event: globalThis.PointerEvent) {
-      setWidth(clamp(activeDrag.startWidth - (event.clientX - activeDrag.startX), min, max))
+      const delta = event.clientX - activeDrag.startX
+      const wideningDelta = resizerSide === 'right' ? delta : -delta
+      setWidth(clamp(activeDrag.startWidth + wideningDelta, min, max))
     }
     function handleUp() {
       setDrag(null)
@@ -43,7 +48,7 @@ export function useWorkbenchPaneWidth({
       window.removeEventListener('pointermove', handleMove)
       window.removeEventListener('pointerup', handleUp)
     }
-  }, [drag, max, min])
+  }, [drag, max, min, resizerSide])
 
   useEffect(() => {
     window.localStorage.setItem(storageKey, String(width))

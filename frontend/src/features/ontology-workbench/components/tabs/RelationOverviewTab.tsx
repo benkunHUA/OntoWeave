@@ -47,11 +47,7 @@ export function RelationOverviewTab({ resource }: ResourceTabProps) {
   const foreignKey = definition.foreign_key_property
   return (
     <section className="relation-overview" aria-label={CANVAS_COPY.overviewTitle}>
-      <header className="relation-overview__head">
-        <span className="eyebrow">{CANVAS_COPY.foreignKeyRelation}</span>
-        <h2>{definition.name}</h2>
-        <p>{CANVAS_COPY.overviewBody}</p>
-      </header>
+      <p className="relation-overview__hint">{CANVAS_COPY.overviewBody}</p>
       <div className="relation-overview__flow">
         <article className="relation-overview__node">
           <span className="relation-overview__icon"><KeyRound size={16} /></span>

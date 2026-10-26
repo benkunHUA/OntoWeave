@@ -51,7 +51,6 @@ export const CANVAS_COPY = {
   warningBadge: '告警',
   sourcePrimary: '源端主键',
   targetPrimary: '目标端主键',
-  foreignKeyRelation: '外键关系',
   noDatasetTitle: '先绑定数据集',
   noDatasetBody: '选择已发布数据集后，右侧会显示字段并允许拖线映射。',
   noDatasets: '暂无可用数据集',

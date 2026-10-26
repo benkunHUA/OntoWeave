@@ -1,13 +1,13 @@
-import { Boxes, House, KeyRound, Network, RefreshCw, Share2 } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { House, Network, RefreshCw } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { SearchField } from '../../../shared/components/form/controls'
 import type { OntologyResource, OntologyResources } from '../../../shared/types'
 import {
   RESOURCE_COPY,
   RESOURCE_GROUPS,
-  type ResourceCategory,
 } from '../lib/constants'
 import { bindingLabel, resourceCategory, resourceDirection } from '../lib/format'
+import { ResourceCategoryIcon } from './ResourceCategoryIcon'
 
 interface ResourceSidebarProps {
   resources: OntologyResources | null
@@ -17,12 +17,6 @@ interface ResourceSidebarProps {
   onRetry: () => void
   onSelect: (resource: OntologyResource) => void
   onHome: () => void
-}
-
-const CATEGORY_ICONS: Record<ResourceCategory, ReactNode> = {
-  object_type: <Boxes size={15} />,
-  foreign_key: <KeyRound size={15} />,
-  many_to_many: <Share2 size={15} />,
 }
 
 export function ResourceSidebar({
@@ -85,7 +79,7 @@ export function ResourceSidebar({
         {groups.map((group) => (
           <section className="ontology-resource-group" key={group.category}>
             <h2>
-              {CATEGORY_ICONS[group.category]}
+              <ResourceCategoryIcon category={group.category} />
               <span>{group.label}</span>
               <em>{group.items.length}</em>
             </h2>

@@ -5,10 +5,13 @@ import {
   MarkerType,
   ReactFlow,
   ReactFlowProvider,
+  applyNodeChanges,
+  type NodeChange,
+  type XYPosition,
   type NodeTypes,
 } from '@xyflow/react'
 import { Database, Share2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ObjectMapping, OntologyResource } from '../../../../shared/types'
 import { PROPERTY_DATATYPE_LABELS, supportsPrimaryKey } from '../../lib/mapping'
 import { CANVAS_COPY } from './copy'
@@ -20,14 +23,20 @@ import { MappingNode } from './MappingNode'
 import { MappingPreviewDrawer } from './MappingPreviewDrawer'
 import { MappingToolbar } from './MappingToolbar'
 import { buildLeftFields, buildMappingEdges, buildRightFields } from './mappingModel'
-import type { MappingField, MappingFlowNode } from './types'
+import type { MappingField, MappingFlowNode, MappingNodeData } from './types'
 import { useMappingDraft } from './useMappingDraft'
 
 const nodeTypes = { mapping: MappingNode } as NodeTypes
 const edgeTypes = { mapping: MappingEdge }
 const LEFT_NODE = 'ontology-attributes'
 const RIGHT_NODE = 'dataset-columns'
-const NODE_STYLE = { width: 300 } as const
+const NODE_WIDTH = 264
+const NODE_GAP = 64
+const NODE_STYLE = { width: NODE_WIDTH } as const
+const INITIAL_NODE_POSITIONS: Record<string, XYPosition> = {
+  [LEFT_NODE]: { x: 0, y: 0 },
+  [RIGHT_NODE]: { x: NODE_WIDTH + NODE_GAP, y: 0 },
+}
 
 interface MappingCanvasProps {
   mode: 'object' | 'relation'
@@ -51,7 +60,7 @@ function MappingCanvasSurface({ mode, resource }: MappingCanvasProps) {
     [blocking, columns, state.value.mapping, warnings],
   )
 
-  const nodes = useMemo<MappingFlowNode[]>(() => {
+  const leftNodeData = useMemo<MappingNodeData>(() => {
     const titleOptions = (definition?.properties ?? [])
       .filter((property) => !property.is_array)
       .map((property) => ({ id: property.id, label: `${property.name} · ${PROPERTY_DATATYPE_LABELS[property.datatype]}` }))
@@ -59,44 +68,56 @@ function MappingCanvasSurface({ mode, resource }: MappingCanvasProps) {
       const property = definition?.properties.find((item) => item.id === option.id)
       return property ? supportsPrimaryKey(property) : false
     })
-    return [
-      {
-        id: LEFT_NODE,
-        type: 'mapping',
-        position: { x: 0, y: 0 },
-        draggable: false,
-        style: NODE_STYLE,
-        data: {
-          side: 'left',
-          title: definition?.name ?? resource.name,
-          subtitle: mode === 'object' ? CANVAS_COPY.attributes : CANVAS_COPY.endpoints,
-          fields: leftFields,
-          keyControls: mode === 'object' ? {
-            primaryValue: objectMapping.primary_key_attribute_id ?? '',
-            titleValue: objectMapping.title_key_attribute_id ?? null,
-            primaryOptions,
-            titleOptions,
-            onPrimaryChange: (value) => setPendingKey({ kind: 'primary', value }),
-            onTitleChange: (value) => setPendingKey({ kind: 'title', value }),
-          } : undefined,
-        },
-      },
-      {
-        id: RIGHT_NODE,
-        type: 'mapping',
-        position: { x: 370, y: 0 },
-        draggable: false,
-        style: NODE_STYLE,
-        data: {
-          side: 'right',
-          title: draft.datasets.find((item) => item.kind === state.value.datasetKind && item.id === state.value.datasetId)?.name
-            ?? CANVAS_COPY.columns,
-          subtitle: CANVAS_COPY.columns,
-          fields: rightFields,
-        },
-      },
-    ]
-  }, [definition, draft.datasets, leftFields, mode, objectMapping, resource.name, rightFields, state.value.datasetId, state.value.datasetKind])
+    return {
+      side: 'left',
+      title: definition?.name ?? resource.name,
+      subtitle: mode === 'object' ? CANVAS_COPY.attributes : CANVAS_COPY.endpoints,
+      fields: leftFields,
+      keyControls: mode === 'object' ? {
+        primaryValue: objectMapping.primary_key_attribute_id ?? '',
+        titleValue: objectMapping.title_key_attribute_id ?? null,
+        primaryOptions,
+        titleOptions,
+        onPrimaryChange: (value) => setPendingKey({ kind: 'primary', value }),
+        onTitleChange: (value) => setPendingKey({ kind: 'title', value }),
+      } : undefined,
+    }
+  }, [definition, leftFields, mode, objectMapping, resource.name])
+
+  const rightNodeData = useMemo<MappingNodeData>(() => ({
+    side: 'right',
+    title: draft.datasets.find((item) => item.kind === state.value.datasetKind && item.id === state.value.datasetId)?.name
+      ?? CANVAS_COPY.columns,
+    subtitle: CANVAS_COPY.columns,
+    fields: rightFields,
+  }), [draft.datasets, rightFields, state.value.datasetId, state.value.datasetKind])
+
+  const [flowNodes, setFlowNodes] = useState<MappingFlowNode[]>(() => [
+    {
+      id: LEFT_NODE,
+      type: 'mapping',
+      position: INITIAL_NODE_POSITIONS[LEFT_NODE],
+      style: NODE_STYLE,
+      data: leftNodeData,
+    },
+    {
+      id: RIGHT_NODE,
+      type: 'mapping',
+      position: INITIAL_NODE_POSITIONS[RIGHT_NODE],
+      style: NODE_STYLE,
+      data: rightNodeData,
+    },
+  ])
+
+  const handleNodesChange = useCallback((changes: NodeChange<MappingFlowNode>[]) => {
+    setFlowNodes((current) => applyNodeChanges(changes, current))
+  }, [])
+
+  const nodes = useMemo<MappingFlowNode[]>(() => flowNodes.map((node) => ({
+    ...node,
+    style: NODE_STYLE,
+    data: node.id === LEFT_NODE ? leftNodeData : rightNodeData,
+  })), [flowNodes, leftNodeData, rightNodeData])
 
   const edges = useMemo(
     () => buildMappingEdges(mode, state.value.mapping, definition, columns, draft.removeEdge),
@@ -108,11 +129,9 @@ function MappingCanvasSurface({ mode, resource }: MappingCanvasProps) {
   return (
     <section className="mapping-canvas" aria-label={mode === 'object' ? CANVAS_COPY.objectTitle : CANVAS_COPY.relationTitle}>
       <header className="mapping-canvas__head">
-        <div>
-          <span className="eyebrow">{CANVAS_COPY.eyebrow}</span>
-          <h2>{mode === 'object' ? CANVAS_COPY.objectTitle : CANVAS_COPY.relationTitle}</h2>
-          <p>{mode === 'object' ? CANVAS_COPY.objectHint : CANVAS_COPY.relationHint}</p>
-        </div>
+        <p className="mapping-canvas__hint">
+          {mode === 'object' ? CANVAS_COPY.objectHint : CANVAS_COPY.relationHint}
+        </p>
         <MappingDatasetPicker
           datasets={draft.datasets}
           selectedKind={state.value.datasetKind}
@@ -162,13 +181,14 @@ function MappingCanvasSurface({ mode, resource }: MappingCanvasProps) {
           <ReactFlow<MappingFlowNode>
             nodes={nodes}
             edges={edges}
+            onNodesChange={handleNodesChange}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 } }}
             onConnect={(connection) => draft.connect(connection.sourceHandle, connection.targetHandle)}
             onEdgesDelete={(deleted) => deleted.forEach((edge) => draft.removeEdge(edge.id))}
             onEdgeDoubleClick={(_, edge) => draft.removeEdge(edge.id)}
-            nodesDraggable={false}
+            nodesDraggable={!busy}
             nodesConnectable={!busy}
             edgesFocusable
             deleteKeyCode={['Backspace', 'Delete']}
@@ -215,7 +235,7 @@ function MappingCanvasSurface({ mode, resource }: MappingCanvasProps) {
 export function MappingCanvas(props: MappingCanvasProps) {
   return (
     <ReactFlowProvider>
-      <MappingCanvasSurface {...props} />
+      <MappingCanvasSurface key={`${props.mode}:${props.resource.id}`} {...props} />
     </ReactFlowProvider>
   )
 }

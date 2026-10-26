@@ -18,7 +18,7 @@ export function MappingNode({ id, data }: NodeProps<MappingFlowNode>) {
       </header>
 
       {data.keyControls ? (
-        <div className="mapping-node__keys">
+        <div className="mapping-node__keys nodrag">
           <label>
             <span>{CANVAS_COPY.primaryLabel}</span>
             <select
@@ -48,7 +48,7 @@ export function MappingNode({ id, data }: NodeProps<MappingFlowNode>) {
       ) : null}
 
       <div
-        className="mapping-node__fields"
+        className="mapping-node__fields nowheel"
         onScroll={() => updateNodeInternals(id)}
         role="list"
         aria-label={CANVAS_COPY.fieldAria(data.title)}

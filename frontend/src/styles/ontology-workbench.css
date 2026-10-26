@@ -130,67 +130,6 @@
   cursor: pointer;
 }
 
-.ontology-workspace {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--bg);
-}
-
-.ontology-workspace__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.ontology-workspace__header h1 {
-  margin-top: 5px;
-  color: #f4f4f4;
-  font-size: 24px;
-  letter-spacing: -0.02em;
-}
-
-.ontology-workspace__header p { margin-top: 6px; color: var(--muted); font-size: 12px; }
-.ontology-workspace__meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
-
-.ontology-status,
-.ontology-run-status {
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.ontology-status { color: var(--blue-ink); background: var(--blue-soft); }
-.ontology-run-status { color: var(--muted); background: var(--raised); }
-.ontology-run-status.is-running,
-.ontology-run-status.is-queued { color: var(--blue-ink); background: var(--blue-soft); }
-.ontology-run-status.is-succeeded { color: var(--green); background: var(--green-soft); }
-.ontology-run-status.is-failed,
-.ontology-run-status.is-cancelled { color: var(--red); background: var(--red-soft); }
-
-.ontology-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--line-soft); }
-
-.ontology-tabs__tab {
-  padding: 12px 12px 10px;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  background: transparent;
-  cursor: pointer;
-}
-
-.ontology-tabs__tab:hover { color: var(--ink); }
-.ontology-tabs__tab.is-active { border-color: var(--blue); color: var(--blue-ink); }
-.ontology-workspace__body { display: flex; flex: 1; min-height: 0; padding: 18px; }
-
 .ontology-tab-panel {
   display: flex;
   flex: 1;
@@ -266,6 +205,7 @@
 .ontology-event-card time { display: block; margin-top: 3px; color: var(--faint); font-size: 10px; }
 
 @media (max-width: 1180px) {
-  .ontology-workbench-page { grid-template-columns: 250px 1px minmax(320px, 380px) 6px minmax(360px, 1fr); }
-  .ontology-workspace__header { padding: 16px 18px 14px; }
+  .ontology-workbench-page {
+    grid-template-columns: 250px 1px minmax(300px, var(--workbench-center-w, 380px)) 6px minmax(320px, 1fr);
+  }
 }

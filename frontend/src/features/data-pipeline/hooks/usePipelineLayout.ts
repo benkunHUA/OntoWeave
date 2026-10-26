@@ -11,5 +11,6 @@ export function usePipelineLayout() {
     min: PIPELINE_CHAT_WIDTH.min,
     max: PIPELINE_CHAT_WIDTH.max,
     cssVariable: '--workbench-center-w',
+    resizerSide: 'right',
   })
 }

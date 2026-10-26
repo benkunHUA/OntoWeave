@@ -5,7 +5,7 @@ export const RESOURCE_QUERY_KEY = 'resource'
 export const RESOURCE_REF_SEPARATOR = ':'
 
 export const RESOURCE_SIDEBAR_WIDTH = 280
-export const CONVERSATION_PANE_WIDTH = { default: 400, min: 320, max: 620 } as const
+export const CONVERSATION_PANE_WIDTH = { default: 400, min: 320, max: 720 } as const
 export const CONVERSATION_PANE_STORAGE_KEY = 'ontoweave.ontology.chat-pane-width'
 export const RUN_POLL_INTERVAL_MS = 2_000
 export const ACTIVE_RUN_STATUSES: RunStatus[] = ['QUEUED', 'RUNNING']

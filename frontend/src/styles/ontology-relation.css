@@ -1,0 +1,21 @@
+/* ===== 外键关系只读概览 ===== */
+
+.relation-overview { display: flex; flex: 1; flex-direction: column; gap: 16px; min-height: 0; padding: 2px 4px 8px; }
+.relation-overview--state { align-items: center; justify-content: center; color: var(--muted); font-size: 12px; }
+.relation-overview__hint { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.relation-overview__flow { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.relation-overview__node { display: grid; gap: 5px; min-height: 150px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-soft); }
+.relation-overview__icon { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 8px; color: var(--blue-ink); background: var(--blue-soft); }
+.relation-overview__node small { color: var(--faint); font-size: 9px; }
+.relation-overview__node strong { color: var(--ink); font-size: 14px; }
+.relation-overview__node span { color: var(--muted); font-size: 10px; }
+.relation-overview__node em { width: fit-content; padding: 2px 6px; border-radius: 5px; color: var(--blue-ink); font-size: 9px; font-style: normal; background: var(--blue-soft); }
+.relation-overview__arrow { display: grid; justify-items: center; gap: 3px; color: var(--blue-ink); }
+.relation-overview__arrow small { color: var(--faint); font-size: 9px; }
+.relation-overview__meta { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.relation-overview__meta span { padding: 3px 7px; border-radius: 999px; color: var(--muted); font-size: 9px; background: var(--raised); }
+
+@media (max-width: 900px) {
+  .relation-overview__flow { grid-template-columns: 1fr; }
+  .relation-overview__arrow { transform: rotate(90deg); }
+}

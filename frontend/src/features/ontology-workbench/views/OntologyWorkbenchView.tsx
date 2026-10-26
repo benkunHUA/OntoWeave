@@ -38,6 +38,7 @@ export function OntologyWorkbenchView() {
     min: CONVERSATION_PANE_WIDTH.min,
     max: CONVERSATION_PANE_WIDTH.max,
     cssVariable: '--workbench-center-w',
+    resizerSide: 'right',
   })
 
   const allResources = useMemo(
