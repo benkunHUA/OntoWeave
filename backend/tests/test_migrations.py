@@ -64,6 +64,25 @@ def test_conversation_event_table_exists(engine: Engine) -> None:
     } <= columns
 
 
+def test_dataset_search_index_table_exists(engine: Engine) -> None:
+    inspector = inspect(engine)
+    columns = {column["name"] for column in inspector.get_columns("dataset_search_index")}
+    assert {
+        "dataset_kind",
+        "version_id",
+        "dataset_id",
+        "owner_id",
+        "name",
+        "columns",
+        "column_types",
+        "embedding",
+        "is_current",
+        "status",
+    } <= columns
+    assert {"name_en"} <= {column["name"] for column in inspector.get_columns("object_type")}
+    assert {"name_en"} <= {column["name"] for column in inspector.get_columns("property")}
+
+
 def test_migration_0018_backfills_and_restores_graph_id(
     engine: Engine, alembic_config: Config
 ) -> None:
