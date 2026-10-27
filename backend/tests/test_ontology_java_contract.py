@@ -6,8 +6,8 @@ import uuid
 
 import httpx
 
-from tests.ontology_api_support import API
-from tests.ontology_java_support import (
+from tests.support.ontology_api_support import API
+from tests.support.ontology_java_support import (
     api_client,
     create_object_type,
     create_relation_with_types,

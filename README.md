@@ -63,7 +63,8 @@ backend/                  FastAPI 后端（详见 backend/README.md）
   app/agent/              智能体：LLM 装配、工具层、deepagents 图、运行时与 SSE
   app/api/                按领域拆分的 REST 路由（统一挂在 /api/v1）
   app/services/           领域逻辑：本体、图、改动集、视图、会话
-  app/models.py           SQLAlchemy 模型
+  app/clients/            外部服务客户端（Java 数据服务）
+  app/models/             SQLAlchemy 模型（按领域拆分）
   alembic/versions/       数据库迁移
   tests/                  pytest 测试
 frontend/                 React + TypeScript 建模工作台（详见 frontend/README.md）
@@ -121,9 +122,9 @@ cp .env.example .env
 
 | 场景 | 命令 |
 |---|---|
-| 后端本地开发 | `docker compose up -d db && cd backend && alembic upgrade head && uvicorn app.main:app --reload --port 18000` |
-| 后端测试 | `cd backend && pytest -v` |
-| 后端静态检查 | `cd backend && ruff check . && ruff format --check . && mypy app` |
+| 后端本地开发 | `docker compose up -d db && cd backend && uv sync --extra dev && uv run alembic upgrade head && uv run uvicorn app.main:app --reload --port 18000` |
+| 后端测试 | `cd backend && uv run pytest -v` |
+| 后端静态检查 | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app` |
 | 前端开发 | `cd frontend && npm run dev` |
 | 前端测试 | `cd frontend && npm test` |
 | 前端构建 / Lint | `cd frontend && npm run build` · `npm run lint` |

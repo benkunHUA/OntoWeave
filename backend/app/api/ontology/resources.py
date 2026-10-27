@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.ontology.deps import get_ontology_client
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.deps import get_current_user_id, get_session
 from app.schemas.conversation import ConversationRead
 from app.schemas.ontology import (
@@ -18,7 +19,6 @@ from app.schemas.ontology import (
     OntologyResourcesRead,
 )
 from app.services import ontology
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 
 router = APIRouter()
 

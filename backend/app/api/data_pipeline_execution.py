@@ -7,11 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 
+from app.clients.data_service.client import DataServiceClient
 from app.deps import get_current_user_id, get_data_service_client
 from app.schemas.data_pipeline import BuildCreateRequest, PreviewRead, PreviewRequest
 from app.schemas.data_pipeline_execution import BuildRead, PipelineDatasetPreviewRead, SourceRead
-from app.services import data_pipeline_workbench
-from app.services.data_service.client import DataServiceClient
+from app.services.data_pipeline import workbench as data_pipeline_workbench
 
 router = APIRouter(tags=["data-pipeline-execution"])
 

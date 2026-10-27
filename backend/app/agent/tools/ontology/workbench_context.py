@@ -6,8 +6,10 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+import app.agent.tools.ontology.workbench_constants as workbench_constants
 from app.agent.tools.context import ToolContext
-from app.agent.tools.ontology import workbench_constants
+from app.clients.data_service.client import RevisionConflict
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.errors import (
     DataServiceUnavailableError,
     InvalidRequestError,
@@ -15,8 +17,6 @@ from app.errors import (
     UnprocessableEntityError,
 )
 from app.services import embedding
-from app.services.data_service.client import RevisionConflict
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 
 
 @dataclass(frozen=True, kw_only=True)

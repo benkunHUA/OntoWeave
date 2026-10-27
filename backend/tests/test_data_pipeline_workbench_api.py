@@ -1,8 +1,7 @@
 import uuid
 
-from pipeline_test_fakes import API, BUILD_ID, DATASET_ID, NOW, PIPELINE_ID, TURN_ID
-
 from app.errors import UnprocessableEntityError
+from tests.support.pipeline_test_fakes import API, BUILD_ID, DATASET_ID, NOW, PIPELINE_ID, TURN_ID
 
 
 def test_pipeline_crud_and_bff_workbench_routes(pipeline_client, fake_pipeline_client):

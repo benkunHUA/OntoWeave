@@ -12,8 +12,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.constants import EMBEDDING_DIM
 from app.errors import InvariantViolationError, NotFoundError
-from app.models import EMBEDDING_DIM, ActionType, ObjectType
+from app.models import ActionType, ObjectType
 from app.services import status
 
 logger = logging.getLogger(__name__)

@@ -8,8 +8,8 @@ import uuid
 import httpx
 
 from app.services import ontology
-from tests.ontology_api_support import API
-from tests.ontology_java_support import api_client, create_object_type, mapping_save
+from tests.support.ontology_api_support import API
+from tests.support.ontology_java_support import api_client, create_object_type, mapping_save
 
 
 def test_object_flows_fill_required_ids_and_keep_java_blocking(session_factory):

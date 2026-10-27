@@ -12,16 +12,16 @@ from sqlalchemy.orm import Session
 from app.agent import graph as agent_graph
 from app.agent import llm
 from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
-from app.agent.prompts_ontology_workbench import build_prompt
+from app.agent.prompts.ontology_workbench import build_prompt
 from app.agent.tools.ontology import (
     OntologyWorkbenchToolContext,
     build_workbench_tools,
 )
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.config import Settings
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Conversation
 from app.services import embedding, ontology
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 from app.vocabulary import ConversationKind
 
 

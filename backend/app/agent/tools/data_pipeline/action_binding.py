@@ -8,7 +8,7 @@ from typing import Any
 from langchain_core.tools import BaseTool, tool
 
 from app.agent import data_pipeline_events
-from app.agent.tools.data_pipeline import constants
+from app.agent.tools.data_pipeline.constants import QUESTION_LIMIT_MESSAGE, QUESTION_LIMIT_REACHED
 from app.agent.tools.data_pipeline.context import DataPipelineToolContext
 
 
@@ -26,8 +26,8 @@ def build_ask_user_tool(
         with ctx.lock:
             if not ctx.begin_question():
                 return {
-                    "error": constants.QUESTION_LIMIT_REACHED,
-                    "message": constants.QUESTION_LIMIT_MESSAGE,
+                    "error": QUESTION_LIMIT_REACHED,
+                    "message": QUESTION_LIMIT_MESSAGE,
                 }
             answer = interrupt_fn(
                 {"question": question, "options": options or [], "details": details or []}
@@ -39,7 +39,7 @@ def build_ask_user_tool(
                 turn_id=ctx.turn_id,
                 question=question,
             )
-            ctx.session.commit()
+            # 问题记录属于本轮事务；提交由 runtime.stream 统一负责。
             return str(answer)
 
     return ask_user

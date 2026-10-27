@@ -13,13 +13,13 @@ from sqlalchemy.orm import Session
 from app.models import ActionType, ObjectType, Property, Relation
 from app.services import (
     action,
-    action_rules,
     changeset,
     conversation,
     element_edit,
     element_kinds,
     ontology,
 )
+from app.services.action import rules as action_rules
 
 
 def _phase(kind: str) -> int:

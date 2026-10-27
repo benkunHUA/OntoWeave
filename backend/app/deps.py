@@ -6,8 +6,8 @@ from fastapi import Request
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.orm import Session
 
+from app.clients.data_service.client import DataServiceClient
 from app.config import Settings, get_settings
-from app.services.data_service.client import DataServiceClient
 
 
 def get_session(request: Request) -> Iterator[Session]:

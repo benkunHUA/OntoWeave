@@ -15,7 +15,8 @@ from app.schemas.action import (
     ActionRuleRead,
     ActionTypeRead,
 )
-from app.services import action, action_detail, criteria
+from app.services import action, criteria
+from app.services.action import detail as action_detail
 
 router = APIRouter(tags=["actions"])
 

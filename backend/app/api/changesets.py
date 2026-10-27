@@ -5,29 +5,17 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.agent import thread
-from app.config import get_settings
-from app.deps import get_agent_checkpointer, get_current_user_id, get_session
-from app.models import Changeset
+from app.api import runtime_dependencies
+from app.deps import get_current_user_id, get_session
 from app.schemas.changeset import (
-    AddActionParameterEdit,
-    AddActionRuleAssignmentEdit,
-    AddActionRuleEdit,
     ChangesetDetail,
     ChangesetOpCreate,
     ChangesetOpRead,
     ChangesetRead,
-    CreateActionTypeEdit,
-    CreateObjectTypeEdit,
-    CreatePropertyEdit,
-    CreateRelationEdit,
-    DeleteEdit,
     GraphEditsCreate,
-    ReuseObjectTypeEdit,
-    SetActionCriteriaEdit,
-    UpdateEdit,
 )
-from app.services import changeset, changeset_review, element_edit, embedding, english_names
+from app.services import changeset, element_edit
+from app.services.changeset import review as changeset_review
 
 router = APIRouter(tags=["changesets"])
 
@@ -55,124 +43,13 @@ def list_changesets(
     return [ChangesetRead.model_validate(item) for item in items]
 
 
-def _detail(session: Session, cs: Changeset) -> ChangesetDetail:
-    ops = [ChangesetOpRead.model_validate(op) for op in changeset.list_ops(session, cs.id)]
-    return ChangesetDetail(id=cs.id, graph_id=cs.graph_id, status=cs.status, ops=ops)
-
-
 @router.get("/changesets/{changeset_id}", response_model=ChangesetDetail)
 def get_changeset(
     changeset_id: uuid.UUID, session: Session = Depends(get_session)
 ) -> ChangesetDetail:
-    cs = changeset.get_changeset(session, changeset_id, owner_id=get_current_user_id())
-    return _detail(session, cs)
-
-
-def _edit_ops(payload: GraphEditsCreate) -> list[element_edit.EditOp]:
-    """把请求里的编辑转成服务层的操作对象。接口层只做这层形态转换。"""
-    ops: list[element_edit.EditOp] = []
-    for edit in payload.edits:
-        if isinstance(edit, UpdateEdit):
-            ops.append(
-                element_edit.ElementUpdate(
-                    element_kind=edit.element_kind,
-                    element_id=edit.element_id,
-                    patch=edit.patch,
-                )
-            )
-        elif isinstance(edit, CreatePropertyEdit):
-            ops.append(
-                element_edit.PropertyCreate(
-                    owner_type_id=edit.owner_type_id,
-                    name=edit.name,
-                    name_en=edit.name_en,
-                    datatype=edit.datatype,
-                    required=edit.required,
-                    is_array=edit.is_array,
-                    is_primary_key=edit.is_primary_key,
-                    is_title_key=edit.is_title_key,
-                    enum_values=edit.enum_values,
-                )
-            )
-        elif isinstance(edit, CreateObjectTypeEdit):
-            ops.append(
-                element_edit.ObjectTypeCreate(
-                    name=edit.name,
-                    name_en=edit.name_en,
-                    description=edit.description,
-                )
-            )
-        elif isinstance(edit, ReuseObjectTypeEdit):
-            ops.append(element_edit.ObjectTypeReuse(object_type_id=edit.object_type_id))
-        elif isinstance(edit, CreateRelationEdit):
-            ops.append(
-                element_edit.RelationCreate(
-                    source_type_id=edit.source_type_id,
-                    target_type_id=edit.target_type_id,
-                    name=edit.name,
-                    direction=edit.direction,
-                    cardinality=edit.cardinality,
-                    forward_label=edit.forward_label,
-                    reverse_label=edit.reverse_label,
-                    foreign_key_property_id=edit.foreign_key_property_id,
-                )
-            )
-        elif isinstance(edit, CreateActionTypeEdit):
-            ops.append(element_edit.ActionTypeCreate(name=edit.name, description=edit.description))
-        elif isinstance(edit, AddActionParameterEdit):
-            ops.append(
-                element_edit.ActionParameterCreate(
-                    action_type_id=edit.action_type_id,
-                    name=edit.name,
-                    kind=edit.kind,
-                    description=edit.description,
-                    datatype=edit.datatype,
-                    target_object_type_id=edit.target_object_type_id,
-                    is_array=edit.is_array,
-                    is_required=edit.is_required,
-                    default_value=edit.default_value,
-                    enum_values=edit.enum_values,
-                )
-            )
-        elif isinstance(edit, AddActionRuleEdit):
-            ops.append(
-                element_edit.ActionRuleCreate(
-                    action_type_id=edit.action_type_id,
-                    rule_kind=edit.rule_kind,
-                    target_object_type_id=edit.target_object_type_id,
-                    target_relation_id=edit.target_relation_id,
-                    source_parameter_id=edit.source_parameter_id,
-                    target_parameter_id=edit.target_parameter_id,
-                    assignments=tuple(assignment.model_dump() for assignment in edit.assignments),
-                )
-            )
-        elif isinstance(edit, AddActionRuleAssignmentEdit):
-            ops.append(
-                element_edit.ActionRuleAssignmentCreate(
-                    rule_id=edit.rule_id,
-                    target_property_id=edit.target_property_id,
-                    value_source=edit.value_source,
-                    value_parameter_id=edit.value_parameter_id,
-                    object_parameter_id=edit.object_parameter_id,
-                    object_property_id=edit.object_property_id,
-                    static_value=edit.static_value,
-                )
-            )
-        elif isinstance(edit, SetActionCriteriaEdit):
-            ops.append(
-                element_edit.ActionCriteriaReplace(
-                    action_type_id=edit.action_type_id,
-                    conditions=tuple(condition.model_dump() for condition in edit.conditions),
-                )
-            )
-        elif isinstance(edit, DeleteEdit):
-            ops.append(
-                element_edit.ElementDelete(
-                    element_kind=edit.element_kind,
-                    element_id=edit.element_id,
-                )
-            )
-    return ops
+    return ChangesetDetail.model_validate(
+        changeset.changeset_detail(session, changeset_id, owner_id=get_current_user_id())
+    )
 
 
 @router.post("/graphs/{graph_id}/edits", response_model=ChangesetDetail)
@@ -190,12 +67,14 @@ def edit_graph_elements(
     cs = element_edit.apply_edits(
         session,
         graph_id=graph_id,
-        ops=_edit_ops(payload),
+        ops=element_edit.edits_from_payload(payload),
         owner_id=get_current_user_id(),
-        embedder=_request_embedder(),
-        name_generator=_request_name_generator(),
+        embedder=runtime_dependencies.request_embedder(),
+        name_generator=runtime_dependencies.request_name_generator(),
     )
-    return _detail(session, cs)
+    return ChangesetDetail.model_validate(
+        changeset.changeset_detail(session, cs.id, owner_id=get_current_user_id())
+    )
 
 
 @router.post("/changesets/{changeset_id}/ops", response_model=ChangesetOpRead, status_code=201)
@@ -215,39 +94,6 @@ def record_op(
     return ChangesetOpRead.model_validate(op)
 
 
-def _thread_notifier(request: Request) -> changeset_review.ThreadNotifier:
-    """把「定稿结果写回模型线程」这条 agent 依赖接到 review 服务上。
-
-    服务层不感知 agent，钩子在这里注入：模型线程不更新，下一轮就会引用已经被
-    撤销的对象和关系（子智能体核对时会发现图里根本没有）。
-    """
-    settings = get_settings()
-    owner_id = get_current_user_id()
-
-    def notify(session: Session, notice: changeset_review.Notice) -> None:
-        thread.record_decision(
-            session,
-            settings,
-            owner_id,
-            conversation_id=notice.conversation_id,
-            graph_id=notice.graph_id,
-            changeset_id=notice.changeset_id,
-            text=notice.text,
-            checkpointer=get_agent_checkpointer(request.app.state, settings),
-        )
-
-    return notify
-
-
-def _request_embedder() -> embedding.Embedder:
-    """定稿时给已确认的对象补向量用的嵌入器；没配 key 就回落到本地实现。"""
-    return embedding.build_embedder(get_settings())
-
-
-def _request_name_generator() -> english_names.EnglishNameGenerator | None:
-    return english_names.build_english_name_generator(get_settings())
-
-
 @router.post("/changesets/{changeset_id}/confirm", response_model=ChangesetRead)
 def confirm_changeset(
     changeset_id: uuid.UUID, request: Request, session: Session = Depends(get_session)
@@ -258,9 +104,9 @@ def confirm_changeset(
             session,
             changeset_id,
             owner_id=get_current_user_id(),
-            notify=_thread_notifier(request),
-            embedder=_request_embedder(),
-            name_generator=_request_name_generator(),
+            notify=runtime_dependencies.thread_notifier(request),
+            embedder=runtime_dependencies.request_embedder(),
+            name_generator=runtime_dependencies.request_name_generator(),
         )
     )
 
@@ -274,7 +120,7 @@ def reject_changeset(
             session,
             changeset_id,
             owner_id=get_current_user_id(),
-            notify=_thread_notifier(request),
-            embedder=_request_embedder(),
+            notify=runtime_dependencies.thread_notifier(request),
+            embedder=runtime_dependencies.request_embedder(),
         )
     )

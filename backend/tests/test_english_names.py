@@ -5,7 +5,8 @@ import uuid
 from sqlalchemy import select
 
 from app.models import ObjectType, Property
-from app.services import changeset, changeset_review, element_edit, english_names, graph, ontology
+from app.services import changeset, element_edit, english_names, graph, ontology
+from app.services.changeset import review as changeset_review
 
 
 class FakeEnglishNames:

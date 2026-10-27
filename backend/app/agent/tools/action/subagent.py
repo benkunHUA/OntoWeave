@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from deepagents import SubAgent
 
-from app.agent.prompts import ACTION_AGENT_DESCRIPTION, ACTION_AGENT_PROMPT
+from app.agent.prompts.base import ACTION_AGENT_DESCRIPTION, ACTION_AGENT_PROMPT
 from app.agent.tools.action.binding import build_action_tools
 from app.agent.tools.ontology.binding import build_search_tool
 from app.agent.tools.ontology.context import OntologyToolContext

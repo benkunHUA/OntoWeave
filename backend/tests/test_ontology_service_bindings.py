@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from app.services import ontology
-from tests.ontology_service_support import FakeOntologyClient, relation_with_primary_keys
+from tests.support.ontology_service_support import FakeOntologyClient, relation_with_primary_keys
 
 
 def test_prepare_object_payload_adds_all_required_property_ids(session):

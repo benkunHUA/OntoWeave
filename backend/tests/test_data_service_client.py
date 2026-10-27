@@ -3,6 +3,7 @@ import uuid
 import httpx
 import pytest
 
+from app.clients.data_service.client import DataServiceClient, RevisionConflict
 from app.config import Settings
 from app.errors import (
     DataServiceUnavailableError,
@@ -11,7 +12,6 @@ from app.errors import (
     NotFoundError,
     UnprocessableEntityError,
 )
-from app.services.data_service.client import DataServiceClient, RevisionConflict
 
 
 def _response(status: int, body: dict) -> httpx.Response:
@@ -25,7 +25,7 @@ def test_client_sends_internal_token_and_owner(monkeypatch):
         captured.update(method=method, url=url, **kwargs)
         return _response(200, {"id": "x"})
 
-    monkeypatch.setattr("app.services.data_service.client.httpx.request", fake_request)
+    monkeypatch.setattr("app.clients.data_service.transport.httpx.request", fake_request)
     client = DataServiceClient(Settings(data_service_url="http://java:18001"))
     owner = uuid.uuid4()
     connection = uuid.uuid4()
@@ -44,7 +44,7 @@ def test_client_sends_create_body(monkeypatch):
         captured.update(method=method, url=url, **kwargs)
         return _response(201, {"id": "x"})
 
-    monkeypatch.setattr("app.services.data_service.client.httpx.request", fake_request)
+    monkeypatch.setattr("app.clients.data_service.transport.httpx.request", fake_request)
     client = DataServiceClient(Settings())
     owner = uuid.uuid4()
     conversation = uuid.uuid4()
@@ -69,7 +69,7 @@ def test_client_sends_create_body(monkeypatch):
 )
 def test_http_errors_become_domain_errors(monkeypatch, status, error):
     monkeypatch.setattr(
-        "app.services.data_service.client.httpx.request",
+        "app.clients.data_service.transport.httpx.request",
         lambda *a, **k: _response(status, {"code": "X", "message": "坏了"}),
     )
     client = DataServiceClient(Settings())
@@ -82,7 +82,7 @@ def test_transport_error_is_unavailable(monkeypatch):
     def explode(*args, **kwargs):  # noqa: ARG001
         raise httpx.ConnectError("refused")
 
-    monkeypatch.setattr("app.services.data_service.client.httpx.request", explode)
+    monkeypatch.setattr("app.clients.data_service.transport.httpx.request", explode)
     client = DataServiceClient(Settings())
 
     with pytest.raises(DataServiceUnavailableError, match="数据服务不可用"):
@@ -140,7 +140,7 @@ def test_pipeline_client_uses_documented_paths(monkeypatch):
         captured.append((method, url, kwargs))
         return _response(200, {"id": str(uuid.uuid4())})
 
-    monkeypatch.setattr("app.services.data_service.client.httpx.request", fake_request)
+    monkeypatch.setattr("app.clients.data_service.transport.httpx.request", fake_request)
     client = DataServiceClient(Settings(data_service_url="http://java:18001"))
     owner = uuid.uuid4()
     pipeline = uuid.uuid4()

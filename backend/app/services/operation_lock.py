@@ -47,7 +47,10 @@ atexit.register(dispose_lock_engines)
 
 @contextmanager
 def operation_lock(session: Session, *parts: object) -> Iterator[None]:
-    """持锁跨越 session.commit 和外部调用；连接关闭也会自动释放。"""
+    """持锁跨越 session.commit 和外部调用；连接关闭也会自动释放。
+
+    锁使用独立 NullPool 连接，避免长时间占用请求 session 的连接池。
+    """
     bind = session.get_bind()
     engine: Engine = bind.engine if isinstance(bind, Connection) else bind
     if engine.dialect.name != "postgresql":

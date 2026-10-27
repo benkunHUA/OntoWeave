@@ -6,9 +6,9 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.services import conversation_event
-from app.services.data_service import mapping
-from app.services.data_service.client import DataServiceClient
+from app.clients.data_service import mapping
+from app.clients.data_service.client import DataServiceClient
+from app.services.conversation import event as conversation_event
 
 
 def get_state(client: DataServiceClient, *, owner_id: uuid.UUID, connection_id: uuid.UUID) -> dict:

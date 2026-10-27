@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import ConversationEvent
-from app.services import conversation_event
+from app.services.conversation import event as conversation_event
 
 TURN_EVENT_TYPE = "pipeline.agent.turn"
 QUESTION_EVENT_TYPE = "pipeline.agent.question"

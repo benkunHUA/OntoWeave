@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 from app.services import ontology
-from tests.ontology_api_support import API, FakeOntologyApiClient, build_client
+from tests.support.ontology_api_support import API, FakeOntologyApiClient, build_client
 
 
 @pytest.fixture

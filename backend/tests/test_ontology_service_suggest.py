@@ -8,7 +8,7 @@ import pytest
 
 from app.errors import InvalidRequestError
 from app.services import ontology
-from tests.ontology_service_support import FakeOntologyClient, object_with_properties
+from tests.support.ontology_service_support import FakeOntologyClient, object_with_properties
 
 
 def test_suggest_mapping_scores_name_and_type_and_picks_primary_key(session):

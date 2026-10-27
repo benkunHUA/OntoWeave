@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api import data_pipeline_execution, data_pipeline_schedule
+from app.clients.data_service.client import DataServiceClient
 from app.deps import get_current_user_id, get_data_service_client, get_session
 from app.errors import InvalidRequestError
 from app.schemas.conversation import ConversationRead
@@ -27,8 +28,8 @@ from app.schemas.data_pipeline import (
     PipelineUpdate,
     UndoTurnRequest,
 )
-from app.services import data_pipeline, data_pipeline_workbench
-from app.services.data_service.client import DataServiceClient
+from app.services import data_pipeline
+from app.services.data_pipeline import workbench as data_pipeline_workbench
 
 router = APIRouter(tags=["data-pipelines"])
 

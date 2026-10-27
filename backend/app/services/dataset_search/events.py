@@ -25,7 +25,11 @@ def consume_published_event(
     client: Any,
     embedder: Any,
 ) -> int:
-    """只处理两个发布事件；单条索引失败只记日志，不影响事件消费与后续版本。"""
+    """只处理两个发布事件；单条索引失败只记日志，不影响事件消费与后续版本。
+
+    每个数据集版本使用独立 session 提交：索引可能调用外部服务且耗时较长，
+    不能占用请求事务，也不能让一个版本的失败回滚其它版本。
+    """
     event_type = envelope.get("eventType")
     payload = envelope.get("payload")
     if not isinstance(payload, dict):

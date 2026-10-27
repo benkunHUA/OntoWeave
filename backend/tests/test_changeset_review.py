@@ -3,13 +3,13 @@ import uuid
 from app.models import ChangesetOp
 from app.services import (
     changeset,
-    changeset_review,
     conversation,
     element_edit,
     embedding,
     graph,
     ontology,
 )
+from app.services.changeset import review as changeset_review
 
 
 def _conversation_with_changeset(session):

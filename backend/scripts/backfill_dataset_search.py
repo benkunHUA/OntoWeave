@@ -17,10 +17,10 @@ from pathlib import Path
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_DIR))
 
+from app.clients.data_service.ontology_client import OntologyDataServiceClient  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.db import build_engine, build_session_factory  # noqa: E402
 from app.services import dataset_search, embedding  # noqa: E402
-from app.services.data_service.ontology_client import OntologyDataServiceClient  # noqa: E402
 
 
 def main() -> None:

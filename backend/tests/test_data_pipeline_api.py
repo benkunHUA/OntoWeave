@@ -1,17 +1,16 @@
 import uuid
 
-from pipeline_test_fakes import (
+from app.errors import InvariantViolationError
+from app.models import Conversation
+from app.services import conversation
+from app.vocabulary import ConversationKind
+from tests.support.pipeline_test_fakes import (
     API,
     CONVERSATION_ID,
     DATASET_ID,
     OWNER_ID,
     PIPELINE_ID,
 )
-
-from app.errors import InvariantViolationError
-from app.models import Conversation
-from app.services import conversation
-from app.vocabulary import ConversationKind
 
 
 def test_create_requires_operation_id(pipeline_client):

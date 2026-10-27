@@ -8,14 +8,14 @@ from sqlalchemy.orm import Session
 from app.errors import InvariantViolationError
 from app.services import (
     action,
-    action_references,
-    action_rules,
     changeset,
     criteria,
     element_edit,
     graph,
     ontology,
 )
+from app.services.action import references as action_references
+from app.services.action import rules as action_rules
 
 
 class _Fixture:

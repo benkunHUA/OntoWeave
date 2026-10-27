@@ -7,7 +7,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from app.models import EMBEDDING_DIM
+from app.constants import EMBEDDING_DIM
 
 TEMPLATE_VERSION = "dataset-v1"
 

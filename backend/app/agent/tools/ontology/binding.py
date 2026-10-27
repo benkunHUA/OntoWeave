@@ -10,8 +10,8 @@ import uuid
 
 from langchain_core.tools import BaseTool, tool
 
+import app.agent.tools.ontology.ops as ops
 from app.agent.tools.common import build_ask_user_tool
-from app.agent.tools.ontology import ops
 from app.agent.tools.ontology.context import OntologyToolContext
 from app.agent.tools.search import build_search_tool
 from app.vocabulary import DEFAULT_CARDINALITY, DEFAULT_DATATYPE

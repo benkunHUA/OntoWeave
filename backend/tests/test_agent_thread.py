@@ -16,7 +16,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent import graph as agent_graph
 from app.agent import runtime, thread
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts.base import SYSTEM_PROMPT
 from app.agent.tools import OntologyToolContext, build_model_tools
 from app.config import Settings
 from app.services import changeset, conversation, embedding

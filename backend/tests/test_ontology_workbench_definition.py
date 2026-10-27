@@ -9,12 +9,12 @@ import pytest
 
 from app.agent.definitions.ontology_workbench import OntologyWorkbenchAgentDefinition
 from app.agent.definitions.registry import get_definition
-from app.agent.prompts_ontology_workbench import build_prompt
+from app.agent.prompts.ontology_workbench import build_prompt
 from app.config import Settings
 from app.errors import InvariantViolationError
 from app.services import conversation, ontology
 from app.vocabulary import ConversationKind
-from tests.ontology_workbench_support import FakeWorkbenchClient, object_with_properties
+from tests.support.ontology_workbench_support import FakeWorkbenchClient, object_with_properties
 
 
 def test_registry_and_prepare_run_use_workbench_kind(session):

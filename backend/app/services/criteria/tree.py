@@ -12,9 +12,18 @@ from dataclasses import replace
 
 from sqlalchemy.orm import Session
 
+import app.services.criteria.shape as shape
 from app.errors import InvariantViolationError
 from app.models import ActionCriteriaNode
-from app.services.criteria import shape, store
+from app.services.criteria.store import (
+    LEFT,
+    RIGHT,
+    get_node,
+    get_operand,
+    list_nodes,
+    list_operands,
+    operand_spec,
+)
 from app.vocabulary import (
     ActionCriteriaLogic,
     ActionCriteriaNodeKind,
@@ -30,7 +39,7 @@ V1_SHAPE_NOTE = "v1 only supports one 'and' root with flat conditions"
 
 def ensure_tree_shape(session: Session, *, action_type_id: uuid.UUID, where: str) -> None:
     """整棵树的形状校验。空树合法——没有提交校验就是「无条件允许」。"""
-    nodes = store.list_nodes(session, action_type_id)
+    nodes = list_nodes(session, action_type_id)
     if not nodes:
         return
     _ensure_no_cycles(nodes, where=where)
@@ -70,7 +79,7 @@ def _ensure_no_cycles(nodes: Sequence[ActionCriteriaNode], *, where: str) -> Non
 
 def validate_node_patch(session: Session, *, node_id: uuid.UUID, patch: dict) -> None:
     """改节点前校验：种类不可改（换种类等于换语义），改完整棵树仍然立得住。"""
-    node = store.get_node(session, node_id)
+    node = get_node(session, node_id)
     if "node_kind" in patch and patch["node_kind"] != node.node_kind:
         raise InvariantViolationError(
             f"criteria node {node_id} cannot change its kind; delete it and add a new one"
@@ -82,9 +91,9 @@ def validate_node_patch(session: Session, *, node_id: uuid.UUID, patch: dict) ->
 
 def validate_operand_patch(session: Session, *, operand_id: uuid.UUID, patch: dict) -> None:
     """改操作数前校验：改完仍只对应一个值来源，且所在条件的两侧仍然合法。"""
-    operand = store.get_operand(session, operand_id)
-    node = store.get_node(session, operand.node_id)
-    merged = replace(store.operand_spec(operand), **patch)
+    operand = get_operand(session, operand_id)
+    node = get_node(session, operand.node_id)
+    merged = replace(operand_spec(operand), **patch)
     shape.ensure_operand_shape(
         session,
         action_type_id=node.action_type_id,
@@ -94,9 +103,7 @@ def validate_operand_patch(session: Session, *, operand_id: uuid.UUID, patch: di
     sides = {
         spec.side: spec
         for spec in (
-            store.operand_spec(row)
-            for row in store.list_operands(session, [node.id])
-            if row.id != operand.id
+            operand_spec(row) for row in list_operands(session, [node.id]) if row.id != operand.id
         )
     }
     sides[merged.side] = merged
@@ -104,7 +111,7 @@ def validate_operand_patch(session: Session, *, operand_id: uuid.UUID, patch: di
         session,
         action_type_id=node.action_type_id,
         operator=node.operator,
-        left=sides.get(store.LEFT),
-        right=sides.get(store.RIGHT),
+        left=sides.get(LEFT),
+        right=sides.get(RIGHT),
         where=f"action criteria condition {node.id}",
     )

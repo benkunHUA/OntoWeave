@@ -20,6 +20,7 @@ from app.api.ontology.payloads import (
     runs,
     validation_payload,
 )
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.deps import get_current_user_id, get_session
 from app.schemas.ontology import (
     BindingDraftRequest,
@@ -35,7 +36,6 @@ from app.schemas.ontology import (
     ValidateBindingRequest,
 )
 from app.services import ontology
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 
 router = APIRouter()
 

@@ -20,7 +20,9 @@ from app.schemas.graph import (
     RelationMembership,
 )
 from app.schemas.graph_publication import GraphPublicationRead
-from app.services import action_brief, embedding, graph, graph_publication
+from app.services import embedding, graph
+from app.services.action import brief as action_brief
+from app.services.graph import publication as graph_publication
 
 router = APIRouter(tags=["graphs"])
 

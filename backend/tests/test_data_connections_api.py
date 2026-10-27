@@ -7,7 +7,8 @@ from app.deps import get_data_service_client
 from app.errors import DataServiceUnavailableError, NotFoundError
 from app.main import _create_app
 from app.models import Conversation
-from app.services import conversation, conversation_event
+from app.services import conversation
+from app.services.conversation import event as conversation_event
 from app.vocabulary import ConversationKind
 
 

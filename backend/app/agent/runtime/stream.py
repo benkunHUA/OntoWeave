@@ -22,11 +22,11 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agent import observability
 from app.agent.definitions.base import AgentRunContext
 from app.agent.definitions.registry import get_definition
-from app.agent.runtime import subagent_trace
 from app.agent.runtime.errors import user_facing_run_error
 from app.agent.runtime.events import TurnBuilder, block_fragments, content_text, sse
 from app.agent.runtime.interrupts import normalize_interrupt
 from app.agent.runtime.runs import thread_config
+from app.agent.runtime.subagent_trace import SubagentTrace
 from app.config import Settings
 from app.schemas.agent_events import (
     RunEndEvent,
@@ -144,7 +144,7 @@ def stream_run(
         # 两种情况都只出一遍，靠这个标记二选一。
         saw_delta = False
         tool_started_at: dict[str, float] = {}
-        trace = subagent_trace.SubagentTrace(definition.visible_subagents)
+        trace = SubagentTrace(definition.visible_subagents)
 
         # subgraphs=True：子智能体内部的事件也吐出来，由 SubagentTrace 决定露不露给前端。
         for chunk in agent.stream(
@@ -267,6 +267,8 @@ def stream_run(
             )
         session.commit()
         state_payload = definition.build_state_update(session, settings, run)
+        # 定义层只产出一轮收尾状态；是否落库、何时提交由运行时决定。
+        session.commit()
         yield sse(StateUpdateEvent(**state_payload))
         # paused 必须显式给出来：否则前端分不清「本轮做完」和「卡在中途等人回答」，
         # 两个都是 run.end，却要走向完全不同的交互。

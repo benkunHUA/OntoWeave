@@ -13,7 +13,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field
 
-from app.agent.tools.view import ops
+import app.agent.tools.view.ops as ops
 from app.vocabulary import VIEW_LAYOUTS
 
 NodeIds = Annotated[

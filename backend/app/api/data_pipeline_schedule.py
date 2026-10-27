@@ -7,11 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
 
+from app.clients.data_service.client import DataServiceClient
 from app.deps import get_current_user_id, get_data_service_client
 from app.schemas.data_pipeline import SchedulePutRequest
 from app.schemas.data_pipeline_execution import ScheduleRead, ScheduleRunRead
-from app.services import data_pipeline_schedule
-from app.services.data_service.client import DataServiceClient
+from app.services.data_pipeline import schedule as data_pipeline_schedule
 
 router = APIRouter(tags=["data-pipeline-schedule"])
 

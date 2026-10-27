@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts.base import SYSTEM_PROMPT
 from app.agent.tools import OntologyToolContext, build_view_subagent, build_view_tools
 from app.agent.tools.view.registry import VIEW_OPS
 from app.config import Settings

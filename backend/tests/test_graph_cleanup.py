@@ -1,4 +1,4 @@
-"""删图之后共享池清理策略（``app.services.graph_cleanup``）的行为。
+"""删图之后共享池清理策略（``app.services.graph.cleanup``）的行为。
 
 这些用例走的是会话删除这条真实路径：先 `conversation.delete_conversation`，
 再断言共享池里留下了什么。
@@ -7,7 +7,8 @@
 import uuid
 
 from app.models import ActionParameter, ActionType, ObjectType, Property, Relation
-from app.services import action, conversation, graph, graph_cleanup, ontology
+from app.services import action, conversation, graph, ontology
+from app.services.graph import cleanup as graph_cleanup
 
 
 def test_graph_only_scope_keeps_shared_pool_intact(session):

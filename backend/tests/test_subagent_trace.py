@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from sqlalchemy import select
 
 from app.agent import graph as agent_graph
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts.base import SYSTEM_PROMPT
 from app.agent.runtime import subagent_trace
 from app.agent.runtime.stream import stream_run
 from app.agent.tools.action.subagent import ACTION_AGENT_NAME

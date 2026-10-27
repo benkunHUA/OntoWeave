@@ -9,8 +9,8 @@ from typing import Annotated
 from fastapi import Depends, Header
 from pydantic import BaseModel
 
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.config import Settings, get_settings
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 
 OperationId = Annotated[uuid.UUID | None, Header(alias="X-Operation-Id")]
 

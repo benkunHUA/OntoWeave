@@ -6,9 +6,10 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.services import conversation, conversation_event
-from app.services.data_service import pipeline_mapping as mapping
-from app.services.data_service.client import DataServiceClient
+from app.clients.data_service import pipeline_mapping as mapping
+from app.clients.data_service.client import DataServiceClient
+from app.services import conversation
+from app.services.conversation import event as conversation_event
 
 
 def get_pipeline_state(

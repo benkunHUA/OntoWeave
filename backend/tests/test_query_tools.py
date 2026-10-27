@@ -8,7 +8,7 @@ from langgraph.prebuilt.tool_node import ToolRuntime
 from app.agent.tools.query.binding import build_query_instance_tools
 from app.agent.tools.query.context import QueryToolContext
 from app.services import embedding, graph, ontology
-from tests.test_query_services import FakeQueryClient, _object_with_id
+from tests.support.query_fixtures import FakeQueryClient, _object_with_id
 
 
 def _tools(session, owner, client):

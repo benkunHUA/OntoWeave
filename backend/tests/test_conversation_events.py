@@ -5,8 +5,10 @@ from fastapi.testclient import TestClient
 
 from app.config import DEFAULT_USER_ID
 from app.main import _create_app
-from app.services import conversation, conversation_event
-from app.services.conversation_event_stream import iter_event_stream
+from app.models import Conversation
+from app.services import conversation
+from app.services.conversation import event as conversation_event
+from app.services.conversation.event_stream import iter_event_stream
 from app.services.event_bus import ConversationEventBus
 from app.vocabulary import ConversationKind
 
@@ -54,7 +56,7 @@ def test_ingest_is_idempotent_and_uses_connection_id(session_factory):
 
 
 def _conversation_id(session) -> uuid.UUID:
-    return session.query(conversation.Conversation).one().id
+    return session.query(Conversation).one().id
 
 
 def test_test_event_uses_conversation_id(session_factory):
@@ -152,7 +154,7 @@ def test_turn_id_is_persisted_and_exposed(session_factory):
     turn_id = uuid.uuid4()
     with session_factory() as session:
         session.add(
-            conversation.Conversation(
+            Conversation(
                 id=conversation_id,
                 owner_id=OWNER_ID,
                 kind=ConversationKind.DATA_PIPELINE.value,
@@ -182,7 +184,7 @@ def test_real_pipeline_event_payload_persists_conversation_and_turn(session_fact
     turn_id = uuid.uuid4()
     with session_factory() as session:
         session.add(
-            conversation.Conversation(
+            Conversation(
                 id=conversation_id,
                 owner_id=OWNER_ID,
                 kind=ConversationKind.DATA_PIPELINE.value,
@@ -224,7 +226,7 @@ def test_real_build_succeeded_payload_persists_event(session_factory):
     build_id = uuid.uuid4()
     with session_factory() as session:
         session.add(
-            conversation.Conversation(
+            Conversation(
                 id=conversation_id,
                 owner_id=OWNER_ID,
                 kind=ConversationKind.DATA_PIPELINE.value,

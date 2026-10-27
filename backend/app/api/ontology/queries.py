@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.ontology.deps import OperationId, get_ontology_client, operation_id
 from app.api.ontology.payloads import filter_payload
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.deps import get_current_user_id, get_session
 from app.schemas.ontology import (
     IndexRun,
@@ -20,7 +21,6 @@ from app.schemas.ontology import (
     RelationInstancePage,
 )
 from app.services import ontology
-from app.services.data_service.ontology_client import OntologyDataServiceClient
 
 router = APIRouter()
 

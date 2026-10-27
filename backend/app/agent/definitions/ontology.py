@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.agent import graph as agent_graph
 from app.agent import llm
 from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts.base import SYSTEM_PROMPT
 from app.agent.tools import (
     OntologyToolContext,
     build_action_subagent,

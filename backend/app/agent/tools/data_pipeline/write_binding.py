@@ -9,7 +9,9 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 
-from app.agent.tools.data_pipeline import common, constants, ops
+import app.agent.tools.data_pipeline.common as common
+import app.agent.tools.data_pipeline.constants as constants
+import app.agent.tools.data_pipeline.ops as ops
 from app.agent.tools.data_pipeline.context import DataPipelineToolContext
 
 

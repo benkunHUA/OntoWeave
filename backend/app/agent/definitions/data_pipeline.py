@@ -12,17 +12,17 @@ from sqlalchemy.orm import Session
 from app.agent import data_pipeline_events, llm
 from app.agent import graph as agent_graph
 from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
-from app.agent.prompts_data_pipeline import build_prompt
+from app.agent.prompts.data_pipeline import build_prompt
 from app.agent.tools.data_pipeline import (
     DataPipelineToolContext,
     build_data_pipeline_tools,
 )
+from app.clients.data_service import pipeline_mapping as mapping
+from app.clients.data_service.client import DataServiceClient
 from app.config import Settings, get_settings
 from app.errors import DomainError, InvariantViolationError
 from app.models import Conversation
-from app.services import conversation_event
-from app.services.data_service import pipeline_mapping as mapping
-from app.services.data_service.client import DataServiceClient
+from app.services.conversation import event as conversation_event
 from app.vocabulary import ConversationKind
 
 PROMPT_EVENT_LIMIT = 10
@@ -131,7 +131,6 @@ class DataPipelineAgentDefinition(BaseAgentDefinition):
                 draft_revision=draft_revision,
                 load_error=load_error,
             )
-            session.commit()
         return {
             "pipelineId": str(pipeline_run.pipeline_id),
             "draftRevision": draft_revision,

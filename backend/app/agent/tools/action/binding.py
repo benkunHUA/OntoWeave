@@ -16,8 +16,8 @@ from typing import Any
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel
 
-from app.agent.tools.action import args as action_args
-from app.agent.tools.action import ops
+import app.agent.tools.action.args as action_args
+import app.agent.tools.action.ops as ops
 from app.agent.tools.ontology.context import OntologyToolContext
 
 _ARGS = type[BaseModel]

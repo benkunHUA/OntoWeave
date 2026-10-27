@@ -23,6 +23,7 @@ from app.services.element_edit.creates import (
     reuse_object_type,
 )
 from app.services.element_edit.criteria import replace_action_criteria
+from app.services.element_edit.mappers import edits_from_payload
 from app.services.element_edit.ops import (
     ACTION_CRITERIA_NODE,
     ACTION_CRITERIA_OPERAND,
@@ -77,6 +78,7 @@ __all__ = [
     "create_object_type",
     "create_property",
     "create_relation",
+    "edits_from_payload",
     "record_update",
     "remove_element",
     "replace_action_criteria",

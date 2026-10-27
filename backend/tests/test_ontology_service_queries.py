@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from app.services import ontology
-from tests.ontology_service_support import FakeOntologyClient, object_with_properties
+from tests.support.ontology_service_support import FakeOntologyClient, object_with_properties
 
 
 def test_merge_detail_keeps_definition_order_and_fills_null(session):

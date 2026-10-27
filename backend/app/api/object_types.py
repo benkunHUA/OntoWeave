@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.api.runtime_dependencies import request_embedder, request_name_generator
 from app.deps import get_current_user_id, get_session
 from app.schemas.ontology import ObjectTypeCreate, ObjectTypeRead
 from app.services import embedding, english_names, ontology
@@ -23,7 +23,7 @@ def create_object_type(
         name=payload.name,
         name_en=payload.name_en,
         description=payload.description,
-        name_generator=_request_name_generator(),
+        name_generator=request_name_generator(),
     )
     return ObjectTypeRead.model_validate(obj)
 
@@ -38,13 +38,13 @@ def confirm_object_type(
     english_names.fill_object_english_names(
         session,
         object_type=obj,
-        generator=_request_name_generator(),
+        generator=request_name_generator(),
     )
     # 确认才补向量，和改动集定稿路径保持一致：草稿不参与检索，确认后的才可被复用。
     embedding.try_refresh_object_type_embedding(
         session,
         object_type_id=obj.id,
-        embedder=embedding.build_embedder(get_settings()),
+        embedder=request_embedder(),
     )
     return ObjectTypeRead.model_validate(obj)
 
@@ -59,7 +59,3 @@ def list_object_types(
         session, owner_id=get_current_user_id(), limit=limit, offset=offset
     )
     return [ObjectTypeRead.model_validate(obj) for obj in objs]
-
-
-def _request_name_generator() -> english_names.EnglishNameGenerator | None:
-    return english_names.build_english_name_generator(get_settings())

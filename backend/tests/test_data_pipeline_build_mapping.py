@@ -1,7 +1,7 @@
 import uuid
 
+from app.clients.data_service import pipeline_mapping
 from app.schemas.data_pipeline_execution import BuildRead
-from app.services.data_service import pipeline_mapping
 
 
 def test_build_output_exposes_dataset_and_version_identity():

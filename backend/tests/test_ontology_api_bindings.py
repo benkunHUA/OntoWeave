@@ -8,10 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.clients.data_service.client import RevisionConflict
 from app.config import get_settings
 from app.errors import UnprocessableEntityError
-from app.services.data_service.client import RevisionConflict
-from tests.ontology_api_support import API, FakeOntologyApiClient, build_client
+from tests.support.ontology_api_support import API, FakeOntologyApiClient, build_client
 
 
 @pytest.fixture

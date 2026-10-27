@@ -6,7 +6,7 @@ import uuid
 
 import pytest
 
-from tests.ontology_workbench_support import (
+from tests.support.ontology_workbench_support import (
     FakeWorkbenchClient,
     context,
     object_with_properties,

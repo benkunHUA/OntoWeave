@@ -19,14 +19,15 @@ http://127.0.0.1:18000/docs。
 
 ## 本地开发
 
+前置：安装 [uv](https://docs.astral.sh/uv/)（依赖与虚拟环境由 `uv.lock` 统一锁定）。
+
 ```bash
 cd ..
 docker compose up -d db
 cd backend
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-alembic upgrade head
-uvicorn app.main:app --reload --port 18000
+uv sync --extra dev
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 18000
 ```
 
 ## 配置
@@ -61,8 +62,7 @@ cp .env.example .env
 cd ..
 docker compose up -d db
 cd backend
-source .venv/bin/activate
-pytest -v
+uv run pytest -v
 ```
 
 测试连 `TEST_DATABASE_URL`（默认本地的 `ontoweave_test`），每次会话重建该库的 schema。
@@ -76,37 +76,36 @@ pytest -v
 ## 静态检查
 
 ```bash
-ruff check .
-ruff format --check .
-mypy app
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy app
 ```
 
 CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依次跑 lint、格式检查、
-类型检查和测试。依赖用 `uv.lock` 锁定。
+类型检查和测试。依赖由 `uv.lock` 锁定，CI 与 Docker 构建都使用冻结锁文件。
 
 ## 目录
 
 | 路径 | 作用 |
 |---|---|
-| `app/models.py` | SQLAlchemy 模型（本体、图、视图、改动集、动作） |
-| `app/schemas/` | 按领域拆分的 Pydantic 出入参 |
-| `app/services/ontology.py` | 对象类型 / 属性 / 关系的领域逻辑与状态机 |
-| `app/services/action.py` | 动作类型 / 参数 / 规则 / 字段赋值的领域逻辑与不变量 |
-| `app/services/action_rules.py` | 规则-赋值校验策略，按规则种类分派 |
+| `app/models/` | SQLAlchemy 模型，按领域拆分（本体、图、会话、动作、改动集） |
+| `app/schemas/` | 按领域拆分的 Pydantic 出入参；`schemas/ontology/` 按资源再分组 |
+| `app/services/ontology/` | 对象类型 / 属性 / 关系的领域逻辑与状态机 |
+| `app/services/action/` | 动作类型、参数、规则、赋值、brief、detail 与引用保护 |
 | `app/services/criteria/` | 提交校验条件树：读取顺序、单条形状、建树、整树不变量 |
-| `app/services/action_references.py` | 删除保护：被动作定义引用的共享元素拒绝删除 |
-| `app/services/action_brief.py` · `action_detail.py` | 画布 brief 与 `involves` 推导 / 动作详情组装 |
-| `app/services/element_kinds.py` | 元素种类注册表（9 种）：create 分派、删除顺序、引用检查都按它走 |
+| `app/services/element_kinds/` | 元素种类注册表（9 种）：create 分派、删除顺序、引用检查都按它走 |
 | `app/services/element_edit/` | 改动集写入：操作形状、建草稿、更新与删除、条件树整棵替换 |
-| `app/services/graph.py` | 图的成员管理与关系端点完整性约束 |
-| `app/services/data_connection.py` | 数据连接编排：Python 会话 + Java 数据服务 |
-| `app/services/data_service/` | Java 内部 REST 客户端与 camelCase → snake_case 映射 |
-| `app/services/conversation_event.py` | 事件幂等落库、游标查询、Outbox 信封消费 |
-| `app/services/conversation_event_stream.py` | 对话事件 SSE：历史补发 + 增量推送 |
+| `app/services/graph/` | 图的成员管理、发布、检索与关系端点完整性约束 |
+| `app/services/changeset/` | 改动集存储、操作登记、确认 / 撤销与回执 |
+| `app/services/conversation/` | 会话生命周期、消息、事件幂等落库与 SSE |
+| `app/services/data_connection/` | 数据连接编排：Python 会话 + Java 数据服务 |
+| `app/clients/data_service/` | Java 内部 REST 客户端、传输层与 camelCase → snake_case 映射 |
 | `app/messaging/consumer.py` | RabbitMQ 消费者与重连 |
-| `app/agent/tools/data_connection/` | 数据连接 Agent 的只读工具与上下文 |
+| `app/api/data_connections/` | 数据连接、同步任务与数据集的 REST 边界 |
+| `app/api/runtime_dependencies.py` | 智能体运行时外部依赖的装配入口 |
 | `app/api/` | 按领域拆分的路由，统一挂在 `/api/v1` 下 |
-| `app/deps.py` | 依赖注入；事务边界在这里（成功提交、异常回滚） |
+| `app/deps.py` | 依赖注入；请求事务边界在这里（成功提交、异常回滚） |
+| `app/constants.py` | 跨层共享常量（如向量维度），避免 ORM 反向依赖服务层 |
 | `app/middleware.py` | 请求 ID 与访问日志 |
 | `alembic/versions/` | 数据库迁移 |
 
@@ -174,7 +173,7 @@ Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过
   主键、必填字段与类型兼容仍由确定性规则复核。
 - 检索只查 `is_current = true AND status = 'ready'` 的当前版本。embedding 失败会落成
   `failed`，不会阻塞数据集发布。
-- 历史数据用 `cd backend && .venv/bin/python scripts/backfill_dataset_search.py --owner-id <uuid>`
+- 历史数据用 `cd backend && uv run python scripts/backfill_dataset_search.py --owner-id <uuid>`
   回填；不传 owner 时使用 `DEFAULT_USER_ID`。索引表可随时按 Java 当前版本重建。
 
 ### 改动集的语义
@@ -185,7 +184,7 @@ Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过
 
 确认前会先对所有操作做一遍全量校验，避免改到一半失败留下半生不熟的状态。
 
-可写元素种类集中在 `app/services/element_kinds.py`：对象类型 / 属性 / 关系 / 动作类型 /
+可写元素种类集中在 `app/services/element_kinds/registry.py`：对象类型 / 属性 / 关系 / 动作类型 /
 动作参数 / 动作规则 / 规则赋值 / 条件节点 / 条件操作数，共 9 种。新增一种元素 =
 在注册表加一条（模型、字段白名单、删除顺序阶梯、引用检查都在这里），不再各自维护分支。
 

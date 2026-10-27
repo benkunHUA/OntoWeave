@@ -8,7 +8,7 @@ import pytest
 
 from app.errors import DataServiceUnavailableError
 from app.services import ontology
-from tests.ontology_service_support import FakeOntologyClient, relation_with_primary_keys
+from tests.support.ontology_service_support import FakeOntologyClient, relation_with_primary_keys
 
 
 def test_relation_definition_payload_contains_both_primary_keys(session):

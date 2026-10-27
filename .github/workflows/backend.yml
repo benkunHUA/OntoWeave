@@ -39,12 +39,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          version: "0.11.32"
           python-version: "3.12"
+          enable-cache: true
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --frozen --extra dev
 
       - name: Create test database
         env:
@@ -52,13 +54,13 @@ jobs:
         run: psql -h localhost -U ontoweave -d postgres -c "CREATE DATABASE ontoweave_test OWNER ontoweave;"
 
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Format check
-        run: ruff format --check .
+        run: uv run ruff format --check .
 
       - name: Type check
-        run: mypy app
+        run: uv run mypy app
 
       - name: Tests
-        run: pytest -v
+        run: uv run pytest -v

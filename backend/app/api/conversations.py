@@ -12,7 +12,8 @@ from app.schemas.conversation import (
     ConversationRead,
     ConversationUpdate,
 )
-from app.services import conversation, graph_cleanup
+from app.services import conversation
+from app.services.graph import cleanup as graph_cleanup
 from app.vocabulary import ConversationKind
 
 router = APIRouter(tags=["conversations"])

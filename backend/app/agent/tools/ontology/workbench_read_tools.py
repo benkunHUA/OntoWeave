@@ -7,7 +7,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, tool
 
-from app.agent.tools.ontology import workbench_constants
+import app.agent.tools.ontology.workbench_constants as workbench_constants
 from app.agent.tools.ontology.workbench_common import binding_mapping, parse_mapping
 from app.agent.tools.ontology.workbench_context import OntologyWorkbenchToolContext
 from app.services import dataset_search, ontology

@@ -7,15 +7,16 @@ from app.agent.definitions.data_connection import (
     DataConnectionRunContext,
 )
 from app.agent.definitions.registry import get_definition
-from app.agent.prompts_data_connection import build_prompt
+from app.agent.prompts.data_connection import build_prompt
 from app.agent.tools.data_connection import (
     DataConnectionToolContext,
     build_data_connection_tools,
 )
+from app.clients.data_service import mapping
 from app.config import Settings
 from app.errors import InvariantViolationError
-from app.services import conversation, conversation_event
-from app.services.data_service import mapping
+from app.services import conversation
+from app.services.conversation import event as conversation_event
 from app.vocabulary import ConversationKind
 
 

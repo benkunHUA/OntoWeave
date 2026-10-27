@@ -12,17 +12,17 @@ from sqlalchemy.orm import Session
 from app.agent import graph as agent_graph
 from app.agent import llm
 from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
-from app.agent.prompts_data_connection import build_prompt
+from app.agent.prompts.data_connection import build_prompt
 from app.agent.tools.data_connection import (
     DataConnectionToolContext,
     build_data_connection_tools,
 )
+from app.clients.data_service import mapping
+from app.clients.data_service.client import DataServiceClient
 from app.config import Settings
 from app.errors import DomainError, InvariantViolationError
 from app.models import Conversation
-from app.services import conversation_event
-from app.services.data_service import mapping
-from app.services.data_service.client import DataServiceClient
+from app.services.conversation import event as conversation_event
 from app.vocabulary import ConversationKind
 
 #: 注入提示词的最近事件条数；更早历史由 get_connection_events 工具按需读取。

@@ -6,8 +6,8 @@ import uuid
 from dataclasses import dataclass, field
 
 from app.agent.tools.context import ToolContext
-from app.agent.tools.data_pipeline import constants
-from app.services.data_service.client import DataServiceClient, RevisionConflict
+from app.agent.tools.data_pipeline.constants import REVISION_CONFLICT
+from app.clients.data_service.client import DataServiceClient, RevisionConflict
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -24,7 +24,7 @@ class DataPipelineToolContext(ToolContext):
 
     def error_result(self, exc: Exception) -> dict[str, str]:
         if isinstance(exc, RevisionConflict):
-            return {"error": constants.REVISION_CONFLICT, "message": str(exc)}
+            return {"error": REVISION_CONFLICT, "message": str(exc)}
         return super().error_result(exc)
 
     def advance_revision(self, revision: int) -> None:

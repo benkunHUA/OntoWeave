@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.agent.prompts_query import (
+from app.agent.prompts.query import (
     MAIN_QUERY_AGENT_PROMPT,
     QUERY_AGENT_DESCRIPTION,
     QUERY_AGENT_PROMPT,

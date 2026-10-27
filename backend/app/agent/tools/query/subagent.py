@@ -16,16 +16,17 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from sqlalchemy.orm import Session
 
 from app.agent import llm
-from app.agent.prompts_query import QUERY_AGENT_DESCRIPTION, QUERY_AGENT_PROMPT
+from app.agent.prompts.query import QUERY_AGENT_DESCRIPTION, QUERY_AGENT_PROMPT
 from app.agent.tools.query.binding import build_query_instance_tools
 from app.agent.tools.query.context import QueryToolContext
 from app.agent.tools.query.sequential import SequentialToolCallsMiddleware
 from app.agent.tools.query.state import QueryAgentState
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.config import Settings
 from app.errors import InvalidRequestError, InvariantViolationError
 from app.schemas.query import QueryAgentResult, QueryAgentStatus, QueryEvidence
-from app.services import embedding, graph_search
-from app.services.data_service.ontology_client import OntologyDataServiceClient
+from app.services import embedding
+from app.services.graph import search as graph_search
 
 QUERY_AGENT_NAME = "query_agent"
 logger = logging.getLogger(__name__)

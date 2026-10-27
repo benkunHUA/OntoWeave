@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from app.agent.tools.context import ToolContext
-from app.services.data_service.client import DataServiceClient
+from app.clients.data_service.client import DataServiceClient
 
 
 @dataclass(frozen=True, kw_only=True)

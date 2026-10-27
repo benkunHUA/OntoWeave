@@ -2,7 +2,7 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.models import EMBEDDING_DIM
+from app.constants import EMBEDDING_DIM
 
 # 一期没有用户系统，所有 owner_id / user_id 都用这个固定值。
 DEFAULT_USER_ID = "00000000-0000-0000-0000-000000000001"

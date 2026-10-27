@@ -18,8 +18,16 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+import app.services.criteria.shape as shape
 from app.errors import InvariantViolationError
-from app.services.criteria import shape, store
+from app.services.criteria.store import (
+    LEFT,
+    RIGHT,
+    OperandSpec,
+    list_nodes,
+    list_operands,
+    operand_spec,
+)
 
 
 @dataclass(frozen=True)
@@ -28,8 +36,8 @@ class ConditionSpec:
 
     operator: str
     failure_message: str | None
-    left: store.OperandSpec
-    right: store.OperandSpec | None
+    left: OperandSpec
+    right: OperandSpec | None
 
 
 @dataclass(frozen=True)
@@ -55,10 +63,10 @@ def parse_condition(
         raise InvariantViolationError(f"{where}: failure_message must be text")
 
     left_where = f"{where} left operand"
-    left = _operand_spec(spec.get("left"), side=store.LEFT, where=left_where)
+    left = _operand_spec(spec.get("left"), side=LEFT, where=left_where)
     if left is None:
         raise InvariantViolationError(f"{left_where}: needs an operand")
-    right = _operand_spec(spec.get("right"), side=store.RIGHT, where=f"{where} right operand")
+    right = _operand_spec(spec.get("right"), side=RIGHT, where=f"{where} right operand")
     shape.ensure_operand_shape(
         session, action_type_id=action_type_id, operand=left, where=f"{where} left operand"
     )
@@ -97,7 +105,7 @@ def replacement_plan(
     ignored = set(ignore_node_ids)
     existing = [
         node
-        for node in store.list_nodes(session, action_type_id)
+        for node in list_nodes(session, action_type_id)
         if node.id not in ignored and node.node_kind == "condition"
     ]
     buckets = _existing_buckets(session, existing)
@@ -115,7 +123,7 @@ def replacement_plan(
     return ReplacementPlan(deletions=deletions, kept=tuple(kept), additions=tuple(additions))
 
 
-def _operand_spec(raw: Any, *, side: str, where: str) -> store.OperandSpec | None:
+def _operand_spec(raw: Any, *, side: str, where: str) -> OperandSpec | None:
     """把请求里的一个操作数转成形状；缺省返回 None，缺不缺由调用方约束。"""
     if raw is None:
         return None
@@ -124,7 +132,7 @@ def _operand_spec(raw: Any, *, side: str, where: str) -> store.OperandSpec | Non
     kind = raw.get("kind")
     if not isinstance(kind, str):
         raise InvariantViolationError(f"{where}: needs a kind")
-    return store.OperandSpec(
+    return OperandSpec(
         side=side,
         kind=kind,
         value_parameter_id=raw.get("value_parameter_id"),
@@ -137,14 +145,12 @@ def _operand_spec(raw: Any, *, side: str, where: str) -> store.OperandSpec | Non
 def _existing_buckets(session: Session, nodes: Sequence[Any]) -> dict[tuple, deque[uuid.UUID]]:
     """现有条件的值指纹分桶。值相同的条件可能不止一条，所以一个指纹一个队列。"""
     buckets: dict[tuple, deque[uuid.UUID]] = defaultdict(deque)
-    sides: dict[uuid.UUID, dict[str, store.OperandSpec]] = defaultdict(dict)
-    for operand in store.list_operands(session, [node.id for node in nodes]):
-        sides[operand.node_id][operand.side] = store.operand_spec(operand)
+    sides: dict[uuid.UUID, dict[str, OperandSpec]] = defaultdict(dict)
+    for operand in list_operands(session, [node.id for node in nodes]):
+        sides[operand.node_id][operand.side] = operand_spec(operand)
     for node in nodes:
         own = sides.get(node.id, {})
-        key = _condition_key(
-            node.operator, node.failure_message, own.get(store.LEFT), own.get(store.RIGHT)
-        )
+        key = _condition_key(node.operator, node.failure_message, own.get(LEFT), own.get(RIGHT))
         buckets[key].append(node.id)
     return buckets
 
@@ -152,13 +158,13 @@ def _existing_buckets(session: Session, nodes: Sequence[Any]) -> dict[tuple, deq
 def _condition_key(
     operator: str | None,
     failure_message: str | None,
-    left: store.OperandSpec | None,
-    right: store.OperandSpec | None,
+    left: OperandSpec | None,
+    right: OperandSpec | None,
 ) -> tuple:
     return (operator, failure_message, _side_key(left), _side_key(right))
 
 
-def _side_key(spec: store.OperandSpec | None) -> tuple | None:
+def _side_key(spec: OperandSpec | None) -> tuple | None:
     if spec is None:
         return None
     return (

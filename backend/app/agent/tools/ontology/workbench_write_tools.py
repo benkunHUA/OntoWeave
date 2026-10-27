@@ -9,7 +9,7 @@ from typing import Any
 from langchain_core.tools import BaseTool, tool
 from langgraph.types import interrupt
 
-from app.agent.tools.ontology import workbench_constants
+import app.agent.tools.ontology.workbench_constants as workbench_constants
 from app.agent.tools.ontology.workbench_common import (
     binding_dataset,
     binding_mapping,

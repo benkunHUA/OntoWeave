@@ -15,10 +15,20 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+import app.services.criteria.shape as shape
 from app.errors import InvariantViolationError
 from app.models import ActionCriteriaNode, ActionCriteriaOperand
-from app.services import action, status
-from app.services.criteria import shape, store, tree
+from app.services import status
+from app.services.action.types import get_action_type
+from app.services.criteria.store import (
+    LEFT,
+    RIGHT,
+    OperandSpec,
+    get_node,
+    list_nodes,
+    nodes_by_depth_desc,
+)
+from app.services.criteria.tree import V1_SHAPE_NOTE, ensure_tree_shape
 from app.vocabulary import (
     ACTION_CRITERIA_NODE_KINDS,
     ACTION_CRITERIA_OPERATORS,
@@ -41,7 +51,7 @@ def create_group(
 ) -> ActionCriteriaNode:
     if logic != DEFAULT_LOGIC:
         raise InvariantViolationError(
-            f"action criteria group: unsupported logic {logic!r}; {tree.V1_SHAPE_NOTE}"
+            f"action criteria group: unsupported logic {logic!r}; {V1_SHAPE_NOTE}"
         )
     return _create_node(
         session,
@@ -92,11 +102,11 @@ def _create_node(
     parent_id: uuid.UUID | None,
     order_index: int | None,
 ) -> ActionCriteriaNode:
-    action.get_action_type(session, action_type_id)
+    get_action_type(session, action_type_id)
     if node_kind not in ACTION_CRITERIA_NODE_KINDS:
         raise InvariantViolationError(f"unsupported criteria node kind {node_kind!r}")
     if parent_id is not None:
-        parent = store.get_node(session, parent_id)
+        parent = get_node(session, parent_id)
         if parent.action_type_id != action_type_id:
             raise InvariantViolationError("criteria node parent belongs to another action")
     if order_index is None:
@@ -123,7 +133,7 @@ def _next_child_index(
 ) -> int:
     siblings = [
         node.order_index
-        for node in store.list_nodes(session, action_type_id)
+        for node in list_nodes(session, action_type_id)
         if node.parent_id == parent_id
     ]
     return max(siblings, default=-1) + 1
@@ -140,8 +150,8 @@ def create_operand(
     object_property_id: uuid.UUID | None = None,
     static_value: Any | None = None,
 ) -> Any:
-    node = store.get_node(session, node_id)
-    spec = store.OperandSpec(
+    node = get_node(session, node_id)
+    spec = OperandSpec(
         side=side,
         kind=kind,
         value_parameter_id=value_parameter_id,
@@ -181,10 +191,10 @@ def replace_criteria(
     入参形状就是界面与工具层的形状——每条条件是 `{operator, failure_message, left, right}`，
     操作数形如 `{kind: 'parameter', value_parameter_id: ...}`。放宽成嵌套树时只改这里。
     """
-    action.get_action_type(session, action_type_id)
+    get_action_type(session, action_type_id)
     # 逐个删、逐个 flush：一批删的话 ORM 会把同表的 DELETE 打包成 executemany，
     # 父行先落地就会把子行级联带走，剩下的删除变成 0 匹配（SAWarning）。
-    for node in store.nodes_by_depth_desc(store.list_nodes(session, action_type_id)):
+    for node in nodes_by_depth_desc(list_nodes(session, action_type_id)):
         session.delete(node)
         session.flush()
     if not conditions:
@@ -209,13 +219,13 @@ def replace_criteria(
         left = spec.get("left")
         if left is None:
             raise InvariantViolationError(f"{where}: needs a left operand")
-        _create_operand(session, node=node, side=store.LEFT, spec=left, where=where)
+        _create_operand(session, node=node, side=LEFT, spec=left, where=where)
         right = spec.get("right")
         if right is not None:
-            _create_operand(session, node=node, side=store.RIGHT, spec=right, where=where)
+            _create_operand(session, node=node, side=RIGHT, spec=right, where=where)
         shape.ensure_condition_shape(session, node=node, where=where)
 
-    tree.ensure_tree_shape(session, action_type_id=action_type_id, where="action criteria")
+    ensure_tree_shape(session, action_type_id=action_type_id, where="action criteria")
     return created
 
 

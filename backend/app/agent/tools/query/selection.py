@@ -7,7 +7,7 @@ import uuid
 from langchain_core.tools import BaseTool, tool
 
 from app.agent.tools.query.context import QueryToolContext
-from app.services import graph_search
+from app.services.graph import search as graph_search
 
 
 def build_query_selection_tools(ctx: QueryToolContext) -> list[BaseTool]:

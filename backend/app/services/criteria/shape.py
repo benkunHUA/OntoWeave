@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError
 from app.models import ActionCriteriaNode
-from app.services import action, value_types
 from app.services import property as property_service
-from app.services.criteria import store
+from app.services import value_types
+from app.services.action.parameters import get_parameter
+from app.services.criteria.store import LEFT, RIGHT, OperandSpec, list_operands, operand_spec
 from app.vocabulary import (
     ACTION_CRITERIA_OPERATORS,
     ACTION_CRITERIA_SIDES,
@@ -33,9 +34,9 @@ def ensure_condition_shape(session: Session, *, node: ActionCriteriaNode, where:
     """按库里现有的操作数校验一条条件。"""
     if node.node_kind != ActionCriteriaNodeKind.CONDITION.value:
         raise InvariantViolationError(f"{where}: node {node.id} is not a condition")
-    sides: dict[str, store.OperandSpec] = {}
-    for operand in store.list_operands(session, [node.id]):
-        spec = store.operand_spec(operand)
+    sides: dict[str, OperandSpec] = {}
+    for operand in list_operands(session, [node.id]):
+        spec = operand_spec(operand)
         if spec.side in sides:
             raise InvariantViolationError(f"{where}: more than one {spec.side} operand")
         sides[spec.side] = spec
@@ -49,8 +50,8 @@ def ensure_condition_shape(session: Session, *, node: ActionCriteriaNode, where:
         session,
         action_type_id=node.action_type_id,
         operator=node.operator,
-        left=sides.get(store.LEFT),
-        right=sides.get(store.RIGHT),
+        left=sides.get(LEFT),
+        right=sides.get(RIGHT),
         where=where,
     )
 
@@ -60,8 +61,8 @@ def ensure_condition_sides(
     *,
     action_type_id: uuid.UUID,
     operator: str | None,
-    left: store.OperandSpec | None,
-    right: store.OperandSpec | None,
+    left: OperandSpec | None,
+    right: OperandSpec | None,
     where: str,
 ) -> None:
     """两侧的搭配：运算符认不认左边这个类型、该不该有右边、右边配不配得上。"""
@@ -93,7 +94,7 @@ def ensure_operand_shape(
     session: Session,
     *,
     action_type_id: uuid.UUID,
-    operand: store.OperandSpec,
+    operand: OperandSpec,
     where: str,
 ) -> None:
     """操作数的种类决定哪一列有值，其余一律必须为空。"""
@@ -161,11 +162,11 @@ def ensure_operand_shape(
 
 
 def _operand_datatype(
-    session: Session, operand: store.OperandSpec, *, where: str
+    session: Session, operand: OperandSpec, *, where: str
 ) -> tuple[str, Sequence[str] | None]:
     """操作数自带的数据类型与候选值。静态值没有类型，不能站在左边。"""
     if operand.kind == ActionOperandKind.PARAMETER.value:
-        parameter = action.get_parameter(session, _required(operand.value_parameter_id))
+        parameter = get_parameter(session, _required(operand.value_parameter_id))
         if parameter.datatype is None:
             raise InvariantViolationError(f"{where}: parameter has no datatype")
         return parameter.datatype, parameter.enum_values
@@ -182,7 +183,7 @@ def _ensure_sides_match(
     *,
     left_datatype: str,
     left_enum_values: Sequence[str] | None,
-    right: store.OperandSpec,
+    right: OperandSpec,
     where: str,
 ) -> None:
     if right.kind == ActionOperandKind.STATIC.value:
@@ -214,7 +215,7 @@ def _required(value: uuid.UUID | None) -> uuid.UUID:
 def _ensure_value_parameter(
     session: Session, *, parameter_id: uuid.UUID, action_type_id: uuid.UUID, where: str
 ) -> None:
-    parameter = action.get_parameter(session, parameter_id)
+    parameter = get_parameter(session, parameter_id)
     if parameter.action_type_id != action_type_id:
         raise InvariantViolationError(f"{where}: the value parameter belongs to another action")
     if parameter.kind != ActionParameterKind.VALUE.value:
@@ -226,7 +227,7 @@ def _ensure_value_parameter(
 def _ensure_object_parameter(
     session: Session, *, parameter_id: uuid.UUID, action_type_id: uuid.UUID, where: str
 ) -> Any:
-    parameter = action.get_parameter(session, parameter_id)
+    parameter = get_parameter(session, parameter_id)
     if parameter.action_type_id != action_type_id:
         raise InvariantViolationError(f"{where}: the object parameter belongs to another action")
     if parameter.kind != ActionParameterKind.OBJECT_REF.value:

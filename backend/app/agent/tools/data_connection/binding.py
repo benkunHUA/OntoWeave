@@ -6,8 +6,8 @@ import uuid
 
 from langchain_core.tools import BaseTool, tool
 
+import app.agent.tools.data_connection.ops as ops
 from app.agent.tools.common import build_ask_user_tool
-from app.agent.tools.data_connection import ops
 from app.agent.tools.data_connection.context import DataConnectionToolContext
 
 

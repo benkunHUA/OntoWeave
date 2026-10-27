@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.api.router import api_router
+from app.clients.data_service.client import RevisionConflict
 from app.config import get_settings
 from app.db import build_engine, build_session_factory
 from app.errors import (
@@ -19,7 +20,6 @@ from app.errors import (
 )
 from app.logging_config import configure_logging
 from app.middleware import RequestContextMiddleware
-from app.services.data_service.client import RevisionConflict
 from app.services.event_bus import ConversationEventBus
 
 SessionFactory = Callable[[], Session]

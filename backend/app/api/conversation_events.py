@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_session
 from app.schemas.conversation_event import ConversationEventRead
-from app.services import conversation_event
-from app.services.conversation_event_stream import iter_event_stream
+from app.services.conversation import event as conversation_event
+from app.services.conversation.event_stream import iter_event_stream
 
 router = APIRouter(tags=["conversation-events"])
 

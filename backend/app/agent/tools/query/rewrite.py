@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 
 from app.agent import llm
-from app.agent.prompts_query_rewrite import REWRITE_QUERY_PROMPT
+from app.agent.prompts.query_rewrite import REWRITE_QUERY_PROMPT
 from app.config import Settings
 
 

@@ -6,9 +6,10 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from app.agent.tools.data_pipeline import constants, ops
+import app.agent.tools.data_pipeline.constants as constants
+import app.agent.tools.data_pipeline.ops as ops
 from app.agent.tools.data_pipeline.context import DataPipelineToolContext
-from app.services.data_service import pipeline_mapping as mapping
+from app.clients.data_service import pipeline_mapping as mapping
 
 
 def state_guard(ctx: DataPipelineToolContext) -> dict | None:

@@ -5,8 +5,10 @@ import uuid
 import pytest
 
 from app.errors import NotFoundError
-from app.services import embedding, graph_publication, graph_search
-from tests.test_graph_publication import _published_graph
+from app.services import embedding
+from app.services.graph import publication as graph_publication
+from app.services.graph import search as graph_search
+from tests.support.graph_fixtures import _published_graph
 
 
 def test_search_graphs_only_returns_current_users_published_graphs(session):

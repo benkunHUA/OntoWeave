@@ -14,9 +14,10 @@ import threading
 import pika
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.clients.data_service.ontology_client import OntologyDataServiceClient
 from app.config import Settings
-from app.services import conversation_event, dataset_search, embedding
-from app.services.data_service.ontology_client import OntologyDataServiceClient
+from app.services import dataset_search, embedding
+from app.services.conversation import event as conversation_event
 from app.services.event_bus import ConversationEventBus
 
 logger = logging.getLogger(__name__)

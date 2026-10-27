@@ -20,13 +20,24 @@ from sqlalchemy.orm import Session
 from app.errors import InvariantViolationError
 from app.models import Changeset, ChangesetOp
 from app.services import (
-    action_references,
     changeset,
     element_kinds,
     embedding,
     english_names,
 )
-from app.services.element_edit import creates
+from app.services.action import references as action_references
+from app.services.element_edit.creates.action import (
+    create_action_parameter,
+    create_action_rule,
+    create_action_rule_assignment,
+    create_action_type,
+)
+from app.services.element_edit.creates.ontology import (
+    create_object_type,
+    create_property,
+    create_relation,
+    reuse_object_type,
+)
 from app.services.element_edit.criteria import replace_action_criteria
 from app.services.element_edit.ops import (
     ACTION_TYPE,
@@ -53,14 +64,14 @@ _WriteHandler = Callable[..., object]
 #: 写入类操作（新建、整棵替换）→ 实现。op 的字段直接当关键词参数传给实现，
 #: 所以两边字段名必须一致；通用的 update / delete 不在这张表里，它们各有一条固定路径。
 _WRITE_HANDLERS: dict[type, _WriteHandler] = {
-    PropertyCreate: creates.create_property,
-    ObjectTypeCreate: creates.create_object_type,
-    ObjectTypeReuse: creates.reuse_object_type,
-    RelationCreate: creates.create_relation,
-    ActionTypeCreate: creates.create_action_type,
-    ActionParameterCreate: creates.create_action_parameter,
-    ActionRuleCreate: creates.create_action_rule,
-    ActionRuleAssignmentCreate: creates.create_action_rule_assignment,
+    PropertyCreate: create_property,
+    ObjectTypeCreate: create_object_type,
+    ObjectTypeReuse: reuse_object_type,
+    RelationCreate: create_relation,
+    ActionTypeCreate: create_action_type,
+    ActionParameterCreate: create_action_parameter,
+    ActionRuleCreate: create_action_rule,
+    ActionRuleAssignmentCreate: create_action_rule_assignment,
     ActionCriteriaReplace: replace_action_criteria,
 }
 

@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from app.agent.tools.ontology import workbench_constants
+import app.agent.tools.ontology.workbench_constants as workbench_constants
 
 
 def parse_mapping(value: dict[str, Any] | str) -> dict[str, Any]:
