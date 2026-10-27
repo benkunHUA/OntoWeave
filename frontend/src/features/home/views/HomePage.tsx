@@ -1,13 +1,31 @@
-import { ArrowRight, Boxes, Clock3, Database, Network, Plus, Workflow } from 'lucide-react'
+import {
+  ArrowRight,
+  Boxes,
+  Clock3,
+  Database,
+  MessageSquareText,
+  Network,
+  Plus,
+  Workflow,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConversation, listConversations } from '../../../shared/api'
-import { CONVERSATION_KIND_MODELING, type Conversation } from '../../../shared/types'
+import {
+  createConversation,
+  createQueryConversation,
+  listConversations,
+} from '../../../shared/api'
+import {
+  CONVERSATION_KIND_MODELING,
+  CONVERSATION_KIND_QUERY,
+  type Conversation,
+} from '../../../shared/types'
 
 export function HomePage() {
   const navigate = useNavigate()
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [creating, setCreating] = useState(false)
+  const [openingQuery, setOpeningQuery] = useState(false)
 
   useEffect(() => {
     void listConversations(CONVERSATION_KIND_MODELING)
@@ -22,6 +40,19 @@ export function HomePage() {
       navigate(`/modeling/${conversation.id}`)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function openQueryConversation() {
+    setOpeningQuery(true)
+    try {
+      const existing = await listConversations(CONVERSATION_KIND_QUERY)
+      const target = existing[0] ?? (await createQueryConversation())
+      navigate(`/query/${target.id}`)
+    } catch {
+      navigate('/query')
+    } finally {
+      setOpeningQuery(false)
     }
   }
 
@@ -63,6 +94,25 @@ export function HomePage() {
           </span>
           <span className="feature-card__action">
             {creating ? '创建中' : '进入'}
+            <ArrowRight size={17} />
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="feature-card"
+          onClick={() => void openQueryConversation()}
+          disabled={openingQuery}
+        >
+          <span className="feature-card__icon">
+            <MessageSquareText size={30} />
+          </span>
+          <span className="feature-card__body">
+            <strong>业务问答</strong>
+            <span>用业务语言查询已发布业务图，回答附带对象与步骤证据</span>
+          </span>
+          <span className="feature-card__action">
+            {openingQuery ? '打开中' : '进入'}
             <ArrowRight size={17} />
           </span>
         </button>

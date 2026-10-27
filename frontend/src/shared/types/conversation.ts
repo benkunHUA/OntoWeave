@@ -3,11 +3,13 @@ import type { MessageBlock } from './agent'
 export const CONVERSATION_KIND_MODELING = 'modeling' as const
 export const CONVERSATION_KIND_DATA_CONNECTION = 'data_connection' as const
 export const CONVERSATION_KIND_DATA_PIPELINE = 'data_pipeline' as const
+export const CONVERSATION_KIND_QUERY = 'query' as const
 
 export type ConversationKind =
   | typeof CONVERSATION_KIND_MODELING
   | typeof CONVERSATION_KIND_DATA_CONNECTION
   | typeof CONVERSATION_KIND_DATA_PIPELINE
+  | typeof CONVERSATION_KIND_QUERY
 
 export interface Conversation {
   id: string
