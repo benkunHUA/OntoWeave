@@ -1,0 +1,710 @@
+{
+ "generated_at": "2026-10-26",
+ "source": "aip.json",
+ "total_links": 97,
+ "total_unique_docs": 97,
+ "categories": [
+  {
+   "category": "aip-platform",
+   "name_zh": "AIP 平台基础",
+   "file": "01-aip-platform.md",
+   "count": 5,
+   "docs": [
+    {
+     "title": "Overview • AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP 把 AI 与企业的数据和运营流程连接以驱动自动化，工具覆盖开发者到一线用户。AIP Logic、AIP Chatbot Studio、AIP Evals 可在 Ontology 与工具链上构建生产级 workflow、agent 和 function，并与 Foundry、Apollo 组成 AI 操作系统。"
+    },
+    {
+     "title": "AIP features",
+     "url": "https://www.palantir.com/docs/foundry/aip/aip-features/",
+     "doc_type": "参考手册",
+     "summary_zh": "本页梳理各应用的内置 AIP 能力：AIP Assist 提供实时自然语言帮助，AIP Logic 无代码构建由 Ontology 数据支撑的 AI function，AIP Chatbot Studio 搭建对话式 agent；Pipeline Builder、Automate 等也可调用 LLM 并接入自建模型。"
+    },
+    {
+     "title": "Get started with AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/getting-started-with-aip/",
+     "doc_type": "快速入门",
+     "summary_zh": "本页推荐 learn.palantir.com 的三门课程：Foundry & AIP 企业入门、用例范围与优先级界定、动手课 Speedrun: Your First AIP Workflow。后者在 60-90 分钟内走完从 PDF 抽取信息、写入 Ontology、配置 AIP Chatbot 到搭建应用的流程。"
+    },
+    {
+     "title": "Best practices for LLM prompt engineering",
+     "url": "https://www.palantir.com/docs/foundry/aip/best-practices-prompt-engineering/",
+     "doc_type": "最佳实践",
+     "summary_zh": "本指南给出 LLM prompt engineering 的核心策略：措辞清晰具体（如把「你了解哪些编程知识」改为「总结我开发 Web 应用的框架选项」）、补充角色与场景上下文、按输出质量反复调整 prompt 结构、用模型反馈形成迭代闭环。prompt 质量直接决定回答的相关性与准确性。"
+    },
+    {
+     "title": "The Agent Stack • AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/agent-stack/",
+     "doc_type": "概述",
+     "summary_zh": "Agent Stack 是 Palantir 的 agent 基础设施与产品套件，为构建、运行和观测 agent 提供统一底座，可用官方 SDK、第三方 SDK 或可视化构建器开发。它以会话承载任务状态与事件历史、用带类型的上下文项表示共享信息、靠事件与状态迁移推进任务，并可在管理器中复盘，成品可嵌入 Workshop 或经 API 集成。"
+    }
+   ]
+  },
+  {
+   "category": "aip-models",
+   "name_zh": "模型接入与模型管理",
+   "file": "02-aip-models.md",
+   "count": 11,
+   "docs": [
+    {
+     "title": "Supported LLMs",
+     "url": "https://www.palantir.com/docs/foundry/aip/supported-llms/",
+     "doc_type": "参考手册",
+     "summary_zh": "本页列出 AIP 支持的 LLM 与 text embedding 模型，含 xAI、OpenAI、Anthropic、Meta 等厂商模型。可用性受 enrollment 与地理限制影响，管理员在 Control Panel 管理模型家族，也支持 bring your own model。"
+    },
+    {
+     "title": "LLM-provider compatible APIs",
+     "url": "https://www.palantir.com/docs/foundry/aip/llm-provider-compatible-apis/",
+     "doc_type": "参考手册",
+     "summary_zh": "Foundry 为 Anthropic、OpenAI、xAI、Google 等提供 LLM 代理端点，请求格式与原生 API 一致，可复用官方 SDK，并获得速率限制、数据治理与用量追踪。端点用 Bearer token 认证，需启用 AIP 并具备 builder 权限。"
+    },
+    {
+     "title": "Bring your own model • Bring your own model to AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/bring-your-own-model/",
+     "doc_type": "概述",
+     "summary_zh": "BYOM（registered model）让客户把自有 LLM 或模型账号作为一等模型接入 AIP。平台支持 REST API 源与 compute module 自托管等多种来源，2026 年 3 月的新版本针对主流厂商接口优化，支持原生 tool calling 与 reasoning，并内置速率限制、用量观测与权限控制，官方建议仅在合规受限或自有微调模型时使用。"
+    },
+    {
+     "title": "Bring your own model • Models backed by external sources (REST API)",
+     "url": "https://www.palantir.com/docs/foundry/aip/rest-api-backed-models/",
+     "doc_type": "操作指南",
+     "summary_zh": "介绍如何用 Data Connection 的 REST API 源作为模型后端，把外部托管的模型接入 AIP，适用于暴露标准厂商接口的模型。操作分两步：先新建 REST API 源并配置地址、认证与导出开关；再在 Control Panel 注册模型，按端点声明 reasoning、结构化输出与 tool calling 等能力，这些能力决定模型能支撑哪些功能。"
+    },
+    {
+     "title": "Bring your own model • Models backed by compute modules",
+     "url": "https://www.palantir.com/docs/foundry/aip/compute-module-backed-models/",
+     "doc_type": "操作指南",
+     "summary_zh": "允许在 compute module 中托管 LLM 并注册为 AIP 一等模型，注册后即出现在各应用的模型选择器中。适合在自有 GPU 上自托管开源或定制模型以满足数据主权、离线部署与成本控制，或构建代理层。要求容器暴露受支持的厂商 API 格式、设置 application.port、最小副本不少于 1。"
+    },
+    {
+     "title": "Bring your own model • Self-host models with AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/self-host-models/",
+     "doc_type": "操作指南",
+     "summary_zh": "说明如何用 compute module 后端自托管模型，在自有基础设施运行开源或定制 LLM 并作为一等模型使用。适用数据主权、离线部署、自有 GPU 控成本与提前试用新模型。步骤为构建推理服务镜像、设置端口标签并发布到 Artifacts、创建最小副本为一的模块、在 Control Panel 注册能力后在应用中选用。"
+    },
+    {
+     "title": "Bring your own model • Build a proxy or federation layer with AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/build-a-proxy-or-federation-layer/",
+     "doc_type": "操作指南",
+     "summary_zh": "代理或联邦层位于 AIP 与外部模型厂商之间，由 compute module 接收请求、施加自定义逻辑后转发，从而控制哪些数据离开环境及请求路由。用例含 PII 脱敏、prompt 注入、API 格式转换与多厂商联邦。除通用前置外还需经 Data Connection 源配置出网，并以 secrets 附上密钥供容器读取。"
+    },
+    {
+     "title": "Bring your own model • Register an LLM using function interfaces [Legacy]",
+     "url": "https://www.palantir.com/docs/foundry/aip/chat-completion-function-interface-quickstart/",
+     "doc_type": "快速入门",
+     "summary_zh": "本页是注册自有 LLM 的旧版教程，该方式已于 2026 年 3 月被 registered models 取代，且仅支持 TypeScript v1。教程演示为模型接口创建 REST 源与 webhook，在代码仓库引入 webhook 与对话补全接口，编写调用外部模型的函数并发布，供 AIP Logic 或 Pipeline Builder 使用，使用前须联系官方支持。"
+    },
+    {
+     "title": "Bring your own model • Use registered LLM [Legacy]",
+     "url": "https://www.palantir.com/docs/foundry/aip/use-registered-llm/",
+     "doc_type": "操作指南",
+     "summary_zh": "说明如何使用经旧版函数接口注册的 LLM，该方式已由 registered models 取代，仅适用 TypeScript v1。在 AIP Logic 的 Use LLM 板与 Pipeline Builder 的 Use LLM 转换中，从模型下拉的注册选项卡中选择函数。若后者不支持 webhook，可改用 REST 源出网，并在函数上声明错误类型以正确传递限流错误。"
+    },
+    {
+     "title": "AIP Model Catalog • Overview",
+     "url": "https://www.palantir.com/docs/foundry/model-catalog/overview/",
+     "doc_type": "概述",
+     "summary_zh": "Model Catalog 是 Foundry 的 AIP 应用，用于发现与选择 Palantir 模型，可在 Control Panel 启用。含首页、实体页与对比页，可按生命周期（experimental、stable）筛选，并可从 Marketplace 取模板、在 sandbox 试跑。当前仅收录 LLM。"
+    },
+    {
+     "title": "AIP Model Catalog • Model deprecation",
+     "url": "https://www.palantir.com/docs/foundry/model-catalog/model-deprecation/",
+     "doc_type": "操作指南",
+     "summary_zh": "供应商弃用模型时，Palantir 通过 Upgrade Assistant 定位依赖资源并通知用户，需在截止日前切到替代模型；逾期进入 brownout，调用返回 LanguageModelNotAvailable。替换路径见 Pipeline Builder、Workshop、Quiver 与代码调用等。"
+    }
+   ]
+  },
+  {
+   "category": "aip-governance",
+   "name_zh": "安全、治理与算力管控",
+   "file": "03-aip-governance.md",
+   "count": 8,
+   "docs": [
+    {
+     "title": "AI ethics and governance",
+     "url": "https://www.palantir.com/docs/foundry/aip/ethics-governance/",
+     "doc_type": "概念介绍",
+     "summary_zh": "文档说明 Palantir 把负责任 AI 视为技术构建基础而非事后合规，伦理考量贯穿数据基础、处理管道、界面到人工决策的整个生命周期。内容按公平、可解释、可靠、可追溯、协作、可问责、以人为本等八个主题展开，每个主题列出对应平台能力与工作流，如 Sensitive Data Scanner 识别偏差来源。"
+    },
+    {
+     "title": "AIP security and privacy",
+     "url": "https://www.palantir.com/docs/foundry/aip/aip-security/",
+     "doc_type": "概念介绍",
+     "summary_zh": "本页以 FAQ 说明 AIP 安全与隐私：AIP 沿用 Foundry 的全部安全措施，提供访问控制、加密与审计，保留 AI 操作的问责与历史血缘；对接第三方托管模型时优先使用美英欧区域端点。页面还回答服务商是否存储客户数据、是否用其再训练模型、能否访问 prompt 内容及合同承诺。"
+    },
+    {
+     "title": "Compute usage with AIP",
+     "url": "https://www.palantir.com/docs/foundry/aip/aip-compute-usage/",
+     "doc_type": "概念介绍",
+     "summary_zh": "本页解释 AIP 计算用量：LLM 以文本输入输出，文本量按 token 计量（约 4 字符，各厂商定义不同），再按厂商价格折算为 compute-seconds。AIP Assist、AIP Logic、Pipeline Builder 及直接调用 Language Model Service 都消耗 token。"
+    },
+    {
+     "title": "Ontology and AIP observability",
+     "url": "https://www.palantir.com/docs/foundry/aip/aip-observability/",
+     "doc_type": "概述",
+     "summary_zh": "Ontology and AIP observability 是 Workflow Lineage 的一组能力，可查看 AIP、Ontology 工作流执行情况，涵盖 metrics、执行历史、distributed tracing、logging 与日志搜索。它属于平台可观测性策略，用于诊断 AI 工作流运行表现。"
+    },
+    {
+     "title": "Administration • Enable AIP features",
+     "url": "https://www.palantir.com/docs/foundry/aip/enable-aip-features/",
+     "doc_type": "配置指南",
+     "summary_zh": "本页面向 enrollment 管理员，说明在 Control Panel > AIP settings 开启 AIP：新 enrollment 默认启用，老 enrollment 需手动开启。权限分两层：AIP 与核心 assistant 功能，以及为自定义工作流授予的 AIP capabilities。"
+    },
+    {
+     "title": "Administration • Control LLM data access with Markings",
+     "url": "https://www.palantir.com/docs/foundry/aip/control-llm-data-access-with-markings/",
+     "doc_type": "配置指南",
+     "summary_zh": "本指南说明如何限定 AIP 语言模型请求的 mandatory Markings，避免模型收到持有受限 Markings 的 Foundry 会话，策略覆盖交互与自动化 workflow。Data access settings 可选任意数据或白名单，白名单按请求 token 校验，Marking 未列入即拒绝。"
+    },
+    {
+     "title": "Administration • LLM capacity management",
+     "url": "https://www.palantir.com/docs/foundry/aip/llm-capacity-management/",
+     "doc_type": "配置指南",
+     "summary_zh": "本页说明 AIP 的 LLM 容量管理：LLM 容量是行业稀缺资源，厂商按账户设限，统一以 TPM 和 RPM 计量。容量分三层：enrollment 级 rate limits 设总上限，project/user rate limits 分别控制项目份额与个人流量，默认 medium tier 可升级。"
+    },
+    {
+     "title": "Administration • LLM enrollment rate limits",
+     "url": "https://www.palantir.com/docs/foundry/aip/llm-enrollment-rate-limits/",
+     "doc_type": "参考手册",
+     "summary_zh": "本页用表格列出各模型与后端的默认 TPM 和 RPM 限额，分别给出 per-user 限额与 Small、Medium、Large、XLarge 四档 enrollment tier 数值，并区分商业环境与 USG 各 impact level。同一 enrollment 的多个后端限额累加，仅限单区域时可能更低。"
+    }
+   ]
+  },
+  {
+   "category": "aip-logic",
+   "name_zh": "Logic 逻辑编排",
+   "file": "04-aip-logic.md",
+   "count": 11,
+   "docs": [
+    {
+     "title": "AIP Logic • Overview",
+     "url": "https://www.palantir.com/docs/foundry/logic/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Logic 是无需编码的 LLM 函数开发环境，可构建、测试并发布由 LLM 驱动的 function，无需自行搭建开发环境和 API 调用即可利用 Ontology。Logic function 接收 Ontology 对象或文本等输入，返回字符串、对象，或直接对 Ontology 做出编辑，并可接入 Automate 自动执行或暂存待人工审核。它还支持用 Foundry Branching 隔离开发、用 metrics 监控成功率与执行时长，并沿用平台的权限与安全模型。"
+    },
+    {
+     "title": "AIP Logic • Core concepts",
+     "url": "https://www.palantir.com/docs/foundry/logic/core-concepts/",
+     "doc_type": "概念介绍",
+     "summary_zh": "本页解释使用 AIP Logic 必须掌握的五个核心概念。Logic function 接收 Ontology 对象或文本输入，输出值、对象或对 Ontology 的编辑，可像普通函数一样在 Workshop 等场景调用，而修改 Ontology 时须先发布并由 action 调用。Blocks 是函数的基本构件，可读写 Ontology、做计算聚合、调用函数、循环、判断条件或与 LLM 交互，通过串联传递输出；此外还涵盖 Evaluations、Debugging 与 Execution modes。"
+    },
+    {
+     "title": "AIP Logic • Getting started",
+     "url": "https://www.palantir.com/docs/foundry/logic/getting-started/",
+     "doc_type": "快速入门",
+     "summary_zh": "本指南说明如何进入 AIP Logic、认识其界面并用 LLM block 搭建一个基础 Logic function，同时在 Debugger 中查看模型的 chain of thought。界面由三部分组成：左侧的 inputs、blocks 与 outputs 配置区，中间的 Debugger，以及右侧的 Run 面板。典型流程是先配好输入、block 与输出，在 Run 面板生成样例结果，再用 Debugger 观察推理步骤；还涵盖命令行运行、Ontology 编辑与 Branching 等后续操作。"
+    },
+    {
+     "title": "AIP Logic • Blocks",
+     "url": "https://www.palantir.com/docs/foundry/logic/blocks/",
+     "doc_type": "参考手册",
+     "summary_zh": "Blocks 是 AIP Logic 函数的基本组成单元，各自接收输入、返回输出，完成一次与数据的离散交互，可读写 Ontology、执行计算、聚合数据、调用函数或与 LLM 交互，且输出可传给后续 block 以串联出复杂逻辑。Use LLM 是核心 block，由 prompt、tools 与 output 三部分构成，支持平台内任意可用模型。其他常见 block 还包括 Apply action、Execute function、Conditionals、Loops 与 Create variable。"
+    },
+    {
+     "title": "AIP Logic • Automate AIP Logic",
+     "url": "https://www.palantir.com/docs/foundry/logic/aip-logic-integration-automate/",
+     "doc_type": "操作指南",
+     "summary_zh": "AIP Logic 可接入 Automate：对象变更时调用 Logic function 并把编辑写回 Ontology。启用 staged writes 时须先用 Create action 生成 action type、再以 action effect 触发，未启用则直接用 Logic effect。"
+    },
+    {
+     "title": "AIP Logic • Staged writes",
+     "url": "https://www.palantir.com/docs/foundry/logic/staged-writes/",
+     "doc_type": "概念介绍",
+     "summary_zh": "Staged writes 是 AIP Logic 编辑 Ontology 的新执行模型（Beta，需申请开通）：编辑先暂存于临时存储，执行结束统一提交。它支持嵌套 function 与 action 调用中的编辑及全部 object set 过滤器，函数输出不再是 Ontology edits 列表。"
+    },
+    {
+     "title": "AIP Logic • Compute usage",
+     "url": "https://www.palantir.com/docs/foundry/logic/compute-usage/",
+     "doc_type": "参考手册",
+     "summary_zh": "AIP Logic 的 compute 以 block 为计费单元：基础 LLM block 执行最低计 4 compute-seconds，调用工具时最低 8，token 另按底层模型口径统计。block 向 Ontology 或 function 分发计算还会产生额外 Foundry compute。"
+    },
+    {
+     "title": "AIP Logic • AIP Logic metrics",
+     "url": "https://www.palantir.com/docs/foundry/logic/logic-metrics/",
+     "doc_type": "工具说明",
+     "summary_zh": "AIP Logic resource 由 function 支撑，执行时暴露底层 function 的成功与失败次数及近 30 天 P95 时长，可在 Ontology Manager 或 Workflow Lineage 查看。指标由 FTS 近实时更新，run history 可回看近七天。"
+    },
+    {
+     "title": "AIP Logic • Execution mode settings",
+     "url": "https://www.palantir.com/docs/foundry/logic/execution-mode-settings/",
+     "doc_type": "配置指南",
+     "summary_zh": "Logic function 支持两种执行模式：user-scoped（默认）以运行者权限执行，仅本人可见日志且保留 24 小时；project-scoped 以 project 权限执行，日志对成员可见，且要求引用资源全部导入同一 project。后者可配 dataset 记录运行历史，保留最近 10000 次。"
+    },
+    {
+     "title": "AIP Logic • Branching AIP Logic",
+     "url": "https://www.palantir.com/docs/foundry/logic/branching-logic/",
+     "doc_type": "操作指南",
+     "summary_zh": "AIP Logic 接入 Global Branching，支持在隔离分支上开发 Logic function：保存即为分支资源，发布后带 Branched 标签且仅本分支可用。合并前须与 main 同步、已在分支发布、无错误且无待审批；文档还覆盖 rebase 冲突处理与已知限制。"
+    },
+    {
+     "title": "AIP Logic • FAQ",
+     "url": "https://www.palantir.com/docs/foundry/logic/faq/",
+     "doc_type": "故障排查",
+     "summary_zh": "本页解答 AIP Logic 常见问题：如何与平台其他组件配合、如何降低 token（只取所需属性、拆分 Use LLM block、改用 32k 模型、多用确定性 block）、单 block 与多 block 的取舍、block 性能优化、调 temperature、语义检索、输出校验与用历史执行构造测试用例。"
+    }
+   ]
+  },
+  {
+   "category": "aip-evals",
+   "name_zh": "Evals 评测",
+   "file": "05-aip-evals.md",
+   "count": 10,
+   "docs": [
+    {
+     "title": "AIP Evals • Overview",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Evals 是用于评估 AIP Logic functions、AIP Chatbot functions 及代码编写 functions 表现的测试环境，专门应对 LLM 的非确定性。你可以创建 test case、定义 evaluation function 度量性能，并把结果与函数的历史版本对比，从而为上线或改动建立信心。核心概念包括 evaluation suite、target function、evaluation function、test case 与 metric，此外也集成在 AI FDE 中，可用对话命令创建并运行 eval suite。"
+    },
+    {
+     "title": "AIP Evals • Evaluation suites for Logic functions",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/getting-started/",
+     "doc_type": "操作指南",
+     "summary_zh": "本教程演示如何用 AIP Evals 为 Logic function 搭建 evaluation suite，并以一个把餐厅评论分类为正面或负面的函数为例说明流程。保存函数后，可在 Preview 面板选 Add as test case 顺带创建首个 test case，或在 Evals 面板手动 Set up tests manually 建立空 suite；若函数符合条件，可用 Generate evals 让 AIP 自动生成测试用例与 evaluator。之后通过 Edit tests 打开编辑器调整输入并保存。"
+    },
+    {
+     "title": "AIP Evals • Create an evaluation suite",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/create-suite/",
+     "doc_type": "操作指南",
+     "summary_zh": "本页说明如何创建 evaluation suite，即一组用于衡量 target function 表现的 test case 与 evaluation function 集合。运行时会对每个 test case 执行目标函数并套用评估方法。可针对 AIP Logic functions、需先发布为 function 的 AIP Chatbot functions 以及 Code Repositories 中的代码函数创建 suite；还支持添加多个 target function 并行对比，test case 既可手工定义，也可用 object set 批量生成，evaluator 分内置与自定义两类。"
+    },
+    {
+     "title": "AIP Evals • Use intermediate parameters to evaluate block output",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/intermediate-parameters/",
+     "doc_type": "操作指南",
+     "summary_zh": "当 LLM 驱动的逻辑包含多个复杂步骤时，只看最终结果往往无法判断 prompt 的表现，因此 AIP Logic 与 AIP Evals 支持对中间 block 的输出做评估。操作上点击 AIP Logic block 上的烧瓶图标，把该 block 的输出暴露为 intermediate parameter，再在 evaluator 配置面板选中这个中间参数。中间输出值与最终输出一样可用于自动 evaluator 或人工查看，并会写入 evaluation suite 的结果数据集。"
+    },
+    {
+     "title": "AIP Evals • Evaluate Ontology edits",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/ontology-edits/",
+     "doc_type": "操作指南",
+     "summary_zh": "当 test case 涉及创建、修改或删除对象等 Ontology 编辑时，AIP Evals 会在模拟 Ontology 中执行每个 test case，确保真实 Ontology 在测试期间不受影响。这类 Logic function 必须配置 TypeScript 自定义 evaluation function（返回 Boolean 或数值，也可用 struct 一次返回多个指标）或改用 intermediate parameter。对于新建对象，因其只存在于模拟 Ontology，需按可识别属性搜索后再校验其属性。"
+    },
+    {
+     "title": "AIP Evals • Run an evaluation suite",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/run-suite/",
+     "doc_type": "操作指南",
+     "summary_zh": "evaluation suite 既可从 AIP Logic 的 Evals 侧栏运行，也可在 AIP Evals 应用中运行，既支持跑完整 suite，也支持只执行单条 test case 以便调试和快速迭代。运行配置对话框可选被测函数来源与版本（Logic 函数取 last saved 或 published，其他函数只取 published），并可配置 input mapping 把 suite 列映射到函数入参；若配置了多个 target function，还能切换到多目标模式同时评测。"
+    },
+    {
+     "title": "AIP Evals • Run experiments",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/experiments/",
+     "doc_type": "操作指南",
+     "summary_zh": "Experiments 用于系统性测试多个参数取值的所有组合（grid search），帮助在性能与成本之间找到最佳的模型与 prompt 配置。使用前需先把 model 和 prompt 参数化为函数输入，并在各 Use LLM block 中引用；随后在 run configuration 中开启 experiments 开关、为每个参数列出候选值并命名实验，再分多次运行 suite。结果可对比不同 run 与 test case 并逐条调试，定位表现最好的参数组合。"
+    },
+    {
+     "title": "AIP Evals • Write run results to a dataset",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/results-dataset/",
+     "doc_type": "操作指南",
+     "summary_zh": "评估结果有时需要出现在平台其他位置，例如业务专家希望在 Workshop 应用中与其他信息一起查看，而不必进入 AIP Evals。为此 AIP Evals 支持把 run 结果写入 dataset：配置后以 project-scoped 执行模式运行 suite，函数输出、evaluator 结果、用户指定与自动采集的 metadata 以及错误都会自动写入。dataset 必须与 suite 处于同一项目，之后可用 Contour 等工具做进一步分析。"
+    },
+    {
+     "title": "AIP Evals • Analyze run results",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/analyze-run-results/",
+     "doc_type": "操作指南",
+     "summary_zh": "run results 展示函数在 test case 与评估标准下的表现；若 evaluator 设了通过条件，AIP Evals 会自动判定 Passed 或 Failed 并统计整体通过率。针对单条 test case 可打开 debug view，查看 execution trace、输入输出与报错信息：TypeScript/Python 函数可看高亮代码预览，AIP Logic 函数可用原生 Logic debugger 逐步追踪，evaluator 可对比期望与实际值。结果还支持跨 target function 比较。"
+    },
+    {
+     "title": "AIP Evals • View results in metrics dashboard",
+     "url": "https://www.palantir.com/docs/foundry/aip-evals/metrics-dashboard/",
+     "doc_type": "工具说明",
+     "summary_zh": "评估运行产生的各项 metric 会被汇总成报告，展示在 AIP Evals 的 metrics dashboard 中，可查看图表与统计，并比较 evaluator 的聚合结果或单条 test case 的结果（仪表盘视图暂不支持 metric objectives）。需要更深入分析时，可从 Run tests 标签双击 test case 进入 LLM trace viewer，查看函数结果的计算过程；若使用自定义 LLM as a judge evaluator，trace 中还会包含该 judge 的决策依据。"
+    }
+   ]
+  },
+  {
+   "category": "chatbot-studio",
+   "name_zh": "Chatbot Studio",
+   "file": "06-chatbot-studio.md",
+   "count": 12,
+   "docs": [
+    {
+     "title": "AIP Chatbot Studio • Overview",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Chatbot Studio（原 AIP Agent Studio）用于构建 AIP Chatbot（原 AIP Agents）这类交互式助手，为其装配企业专属信息与工具，并可在平台内或通过 Ontology SDK 与平台 API 对外部署。Chatbot 由 LLM、Ontology、文档和自定义工具驱动，可嵌入应用实现带上下文的读写工作流，例如以筛选后的视频转录 object set 为上下文回答提问，也可放进 Workshop。其沿用平台安全模型，只向 LLM 开放完成任务所需的最小权限。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Core concepts",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/core-concepts/",
+     "doc_type": "概念介绍",
+     "summary_zh": "系统梳理使用 AIP Chatbot Studio 必须掌握的术语：AIP Chatbot 是装配了企业信息与工具的交互式助手；application state（原 parameters）是 prompt 中动态控制模型行为的应用变量；instructions、工具描述和变量描述会被编译进 system prompt。页面还解释 RAG 与 retrieval context 的取数流程、tools 的作用、vector embeddings、context window，以及把 chatbot 封装为 Functions 复用的方式。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Getting started",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/getting-started/",
+     "doc_type": "快速入门",
+     "summary_zh": "手把手带用户完成第一个 AIP Chatbot：可从工作区导航栏、Cmd/Ctrl+J 快速搜索或 Files 的 + New 进入 Chatbot Studio 并新建 chatbot 文件。配置包括设置名称、描述与头像，选择信息与工具类型（retrieval context 最简最快、application state 用于 Workshop 场景、tools 适合需要执行动作的复杂场景），挑选 enrollment 已启用的 LLM，改写 system prompt、调整 temperature、添加 conversation starters，最后保存发布并跟踪反馈与用量。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Application state",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/application-state/",
+     "doc_type": "操作指南",
+     "summary_zh": "AIP Chatbot 的 application state（原 parameters）用 string 或 object set 变量保存对话状态。配置时先选定 LLM 要交互的变量、为其命名并撰写描述说明用途，描述会注入 prompt 告知何时使用；再用 value visibility 控制 LLM 能否读取变量值，建议仅在必要时开放以免混淆。变量可作为 Ontology 检索的确定性输入，嵌入 Workshop 后能映射为 Workshop 变量，供其他组件展示。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Retrieval context • Context types",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/retrieval-context/",
+     "doc_type": "概念介绍",
+     "summary_zh": "Retrieval context 在每条新用户消息时确定性地执行，把检索结果注入 LLM，可组合 Ontology、Document 和 Function-backed 三类上下文。Ontology 上下文可传固定 N 个对象，或按向量属性做语义搜索取最相关的 K 个，并指定打印哪些属性；Document 上下文有全文和相关分块两种模式；函数式上下文可读取 application variables，并支持自定义 citation。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Retrieval context • Citations",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/citations/",
+     "doc_type": "参考手册",
+     "summary_zh": "配置 document context 或 Ontology context 的 chatbot 会输出可点击的 citation 链接回原文，并在每条消息底部的 Sources 菜单汇总所用上下文；其他上下文默认不产生 citation，需用 prompt 引导 LLM 按指定格式输出才能渲染。可用格式包括对象 RID、objectTypeId（可在 Ontology Manager 查得）加 primaryKey，以及 PDF 的 mediaSetKey 与 mediaItemKey，并可加 page 标签指定页码。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Tools • Overview",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/tools/",
+     "doc_type": "概念介绍",
+     "summary_zh": "Tools 是供 LLM 调用的外部功能或 API，用于执行动作或获取模型本身不具备的信息，尤其适合让 LLM 决定控制流并构造输入。共有六类：Action 执行 Ontology 编辑、Object query 限定可访问的对象与属性以省 token、Function 调用任意 Foundry function、Update application variable、Command 触发其他应用的操作、Request clarification 暂停并向用户追问。tool mode 决定工具如何提供给 LLM。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Tools • Use commands as tools in AIP Chatbot Studio",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/commands-as-tools/",
+     "doc_type": "操作指南",
+     "summary_zh": "把 command 加为工具后，chatbot 能在用户所在应用中代为操作：command 直接运行在用户应用内，可访问当前应用状态与屏幕，例如把地图视图定位到指定位置，这是后端工具难以实现的。操作时在配置面板选 Add tool > Commands 搜索并添加，同一 command 可重复添加以配置不同 prompt，还可设置输入参数与执行前是否需要用户批准。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Chatbots as Functions",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/chatbots-as-functions/",
+     "doc_type": "参考手册",
+     "summary_zh": "Chatbot 发布为 Function 后可在平台任何能执行 Function 的地方复用，例如在 AIP Evals 中评估、用 Automate 自动化流程或在 Code Repositories 中调用；版本可按发布或保存触发。输入含 userInput、可选 sessionRid（省略即开新会话，传入则延续该会话）以及全部 application state 变量；输出含 markdownResponse、sessionRid 和仅在被更新时才返回的变量值。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Session logging",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/session-logging/",
+     "doc_type": "配置指南",
+     "summary_zh": "每条用户消息算一次执行，会被记录为结构化事件，可用 configure logging 导出到 streaming dataset，每次执行的唯一 trace identifier 串联该次全部日志。事件覆盖 session metadata、user request、chat messages、tool calls 及其结果、final response 和执行错误。日志含用户提示、标识符与工具输入输出，因此导出需权限，并应 Apply markings、限制访问、设置保留期。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Distribute AIP Chatbots using Marketplace",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/marketplace/",
+     "doc_type": "操作指南",
+     "summary_zh": "用 Foundry DevOps 可把 chatbot 打包进 Marketplace product 供他人安装复用：创建 product 时在 Add resources 步骤从 Add files 搜索并选择它；若 chatbot 通过 AIP Chatbot widget 嵌入 Workshop，则添加该模块即自动包含。除 Assist agents 外功能均受支持；带 document context 时会打包整个 media set，若只想带实际所需的文档，应先新建只含这些文档的 media set 再重配，以免把无关文件一并分发。"
+    },
+    {
+     "title": "AIP Chatbot Studio • Use AIP Chatbots through Foundry APIs",
+     "url": "https://www.palantir.com/docs/foundry/chatbot-studio/foundry-apis/",
+     "doc_type": "操作指南",
+     "summary_zh": "可用 Palantir APIs 把 chatbot 嵌入自建应用：创建 session 开启新会话，用 streaming 或 blocking API 编排多轮任务，会话状态由平台维护，传回 sessionRid 即可延续上一次会话；通过 parameterInputs 传入 application state，用 parameterUpdates 读取自定义输出。单次任务可改用 chatbots as functions，经 OSDK 在第三方应用调用。部署到 Developer Console 时只能用单一 Ontology 的 object、action 与 function types，并勾选全部相关资源。"
+    }
+   ]
+  },
+  {
+   "category": "document-intelligence",
+   "name_zh": "Document Intelligence",
+   "file": "07-document-intelligence.md",
+   "count": 5,
+   "docs": [
+    {
+     "title": "AIP Document Intelligence • Overview",
+     "url": "https://www.palantir.com/docs/foundry/document-intelligence/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Document Intelligence 是 Foundry 文档抽取工作流的统一入口：打开 media set 即可运行多种抽取策略，查看其质量、速度与 token 成本评估，并一键把策略部署为批处理 Python transform。传统方式含 raw text、OCR 和保留版式的 layout-aware OCR；生成式方式用 VLM 配调优 prompt，也可先做预处理再交给 VLM。结果以 Markdown 映射到 PDF bounding box 便于核对。"
+    },
+    {
+     "title": "AIP Document Intelligence • Core concepts",
+     "url": "https://www.palantir.com/docs/foundry/document-intelligence/core-concepts/",
+     "doc_type": "概念介绍",
+     "summary_zh": "Traditional extraction 指不依赖 LLM 的算法，如 PDF 元数据、OCR 与 layout detection，由 transform media item 端点支撑。Preprocessing 是先对文档跑 OCR，再把结果连同页面图像一并交给 VLM，为模型补充上下文。Evaluations 以所选 VLM 作 judge，对表格、标题等维度打 1 至 5 分，当前需 Claude 4 Sonnet；策略满意后可部署为 Python transform 或按页抽取的 functions，以便对整个数据集批量抽取。"
+    },
+    {
+     "title": "AIP Document Intelligence • Deploy extraction strategies to Python transforms",
+     "url": "https://www.palantir.com/docs/foundry/document-intelligence/deploy-to-python-transforms/",
+     "doc_type": "操作指南",
+     "summary_zh": "策略在 Document Intelligence 中验证后可部署为 Python transform，对 media set 内所有文档的全部页面批量抽取，结果与配置端一致。在生成的 my_extraction.py 中用 @transform.using 指定输出数据集并触发 build；模板默认非增量，取消 @incremental 注释后只处理新增文档。prompt 应先在 Document Intelligence 调整验证再重新部署，直接改模板会造成结果不一致。"
+    },
+    {
+     "title": "AIP Document Intelligence • Deploy extraction strategies to Python functions",
+     "url": "https://www.palantir.com/docs/foundry/document-intelligence/deploy-to-python-functions/",
+     "doc_type": "操作指南",
+     "summary_zh": "按 Deploy to functions 生成的代码片段可搭建 Python functions 仓库实现按页抽取：安装 foundry-platform-sdk 1.78 以上，需要分块则装 aip-workflows 0.40 以上，需要 embedding 则装 openai，并导入所选模型、把函数超时调到 enrollment 允许的最大值，以便一次处理大量或高页数的 PDF。helper functions 各策略通用，之后再接各策略的抽取逻辑与 chunking、embedding 函数。"
+    },
+    {
+     "title": "AIP Document Intelligence • Document-to-text media transformations",
+     "url": "https://www.palantir.com/docs/foundry/document-intelligence/document-to-text/",
+     "doc_type": "参考手册",
+     "summary_zh": "该页列出两个 document-to-text 操作：extractTextV2 返回文档文本的字符串列表，extractLayoutAwareTextV2 返回跨页的 layout-aware 文本块，可保留段落、标题与表格结构，取代旧的 extractLayoutAwareContent 与 ocrOnPage。参数 config.mode 控制解析方式：ELECTRONIC 直接提取内嵌文本，SCAN 按扫描件做 OCR，AUTO 逐页自动判断；config.format 可输出 TEXT、MARKDOWN 或 HTML，另支持 languages 与 pageRange 限定页码范围。"
+    }
+   ]
+  },
+  {
+   "category": "aip-assist",
+   "name_zh": "AIP Assist 智能助手",
+   "file": "08-aip-assist.md",
+   "count": 9,
+   "docs": [
+    {
+     "title": "AIP Assist • Overview",
+     "url": "https://www.palantir.com/docs/foundry/assist/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Assist 是基于 LLM 的平台内支持工具，用户用自然语言提问即可实时获得关于 Foundry 使用与概念的回答。它支持多语言、能感知当前所在的 Foundry 应用并保持会话上下文，且不访问用户数据，遵循 Palantir 的隐私与负责任 AI 原则。需管理员在 Control Panel 启用 AIP 后使用，可从导航栏或 Cmd/Ctrl+Shift+U 打开，并用预置 modes 与 AIP Chatbots 收窄回答范围。"
+    },
+    {
+     "title": "AIP Assist • AIP Assist best practices",
+     "url": "https://www.palantir.com/docs/foundry/assist/aip-best-practices/",
+     "doc_type": "最佳实践",
+     "summary_zh": "该页给出与 AIP Assist 交互的提问技巧：问题要具体、一次只问一件事、用完整句子补充背景、提供期望格式的示例，回答不准时追问或换种说法重述。文中强调 AIP Assist 能感知当前所在应用，但无法访问用户正在处理的数据或元数据。后半部分列出聚焦型示例问题，如排查环境依赖报错、配置 Contour 时区、在 Functions on Objects 中写 Aggregate Function、在 Slate 中配置 CSS。"
+    },
+    {
+     "title": "AIP Assist • Power AIP Assist with custom content sources • Overview",
+     "url": "https://www.palantir.com/docs/foundry/assist/aip-assist-custom-docs-overview/",
+     "doc_type": "概述",
+     "summary_zh": "自定义内容源用于把企业内部资料接入 AIP Assist，使其能回答运营流程、平台导航等公共文档覆盖不到的问题，常用于新人上手、培训和自助支持。内容源支持 Notepad 文档（推荐）与 Code Repositories 中 documentation 类型仓库的 Markdown 文件两种登记方式，登记后需在 Control Panel 配置可见范围与访问权限。使用方式有两种：并入当前 enrollment 的默认知识库，或做成独立的 AIP Chatbot。"
+    },
+    {
+     "title": "AIP Assist • Power AIP Assist with custom content sources • Register custom content sources",
+     "url": "https://www.palantir.com/docs/foundry/assist/aip-assist-registering-content/",
+     "doc_type": "操作指南",
+     "summary_zh": "说明如何把已有内容登记为 AIP Assist 的自定义内容源。Notepad 方式是在文档的 Actions 菜单选择 Add to AIP Assist，在弹窗中开启开关并填写文档标题等信息，且文档需属于某个 project；也可改用平台内自定义文档。登记后还须管理员在 Control Panel 授权，AIP Assist 才能在回答时引用。文中建议优先用 Notepad，因其可嵌入 Workshop 等应用，并解答内容更新是否同步、图片为何不显示等常见问题。"
+    },
+    {
+     "title": "AIP Assist • Power AIP Assist with custom content sources • Serve custom content sources to users",
+     "url": "https://www.palantir.com/docs/foundry/assist/adding-documentation-to-aip-assist/",
+     "doc_type": "配置指南",
+     "summary_zh": "内容源登记后，需由具备 Control Panel 权限的平台管理员在 AIP Assist 页面点击 + Add，从已摄取文档中选中加入，才能对外提供。管理员可选择该源仅在特定资源打开时生效，或始终参与回答；平台级通用内容建议设为始终提供，与官方文档共同构成检索上下文。新源默认只在创建它的 repository 或 Notepad 文档内可见，可先提问验证效果再逐步放开范围。"
+    },
+    {
+     "title": "AIP Assist • Power AIP Assist with custom content sources • Deploy custom source-backed AIP Chatbots",
+     "url": "https://www.palantir.com/docs/foundry/assist/agents-in-aip-assist/",
+     "doc_type": "操作指南",
+     "summary_zh": "介绍如何把 AIP Chatbot Studio（原 AIP Agent Studio）构建的 AIP Chatbot 部署到 AIP Assist，让应用上线时用户就能针对自定义内容获得即时交互式支持，无需写代码或具备 LLM 经验。流程分三步：先将内容以 Notepad 文档或平台内自定义文档登记为自定义内容源；再在 Chatbot Studio 中引用该源，并结合 Ontology 上下文或 functions 等工具构建 chatbot；最后发布到 AIP Assist 并对话验证。"
+    },
+    {
+     "title": "AIP Assist • Power AIP Assist with custom content sources • Custom content source best practices",
+     "url": "https://www.palantir.com/docs/foundry/assist/custom-documentation-best-practices/",
+     "doc_type": "最佳实践",
+     "summary_zh": "该页围绕 AIP Assist 底层的 RAG 机制给出内容写作建议：检索按段落粒度进行，因此内容应按标题和子标题切成聚焦单一主题的小节，而不是写成多主题的长段落。文中用 Feature A 到 Feature D 的例子对比混写与分节的差异。此外应避免与公开文档产生语义碰撞或重复，也不要依赖会过期或被覆盖的内容，以免检索到冲突信息拉低回答质量。"
+    },
+    {
+     "title": "AIP Assist • AIP Assist application integrations",
+     "url": "https://www.palantir.com/docs/foundry/assist/application-integrations/",
+     "doc_type": "参考手册",
+     "summary_zh": "集中列出 AIP Assist 在 Palantir 平台各应用中的集成入口。Code Repositories 提供 Ask AIP Assist 预置代码操作，并可将整个仓库、若干文件或选中代码片段作为附件，用于解释文件关系、优化代码、跨仓库检索和总结；Carbon 工作区可开启面向特定用户群的 AIP Assist chatbot；此外还覆盖 Contour、Workshop（含 Send to AIP Assist）、Slate、Issues 和 Ontology Manager。"
+    },
+    {
+     "title": "AIP Assist • Suggested actions in AIP Assist",
+     "url": "https://www.palantir.com/docs/foundry/assist/aip-assist-suggested-actions/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Assist 除回答问题外，还会主动给出导航与站内操作建议，把用户引导到相关应用或功能，对首次使用 Foundry 的用户尤其有用。另一项能力是与 Palantir Developer Community 论坛联动：当 AIP Assist 缺少所需信息时，会引导用户发帖，并依据当前对话预填标题和描述。该跳转论坛的建议动作可由 enrollment 管理员在 Control Panel 的 AIP Assist 页面关闭。"
+    }
+   ]
+  },
+  {
+   "category": "aip-analyst",
+   "name_zh": "AIP Analyst 分析智能体",
+   "file": "09-aip-analyst.md",
+   "count": 8,
+   "docs": [
+    {
+     "title": "AIP Analyst • Overview",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Analyst 是自然语言驱动的 agentic 分析界面：提问后 agent 自主检索 Ontology、建 object set、变换数据，再产出摘要与可视化。示例中它检索 Northampton 周边 10km 咖啡店、做地理过滤与品牌聚合。分析可存为 Compass 资源。"
+    },
+    {
+     "title": "AIP Analyst • Capabilities",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/capabilities/",
+     "doc_type": "参考手册",
+     "summary_zh": "本页列出 AIP Analyst 的工具分类：Ontology 类含对象查询、object set、SQL 与聚合，另有 Visualization、Datasets、Functions、Actions、Workshop 及文件媒体。分类可在 Tools 菜单启停；工具多转发给既有 Foundry 系统计算。"
+    },
+    {
+     "title": "AIP Analyst • Using AIP Analyst",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/using-aip-analyst/",
+     "doc_type": "操作指南",
+     "summary_zh": "本页说明 AIP Analyst 会话的组成。Context 指分析期间可访问的信息，含历史消息、工具结果与通过 + 按钮、拖拽或 RID 加入的 Foundry 资源；Settings 分四页，可设主题、折叠思考过程、通知与未保存分析的成本归属；此外还有 tabs 分支、outline、graph、音频输入与导出。"
+    },
+    {
+     "title": "AIP Analyst • Analysis resources",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/analysis-resources/",
+     "doc_type": "概念介绍",
+     "summary_zh": "AIP Analyst 可把分析保存为 Compass 资源以便回访与共享。分析是动态的：只存重建所需状态（消息、调用工具、引用资源），不存工具结果与回复，重开时按 Ontology 最新状态重跑，结果始终反映当前数据并遵循查看者权限。保存前可预览 Messages/tools 与 References。"
+    },
+    {
+     "title": "AIP Analyst • Compute usage",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/compute-usage/",
+     "doc_type": "概念介绍",
+     "summary_zh": "AIP Analyst 消耗分两类：LLM tokens 按模型费率折算 compute-seconds，以及 federated Foundry compute，即工具调用背后的 Ontology、数据集或 function 计算。token 随对话增长，历史与工具结果每轮重发，大结果最耗。故应缩小上下文与搜索范围。"
+    },
+    {
+     "title": "AIP Analyst • Workshop widget",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/workshop-widget/",
+     "doc_type": "配置指南",
+     "summary_zh": "介绍把 AIP Analyst 作为 Workshop widget 嵌入的配置。Base 段可追加自定义 system prompt、直接选模型或用 Fast/Balanced/Smart 类别、设置空态 suggested prompts；Input 段可预加载上下文并在变量变化时自动触发分析。"
+    },
+    {
+     "title": "AIP Analyst • Embed AIP Analyst",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/embed/",
+     "doc_type": "配置指南",
+     "summary_zh": "AIP Analyst 可用 iframe 嵌入 Workshop 或 OSDK，并以 URL 参数定制：ontologyRid 指定 Ontology，objectTypeGroupRids 限定对象类型范围，initialMessage 预填首条提问。参数只覆盖部分设置，更细管控需改嵌模块。"
+    },
+    {
+     "title": "AIP Analyst • Admin configuration",
+     "url": "https://www.palantir.com/docs/foundry/aip-analyst/admin-configuration/",
+     "doc_type": "配置指南",
+     "summary_zh": "通过 Control Panel 的 AIP Analyst extension 配置：enrollment 级可关闭分析保存、action 执行（可设例外组）与文件上传；Group-level skills 页可给用户组分配 skills；organization 级可设默认搜索范围、模型类别与导出管控。"
+    }
+   ]
+  },
+  {
+   "category": "boardroom",
+   "name_zh": "Boardroom 决策会议室",
+   "file": "10-boardroom.md",
+   "count": 5,
+   "docs": [
+    {
+     "title": "Boardroom • Overview",
+     "url": "https://www.palantir.com/docs/foundry/boardroom/overview/",
+     "doc_type": "概述",
+     "summary_zh": "Boardroom 协调成队的 AI agents 在 Foundry 和/或 Gotham 中协同工作。每个 boardroom 是与 director 及可配置专家 agents 协作的空间，团队可检索 Ontology、跑代码、分析数据；各 agent 的指令、模型、工具与上下文可定制，memory 让知识沉淀。"
+    },
+    {
+     "title": "Boardroom • Create a boardroom",
+     "url": "https://www.palantir.com/docs/foundry/boardroom/create-a-boardroom/",
+     "doc_type": "操作指南",
+     "summary_zh": "创建 boardroom：填标题与描述工作的高层 prompt，再选 Prompt-driven 由 prompt 生成团队或 Ontology-informed 借助 Ontology 定义团队；配置 markings 与共享设置后生成。产出 director 与 agents，可继续定制 skills、模型与工具。"
+    },
+    {
+     "title": "Boardroom • Boardroom modes",
+     "url": "https://www.palantir.com/docs/foundry/boardroom/modes/",
+     "doc_type": "概念介绍",
+     "summary_zh": "Boardroom 有多种模式：Chat 与整个 agent 团队对话，director 可分派任务、跑代码、查询 Ontology、生成可视化；Panel 转录会议音频并抽取问题、想法与行动项分派给 agents；Documents 由 AI 写作团队产出文档，另有 Slide decks 与 Plans。"
+    },
+    {
+     "title": "Boardroom • Configure a boardroom",
+     "url": "https://www.palantir.com/docs/foundry/boardroom/configure-a-boardroom/",
+     "doc_type": "操作指南",
+     "summary_zh": "创建 boardroom 后进入 Configure Boardroom，可分别维护团队共享的全局上下文与单个 agent profile。全局上下文支持添加 object types、saved object sets、actions、functions，也可把 Workshop 等 Foundry 应用注册为工具；关闭 Enable ontology search 后，agent 只能检索人工指定的对象。每个 agent 可独立设定 system prompt、默认模型、memory、skills、Ontology 上下文和可调用的子 agent。数据存于 Ontology，受 object security policy 管控。"
+    },
+    {
+     "title": "Boardroom • Use skills and templates",
+     "url": "https://www.palantir.com/docs/foundry/boardroom/skills-and-templates/",
+     "doc_type": "操作指南",
+     "summary_zh": "skills 描述 agent 应如何完成工作，templates 规定产出的结构与格式，两者配合让 Boardroom 中的流程可复用到不同任务。skill 由 name、description、content 组成：description 说明适用场景并便于 agent 检索，content 存放详细步骤。页面以延迟发货调查为例给出可直接照搬的 skill 写法，说明 skill 的可见范围与安全边界，并用周度运营报告、运营评审演示 template 如何定义章节结构。"
+    }
+   ]
+  },
+  {
+   "category": "ai-fde",
+   "name_zh": "AI FDE 智能交付工程师",
+   "file": "11-ai-fde.md",
+   "count": 7,
+   "docs": [
+    {
+     "title": "AI FDE • Overview",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AI FDE 是 AI 驱动的前向部署工程师，作为交互式 agent 用自然语言指令替你操作 Foundry，可做数据转换、管理代码仓库、构建维护 ontology。其流程为解析意图与上下文、确定 Foundry 操作、借原生工具执行、返回解释与文档，全程遵循用户权限；需在 enrollment 启用 AIP，建议同时开启 Global Branching。"
+    },
+    {
+     "title": "AI FDE • Navigation",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/navigation/",
+     "doc_type": "工具说明",
+     "summary_zh": "本页介绍 AI FDE 的界面、导航与控件。在底部输入框提问即可开始会话，也可用预填链接带入提示与技能。上下文只能来自显式加入聊天的内容：可让 agent 自动选模式或手选模式获得额外配置，并从工具栏添加文档包、上传媒体或拖入数据集、函数、对象类型等资源；右侧大纲记录提示、响应、工具调用与 token 消耗。"
+    },
+    {
+     "title": "AI FDE • Modes and capabilities",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/modes-and-capabilities/",
+     "doc_type": "概念介绍",
+     "summary_zh": "AI FDE 用 mode 与 capability 组织任务并管理上下文。Mode 是任务大类，可手动选择或由 agent 依据输入判定，也允许中途切换；每个 mode 通过加载对应文档、开放相关工具来聚焦 agent，避免误用工具。所列 mode 含数据集成、Data Connection、Ontology 编辑、函数编辑、探索、治理、机器学习、OSDK React 与平台问答。"
+    },
+    {
+     "title": "AI FDE • AIP skills",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/aip-skills/",
+     "doc_type": "操作指南",
+     "summary_zh": "AIP skills 把团队知识与工作流沉淀为可复用上下文和指令，供 AI FDE 使用。每个 skill 由名称、说明何时使用的 description 与 Markdown 正文组成，AI FDE 据此判断是否加载。可在 AIP Skills 中新建并保存到项目或文件夹以继承权限，使用时需在会话中添加并启用，同时开启 Load skills 能力。"
+    },
+    {
+     "title": "AI FDE • Pre-fill sessions with URL parameters",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/prefill-sessions/",
+     "doc_type": "参考手册",
+     "summary_zh": "说明如何用 URL 参数把提示词与 AIP 技能预装入新的 AI FDE 会话，形成可分享、可重复的起点。路径为 /workspace/ai-fde/prefill，参数 prompt 预填首条消息、skillRid 可重复添加多个技能、autoStart 为 true 时加载即执行，均需 URL 编码。示例含从 Workshop 模块交办修改、共享提示模板与新人上手引导。"
+    },
+    {
+     "title": "AI FDE • Security and governance",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/security-and-governance/",
+     "doc_type": "概念介绍",
+     "summary_zh": "AI FDE 不是独立服务账号或机器人，而是以你的 Foundry 会话身份运行，继承相同的权限校验、治理与审计日志，你无权做的操作它同样不能做。服务端权限之外还有工具审批：执行 Ontology action、发布应用每次需确认，分支上的编辑与数据集构建可自动批准、受保护分支仍需审批，只读操作放行。"
+    },
+    {
+     "title": "AI FDE • Best practices",
+     "url": "https://www.palantir.com/docs/foundry/ai-fde/best-practices/",
+     "doc_type": "最佳实践",
+     "summary_zh": "使用 AI FDE 的要点：所有改动默认落在分支上，须审查代码并用代表性样本验证转换逻辑后再上线；只给模型任务必需的上下文与工具，减少误判和敏感操作暴露；把复杂任务拆成小步骤迭代构建；用 AIP Evals 跟踪效果并留意基础设施约束。"
+    }
+   ]
+  },
+  {
+   "category": "aip-evolve",
+   "name_zh": "AIP Evolve",
+   "file": "12-aip-evolve.md",
+   "count": 1,
+   "docs": [
+    {
+     "title": "AIP Evolve • Overview",
+     "url": "https://www.palantir.com/docs/foundry/aip-evolve/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Evolve 编排成队的 AI FDE agents 来改进 Foundry 中的 AI 系统：你定义目标、验证策略与迭代上限，它启动 agents 探索并验证候选改动，最后给出 proposal 与活动记录。适用于模型迁移、降本降延迟或提升评测分；示例中换模型加 guardrail 后算力成本降 65%。"
+    }
+   ]
+  },
+  {
+   "category": "realtime-audio",
+   "name_zh": "Realtime Audio 实时语音",
+   "file": "13-realtime-audio.md",
+   "count": 2,
+   "docs": [
+    {
+     "title": "Realtime audio • Overview",
+     "url": "https://www.palantir.com/docs/foundry/realtime-audio/overview/",
+     "doc_type": "概述",
+     "summary_zh": "Realtime audio 以音频为模态经 Ontology 与平台交互：对话中从 Ontology 取上下文，实时模型监听、转写并发起 tool call，结果写回 Ontology 供 function、AIP Logic、Workshop 与 action 使用。场景含口述记录、会议结构化、通话辅助与语音控制。"
+    },
+    {
+     "title": "Realtime audio • Build a voice-enabled OSDK application",
+     "url": "https://www.palantir.com/docs/foundry/realtime-audio/build-a-voice-enabled-osdk-application/",
+     "doc_type": "快速入门",
+     "summary_zh": "教程构建 OSDK 浏览器应用：以 OAuth 认证为 Foundry 用户，浏览器直连 WebSocket 代理转发到实时模型，为 agent 注册以用户权限读取 Ontology 的 tool，再流式上传麦克风音频并播放语音回复。需 @osdk/create-app 与 unrestricted 自定义应用。"
+    }
+   ]
+  },
+  {
+   "category": "threads",
+   "name_zh": "Threads 会话线程",
+   "file": "14-threads.md",
+   "count": 2,
+   "docs": [
+    {
+     "title": "AIP Threads • Overview",
+     "url": "https://www.palantir.com/docs/foundry/threads/overview/",
+     "doc_type": "概述",
+     "summary_zh": "AIP Threads 是面向企业的生产力工具，用 LLM 完成各类任务与临时分析，需启用 AIP 与 AIP custom workflows。可拖拽上传 PDF 等文档或选择 AIP Chatbot（原 AIP Agents），适合技术手册问答、合同摘要、政策与法规解读、HR 政策检索等场景。"
+    },
+    {
+     "title": "AIP Threads • Getting started",
+     "url": "https://www.palantir.com/docs/foundry/threads/getting-started/",
+     "doc_type": "快速入门",
+     "summary_zh": "教程以「上传文档、与文档对话、与 AIP Chatbot 对话」为主线介绍入门操作：左侧为 thread 导航（新建、删除、深色模式、导出 JSON/PDF），右侧用 Document card 上传原生 PDF，在 Thread configuration 中选择 Chatbot 或模型模式后开始对话。"
+    }
+   ]
+  },
+  {
+   "category": "announcements",
+   "name_zh": "发布公告",
+   "file": "15-announcements.md",
+   "count": 1,
+   "docs": [
+    {
+     "title": "2026 • Release notes",
+     "url": "https://www.palantir.com/docs/foundry/announcements/release-notes/?filters=aip",
+     "doc_type": "发布公告",
+     "summary_zh": "本页是 Foundry 平台按模块筛选的发布公告列表，链接通过 filters=aip 仅显示 AI Platform（AIP）相关条目，并按 2026 至 2022 年份归档。页面正文由前端动态加载，汇总各模块的功能新增、变更与修复说明，便于按年份检索并跟踪 AIP 平台能力的版本演进。"
+    }
+   ]
+  }
+ ]
+}
