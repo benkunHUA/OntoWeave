@@ -23,13 +23,8 @@ export function ConversationPane() {
     (conversation) => conversation.kind === CONVERSATION_KIND_MODELING,
   )
 
-  async function startConversation() {
-    try {
-      const conversation = await conversations.create.mutateAsync('新对话')
-      navigate(`/modeling/${conversation.id}`)
-    } catch (reason) {
-      toast.report(reason, '新建对话失败')
-    }
+  function startConversation() {
+    navigate('/modeling')
   }
 
   function openDeleteDialog(conversation: Conversation) {
@@ -82,7 +77,7 @@ export function ConversationPane() {
       <button
         type="button"
         className="new-conversation-button"
-        onClick={() => void startConversation()}
+        onClick={startConversation}
       >
         <MessageSquarePlus size={17} />
         {!panes.collapsed ? '新建对话' : null}

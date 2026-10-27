@@ -29,6 +29,7 @@ export function useQueryConversation({
   const chat = useChatMessages()
   const { seed, forget, messagesFor } = chat
   const [isLoading, setIsLoading] = useState(false)
+  const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null)
   const [historyInterrupt, setHistoryInterrupt] = useState<PendingInterrupt | null>(null)
   const activeConversationRef = useRef<string | undefined>(conversationId)
   const previousConversationRef = useRef<string | undefined>(undefined)
@@ -74,6 +75,7 @@ export function useQueryConversation({
     if (previous && previous !== conversationId) forget(previous)
     reset()
     setHistoryInterrupt(null)
+    setLoadedConversationId(null)
   }, [conversationId, forget, reset])
 
   useEffect(() => {
@@ -81,7 +83,10 @@ export function useQueryConversation({
     let active = true
     setIsLoading(true)
     void loadHistory(conversationId).finally(() => {
-      if (active) setIsLoading(false)
+      if (active) {
+        setIsLoading(false)
+        setLoadedConversationId(conversationId)
+      }
     })
     return () => {
       active = false
@@ -105,6 +110,7 @@ export function useQueryConversation({
   return {
     messages: conversationId ? messagesFor(conversationId) : [],
     isLoading,
+    loadedConversationId,
     agent,
     send,
     answer,

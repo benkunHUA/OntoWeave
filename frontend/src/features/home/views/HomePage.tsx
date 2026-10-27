@@ -10,51 +10,21 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  createConversation,
-  createQueryConversation,
-  listConversations,
-} from '../../../shared/api'
+import { listConversations } from '../../../shared/api'
 import {
   CONVERSATION_KIND_MODELING,
-  CONVERSATION_KIND_QUERY,
   type Conversation,
 } from '../../../shared/types'
 
 export function HomePage() {
   const navigate = useNavigate()
   const [conversations, setConversations] = useState<Conversation[]>([])
-  const [creating, setCreating] = useState(false)
-  const [openingQuery, setOpeningQuery] = useState(false)
 
   useEffect(() => {
     void listConversations(CONVERSATION_KIND_MODELING)
       .then(setConversations)
       .catch(() => setConversations([]))
   }, [])
-
-  async function openNewConversation() {
-    setCreating(true)
-    try {
-      const conversation = await createConversation('新对话')
-      navigate(`/modeling/${conversation.id}`)
-    } finally {
-      setCreating(false)
-    }
-  }
-
-  async function openQueryConversation() {
-    setOpeningQuery(true)
-    try {
-      const existing = await listConversations(CONVERSATION_KIND_QUERY)
-      const target = existing[0] ?? (await createQueryConversation())
-      navigate(`/query/${target.id}`)
-    } catch {
-      navigate('/query')
-    } finally {
-      setOpeningQuery(false)
-    }
-  }
 
   return (
     <main className="home-page">
@@ -82,8 +52,7 @@ export function HomePage() {
         <button
           type="button"
           className="feature-card"
-          onClick={() => void openNewConversation()}
-          disabled={creating}
+          onClick={() => navigate('/modeling')}
         >
           <span className="feature-card__icon">
             <Network size={30} />
@@ -93,7 +62,7 @@ export function HomePage() {
             <span>新建对话，开始梳理业务结构</span>
           </span>
           <span className="feature-card__action">
-            {creating ? '创建中' : '进入'}
+            进入
             <ArrowRight size={17} />
           </span>
         </button>
@@ -101,8 +70,7 @@ export function HomePage() {
         <button
           type="button"
           className="feature-card"
-          onClick={() => void openQueryConversation()}
-          disabled={openingQuery}
+          onClick={() => navigate('/query')}
         >
           <span className="feature-card__icon">
             <MessageSquareText size={30} />
@@ -112,7 +80,7 @@ export function HomePage() {
             <span>用业务语言查询已发布业务图，回答附带对象与步骤证据</span>
           </span>
           <span className="feature-card__action">
-            {openingQuery ? '打开中' : '进入'}
+            进入
             <ArrowRight size={17} />
           </span>
         </button>
@@ -180,8 +148,7 @@ export function HomePage() {
             <button
               type="button"
               className="text-button"
-              onClick={() => void openNewConversation()}
-              disabled={creating}
+              onClick={() => navigate('/modeling')}
             >
               <Plus size={15} />
               新建

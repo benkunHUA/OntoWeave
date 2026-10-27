@@ -42,6 +42,19 @@ ACTION_RULE_ASSIGNMENT = "action_rule_assignment"
 ACTION_CRITERIA_NODE = "action_criteria_node"
 ACTION_CRITERIA_OPERAND = "action_criteria_operand"
 
+# 元素种类给人看的叫法。审批、回执等用户可见文案统一从这里取，避免各处各写一套。
+ELEMENT_KIND_LABELS: dict[str, str] = {
+    OBJECT_TYPE: "对象类型",
+    PROPERTY: "属性",
+    RELATION: "关系",
+    ACTION_TYPE: "动作",
+    ACTION_PARAMETER: "动作参数",
+    ACTION_RULE: "动作规则",
+    ACTION_RULE_ASSIGNMENT: "字段赋值",
+    ACTION_CRITERIA_NODE: "提交校验条件",
+    ACTION_CRITERIA_OPERAND: "条件操作数",
+}
+
 # 撤销时的字段白名单用 frozenset；归属解析返回元素所属用户；promote 在确认时
 # 把草稿翻成已确认；delete_phase 决定删除顺序（小的先删，先子后父）。
 #

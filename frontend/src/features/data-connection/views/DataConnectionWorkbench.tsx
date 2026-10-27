@@ -26,8 +26,11 @@ export function DataConnectionWorkbench() {
   const toast = useErrorToast()
   const list = useDataConnectionList(toast.report)
   const stateView = useDataConnectionState(connectionId)
-  const conversationId = stateView.state?.connection.conversation_id
+  const conversationId = stateView.state?.conversation_ready
+    ? stateView.state.connection.conversation_id
+    : undefined
   const conversation = useDataConnectionConversation({
+    connectionId,
     conversationId,
     refreshState: stateView.refreshState,
     report: toast.report,

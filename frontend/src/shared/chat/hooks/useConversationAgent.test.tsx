@@ -2,7 +2,7 @@
 
 import { act, cleanup, renderHook, waitFor } from '../../../test/render'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AgentEvent } from '../../types'
+import type { AgentEvent, Conversation } from '../../types'
 import { useConversationAgent } from './useConversationAgent'
 
 const api = vi.hoisted(() => ({
@@ -99,5 +99,38 @@ describe('useConversationAgent conversation switches', () => {
     await act(async () => {
       await running
     })
+  })
+
+  it('creates a conversation only when the first message is sent', async () => {
+    api.streamAgentRun.mockResolvedValue(undefined)
+    const report = vi.fn()
+    const ensureConversation = vi.fn().mockResolvedValue({
+      id: 'conversation-new',
+      kind: 'modeling',
+      resource_id: 'resource-new',
+      title: '新对话',
+    } satisfies Conversation)
+
+    const { result } = renderHook(() =>
+      useConversationAgent({
+        conversationId: undefined,
+        ensureConversation,
+        report,
+        setMessage: vi.fn(),
+        clearMessage: vi.fn(),
+        onFinished: vi.fn(),
+      }),
+    )
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+    expect(ensureConversation).not.toHaveBeenCalled()
+
+    act(() => result.current.send('第一句话'))
+
+    await waitFor(() => expect(ensureConversation).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(api.streamAgentRun).toHaveBeenCalledTimes(1))
+    expect(api.listConversationMessages).toHaveBeenCalledWith('conversation-new')
+    expect(api.streamAgentRun.mock.calls[0][0]).toBe('conversation-new')
+    expect(api.streamAgentRun.mock.calls[0][1]).toMatchObject({ text: '第一句话' })
   })
 })

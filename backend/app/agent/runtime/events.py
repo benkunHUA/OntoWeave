@@ -155,35 +155,39 @@ class TurnBuilder:
         call_id: str,
         name: str,
         args: Any,
+        summary: str | None = None,
         agent: str | None = None,
         parent_call_id: str | None = None,
     ) -> list[AgentEvent]:
         """起一个工具块；子智能体内部的调用带上 agent / parent_call_id 好让前端叠起来。"""
         events = self._close_open()
-        block = ToolBlock(
-            id=uuid.uuid4().hex,
-            callId=call_id,
-            name=name,
-            args=jsonable(args),
-            status="running",
-            result=None,
-            truncated=False,
-            durationMs=None,
-            agent=agent,
-            parentCallId=parent_call_id,
-        )
+        fields: dict[str, Any] = {
+            "id": uuid.uuid4().hex,
+            "callId": call_id,
+            "name": name,
+            "args": jsonable(args),
+            "status": "running",
+            "result": None,
+            "truncated": False,
+            "durationMs": None,
+            "agent": agent,
+            "parentCallId": parent_call_id,
+        }
+        event_fields: dict[str, Any] = {
+            "messageId": self.message_id,
+            "callId": call_id,
+            "name": name,
+            "args": fields["args"],
+            "agent": agent,
+            "parentCallId": parent_call_id,
+        }
+        if summary:
+            fields["summary"] = summary
+            event_fields["summary"] = summary
+        block = ToolBlock(**fields)
         self.blocks.append(block)
         self._tools[call_id] = block
-        events.append(
-            ToolStartEvent(
-                messageId=self.message_id,
-                callId=call_id,
-                name=name,
-                args=block.args,
-                agent=agent,
-                parentCallId=parent_call_id,
-            )
-        )
+        events.append(ToolStartEvent(**event_fields))
         return events
 
     def tool_end(

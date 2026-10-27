@@ -63,7 +63,7 @@ export default function App() {
         <Suspense fallback={<div className="route-loading">正在打开工作台…</div>}>
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/modeling" element={<Navigate replace to="/" />} />
+            <Route path="/modeling" element={<ModelingPage />} />
             <Route path="/modeling/:conversationId" element={<ModelingPage />} />
             <Route path="/data-connections" element={<DataConnectionWorkbench />} />
             <Route path="/data-connections/:connectionId" element={<DataConnectionWorkbench />} />
@@ -71,6 +71,7 @@ export default function App() {
             <Route path="/pipelines/:pipelineId" element={<DataPipelineWorkbench />} />
             <Route path="/ontology" element={<OntologyWorkbenchView />} />
             <Route path="/query" element={<QueryWorkbench />} />
+            <Route path="/query/new" element={<QueryWorkbench />} />
             <Route path="/query/:conversationId" element={<QueryWorkbench />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>

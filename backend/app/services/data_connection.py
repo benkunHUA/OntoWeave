@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.errors import InvalidRequestError
+from app.models import Conversation
 from app.schemas.data_connection import (
     DataConnectionCreate,
     DataConnectionUpdate,
@@ -28,16 +29,10 @@ def create_connection(
     client: DataServiceClient,
     payload: DataConnectionCreate,
 ) -> dict:
-    # Java 自己生成连接 id，所以先建会话拿到 conversation_id，再用返回值回填 resource_id。
-    conv = conversation.create_conversation(
-        session,
-        owner_id=owner_id,
-        title=payload.name,
-        kind=ConversationKind.DATA_CONNECTION.value,
-        resource_id=uuid.uuid4(),
-    )
+    # 连接草稿先落 Java；Python 会话等用户发第一句话时再建。
+    conversation_id = uuid.uuid4()
     body: dict[str, Any] = {
-        "conversationId": str(conv.id),
+        "conversationId": str(conversation_id),
         "name": payload.name,
         "kind": payload.kind,
     }
@@ -46,26 +41,40 @@ def create_connection(
         body["config"] = payload.config
     if payload.secret is not None:
         body["secret"] = payload.secret
-    try:
-        created = client.create_connection(owner_id=owner_id, payload=body)
-    except Exception:
-        conversation.delete_conversation(session, conv.id, owner_id=owner_id)
-        raise
-    conv.resource_id = uuid.UUID(str(created["id"]))
-    session.flush()
-    conversation_event.append_event(
-        session,
-        conversation_id=conv.id,
-        event_id=uuid.uuid4(),
-        event_type="connection.draft.created",
-        summary="数据连接草稿已创建",
-        payload={
-            "connectionId": created["id"],
-            "conversationId": str(conv.id),
-            "summary": "数据连接草稿已创建",
-        },
-    )
+    created = client.create_connection(owner_id=owner_id, payload=body)
     return mapping.connection(created)
+
+
+def find_conversation(
+    session: Session, *, owner_id: uuid.UUID, connection_id: uuid.UUID
+) -> Conversation | None:
+    return conversation.find_conversation_by_resource(
+        session,
+        kind=ConversationKind.DATA_CONNECTION.value,
+        resource_id=connection_id,
+        owner_id=owner_id,
+    )
+
+
+def ensure_conversation(
+    session: Session,
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    connection_id: uuid.UUID,
+) -> Conversation:
+    existing = find_conversation(session, owner_id=owner_id, connection_id=connection_id)
+    if existing is not None:
+        return existing
+    connection = get_connection(client, owner_id=owner_id, connection_id=connection_id)
+    return conversation.ensure_resource_conversation(
+        session,
+        owner_id=owner_id,
+        title=connection["name"],
+        kind=ConversationKind.DATA_CONNECTION.value,
+        resource_id=connection_id,
+        conversation_id=uuid.UUID(connection["conversation_id"]),
+    )
 
 
 def get_connection(
@@ -159,17 +168,13 @@ def get_state(
     connection_id: uuid.UUID,
 ) -> dict:
     state = mapping.state(client.get_state(connection_id, owner_id=owner_id))
-    conv = conversation.find_conversation_by_resource(
-        session,
-        kind=ConversationKind.DATA_CONNECTION.value,
-        resource_id=connection_id,
-        owner_id=owner_id,
-    )
+    conv = find_conversation(session, owner_id=owner_id, connection_id=connection_id)
     latest = (
         conversation_event.list_recent_events(session, conv.id, limit=1) if conv is not None else []
     )
     # Java 的 lastEventId 是 Outbox 事件 id，和 Python 的事件游标不是同一套；对外统一给后者。
     state["last_event_id"] = latest[-1].id if latest else None
+    state["conversation_ready"] = conv is not None
     return state
 
 

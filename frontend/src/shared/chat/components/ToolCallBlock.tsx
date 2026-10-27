@@ -36,6 +36,11 @@ export function ToolCallBlock({ block }: { block: ToolBlock }) {
         )}
         {agent ? <span className="tool-block__agent">{agent}</span> : null}
         <span className="tool-block__label">{toolLabel(block.name, block.args)}</span>
+        {block.summary ? (
+          <span className="tool-block__summary" title={block.summary}>
+            {block.summary}
+          </span>
+        ) : null}
         {block.durationMs ? <em>{block.durationMs}ms</em> : null}
         {hasDetail ? <ChevronRight size={13} className={open ? 'is-open' : ''} /> : null}
       </button>

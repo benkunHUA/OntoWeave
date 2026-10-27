@@ -24,6 +24,21 @@ class AgentRunContext:
     turn_id: uuid.UUID | None = None
 
 
+class BaseAgentDefinition:
+    """定义侧默认能力：不需要额外工具摘要的领域直接继承这一份。"""
+
+    def summarize_tool_call(
+        self,
+        session: Session,
+        *,
+        owner_id: uuid.UUID,
+        name: str,
+        args: object,
+    ) -> str | None:
+        del session, owner_id, name, args
+        return None
+
+
 class AgentDefinition(Protocol):
     """一种会话类型的完整运行策略。"""
 
@@ -50,3 +65,12 @@ class AgentDefinition(Protocol):
     def build_state_update(
         self, session: Session, settings: Settings, run: AgentRunContext
     ) -> dict[str, Any]: ...
+
+    def summarize_tool_call(
+        self,
+        session: Session,
+        *,
+        owner_id: uuid.UUID,
+        name: str,
+        args: object,
+    ) -> str | None: ...

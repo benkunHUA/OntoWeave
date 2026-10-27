@@ -32,6 +32,8 @@ export type MessageBlock =
       result?: string | null
       truncated?: boolean
       durationMs?: number | null
+      /** 面向用户的一行说明，例如“客户 · 搜索「张三」”。 */
+      summary?: string | null
       /** 子智能体内部的调用：子智能体名；主智能体自己的调用没有这个字段。 */
       agent?: string | null
       /** 发起这次子智能体调用的是哪次 `task` 工具调用。 */
@@ -70,6 +72,7 @@ export type AgentEvent =
       callId: string
       name: string
       args: Record<string, unknown>
+      summary?: string | null
       agent?: string | null
       parentCallId?: string | null
     }

@@ -1,19 +1,13 @@
-"""数据流程的 Python 编排：稳定 ID、会话先落库、Java 4xx 补偿。"""
+"""数据流程的 Python 编排：稳定 ID 与首条消息时才落库的会话。"""
 
 from __future__ import annotations
 
 import uuid
 from typing import Any
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.errors import (
-    InvalidRequestError,
-    InvariantViolationError,
-    NotFoundError,
-    UnprocessableEntityError,
-)
+from app.errors import InvariantViolationError, NotFoundError
 from app.models import Conversation
 from app.schemas.data_pipeline import PipelineCopy, PipelineCreate
 from app.services import conversation
@@ -23,12 +17,6 @@ from app.services.operation_lock import operation_lock
 from app.vocabulary import ConversationKind
 
 PIPELINE_NAMESPACE = uuid.NAMESPACE_URL
-_JAVA_4XX = (
-    InvalidRequestError,
-    InvariantViolationError,
-    NotFoundError,
-    UnprocessableEntityError,
-)
 
 
 def pipeline_ids(owner_id: uuid.UUID, operation_id: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
@@ -51,41 +39,21 @@ def _ensure_conversation(
     title: str,
 ) -> tuple[Conversation, bool]:
     existing = conversation.find_conversation_by_resource(
-        session,
-        kind=ConversationKind.DATA_PIPELINE.value,
-        resource_id=pipeline_id,
+        session, kind=ConversationKind.DATA_PIPELINE.value, resource_id=pipeline_id
     )
     if existing is not None:
         if existing.owner_id != owner_id:
             raise InvariantViolationError("pipeline conversation belongs to another owner")
         return existing, False
 
-    try:
-        with session.begin_nested():
-            created = conversation.create_conversation(
-                session,
-                owner_id=owner_id,
-                title=title,
-                kind=ConversationKind.DATA_PIPELINE.value,
-                resource_id=pipeline_id,
-                conversation_id=conversation_id,
-            )
-        return created, True
-    except IntegrityError:
-        # 另一个请求先插入成功；savepoint 已回滚，事务仍可用，重查后收敛。
-        session.expire_all()
-        raced = conversation.find_conversation_by_resource(
-            session,
-            kind=ConversationKind.DATA_PIPELINE.value,
-            resource_id=pipeline_id,
-        )
-        if raced is None:
-            raise
-        if raced.owner_id != owner_id:
-            raise InvariantViolationError(
-                "pipeline conversation belongs to another owner"
-            ) from None
-        return raced, False
+    return conversation.ensure_resource_conversation_with_status(
+        session,
+        owner_id=owner_id,
+        title=title,
+        kind=ConversationKind.DATA_PIPELINE.value,
+        resource_id=pipeline_id,
+        conversation_id=conversation_id,
+    )
 
 
 def _create_with_java(
@@ -93,28 +61,11 @@ def _create_with_java(
     *,
     owner_id: uuid.UUID,
     operation_id: uuid.UUID,
-    payload: PipelineCreate,
     invoke,
 ) -> dict:
     with operation_lock(session, "data-pipeline", owner_id, operation_id):
         pipeline_id, conversation_id = pipeline_ids(owner_id, operation_id)
-        conv, created = _ensure_conversation(
-            session,
-            owner_id=owner_id,
-            pipeline_id=pipeline_id,
-            conversation_id=conversation_id,
-            title=payload.name,
-        )
-        # Java 必须能在内部接口里查到会话；先提交，超出请求级事务也保留可重试记录。
-        session.commit()
-        try:
-            row = invoke(pipeline_id, conv.id)
-        except _JAVA_4XX:
-            if created:
-                conversation.delete_conversation(session, conv.id, owner_id=owner_id)
-                session.commit()
-            raise
-        # 超时 / 5xx 直接上抛：会话已提交，同一 operation_id 重试会复用。
+        row = invoke(pipeline_id, conversation_id)
         return mapping.pipeline(row)
 
 
@@ -141,7 +92,6 @@ def create_pipeline(
         session,
         owner_id=owner_id,
         operation_id=operation_id,
-        payload=payload,
         invoke=invoke,
     )
 
@@ -174,7 +124,6 @@ def copy_pipeline(
         session,
         owner_id=owner_id,
         operation_id=operation_id,
-        payload=PipelineCreate(name=name),
         invoke=invoke,
     )
 
@@ -189,6 +138,38 @@ def list_pipelines(
 
 def get_pipeline(client: DataServiceClient, *, owner_id: uuid.UUID, pipeline_id: uuid.UUID) -> dict:
     return mapping.pipeline(client.get_pipeline(pipeline_id, owner_id=owner_id))
+
+
+def find_pipeline_conversation(
+    session: Session, *, owner_id: uuid.UUID, pipeline_id: uuid.UUID
+) -> Conversation | None:
+    return conversation.find_conversation_by_resource(
+        session,
+        kind=ConversationKind.DATA_PIPELINE.value,
+        resource_id=pipeline_id,
+        owner_id=owner_id,
+    )
+
+
+def ensure_pipeline_conversation(
+    session: Session,
+    client: DataServiceClient,
+    *,
+    owner_id: uuid.UUID,
+    pipeline_id: uuid.UUID,
+) -> Conversation:
+    existing = find_pipeline_conversation(session, owner_id=owner_id, pipeline_id=pipeline_id)
+    if existing is not None:
+        return existing
+    pipeline = get_pipeline(client, owner_id=owner_id, pipeline_id=pipeline_id)
+    conv, _ = _ensure_conversation(
+        session,
+        owner_id=owner_id,
+        pipeline_id=pipeline_id,
+        conversation_id=uuid.UUID(pipeline["conversation_id"]),
+        title=pipeline["name"],
+    )
+    return conv
 
 
 def rename_pipeline(

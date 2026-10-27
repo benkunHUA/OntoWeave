@@ -62,16 +62,22 @@ def test_resources_groups_relations_and_uses_login_owner(client, session_factory
 def test_conversations_are_deterministic_per_resource(client):
     created = client.post("/api/v1/object-types", json={"name": "客户"}).json()
 
-    first = client.get(
+    missing = client.get(
         f"{API}/conversations",
         params={"resource_kind": "object_type", "resource_id": created["id"]},
     )
-    second = client.get(
+    first = client.post(
+        f"{API}/conversations",
+        params={"resource_kind": "object_type", "resource_id": created["id"]},
+    )
+    second = client.post(
         f"{API}/conversations",
         params={"resource_kind": "object_type", "resource_id": created["id"]},
     )
 
-    assert first.status_code == 200
+    assert missing.status_code == 200
+    assert missing.json() is None
+    assert first.status_code == 201
     assert first.json()["id"] == second.json()["id"]
     assert first.json()["kind"] == "ontology_workbench"
     assert uuid.UUID(first.json()["resource_id"]) == uuid.UUID(created["id"])

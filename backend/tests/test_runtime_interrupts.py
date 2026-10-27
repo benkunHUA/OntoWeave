@@ -16,13 +16,39 @@ def test_tool_approval_interrupt_maps_to_decisions():
             ],
         }
     )
-    assert "remove_element" in question
+    assert question == "以下操作需要你确认："
     assert options == [
         InterruptOption(label="允许", answer={"decisions": [{"type": "approve"}]}),
         InterruptOption(label="拒绝", answer={"decisions": [{"type": "reject"}]}),
     ]
     assert free_text == FreeTextMode(wrap="respond")
-    assert details == []
+    assert details == [InterruptDetail(label="标记删除属性", value="确认改动后才会真正删除")]
+
+
+def test_tool_approval_interrupt_summarizes_the_patch_instead_of_json():
+    question, _, _, details = normalize_interrupt(
+        {
+            "action_requests": [
+                {
+                    "name": "update_element",
+                    "args": {
+                        "element_kind": "object_type",
+                        "element_id": "type-1",
+                        "patch": {"name": "企业客户", "description": "新的描述"},
+                    },
+                }
+            ],
+            "review_configs": [
+                {"action_name": "update_element", "allowed_decisions": ["approve", "reject"]}
+            ],
+        }
+    )
+
+    assert question == "以下操作需要你确认："
+    assert details == [
+        InterruptDetail(label="修改对象类型", value="名称改为「企业客户」、更新描述")
+    ]
+    assert "{" not in question
 
 
 def test_ask_user_interrupt_carries_details():

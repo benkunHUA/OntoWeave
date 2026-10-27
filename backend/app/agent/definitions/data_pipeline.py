@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import data_pipeline_events, llm
 from app.agent import graph as agent_graph
-from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
 from app.agent.prompts_data_pipeline import build_prompt
 from app.agent.tools.data_pipeline import (
     DataPipelineToolContext,
@@ -37,7 +37,7 @@ class DataPipelineRunContext(AgentRunContext):
     load_error: str | None = None
 
 
-class DataPipelineAgentDefinition:
+class DataPipelineAgentDefinition(BaseAgentDefinition):
     kind: str = ConversationKind.DATA_PIPELINE
     visible_subagents: frozenset[str] = frozenset()
 

@@ -53,7 +53,21 @@ def get_resource_definition(
     )
 
 
-@router.get("/conversations", response_model=ConversationRead)
+@router.get("/conversations", response_model=ConversationRead | None)
+def get_conversation(
+    resource_kind: str = Query(),
+    resource_id: uuid.UUID = Query(),
+    session: Session = Depends(get_session),
+) -> ConversationRead | None:
+    conv = ontology.find_conversation(
+        session, owner_id=get_current_user_id(), resource_id=resource_id
+    )
+    if conv is None:
+        return None
+    return ConversationRead.model_validate(conv)
+
+
+@router.post("/conversations", response_model=ConversationRead, status_code=201)
 def ensure_conversation(
     resource_kind: str = Query(),
     resource_id: uuid.UUID = Query(),

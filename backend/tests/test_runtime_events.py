@@ -70,3 +70,16 @@ def test_tool_result_without_a_started_block_is_left_for_the_next_turn():
 
     assert turn.blocks == []
     assert turn.orphan_tools == {"c1": {"status": "ok", "result": "[]", "durationMs": None}}
+
+
+def test_tool_start_keeps_the_human_summary_with_the_machine_args():
+    turn = TurnBuilder("m1")
+    events = turn.tool_start(
+        call_id="c1",
+        name="query_objects",
+        args={"object_type_id": "type-1"},
+        summary="客户 · 搜索「张三」",
+    )
+
+    assert events[0].summary == "客户 · 搜索「张三」"
+    assert turn.payload()[0]["summary"] == "客户 · 搜索「张三」"

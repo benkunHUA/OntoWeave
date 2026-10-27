@@ -49,7 +49,7 @@ from app.services.ontology.relation_sync import (
     sync_subject_relations,
     sync_subject_relations_best_effort,
 )
-from app.services.ontology.resources import ensure_conversation, list_resources
+from app.services.ontology.resources import ensure_conversation, find_conversation, list_resources
 from app.services.ontology.suggest import suggest_mapping
 from app.services.property import (
     create_property,
@@ -80,6 +80,7 @@ __all__ = [
     "create_relation",
     "delete_binding",
     "ensure_conversation",
+    "find_conversation",
     "generate_binding",
     "get_binding",
     "get_object",

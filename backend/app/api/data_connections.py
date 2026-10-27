@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_current_user_id, get_data_service_client, get_session
+from app.schemas.conversation import ConversationRead
 from app.schemas.data_connection import (
     ConnectionTestRead,
     DataConnectionCreate,
@@ -153,6 +154,26 @@ def get_state(
     return DataConnectionStateRead.model_validate(
         data_connection.get_state(
             session, client, owner_id=get_current_user_id(), connection_id=connection_id
+        )
+    )
+
+
+@router.post(
+    "/data-connections/{connection_id}/conversation",
+    response_model=ConversationRead,
+    status_code=201,
+)
+def ensure_conversation(
+    connection_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> ConversationRead:
+    return ConversationRead.model_validate(
+        data_connection.ensure_conversation(
+            session,
+            client,
+            owner_id=get_current_user_id(),
+            connection_id=connection_id,
         )
     )
 

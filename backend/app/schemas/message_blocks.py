@@ -71,6 +71,8 @@ class ToolBlock(_Block):
     result: str | None = None
     truncated: bool = False
     durationMs: int | None = None
+    # 面向用户的一行补充说明，例如“客户 · 搜索「张三」”；机器参数仍留在 args。
+    summary: str | None = None
     # 子智能体内部的工具调用：agent 是子智能体名，parentCallId 是发起它的那次 `task` 调用。
     # 主智能体自己的调用不带这两个字段。
     agent: str | None = None

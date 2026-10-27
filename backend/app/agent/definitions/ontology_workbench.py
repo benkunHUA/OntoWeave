@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
 from app.agent.prompts_ontology_workbench import build_prompt
 from app.agent.tools.ontology import (
     OntologyWorkbenchToolContext,
@@ -31,7 +31,7 @@ class OntologyWorkbenchRunContext(AgentRunContext):
     subject_id: uuid.UUID
 
 
-class OntologyWorkbenchAgentDefinition:
+class OntologyWorkbenchAgentDefinition(BaseAgentDefinition):
     kind: str = ConversationKind.ONTOLOGY_WORKBENCH
     visible_subagents: frozenset[str] = frozenset()
 

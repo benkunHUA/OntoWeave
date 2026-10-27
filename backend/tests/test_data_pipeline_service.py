@@ -72,7 +72,7 @@ def test_pipeline_ids_are_stable_for_same_operation() -> None:
     assert first[0] != first[1]
 
 
-def test_create_pipeline_persists_conversation_before_java(session_factory) -> None:
+def test_create_pipeline_defers_conversation_until_first_message(session_factory) -> None:
     owner = uuid.uuid4()
     operation = uuid.uuid4()
     expected_pipeline, expected_conversation = pipeline_ids(owner, operation)
@@ -89,13 +89,11 @@ def test_create_pipeline_persists_conversation_before_java(session_factory) -> N
 
     assert client.calls[0]["pipelineId"] == str(expected_pipeline)
     assert client.calls[0]["conversationId"] == str(expected_conversation)
-    assert client.conversation_visible is True
+    assert client.conversation_visible is False
     assert result["conversation_id"] == str(expected_conversation)
     with session_factory() as session:
         conv = session.get(Conversation, expected_conversation)
-        assert conv is not None
-        assert conv.kind == ConversationKind.DATA_PIPELINE.value
-        assert conv.resource_id == expected_pipeline
+        assert conv is None
 
 
 def test_create_pipeline_4xx_deletes_only_the_conversation_it_created(session_factory) -> None:
@@ -190,7 +188,6 @@ def test_retry_422_reuses_the_conversation_created_by_an_earlier_attempt(
         )
 
     with session_factory() as session:
-        assert session.get(Conversation, conversation_id) is not None
         rows = list(
             session.scalars(
                 select(Conversation).where(
@@ -199,7 +196,7 @@ def test_retry_422_reuses_the_conversation_created_by_an_earlier_attempt(
                 )
             )
         )
-    assert [row.id for row in rows] == [conversation_id]
+    assert rows == []
 
 
 def test_create_pipeline_timeout_keeps_conversation_and_retry_reuses_it(session_factory) -> None:
@@ -218,7 +215,7 @@ def test_create_pipeline_timeout_keeps_conversation_and_retry_reuses_it(session_
         )
 
     with session_factory() as session:
-        assert session.get(Conversation, conversation_id) is not None
+        assert session.get(Conversation, conversation_id) is None
 
     retrying = _CreateClient(session_factory)
     with session_factory() as session:
@@ -240,7 +237,7 @@ def test_create_pipeline_timeout_keeps_conversation_and_retry_reuses_it(session_
                 )
             )
         )
-    assert [row.id for row in rows] == [conversation_id]
+    assert rows == []
 
 
 def test_concurrent_create_converges_on_the_unique_conversation(engine) -> None:
@@ -276,7 +273,7 @@ def test_concurrent_create_converges_on_the_unique_conversation(engine) -> None:
                     )
                 )
             )
-        assert [row.id for row in rows] == [conversation_id]
+        assert rows == []
     finally:
         with factory() as session:
             session.execute(
@@ -321,7 +318,7 @@ def test_operation_lock_keeps_small_pool_for_same_operation(engine) -> None:
                     )
                 )
             )
-        assert [row.id for row in rows] == [conversation_id]
+        assert rows == []
     finally:
         with factory() as session:
             session.execute(delete(Conversation).where(Conversation.resource_id == pipeline_id))
@@ -365,7 +362,7 @@ def test_operation_lock_keeps_small_pool_for_different_operations(engine) -> Non
                     )
                 )
             )
-        assert {row.resource_id for row in rows} == {pipeline_id for pipeline_id, _ in expected}
+        assert rows == []
     finally:
         with factory() as session:
             session.execute(
@@ -465,7 +462,7 @@ def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(e
                 retry_succeeded.wait(timeout=2)
                 raise InvalidRequestError("名称不合法")
             with factory() as check:
-                assert check.get(Conversation, uuid.UUID(payload["conversationId"])) is not None
+                assert check.get(Conversation, uuid.UUID(payload["conversationId"])) is None
             retry_succeeded.set()
             return _pipeline_row(
                 uuid.UUID(payload["pipelineId"]), uuid.UUID(payload["conversationId"])
@@ -499,7 +496,7 @@ def test_failed_create_does_not_delete_a_conversation_reused_by_same_operation(e
                     )
                 )
             )
-        assert [row.id for row in rows] == [conversation_id]
+        assert rows == []
     finally:
         with factory() as session:
             session.execute(

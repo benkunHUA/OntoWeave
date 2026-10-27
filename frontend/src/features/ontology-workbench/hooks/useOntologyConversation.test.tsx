@@ -4,7 +4,10 @@ import { act, cleanup, renderHook } from '../../../test/render'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Conversation, OntologyResource } from '../../../shared/types'
 
-const api = vi.hoisted(() => ({ ensureOntologyConversation: vi.fn() }))
+const api = vi.hoisted(() => ({
+  ensureOntologyConversation: vi.fn(),
+  getOntologyConversation: vi.fn(),
+}))
 const conversationAgent = vi.hoisted(() => ({
   useConversationAgent: vi.fn(),
 }))
@@ -47,6 +50,7 @@ async function settle() {
 describe('useOntologyConversation', () => {
   beforeEach(() => {
     api.ensureOntologyConversation.mockReset()
+    api.getOntologyConversation.mockReset()
     conversationAgent.useConversationAgent.mockReset()
     conversationAgent.useConversationAgent.mockReturnValue({
       messages: [],
@@ -62,16 +66,14 @@ describe('useOntologyConversation', () => {
     cleanup()
   })
 
-  it('ensures a conversation for each resource and drops the stale one immediately', async () => {
-    let resolveSecond: (value: Conversation) => void = () => {}
+  it('loads an existing conversation without creating one and ensures it only on demand', async () => {
     const report = vi.fn()
     const setMessage = vi.fn()
     const clearMessage = vi.fn()
-    api.ensureOntologyConversation
+    api.getOntologyConversation
       .mockResolvedValueOnce(conversation('conversation-a'))
-      .mockImplementationOnce(() => new Promise((resolve) => {
-        resolveSecond = resolve
-      }))
+      .mockResolvedValueOnce(null)
+    api.ensureOntologyConversation.mockResolvedValue(conversation('conversation-b'))
 
     const { result, rerender } = renderHook(
       ({ item }) => useOntologyConversation({
@@ -84,16 +86,22 @@ describe('useOntologyConversation', () => {
     )
     await settle()
 
-    expect(api.ensureOntologyConversation).toHaveBeenCalledWith('object_type', 'object-a')
+    expect(api.getOntologyConversation).toHaveBeenCalledWith('object_type', 'object-a')
+    expect(api.ensureOntologyConversation).not.toHaveBeenCalled()
     expect(result.current.conversationId).toBe('conversation-a')
 
     rerender({ item: resource('object-b') })
     await settle()
     expect(result.current.conversationId).toBeUndefined()
-    expect(api.ensureOntologyConversation).toHaveBeenLastCalledWith('object_type', 'object-b')
+    expect(api.getOntologyConversation).toHaveBeenLastCalledWith('object_type', 'object-b')
+    expect(api.ensureOntologyConversation).not.toHaveBeenCalled()
 
-    resolveSecond(conversation('conversation-b'))
+    const options = conversationAgent.useConversationAgent.mock.calls.at(-1)?.[0]
+    await act(async () => {
+      await options.ensureConversation()
+    })
     await settle()
+    expect(api.ensureOntologyConversation).toHaveBeenCalledWith('object_type', 'object-b')
     expect(result.current.conversationId).toBe('conversation-b')
   })
 })

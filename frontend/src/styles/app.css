@@ -875,6 +875,16 @@
   font-weight: 700;
 }
 
+.tool-block__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #8f8f8f;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 子智能体内部的步骤：缩进 + 左侧竖线，一眼看出它属于上面那次委派。 */
 .tool-block--subagent {
   margin-left: 18px;

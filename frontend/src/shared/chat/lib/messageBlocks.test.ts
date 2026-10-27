@@ -36,6 +36,7 @@ describe('reduceBlocks', () => {
         callId: 'c1',
         name: 'search_ontology',
         args: { query: '客户' },
+        summary: '检索「客户」',
       }),
     )
     blocks = reduceBlocks(
@@ -62,7 +63,11 @@ describe('reduceBlocks', () => {
 
     expect(blocks.map((block) => block.kind)).toEqual(['reasoning', 'tool', 'text'])
     expect(blocks[0]).toMatchObject({ text: '先想想', done: true })
-    expect(blocks[1]).toMatchObject({ status: 'ok', result: '命中 2 个' })
+    expect(blocks[1]).toMatchObject({
+      status: 'ok',
+      result: '命中 2 个',
+      summary: '检索「客户」',
+    })
     expect(textFromBlocks(blocks)).toBe('建好了')
   })
 

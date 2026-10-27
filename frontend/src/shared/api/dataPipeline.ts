@@ -1,4 +1,5 @@
 import type {
+  Conversation,
   DatasetPreview,
   DatasetSchema,
   InputDatasetPage,
@@ -33,6 +34,14 @@ export function listPipelines(limit = 100, offset = 0): Promise<PipelinePage> {
 
 export function getPipeline(pipelineId: string): Promise<Pipeline> {
   return request<Pipeline>(`/pipelines/${pipelineId}`)
+}
+
+export function getPipelineConversation(pipelineId: string): Promise<Conversation | null> {
+  return request<Conversation | null>(`/pipelines/${pipelineId}/conversation`)
+}
+
+export function ensurePipelineConversation(pipelineId: string): Promise<Conversation> {
+  return request<Conversation>(`/pipelines/${pipelineId}/conversation`, { method: 'POST' })
 }
 
 export function createPipeline(payload: PipelineCreate, operationId: string): Promise<Pipeline> {

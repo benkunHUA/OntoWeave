@@ -12,7 +12,7 @@ from app.services import conversation, data_connection
 from app.vocabulary import ConversationKind
 
 
-def test_create_connection_binds_conversation_to_java_id(session, fake_data_service):
+def test_create_connection_defers_conversation_until_first_message(session, fake_data_service):
     owner = uuid.uuid4()
 
     created = data_connection.create_connection(
@@ -28,9 +28,17 @@ def test_create_connection_binds_conversation_to_java_id(session, fake_data_serv
         resource_id=uuid.UUID(created["id"]),
         owner_id=owner,
     )
-    assert conv is not None
-    assert conv.id == uuid.UUID(created["conversation_id"])
-    assert conv.title == "ERP"
+    assert conv is None
+
+    ensured = data_connection.ensure_conversation(
+        session,
+        fake_data_service,
+        owner_id=owner,
+        connection_id=uuid.UUID(created["id"]),
+    )
+    assert ensured.id == uuid.UUID(created["conversation_id"])
+    assert ensured.resource_id == uuid.UUID(created["id"])
+    assert ensured.title == "ERP"
 
 
 def test_create_draft_omits_empty_config(session, fake_data_service):
@@ -44,7 +52,7 @@ def test_create_draft_omits_empty_config(session, fake_data_service):
     assert "config" not in fake_data_service.last_create_payload
 
 
-def test_create_connection_removes_draft_conversation_when_java_fails(
+def test_create_connection_keeps_no_conversation_when_java_fails(
     session, fake_data_service, monkeypatch
 ):
     def fail_create(**_kwargs):
@@ -73,6 +81,12 @@ def test_update_connection_renames_conversation(session, fake_data_service):
         owner_id=owner,
         client=fake_data_service,
         payload=DataConnectionCreate(name="ERP"),
+    )
+    data_connection.ensure_conversation(
+        session,
+        fake_data_service,
+        owner_id=owner,
+        connection_id=uuid.UUID(created["id"]),
     )
 
     updated = data_connection.update_connection(

@@ -114,7 +114,7 @@ export function DataPipelineWorkbench() {
   )
 
   const conversation = usePipelineConversation({
-    conversationId: pipeline?.conversation_id,
+    pipelineId,
     report: toast.report,
     setMessage: toast.setMessage,
     clearMessage: toast.clear,

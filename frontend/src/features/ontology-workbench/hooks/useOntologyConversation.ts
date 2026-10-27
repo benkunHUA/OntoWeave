@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { ensureOntologyConversation } from '../../../shared/api/ontology'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  ensureOntologyConversation,
+  getOntologyConversation,
+} from '../../../shared/api/ontology'
 import { useConversationAgent } from '../../../shared/chat/hooks/useConversationAgent'
 import type { ReportError } from '../../../shared/chat/hooks/useErrorToast'
-import type { OntologyResource } from '../../../shared/types'
+import type { Conversation, OntologyResource } from '../../../shared/types'
 import { formatResourceRef } from '../lib/format'
 
 interface OntologyConversationOptions {
@@ -35,9 +38,9 @@ export function useOntologyConversation({
       return
     }
     setIsResolving(true)
-    void ensureOntologyConversation(resourceKind, resourceId)
+    void getOntologyConversation(resourceKind, resourceId)
       .then((conversation) => {
-        if (requestRef.current === requestId) setConversationId(conversation.id)
+        if (requestRef.current === requestId) setConversationId(conversation?.id)
       })
       .catch((reason: unknown) => {
         if (requestRef.current === requestId) report(reason, '打开对象映射会话失败')
@@ -50,8 +53,17 @@ export function useOntologyConversation({
     }
   }, [report, resourceId, resourceKey, resourceKind])
 
+  const ensureConversation = useCallback(async (): Promise<Conversation> => {
+    if (!resourceKind || !resourceId) throw new Error('尚未选择对象或关系')
+    requestRef.current += 1
+    const conversation = await ensureOntologyConversation(resourceKind, resourceId)
+    setConversationId(conversation.id)
+    return conversation
+  }, [resourceId, resourceKind])
+
   const conversation = useConversationAgent({
     conversationId,
+    ensureConversation: resource ? ensureConversation : undefined,
     report,
     setMessage,
     clearMessage,

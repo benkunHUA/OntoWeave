@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
 from app.agent.prompts_data_connection import build_prompt
 from app.agent.tools.data_connection import (
     DataConnectionToolContext,
@@ -34,7 +34,7 @@ class DataConnectionRunContext(AgentRunContext):
     data_connection_id: uuid.UUID
 
 
-class DataConnectionAgentDefinition:
+class DataConnectionAgentDefinition(BaseAgentDefinition):
     kind: str = ConversationKind.DATA_CONNECTION
     visible_subagents: frozenset[str] = frozenset()
 

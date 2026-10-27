@@ -4,7 +4,7 @@ import {
   listConversationMessages,
   streamConversationEvents,
 } from '../../api'
-import type { ConversationEvent, StateUpdateEvent } from '../../types'
+import type { Conversation, ConversationEvent, StateUpdateEvent } from '../../types'
 import { messagesFromHistory } from '../lib/chatMessages'
 import { pendingInterruptFrom } from '../lib/messageBlocks'
 import type { ReportError } from './useErrorToast'
@@ -34,6 +34,7 @@ function appendUnique(
 
 interface UseConversationAgentOptions {
   conversationId: string | undefined
+  ensureConversation?: () => Promise<Conversation>
   report: ReportError
   setMessage: (text: string) => void
   clearMessage: () => void
@@ -44,6 +45,7 @@ interface UseConversationAgentOptions {
 /** 共享会话壳：历史、事件流、消息与 Agent 回合；领域只提供完成后的刷新逻辑。 */
 export function useConversationAgent({
   conversationId,
+  ensureConversation,
   report,
   setMessage,
   clearMessage,
@@ -54,8 +56,12 @@ export function useConversationAgent({
   const { seed, forget, messagesFor } = chat
   const [events, setEvents] = useState<ConversationEvent[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isEnsuring, setIsEnsuring] = useState(false)
+  const [activeId, setActiveId] = useState(conversationId)
+  const [loadedId, setLoadedId] = useState<string | null>(null)
   const cursorRef = useRef<string | undefined>(undefined)
   const activeConversationRef = useRef<string | undefined>(conversationId)
+  const pendingTextRef = useRef<string | null>(null)
   const finishedRef = useRef(onFinished)
   const stateUpdateRef = useRef(onStateUpdate)
   const setInterruptRef = useRef<(value: ReturnType<typeof pendingInterruptFrom>) => void>(
@@ -67,6 +73,10 @@ export function useConversationAgent({
     finishedRef.current = onFinished
     stateUpdateRef.current = onStateUpdate
   }, [onFinished, onStateUpdate])
+
+  useEffect(() => {
+    setActiveId(conversationId)
+  }, [conversationId])
 
   const loadHistory = useCallback(
     async (targetId: string) => {
@@ -104,6 +114,7 @@ export function useConversationAgent({
     onFinished: handleFinished,
     onStateUpdate: (event) => stateUpdateRef.current?.(event),
   })
+  const sendAgent = agent.send
 
   useEffect(() => {
     setInterruptRef.current = agent.setInterrupt
@@ -114,27 +125,31 @@ export function useConversationAgent({
     let active = true
     void (async () => {
       const previous = activeConversationRef.current
-      activeConversationRef.current = conversationId
-      if (previous !== conversationId) resetAgentRef.current()
-      if (previous && previous !== conversationId) forget(previous)
+      activeConversationRef.current = activeId
+      setLoadedId(null)
+      if (previous !== activeId) resetAgentRef.current()
+      if (previous && previous !== activeId) forget(previous)
       setEvents([])
       cursorRef.current = undefined
-      if (!conversationId) return
+      if (!activeId) return
       setIsLoading(true)
       try {
-        await loadHistory(conversationId)
+        await loadHistory(activeId)
       } finally {
-        if (active) setIsLoading(false)
+        if (active) {
+          setIsLoading(false)
+          setLoadedId(activeId)
+        }
       }
     })()
     return () => {
       active = false
     }
-  }, [conversationId, forget, loadHistory])
+  }, [activeId, forget, loadHistory])
 
   useEffect(() => {
-    if (!conversationId) return
-    const targetId = conversationId
+    if (!activeId) return
+    const targetId = activeId
     const controller = new AbortController()
     let stopped = false
 
@@ -163,26 +178,49 @@ export function useConversationAgent({
       stopped = true
       controller.abort()
     }
-  }, [conversationId])
+  }, [activeId])
+
+  useEffect(() => {
+    if (!activeId || loadedId !== activeId) return
+    const text = pendingTextRef.current
+    if (!text) return
+    pendingTextRef.current = null
+    void sendAgent(activeId, text)
+  }, [activeId, loadedId, sendAgent])
 
   const send = useCallback(
     (text: string) => {
-      if (conversationId) void agent.send(conversationId, text)
+      const trimmed = text.trim()
+      if (!trimmed || pendingTextRef.current) return
+      if (activeId) {
+        void sendAgent(activeId, trimmed)
+        return
+      }
+      if (!ensureConversation) return
+      pendingTextRef.current = trimmed
+      setIsEnsuring(true)
+      void ensureConversation()
+        .then((conversation) => setActiveId(conversation.id))
+        .catch((reason: unknown) => {
+          pendingTextRef.current = null
+          report(reason, '创建会话失败')
+        })
+        .finally(() => setIsEnsuring(false))
     },
-    [agent, conversationId],
+    [activeId, ensureConversation, report, sendAgent],
   )
 
   const answer = useCallback(
     (option: Parameters<typeof agent.answer>[1]) => {
-      if (conversationId) void agent.answer(conversationId, option)
+      if (activeId) void agent.answer(activeId, option)
     },
-    [agent, conversationId],
+    [activeId, agent],
   )
 
   return {
-    messages: conversationId ? messagesFor(conversationId) : [],
+    messages: activeId ? messagesFor(activeId) : [],
     events,
-    isLoading,
+    isLoading: isLoading || isEnsuring,
     agent,
     send,
     answer,

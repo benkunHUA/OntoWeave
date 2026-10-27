@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useModeling } from '../context/modelingContext'
 import { MessageList } from '../../../shared/chat/components/MessageList'
 import { ChangesetPanel } from './ChangesetPanel'
@@ -10,6 +12,26 @@ export function ChatPane() {
   const { workspace, chat, agent } = useModeling()
   const conversationId = workspace.conversation?.id
   const messages = conversationId ? chat.messagesFor(conversationId) : []
+  const location = useLocation()
+  const navigate = useNavigate()
+  const pendingMessage = (location.state as { pendingMessage?: string } | null)?.pendingMessage
+  const consumedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!pendingMessage || !conversationId || !workspace.workspace || agent.isRunning) return
+    const key = `${conversationId}:${pendingMessage}`
+    if (consumedRef.current === key) return
+    consumedRef.current = key
+    navigate(location.pathname, { replace: true, state: null })
+    void agent.send(conversationId, pendingMessage)
+  }, [
+    agent,
+    conversationId,
+    location.pathname,
+    navigate,
+    pendingMessage,
+    workspace.workspace,
+  ])
 
   return (
     <section className="chat-pane">

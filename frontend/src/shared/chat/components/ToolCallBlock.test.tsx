@@ -29,6 +29,13 @@ describe('ToolCallBlock', () => {
     expect(container.textContent).not.toContain('query_objects')
   })
 
+  it('shows the query summary after the tool label', () => {
+    render(<ToolCallBlock block={{ ...block, summary: '客户 · 搜索「张三」' }} />)
+
+    expect(screen.getByText('查询对象')).toBeTruthy()
+    expect(screen.getByText('客户 · 搜索「张三」')).toBeTruthy()
+  })
+
   it('pretty-prints JSON arguments and results', () => {
     const { container } = render(<ToolCallBlock block={block} />)
     fireEvent.click(screen.getByRole('button'))

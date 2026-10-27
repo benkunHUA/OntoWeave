@@ -6,6 +6,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react'
 import { X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface MappingEdgeData extends Record<string, unknown> {
   label: string
@@ -13,6 +14,8 @@ export interface MappingEdgeData extends Record<string, unknown> {
 }
 
 export type MappingFlowEdge = Edge<MappingEdgeData, 'mapping'>
+
+const REMOVE_HIDE_DELAY_MS = 160
 
 export function MappingEdge({
   id,
@@ -34,20 +37,47 @@ export function MappingEdge({
     targetPosition,
     curvature: 0.28,
   })
+  const [removeVisible, setRemoveVisible] = useState(false)
+  const hideTimerRef = useRef<number | null>(null)
+
+  const showRemove = useCallback(() => {
+    if (hideTimerRef.current !== null) {
+      window.clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = null
+    }
+    setRemoveVisible(true)
+  }, [])
+
+  const scheduleHideRemove = useCallback(() => {
+    if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = window.setTimeout(() => {
+      hideTimerRef.current = null
+      setRemoveVisible(false)
+    }, REMOVE_HIDE_DELAY_MS)
+  }, [])
+
+  useEffect(() => () => {
+    if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current)
+  }, [])
+
   return (
     <>
-      <BaseEdge
-        id={id}
-        path={path}
-        className={`mapping-edge ${selected ? 'is-selected' : ''}`}
-      />
+      <g onMouseEnter={showRemove} onMouseLeave={scheduleHideRemove}>
+        <BaseEdge
+          id={id}
+          path={path}
+          className={`mapping-edge ${selected ? 'is-selected' : ''}`}
+        />
+      </g>
       <EdgeLabelRenderer>
         <button
           type="button"
-          className="mapping-edge__remove nodrag nopan"
-          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          className={`mapping-edge__remove nodrag nopan ${removeVisible ? 'is-visible' : ''}`}
+          style={{ left: `${labelX}px`, top: `${labelY}px` }}
           aria-label={`删除连线 ${data?.label ?? id}`}
           title={`删除连线 ${data?.label ?? id}`}
+          onMouseEnter={showRemove}
+          onMouseLeave={scheduleHideRemove}
           onClick={() => data?.onRemove(id)}
         >
           <X size={10} />

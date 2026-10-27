@@ -14,6 +14,7 @@ import type {
   SyncTaskSelection,
   TableDetail,
   TableList,
+  Conversation,
 } from '../types'
 import { request } from './client'
 
@@ -74,6 +75,12 @@ export function describeTable(
 
 export function getDataConnectionState(connectionId: string): Promise<DataConnectionState> {
   return request<DataConnectionState>(`/data-connections/${connectionId}/state`)
+}
+
+export function ensureDataConnectionConversation(connectionId: string): Promise<Conversation> {
+  return request<Conversation>(`/data-connections/${connectionId}/conversation`, {
+    method: 'POST',
+  })
 }
 
 export function saveSyncTasks(

@@ -226,10 +226,17 @@ def stream_run(
                                 call_id=call_id,
                                 subagent_type=str(args.get("subagent_type") or ""),
                             )
+                        summary = definition.summarize_tool_call(
+                            session,
+                            owner_id=owner_id,
+                            name=name,
+                            args=args,
+                        )
                         for event in turn.tool_start(
                             call_id=call_id,
                             name=name,
                             args=args,
+                            summary=summary,
                             agent=subagent.name if subagent else None,
                             parent_call_id=subagent.call_id if subagent else None,
                         ):

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import (
     OntologyToolContext,
@@ -42,7 +42,7 @@ class OntologyRunContext(AgentRunContext):
     changeset_id: uuid.UUID
 
 
-class OntologyAgentDefinition:
+class OntologyAgentDefinition(BaseAgentDefinition):
     kind: str = ConversationKind.MODELING
     visible_subagents: frozenset[str] = frozenset({ACTION_AGENT_NAME})
 

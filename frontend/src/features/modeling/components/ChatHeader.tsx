@@ -40,7 +40,7 @@ export function ChatHeader() {
       <div>
         <p className="eyebrow">Conversation</p>
         <div className="chat-title-row">
-          <h1>{conversation?.title || '选择一个会话'}</h1>
+          <h1>{conversation?.title || '新对话'}</h1>
           {conversation ? (
             <button
               type="button"

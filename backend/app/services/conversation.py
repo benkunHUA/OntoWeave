@@ -4,6 +4,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
@@ -92,6 +93,77 @@ def find_conversation_by_resource(
     if owner_id is not None:
         stmt = stmt.where(Conversation.owner_id == owner_id)
     return session.scalar(stmt)
+
+
+def ensure_resource_conversation(
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    kind: str,
+    resource_id: uuid.UUID,
+    title: str,
+    conversation_id: uuid.UUID | None = None,
+) -> Conversation:
+    conv, _ = ensure_resource_conversation_with_status(
+        session,
+        owner_id=owner_id,
+        kind=kind,
+        resource_id=resource_id,
+        title=title,
+        conversation_id=conversation_id,
+    )
+    return conv
+
+
+def ensure_resource_conversation_with_status(
+    session: Session,
+    *,
+    owner_id: uuid.UUID,
+    kind: str,
+    resource_id: uuid.UUID,
+    title: str,
+    conversation_id: uuid.UUID | None = None,
+) -> tuple[Conversation, bool]:
+    """按资源取会话；只有首次使用时才落库。
+
+    资源方（数据连接 / 数据流程）会先分配 conversation_id 并交给 Java 保存，
+    所以这里允许用该 id 建行，保证两边指向同一个会话。
+    """
+    if kind == ConversationKind.MODELING:
+        raise InvariantViolationError("modeling conversations cannot bind an external resource")
+
+    existing = find_conversation_by_resource(
+        session,
+        kind=kind,
+        resource_id=resource_id,
+        owner_id=owner_id,
+    )
+    if existing is not None:
+        return existing, False
+
+    try:
+        with session.begin_nested():
+            created = create_conversation(
+                session,
+                owner_id=owner_id,
+                title=title,
+                kind=kind,
+                resource_id=resource_id,
+                conversation_id=conversation_id,
+            )
+        return created, True
+    except IntegrityError:
+        # 并发首条消息可能同时尝试建行；savepoint 回滚后按资源重新收敛。
+        session.expire_all()
+        raced = find_conversation_by_resource(
+            session,
+            kind=kind,
+            resource_id=resource_id,
+            owner_id=owner_id,
+        )
+        if raced is None:
+            raise
+        return raced, False
 
 
 def rename_conversation(

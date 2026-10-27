@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from app.deps import get_data_service_client
 from app.errors import DataServiceUnavailableError, NotFoundError
 from app.main import _create_app
+from app.models import Conversation
 from app.services import conversation, conversation_event
 from app.vocabulary import ConversationKind
 
@@ -17,7 +18,7 @@ def client(session_factory, fake_data_service):
     return TestClient(app)
 
 
-def test_create_returns_connection_and_binds_conversation(client, session):
+def test_create_returns_connection_without_creating_conversation(client, session):
     response = client.post(
         "/api/v1/data-connections",
         json={"name": "ERP", "config": {"host": "mysql", "database": "erp"}},
@@ -27,7 +28,12 @@ def test_create_returns_connection_and_binds_conversation(client, session):
     body = response.json()
     assert body["name"] == "ERP"
     assert body["kind"] == "mysql"
-    conv = conversation.get_conversation(session, uuid.UUID(body["conversation_id"]))
+    assert session.get(Conversation, uuid.UUID(body["conversation_id"])) is None
+
+    ensured = client.post(f"/api/v1/data-connections/{body['id']}/conversation")
+
+    assert ensured.status_code == 201
+    conv = conversation.get_conversation(session, uuid.UUID(ensured.json()["id"]))
     assert conv.kind == ConversationKind.DATA_CONNECTION.value
     assert str(conv.resource_id) == body["id"]
 
@@ -55,6 +61,7 @@ def test_state_hides_iceberg_details(client):
 def test_state_returns_local_event_cursor(client, session_factory):
     created = client.post("/api/v1/data-connections", json={"name": "事件游标"}).json()
     connection_id = created["id"]
+    client.post(f"/api/v1/data-connections/{connection_id}/conversation")
     conversation_event.ingest_envelope(
         session_factory,
         {

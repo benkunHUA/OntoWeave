@@ -1,4 +1,5 @@
 export const QUERY_PATH = '/query'
+export const QUERY_NEW_PATH = '/query/new'
 
 export const QUERY_DEFAULT_TITLE = '新问答'
 export const QUERY_TITLE_MAX_LENGTH = 24

@@ -65,12 +65,22 @@ export function getOntologyResourceDefinition(
   )
 }
 
+export function getOntologyConversation(
+  resourceKind: 'object_type' | 'relation',
+  resourceId: string,
+): Promise<Conversation | null> {
+  return request<Conversation | null>(
+    `${ONTOLOGY_PATH}/conversations${query({ resource_kind: resourceKind, resource_id: resourceId })}`,
+  )
+}
+
 export function ensureOntologyConversation(
   resourceKind: 'object_type' | 'relation',
   resourceId: string,
 ): Promise<Conversation> {
   return request<Conversation>(
     `${ONTOLOGY_PATH}/conversations${query({ resource_kind: resourceKind, resource_id: resourceId })}`,
+    { method: 'POST' },
   )
 }
 

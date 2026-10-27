@@ -43,6 +43,19 @@ def test_create_maps_response_and_forwards_stable_binding(
     assert call["operation_id"] == operation_id
     assert (
         session.query(Conversation).filter_by(kind=ConversationKind.DATA_PIPELINE.value).count()
+        == 0
+    )
+
+
+def test_pipeline_conversation_is_created_on_demand(pipeline_client, session):
+    assert pipeline_client.get(f"{API}/{PIPELINE_ID}/conversation").json() is None
+
+    ensured = pipeline_client.post(f"{API}/{PIPELINE_ID}/conversation")
+
+    assert ensured.status_code == 201
+    assert ensured.json()["id"] == str(CONVERSATION_ID)
+    assert (
+        session.query(Conversation).filter_by(kind=ConversationKind.DATA_PIPELINE.value).count()
         == 1
     )
 
@@ -83,7 +96,7 @@ def test_copy_uses_operation_id_for_new_binding(pipeline_client, fake_pipeline_c
     assert call["payload"]["conversationId"]
     assert (
         session.query(Conversation).filter_by(kind=ConversationKind.DATA_PIPELINE.value).count()
-        == 1
+        == 0
     )
 
 

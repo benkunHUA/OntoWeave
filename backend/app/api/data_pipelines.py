@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api import data_pipeline_execution, data_pipeline_schedule
 from app.deps import get_current_user_id, get_data_service_client, get_session
 from app.errors import InvalidRequestError
+from app.schemas.conversation import ConversationRead
 from app.schemas.data_pipeline import (
     DataPipelineRead,
     DatasetSchemaRead,
@@ -114,6 +115,39 @@ def get_pipeline(
 ) -> DataPipelineRead:
     return DataPipelineRead.model_validate(
         data_pipeline.get_pipeline(client, owner_id=get_current_user_id(), pipeline_id=pipeline_id)
+    )
+
+
+@router.get("/pipelines/{pipeline_id}/conversation", response_model=ConversationRead | None)
+def get_pipeline_conversation(
+    pipeline_id: uuid.UUID,
+    session: Session = Depends(get_session),
+) -> ConversationRead | None:
+    conv = data_pipeline.find_pipeline_conversation(
+        session, owner_id=get_current_user_id(), pipeline_id=pipeline_id
+    )
+    if conv is None:
+        return None
+    return ConversationRead.model_validate(conv)
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/conversation",
+    response_model=ConversationRead,
+    status_code=201,
+)
+def ensure_pipeline_conversation(
+    pipeline_id: uuid.UUID,
+    session: Session = Depends(get_session),
+    client: DataServiceClient = Depends(get_data_service_client),
+) -> ConversationRead:
+    return ConversationRead.model_validate(
+        data_pipeline.ensure_pipeline_conversation(
+            session,
+            client,
+            owner_id=get_current_user_id(),
+            pipeline_id=pipeline_id,
+        )
     )
 
 

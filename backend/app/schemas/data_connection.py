@@ -205,3 +205,4 @@ class DataConnectionStateRead(BaseModel):
     datasets: list[DatasetRead]
     missing_steps: list[str]
     last_event_id: uuid.UUID | None = None
+    conversation_ready: bool = False

@@ -56,19 +56,6 @@ _OP_ORDER = (
     changeset_service.OP_VIEW,
 )
 
-# 元素种类的中文说法，写回模型线程时按名字点名，别只报数量。
-_ELEMENT_LABELS = {
-    element_kinds.OBJECT_TYPE: "对象类型",
-    element_kinds.PROPERTY: "属性",
-    element_kinds.RELATION: "关系",
-    element_kinds.ACTION_TYPE: "动作",
-    element_kinds.ACTION_PARAMETER: "动作参数",
-    element_kinds.ACTION_RULE: "动作规则",
-    element_kinds.ACTION_RULE_ASSIGNMENT: "字段赋值",
-    element_kinds.ACTION_CRITERIA_NODE: "提交校验条件",
-    element_kinds.ACTION_CRITERIA_OPERAND: "条件操作数",
-}
-
 _HEADLINES = {
     CONFIRM: "已确认本次改动",
     REVERT: "已撤销本次改动",
@@ -131,7 +118,7 @@ def describe_ops(session: Session, ops: list[ChangesetOp]) -> list[str]:
 
 
 def _describe_target(session: Session, kind: str | None, target_id: uuid.UUID | None) -> str:
-    label = _ELEMENT_LABELS.get(kind or "", kind or "元素")
+    label = element_kinds.ELEMENT_KIND_LABELS.get(kind or "", kind or "元素")
     if target_id is None:
         return label
     if kind == "object_type":

@@ -46,6 +46,7 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
           args: event.args ?? {},
           status: 'running',
           result: null,
+          summary: event.summary ?? null,
           agent: event.agent ?? null,
           parentCallId: event.parentCallId ?? null,
         },

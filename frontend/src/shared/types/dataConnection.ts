@@ -194,6 +194,7 @@ export interface DataConnectionState {
   datasets: Dataset[]
   missing_steps: string[]
   last_event_id: string | null
+  conversation_ready: boolean
 }
 
 export type MissingStep =

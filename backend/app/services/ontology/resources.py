@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from app.models import Conversation, ObjectType, Relation
 from app.services import conversation
 from app.services.ontology.bindings import safe_binding
-from app.services.ontology.common import OBJECT_TYPE, RELATION, relation_resource
+from app.services.ontology.common import (
+    OBJECT_TYPE,
+    RELATION,
+    relation_resource,
+    resource_subject,
+)
 from app.services.ontology.relation_sync import sync_relations_best_effort
 from app.vocabulary import ConversationKind, RelationCardinality
 
@@ -74,20 +79,10 @@ def list_resources(
 def ensure_conversation(
     session: Session, *, owner_id: uuid.UUID, resource_kind: str, resource_id: uuid.UUID
 ) -> Conversation:
-    from app.services.ontology.common import resource_subject
-
     subject = resource_subject(
         session, owner_id=owner_id, resource_kind=resource_kind, resource_id=resource_id
     )
-    existing = conversation.find_conversation_by_resource(
-        session,
-        kind=ConversationKind.ONTOLOGY_WORKBENCH.value,
-        resource_id=resource_id,
-        owner_id=owner_id,
-    )
-    if existing is not None:
-        return existing
-    return conversation.create_conversation(
+    return conversation.ensure_resource_conversation(
         session,
         owner_id=owner_id,
         title=f"{subject.name} 映射",
@@ -96,4 +91,15 @@ def ensure_conversation(
     )
 
 
-__all__ = ["ensure_conversation", "list_resources"]
+def find_conversation(
+    session: Session, *, owner_id: uuid.UUID, resource_id: uuid.UUID
+) -> Conversation | None:
+    return conversation.find_conversation_by_resource(
+        session,
+        kind=ConversationKind.ONTOLOGY_WORKBENCH.value,
+        resource_id=resource_id,
+        owner_id=owner_id,
+    )
+
+
+__all__ = ["ensure_conversation", "find_conversation", "list_resources"]

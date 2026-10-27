@@ -11,13 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.agent import graph as agent_graph
 from app.agent import llm
-from app.agent.definitions.base import AgentRunContext
+from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
 from app.agent.prompts_query import MAIN_QUERY_AGENT_PROMPT
 from app.agent.tools.common import build_ask_user_tool
 from app.agent.tools.query.context import QueryToolContext
 from app.agent.tools.query.rewrite import build_rewrite_tool
 from app.agent.tools.query.selection import build_query_selection_tools
 from app.agent.tools.query.subagent import QUERY_AGENT_NAME, build_query_subagent
+from app.agent.tools.query.summary import summarize_query_tool_call
 from app.config import Settings
 from app.errors import InvariantViolationError
 from app.models import Conversation
@@ -31,7 +32,7 @@ class QueryRunContext(AgentRunContext):
     pass
 
 
-class QueryAgentDefinition:
+class QueryAgentDefinition(BaseAgentDefinition):
     kind: str = ConversationKind.QUERY
     visible_subagents: frozenset[str] = frozenset({QUERY_AGENT_NAME})
 
@@ -98,3 +99,18 @@ class QueryAgentDefinition:
     ) -> dict[str, Any]:
         del session, settings, run
         return {}
+
+    def summarize_tool_call(
+        self,
+        session: Session,
+        *,
+        owner_id: uuid.UUID,
+        name: str,
+        args: object,
+    ) -> str | None:
+        return summarize_query_tool_call(
+            session,
+            owner_id=owner_id,
+            name=name,
+            args=args,
+        )
