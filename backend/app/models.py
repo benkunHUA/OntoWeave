@@ -49,10 +49,22 @@ class Base(DeclarativeBase):
 
 class Graph(Base):
     __tablename__ = "graph"
+    __table_args__ = (
+        Index(
+            "ix_graph_embedding_hnsw",
+            "graph_embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"graph_embedding": "vector_cosine_ops"},
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
     name: Mapped[str | None] = mapped_column(Text)
+    graph_card: Mapped[str | None] = mapped_column(Text)
+    graph_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
+    graph_embedding_model: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

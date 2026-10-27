@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.deps import get_current_user_id, get_session
 from app.schemas.graph import (
     GraphActionBriefRead,
@@ -18,9 +19,43 @@ from app.schemas.graph import (
     ObjectMembership,
     RelationMembership,
 )
-from app.services import action_brief, graph
+from app.schemas.graph_publication import GraphPublicationRead
+from app.services import action_brief, embedding, graph, graph_publication
 
 router = APIRouter(tags=["graphs"])
+
+
+@router.post("/graphs/{graph_id}/publish", response_model=GraphPublicationRead)
+def publish_graph(
+    graph_id: uuid.UUID, session: Session = Depends(get_session)
+) -> GraphPublicationRead:
+    publication = graph_publication.publish_graph(
+        session,
+        graph_id=graph_id,
+        owner_id=get_current_user_id(),
+        embedder=embedding.build_embedder(get_settings()),
+    )
+    return GraphPublicationRead(
+        graph_id=publication.graph_id,
+        graph_card=publication.graph_card,
+        embedding_model=publication.embedding_model,
+        published_at=publication.published_at,
+    )
+
+
+@router.get("/graphs/{graph_id}/publication", response_model=GraphPublicationRead)
+def get_graph_publication(
+    graph_id: uuid.UUID, session: Session = Depends(get_session)
+) -> GraphPublicationRead:
+    publication = graph_publication.get_publication(
+        session, graph_id=graph_id, owner_id=get_current_user_id()
+    )
+    return GraphPublicationRead(
+        graph_id=publication.graph_id,
+        graph_card=publication.graph_card,
+        embedding_model=publication.embedding_model,
+        published_at=publication.published_at,
+    )
 
 
 @router.get("/graphs/{graph_id}/snapshot", response_model=GraphSnapshotRead)

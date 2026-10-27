@@ -18,8 +18,9 @@ import {
   Minus,
   Plus,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { buildFlowElements, type FlowNode } from '../lib/flow'
+import { hasPendingOntologyChanges } from '../lib/changesetSummary'
 import { ActionNode } from './action/ActionNode'
 import { OntologyNode } from './OntologyNode'
 import { NativeSelectField } from '../../../shared/components/form/controls'
@@ -40,6 +41,7 @@ interface OntologyCanvasProps {
   onLayoutChange: (kind: NonNullable<ViewSpec['layout']>['kind']) => void
   onMoveNode: (nodeId: string, x: number, y: number) => void
   onSaveView: () => void
+  toolbarExtra?: ReactNode
 }
 
 function CanvasInner({
@@ -55,6 +57,7 @@ function CanvasInner({
   onLayoutChange,
   onMoveNode,
   onSaveView,
+  toolbarExtra,
 }: OntologyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
@@ -141,6 +144,7 @@ function CanvasInner({
               }
             />
           </label>
+          {toolbarExtra}
         </div>
       </header>
 
@@ -232,7 +236,7 @@ function CanvasInner({
           <i className="legend-line legend-line--draft" />
           草稿 {draftCount}
         </span>
-        {changeset?.status === 'open' ? (
+        {hasPendingOntologyChanges(changeset) ? (
           <span className="canvas-footer__draft-state">改动待确认</span>
         ) : null}
       </footer>

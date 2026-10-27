@@ -48,6 +48,14 @@ export interface GraphSnapshot {
   actions: ActionBrief[]
 }
 
+/** 图发布到业务问答后生成的图卡与向量元数据；重新发布会覆盖。 */
+export interface GraphPublication {
+  graph_id: string
+  graph_card: string
+  embedding_model: string | null
+  published_at: string
+}
+
 /** 删会话 / 删图时，对共享池里对象与关系的处理范围。 */
 export type DeleteScope =
   | 'graph-only'

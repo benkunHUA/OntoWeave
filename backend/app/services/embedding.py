@@ -27,6 +27,19 @@ class Embedder(Protocol):
     def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
 
 
+def embedder_model_name(embedder: Embedder) -> str:
+    model = getattr(embedder, "model", None)
+    return str(model) if model else "local-hash"
+
+
+def ensure_embedding_dim(embedder: Embedder) -> None:
+    """列维度在 DDL 里写死了，嵌入器维度对不上就早点报清楚，别等数据库抛。"""
+    if embedder.dim != EMBEDDING_DIM:
+        raise InvariantViolationError(
+            f"embedder dimension {embedder.dim} does not match the column dimension {EMBEDDING_DIM}"
+        )
+
+
 def _tokenize(text: str) -> list[str]:
     """英文按词切、中文按字切。确定性、无依赖，够做词面相似度。"""
     tokens: list[str] = []
@@ -139,11 +152,7 @@ def cosine(left: Sequence[float], right: Sequence[float]) -> float:
 
 
 def _check_dim(embedder: Embedder) -> None:
-    """列维度在 DDL 里写死了，嵌入器维度对不上就早点报清楚，别等数据库抛。"""
-    if embedder.dim != EMBEDDING_DIM:
-        raise InvariantViolationError(
-            f"embedder dimension {embedder.dim} does not match the column dimension {EMBEDDING_DIM}"
-        )
+    ensure_embedding_dim(embedder)
 
 
 def _embedding_text(element: Any) -> str:
