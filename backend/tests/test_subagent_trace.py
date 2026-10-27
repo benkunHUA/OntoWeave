@@ -130,6 +130,18 @@ def test_top_level_namespace_is_the_main_agent():
     assert subagent_trace.SubagentTrace().call_for(()) is None
 
 
+def test_namespaceless_events_belong_to_the_active_task_call():
+    trace = subagent_trace.SubagentTrace(visible=frozenset({ACTION_AGENT_NAME}))
+    trace.note_task_call(call_id="c1", subagent_type=ACTION_AGENT_NAME)
+
+    call = trace.call_for(())
+
+    assert call is not None
+    assert (call.call_id, call.name, call.visible) == ("c1", ACTION_AGENT_NAME, True)
+    trace.note_tool_end("c1")
+    assert trace.call_for(()) is None
+
+
 def test_hidden_subagent_keeps_its_internals_back():
     trace = subagent_trace.SubagentTrace()
     trace.note_task_call(call_id="c1", subagent_type="view_designer")

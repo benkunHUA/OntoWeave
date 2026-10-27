@@ -33,6 +33,9 @@ def create_conversation(
             raise InvariantViolationError("modeling conversations cannot set resource_id")
         g = graph.create_graph(session, owner_id=owner_id, name=title)
         resource_id = g.id
+    elif kind == ConversationKind.QUERY:
+        # 查询会话可以跨图连续追问，resource_id 只是会话身份，不绑定固定图。
+        resource_id = resource_id or uuid.uuid4()
     elif resource_id is None:
         raise InvariantViolationError(f"{kind} conversations require a resource_id")
 
@@ -163,7 +166,7 @@ def list_conversations(
         stmt = stmt.where(Conversation.archived_at.is_(None))
     return list(
         session.scalars(
-            stmt.order_by(Conversation.created_at.desc(), Conversation.id)
+            stmt.order_by(Conversation.updated_at.desc(), Conversation.id)
             .limit(limit)
             .offset(offset)
         )
@@ -193,7 +196,10 @@ def add_message(
     kind: str = "message",
     blocks: list[dict] | None = None,
 ) -> ConversationMessage:
-    ensure_writable(get_conversation(session, conversation_id))
+    conv = get_conversation(session, conversation_id)
+    ensure_writable(conv)
+    # 会话列表按更新时间排序；有来有回才说明这个会话刚被用过。
+    conv.updated_at = datetime.now(UTC)
     message = ConversationMessage(
         conversation_id=conversation_id,
         role=role,

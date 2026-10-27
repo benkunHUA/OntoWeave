@@ -11,6 +11,7 @@ from app.api import (
     graphs,
     object_types,
     ontology,
+    query,
     view_state,
 )
 
@@ -26,3 +27,4 @@ api_router.include_router(changesets.router)
 api_router.include_router(view_state.router)
 api_router.include_router(agent.router)
 api_router.include_router(actions.router)
+api_router.include_router(query.router)

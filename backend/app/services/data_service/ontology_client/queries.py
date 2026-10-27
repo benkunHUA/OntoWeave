@@ -13,6 +13,57 @@ from app.services.data_service.ontology_client.codec import list_from
 class QueryClientMixin:
     _ontology_request: Callable[..., dict]
 
+    def query_objects(
+        self,
+        object_type_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        q: str | None = None,
+        filters: list[dict] | None = None,
+        sort: list[dict] | None = None,
+        limit: int = 20,
+        project: list[uuid.UUID] | None = None,
+    ) -> dict:
+        return self._ontology_request(
+            "POST",
+            f"/object-types/{object_type_id}/objects/query",
+            json={
+                "owner_id": owner_id,
+                "q": q,
+                "filters": filters or [],
+                "sort": sort or [],
+                "limit": limit,
+                "project": project or [],
+            },
+        )
+
+    def query_step(
+        self,
+        relation_id: uuid.UUID,
+        *,
+        owner_id: uuid.UUID,
+        direction: str,
+        inputs: list[dict],
+        filters: list[dict] | None = None,
+        sort: list[dict] | None = None,
+        limit: int = 20,
+        project: list[uuid.UUID] | None = None,
+    ) -> dict:
+        return self._ontology_request(
+            "POST",
+            "/query-steps",
+            json={
+                "owner_id": owner_id,
+                "relation_id": relation_id,
+                "direction": direction,
+                "inputs": inputs,
+                "filters": filters or [],
+                "sort": sort or [],
+                "limit": limit,
+                "project": project or [],
+            },
+        )
+
     def get_relation_overview(self, relation_id: uuid.UUID, *, owner_id: uuid.UUID) -> dict:
         return self._ontology_request(
             "GET", f"/relation-types/{relation_id}/overview", params={"ownerId": str(owner_id)}

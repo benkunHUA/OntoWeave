@@ -5,6 +5,9 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectDetailResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectPageResponse;
+import com.ontoweave.data.ontology.query.api.dto.ObjectQueryRequest;
+import com.ontoweave.data.ontology.query.api.dto.QueryPageResponse;
+import com.ontoweave.data.ontology.query.api.dto.QueryStepRequest;
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectPageResponse;
 import com.ontoweave.data.ontology.query.api.dto.RelationGroupsResponse;
 import com.ontoweave.data.ontology.query.api.dto.RelationInstancePageResponse;
@@ -14,6 +17,8 @@ import com.ontoweave.data.ontology.query.service.ObjectQueryService;
 import com.ontoweave.data.ontology.query.service.RelationQueryService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,6 +66,19 @@ public class OntologyQueryController {
             @RequestParam String primaryKey
     ) {
         return objects.detail(objectTypeId, ownerId, primaryKey);
+    }
+
+    @PostMapping("/object-types/{objectTypeId}/objects/query")
+    public QueryPageResponse queryObjects(
+            @PathVariable UUID objectTypeId,
+            @RequestBody ObjectQueryRequest request
+    ) {
+        return objects.query(objectTypeId, request);
+    }
+
+    @PostMapping("/query-steps")
+    public QueryPageResponse queryStep(@RequestBody QueryStepRequest request) {
+        return relations.step(request);
     }
 
     @GetMapping("/object-types/{objectTypeId}/object-relations")

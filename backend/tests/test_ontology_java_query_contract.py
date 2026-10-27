@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import httpx
 
 from app.services import ontology
@@ -33,6 +35,34 @@ def test_relation_group_parses_java_related_objects_as_items(session_factory):
     assert group["relation_id"] == str(relation_id)
     assert group["items"] == [{"primary_key": "order-1", "title": "订单 1"}]
     assert group["total"] == 1
+
+
+def test_object_relation_page_accepts_java_related_object_items(session_factory):
+    with session_factory() as db:
+        source_id, _, relation_id = create_relation_with_types(db)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith(
+            f"/object-types/{source_id}/object-relations/{relation_id}"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"primaryKey": "order-1", "title": "订单 1"}],
+                "total": 1,
+                "page": 1,
+                "pageSize": 20,
+                "indexVersionId": str(uuid.uuid4()),
+            },
+        )
+
+    response = api_client(session_factory, handler).get(
+        f"{API}/object-types/{source_id}/object-relations/{relation_id}",
+        params={"primary_key": "customer-1", "direction": "outgoing"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["items"] == [{"primary_key": "order-1", "title": "订单 1"}]
 
 
 def test_object_detail_parses_java_property_list(session_factory):

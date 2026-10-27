@@ -424,7 +424,7 @@ class ObjectRelationGroupRead(BaseModel):
 
 
 class ObjectRelationPage(BaseModel):
-    items: list[OntologyObject] = Field(default_factory=list)
+    items: list[OntologyRelatedObject] = Field(default_factory=list)
     total: int = 0
     page: int = 1
     page_size: int = 0

@@ -31,27 +31,31 @@ class SubagentTrace:
     def __init__(self, visible: frozenset[str] = frozenset()) -> None:
         self._visible = visible
         self._pending: list[SubagentCall] = []
+        self._active: list[SubagentCall] = []
         self._bound: dict[str, SubagentCall | None] = {}
 
     def note_task_call(self, *, call_id: str, subagent_type: str) -> None:
         """主智能体委派了一次 `task`：等它的子图命名空间露头，好把两边对起来。"""
         if not subagent_type:
             return
-        self._pending.append(
-            SubagentCall(
-                call_id=call_id,
-                name=subagent_type,
-                visible=subagent_type in self._visible,
-            )
+        call = SubagentCall(
+            call_id=call_id,
+            name=subagent_type,
+            visible=subagent_type in self._visible,
         )
+        self._pending.append(call)
+        self._active.append(call)
 
     def note_tool_end(self, call_id: str) -> None:
         self._pending = [call for call in self._pending if call.call_id != call_id]
+        self._active = [call for call in self._active if call.call_id != call_id]
 
     def call_for(self, namespace: Sequence[str]) -> SubagentCall | None:
         """这段事件属于哪个子智能体；顶层命名空间（主智能体）返回 None。"""
         if not namespace:
-            return None
+            # CompiledSubAgent 里的 create_agent 有时不会给流事件附上子图命名空间。
+            # 此时 task 还没返回，活跃委派内部的事件都属于该子智能体。
+            return self._active[0] if self._active else None
         head = str(namespace[0])
         if not head.startswith(_TOOL_NAMESPACE_PREFIX):
             return None

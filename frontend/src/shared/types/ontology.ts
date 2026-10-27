@@ -267,7 +267,7 @@ export interface ObjectRelationGroup {
 }
 
 export interface ObjectRelationPage {
-  items: OntologyObject[]
+  items: OntologyRelatedObject[]
   total: number
   page: number
   page_size: number

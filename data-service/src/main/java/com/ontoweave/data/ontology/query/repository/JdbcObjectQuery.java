@@ -3,6 +3,7 @@ package com.ontoweave.data.ontology.query.repository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ontoweave.data.ontology.query.common.PageRequest;
+import com.ontoweave.data.ontology.query.common.SortSpec;
 import com.ontoweave.data.ontology.query.filter.ParsedFilters;
 import com.ontoweave.data.ontology.query.filter.QueryDatatype;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -80,6 +81,38 @@ public class JdbcObjectQuery {
         return new ObjectPageRows(items, total);
     }
 
+    public ObjectQueryRows query(
+            UUID versionId,
+            UUID objectTypeId,
+            String q,
+            ParsedFilters filters,
+            List<SortSpec> sort,
+            QueryDatatype primaryKeyType,
+            int limit
+    ) {
+        List<Object> arguments = new ArrayList<>();
+        String where = pageWhere(versionId, objectTypeId, q, filters, arguments);
+        long total = count("""
+                SELECT count(*)
+                FROM data.ontology_object_instance o
+                """ + where, arguments);
+        List<Object> queryArguments = new ArrayList<>(arguments);
+        String order = queryOrder(sort, primaryKeyType, queryArguments);
+        queryArguments.add(limit);
+        List<ObjectQueryRow> items = jdbc.query("""
+                        SELECT o.primary_key_value, o.title_value, o.properties
+                        FROM data.ontology_object_instance o
+                        """ + where + order + " LIMIT ?",
+                (resultSet, rowNumber) -> new ObjectQueryRow(
+                        resultSet.getString("primary_key_value"),
+                        resultSet.getString("title_value"),
+                        json(resultSet.getString("properties"))
+                ),
+                queryArguments.toArray()
+        );
+        return new ObjectQueryRows(items, total);
+    }
+
     public Optional<ObjectDetailRow> findDetail(
             UUID versionId,
             UUID objectTypeId,
@@ -129,6 +162,29 @@ public class JdbcObjectQuery {
         return where.toString();
     }
 
+    private String queryOrder(
+            List<SortSpec> sort,
+            QueryDatatype primaryKeyType,
+            List<Object> arguments
+    ) {
+        StringBuilder order = new StringBuilder(" ORDER BY ");
+        for (SortSpec item : sort) {
+            order.append("""
+                    (SELECT v.%s FROM data.ontology_object_value v
+                     WHERE v.version_id = o.version_id
+                       AND v.primary_key_value = o.primary_key_value
+                       AND v.attribute_id = ? LIMIT 1) %s NULLS LAST,
+                    """.formatted(
+                    item.datatype().valueColumn(),
+                    item.descending() ? "DESC" : "ASC"
+            ));
+            arguments.add(item.attributeId());
+        }
+        order.append("o.%s ASC NULLS LAST, o.primary_key_value COLLATE \"C\" ASC"
+                .formatted(primaryKeyType.sortColumn()));
+        return order.toString();
+    }
+
     private long count(String sql, List<Object> arguments) {
         Long value = jdbc.queryForObject(sql, Long.class, arguments.toArray());
         return value == null ? 0L : value;
@@ -156,5 +212,15 @@ public class JdbcObjectQuery {
     }
 
     public record ObjectDetailRow(String primaryKey, String title, JsonNode properties) {
+    }
+
+    public record ObjectQueryRow(String primaryKey, String title, JsonNode properties) {
+    }
+
+    public record ObjectQueryRows(List<ObjectQueryRow> items, long total) {
+
+        public ObjectQueryRows {
+            items = items == null ? List.of() : List.copyOf(items);
+        }
     }
 }

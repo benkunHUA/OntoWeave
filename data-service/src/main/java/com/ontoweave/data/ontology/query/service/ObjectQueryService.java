@@ -6,9 +6,15 @@ import com.ontoweave.data.ontology.query.api.dto.OntologyObjectDetailResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectPageResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyPropertyResponse;
+import com.ontoweave.data.ontology.query.api.dto.ObjectQueryRequest;
+import com.ontoweave.data.ontology.query.api.dto.QueryObjectResponse;
+import com.ontoweave.data.ontology.query.api.dto.QueryPageResponse;
 import com.ontoweave.data.ontology.query.common.MappingSupport;
+import com.ontoweave.data.ontology.query.common.ObjectProjection;
 import com.ontoweave.data.ontology.query.common.PageRequest;
 import com.ontoweave.data.ontology.query.common.QueryErrors;
+import com.ontoweave.data.ontology.query.common.QueryLimits;
+import com.ontoweave.data.ontology.query.common.SortParser;
 import com.ontoweave.data.ontology.query.filter.FilterCondition;
 import com.ontoweave.data.ontology.query.filter.FilterParser;
 import com.ontoweave.data.ontology.query.filter.ParsedFilters;
@@ -23,16 +29,50 @@ public class ObjectQueryService {
 
     private final JdbcObjectQuery objects;
     private final FilterParser filters;
+    private final SortParser sorts;
     private final ObjectMapper mapper;
 
     public ObjectQueryService(
             JdbcObjectQuery objects,
             FilterParser filters,
+            SortParser sorts,
             ObjectMapper mapper
     ) {
         this.objects = objects;
         this.filters = filters;
+        this.sorts = sorts;
         this.mapper = mapper;
+    }
+
+    public QueryPageResponse query(UUID objectTypeId, ObjectQueryRequest request) {
+        requireIds(objectTypeId, request == null ? null : request.ownerId());
+        int limit = QueryLimits.limit(request.limit());
+        JdbcObjectQuery.ObjectVersionRow version = objects
+                .findCurrentVersion(objectTypeId, request.ownerId())
+                .orElse(null);
+        if (version == null) {
+            return new QueryPageResponse(List.of(), 0, false, null);
+        }
+        MappingSnapshot mapping = MappingSupport.parse(mapper, version.mappingSnapshot());
+        ParsedFilters parsed = filters.parse(mapping, request.filters());
+        JdbcObjectQuery.ObjectQueryRows rows = objects.query(
+                version.id(),
+                objectTypeId,
+                request.q(),
+                parsed,
+                sorts.parse(mapping, request.sort()),
+                MappingSupport.primaryKeyDatatype(mapping),
+                limit
+        );
+        List<QueryObjectResponse> items = rows.items().stream()
+                .map(row -> new QueryObjectResponse(
+                        objectTypeId,
+                        row.primaryKey(),
+                        row.title(),
+                        ObjectProjection.project(mapping, row.properties(), request.project())
+                ))
+                .toList();
+        return new QueryPageResponse(items, rows.total(), rows.total() > limit, version.id());
     }
 
     public OntologyObjectPageResponse list(

@@ -46,6 +46,7 @@ class ConversationKind(StrEnum):
     DATA_CONNECTION = "data_connection"
     DATA_PIPELINE = "data_pipeline"
     ONTOLOGY_WORKBENCH = "ontology_workbench"
+    QUERY = "query"
 
 
 CONVERSATION_KINDS: tuple[str, ...] = tuple(kind.value for kind in ConversationKind)

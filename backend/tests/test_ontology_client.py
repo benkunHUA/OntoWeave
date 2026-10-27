@@ -128,9 +128,63 @@ def test_client_reads_columns_and_sends_json_filters():
 
     assert columns == [{"name": "id", "type": "long", "optional": False, "example": 1}]
     assert captured[0].url.path.endswith(f"/bindable-datasets/SYNC/{dataset_id}/columns")
+    assert captured[1].url.path.endswith(f"/object-types/{object_type_id}/objects")
     assert captured[1].url.params["pageSize"] == "50"
     assert str(attribute_id) in captured[1].url.params["filters"]
     assert page["page_size"] == 20
+
+
+def test_client_posts_controlled_query_contracts():
+    captured = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "objectTypeId": str(uuid.uuid4()),
+                        "primaryKey": "o-1",
+                        "title": "订单 1",
+                        "properties": [],
+                    }
+                ],
+                "total": 1,
+                "truncated": False,
+                "indexVersionId": str(uuid.uuid4()),
+            },
+        )
+
+    client = _client(handler)
+    owner = uuid.uuid4()
+    object_type_id = uuid.uuid4()
+    relation_id = uuid.uuid4()
+    attribute_id = uuid.uuid4()
+
+    client.query_objects(
+        object_type_id,
+        owner_id=owner,
+        filters=[{"attribute_id": attribute_id, "op": "eq", "value": "open"}],
+        sort=[{"attribute_id": attribute_id, "direction": "desc"}],
+        limit=1,
+        project=[attribute_id],
+    )
+    client.query_step(
+        relation_id,
+        owner_id=owner,
+        direction="outgoing",
+        inputs=[{"object_type_id": str(object_type_id), "primary_key": "c-1"}],
+        limit=1,
+    )
+
+    object_body = json.loads(captured[0].read())
+    step_body = json.loads(captured[1].read())
+    assert captured[0].url.path.endswith(f"/object-types/{object_type_id}/objects/query")
+    assert object_body["filters"][0]["attributeId"] == str(attribute_id)
+    assert object_body["sort"][0]["direction"] == "desc"
+    assert captured[1].url.path.endswith("/query-steps")
+    assert step_body["inputs"][0]["primaryKey"] == "c-1"
 
 
 def test_client_reads_bindable_dataset_detail_for_indexing():
