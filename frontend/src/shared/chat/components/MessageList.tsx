@@ -1,6 +1,6 @@
 import { Sparkles } from 'lucide-react'
-import { useEffect, useRef } from 'react'
 import type { ChatMessage, InterruptOption } from '../../../shared/types'
+import { ChatScrollArea } from './ChatScrollArea'
 import { MessageBubble } from './MessageBubble'
 
 interface MessageListProps {
@@ -20,14 +20,10 @@ export function MessageList({
   isRunning,
   onAnswer,
 }: MessageListProps) {
-  const endRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, pendingInterruptId])
+  const scrollKey = messages[0]?.id ?? 'empty'
 
   return (
-    <div className="message-scroll">
+    <ChatScrollArea resetKey={scrollKey}>
       {showEmptyState ? (
         <div className="chat-empty">
           <Sparkles size={26} />
@@ -45,8 +41,6 @@ export function MessageList({
           onAnswer={onAnswer}
         />
       ))}
-
-      <div ref={endRef} />
-    </div>
+    </ChatScrollArea>
   )
 }

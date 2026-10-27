@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { ChatMessage, ConversationEvent, InterruptOption } from '../../types'
 import type { PendingInterrupt } from '../lib/messageBlocks'
+import { ChatScrollArea } from './ChatScrollArea'
 import { MessageBubble } from './MessageBubble'
 
 interface ConversationTimelineProps {
@@ -47,7 +48,6 @@ export function ConversationTimeline({
   loadingIcon,
   loadingLabel,
 }: ConversationTimelineProps) {
-  const endRef = useRef<HTMLDivElement | null>(null)
   const timeline = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [
       ...messages.map((message) => ({
@@ -67,13 +67,15 @@ export function ConversationTimeline({
   }, [eventFilter, events, messages])
 
   const pendingInterruptId = interrupt?.blockId ?? null
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [timeline.length, pendingInterruptId])
+  const firstItem = timeline[0]
+  const scrollKey = firstItem
+    ? firstItem.kind === 'message'
+      ? firstItem.message.id
+      : firstItem.event.id
+    : 'empty'
 
   return (
-    <div className="message-scroll">
+    <ChatScrollArea resetKey={scrollKey}>
       {!timeline.length && !isLoading && emptyTitle ? (
         <div className="chat-empty">
           {emptyIcon}
@@ -111,7 +113,6 @@ export function ConversationTimeline({
           <span>{loadingLabel ?? '正在读取会话…'}</span>
         </div>
       ) : null}
-      <div ref={endRef} />
-    </div>
+    </ChatScrollArea>
   )
 }

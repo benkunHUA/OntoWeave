@@ -1,11 +1,12 @@
 import { Database, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { useMemo } from 'react'
+import { ChatScrollArea } from '../../../shared/chat/components/ChatScrollArea'
 import { Composer } from '../../../shared/chat/components/Composer'
 import { ErrorToast } from '../../../shared/chat/components/ErrorToast'
 import { MessageBubble } from '../../../shared/chat/components/MessageBubble'
 import type { PendingInterrupt } from '../../../shared/chat/lib/messageBlocks'
 import type { ChatMessage, ConversationEvent, InterruptOption } from '../../../shared/types'
-import { mergeTimeline } from '../lib/operationTimeline'
+import { mergeTimeline, type TimelineItem } from '../lib/operationTimeline'
 import { EventCard, OperationCard } from './TimelineEventCard'
 
 interface ConversationPaneProps {
@@ -24,6 +25,12 @@ interface ConversationPaneProps {
   onOpenDataset: (datasetId: string) => void
 }
 
+function timelineItemKey(item: TimelineItem): string {
+  if (item.kind === 'message') return item.message.id
+  if (item.kind === 'event') return item.event.id
+  return item.operationId
+}
+
 export function ConversationPane({
   title,
   messages,
@@ -39,13 +46,10 @@ export function ConversationPane({
   onExplain,
   onOpenDataset,
 }: ConversationPaneProps) {
-  const endRef = useRef<HTMLDivElement | null>(null)
   const timeline = useMemo(() => mergeTimeline(messages, events), [messages, events])
   const pendingInterruptId = interrupt?.blockId ?? null
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [timeline.length, pendingInterruptId])
+  const firstItem = timeline[0]
+  const scrollKey = firstItem ? timelineItemKey(firstItem) : 'empty'
 
   return (
     <section className="chat-pane data-connection-chat">
@@ -60,7 +64,7 @@ export function ConversationPane({
         </span>
       </header>
 
-      <div className="message-scroll">
+      <ChatScrollArea resetKey={scrollKey}>
         {!timeline.length && !isLoading ? (
           <div className="chat-empty">
             <Sparkles size={26} />
@@ -108,8 +112,7 @@ export function ConversationPane({
             <span>正在读取会话记录…</span>
           </div>
         ) : null}
-        <div ref={endRef} />
-      </div>
+      </ChatScrollArea>
 
       <Composer
         isRunning={isRunning}
