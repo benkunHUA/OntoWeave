@@ -1,7 +1,10 @@
-import { MessageSquareText, Sparkles } from 'lucide-react'
+import { Loader } from '@mantine/core'
+import { CircleCheck, MessageSquareText, Sparkles } from 'lucide-react'
+import { ChatPaneHeader } from '../../../shared/chat/components/ChatPaneHeader'
 import { ChatScrollArea } from '../../../shared/chat/components/ChatScrollArea'
 import { Composer } from '../../../shared/chat/components/Composer'
 import { ErrorToast } from '../../../shared/chat/components/ErrorToast'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import type { PendingInterrupt } from '../../../shared/chat/lib/messageBlocks'
 import type { ChatMessage, InterruptOption } from '../../../shared/types'
 import { QUERY_COPY } from '../lib/constants'
@@ -40,37 +43,37 @@ export function QueryChatPane({
 
   return (
     <section className="chat-pane query-chat">
-      <header className="chat-header query-chat__header">
-        <div>
-          <span className="eyebrow">Business query</span>
-          <h1>{title || QUERY_COPY.brandTitle}</h1>
-        </div>
-        <span className={`chat-header__status ${isRunning ? 'is-running' : ''}`}>
-          <span />
-          {isRunning ? '查询中' : hasConversation ? '就绪' : '未选择'}
-        </span>
-      </header>
+      <ChatPaneHeader
+        eyebrow="Business query"
+        title={title || QUERY_COPY.brandTitle}
+        status={isRunning ? '查询中' : hasConversation ? '就绪' : '未选择'}
+        statusColor={isRunning ? 'blue' : hasConversation ? 'teal' : 'gray'}
+        statusIcon={isRunning ? <Loader size={12} /> : <CircleCheck size={12} />}
+      />
 
       <ChatScrollArea className="query-chat__scroll" resetKey={scrollKey}>
         {!hasConversation ? (
-          <div className="chat-empty">
-            <MessageSquareText size={26} />
-            <strong>{QUERY_COPY.selectEmptyTitle}</strong>
-            <p>{QUERY_COPY.selectEmptyBody}</p>
-          </div>
+          <EmptyState
+            className="chat-empty"
+            icon={<MessageSquareText size={22} />}
+            title={QUERY_COPY.selectEmptyTitle}
+            body={QUERY_COPY.selectEmptyBody}
+          />
         ) : null}
         {hasConversation && !messages.length && !isLoading ? (
-          <div className="chat-empty">
-            <Sparkles size={26} />
-            <strong>{QUERY_COPY.chatEmptyTitle}</strong>
-            <p>{QUERY_COPY.chatEmptyBody}</p>
-          </div>
+          <EmptyState
+            className="chat-empty"
+            icon={<Sparkles size={22} />}
+            title={QUERY_COPY.chatEmptyTitle}
+            body={QUERY_COPY.chatEmptyBody}
+          />
         ) : null}
         {isLoading ? (
-          <div className="chat-empty chat-empty--loading">
-            <MessageSquareText size={22} />
-            <span>{QUERY_COPY.loading}</span>
-          </div>
+          <EmptyState
+            className="chat-empty chat-empty--loading"
+            icon={<Loader size="sm" />}
+            title={QUERY_COPY.loading}
+          />
         ) : null}
         {messages.map((message) => (
           <QueryMessageBubble

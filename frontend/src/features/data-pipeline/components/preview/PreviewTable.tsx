@@ -1,3 +1,4 @@
+import { ScrollArea, Table, Text } from '@mantine/core'
 import type { PipelinePreview, JsonObject } from '../../../../shared/types'
 import { PREVIEW_COPY } from '../../lib/executionConstants'
 import { cellText } from '../../lib/format'
@@ -16,30 +17,30 @@ function rowKey(row: JsonObject, index: number): string {
 
 export function PreviewTable({ preview }: PreviewTableProps) {
   if (!preview.rows.length) {
-    return <p className="pipeline-preview-empty">{PREVIEW_COPY.noRows}</p>
+    return <Text size="xs" c="dimmed">{PREVIEW_COPY.noRows}</Text>
   }
   return (
-    <div className="pipeline-preview-table-wrap">
-      <table className="pipeline-preview-table">
-        <thead>
-          <tr>
+    <ScrollArea className="pipeline-preview-table-wrap" type="auto" offsetScrollbars>
+      <Table className="pipeline-preview-table" horizontalSpacing="xs" verticalSpacing="xs">
+        <Table.Thead>
+          <Table.Tr>
             {preview.columns.map((column) => (
-              <th key={column.name} title={`${column.type}${column.nullable ? ' · nullable' : ''}`}>
+              <Table.Th key={column.name} title={`${column.type}${column.nullable ? ' · nullable' : ''}`}>
                 {column.name}
-              </th>
+              </Table.Th>
             ))}
-          </tr>
-        </thead>
-        <tbody>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
           {preview.rows.map((row, index) => (
-            <tr key={`${index}-${rowKey(row, index)}`}>
+            <Table.Tr key={`${index}-${rowKey(row, index)}`}>
               {preview.columns.map((column) => (
-                <td key={column.name}>{cellText(row[column.name])}</td>
+                <Table.Td key={column.name} title={cellText(row[column.name])}>{cellText(row[column.name])}</Table.Td>
               ))}
-            </tr>
+            </Table.Tr>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </Table.Tbody>
+      </Table>
+    </ScrollArea>
   )
 }

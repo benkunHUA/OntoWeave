@@ -1,4 +1,14 @@
 import {
+  Badge,
+  Button,
+  Card,
+  Group,
+  Stack,
+  Text,
+  ThemeIcon,
+  UnstyledButton,
+} from '@mantine/core'
+import {
   Ban,
   ChevronRight,
   CircleAlert,
@@ -18,6 +28,13 @@ const STATUS_LABELS: Record<OperationStatus, string> = {
   succeeded: '已完成',
   failed: '失败',
   stopped: '已停止',
+}
+
+const STATUS_COLORS: Record<OperationStatus, string> = {
+  running: 'blue',
+  succeeded: 'teal',
+  failed: 'red',
+  stopped: 'gray',
 }
 
 function StatusIcon({ status }: { status: OperationStatus }) {
@@ -65,50 +82,74 @@ export function OperationCard({ title, status, events, onExplain, onOpenDataset 
   const datasets = operationDatasets(events)
 
   return (
-    <article className={`operation-card is-${status}`}>
-      <button type="button" className="operation-card__head" onClick={() => setOpen((value) => !value)}>
-        <StatusIcon status={status} />
-        <span className="operation-card__title">{title}</span>
-        <span className="operation-card__status">{STATUS_LABELS[status]}</span>
-        <ChevronRight size={13} className={open ? 'is-open' : ''} />
-      </button>
+    <Card className={`operation-card is-${status}`} padding="sm" radius="md">
+      <UnstyledButton
+        type="button"
+        className="operation-card__head"
+        onClick={() => setOpen((value) => !value)}
+        w="100%"
+      >
+        <Group justify="space-between" gap="sm" wrap="nowrap">
+          <Group gap={8} wrap="nowrap">
+            <ThemeIcon size="sm" variant="light" color={STATUS_COLORS[status]} aria-hidden="true">
+              <StatusIcon status={status} />
+            </ThemeIcon>
+            <Text className="operation-card__title" size="sm" fw={600}>{title}</Text>
+          </Group>
+          <Group gap={6} wrap="nowrap">
+            <Badge color={STATUS_COLORS[status]} variant="light">{STATUS_LABELS[status]}</Badge>
+            <ChevronRight size={13} className={open ? 'is-open' : ''} />
+          </Group>
+        </Group>
+      </UnstyledButton>
       {datasets.length ? (
-        <ul className="operation-card__datasets">
+        <Stack className="operation-card__datasets" gap={3} mt="xs">
           {datasets.map((dataset) => (
-            <li key={dataset.datasetId}>{dataset.summary}</li>
+            <Text component="p" key={dataset.datasetId} size="xs" c="dimmed">{dataset.summary}</Text>
           ))}
-        </ul>
+        </Stack>
       ) : (
-        <p className="operation-card__summary">{latest?.summary ?? title}</p>
+        <Text className="operation-card__summary" size="xs" c="dimmed" mt="xs">{latest?.summary ?? title}</Text>
       )}
       {failure ? <FailureDetails message={failure.message} code={failure.code} /> : null}
       {open ? (
-        <ol className="operation-card__steps">
+        <Stack className="operation-card__steps" gap={4} mt="xs">
           {events.map((event) => (
-            <li key={event.id}>
-              <span>{operationStepLabel(event)}</span>
-              <time>{new Date(event.created_at).toLocaleTimeString()}</time>
-            </li>
+            <Group key={event.id} justify="space-between" gap="sm">
+              <Text component="span" size="xs">{operationStepLabel(event)}</Text>
+              <Text component="time" size="xs" c="dimmed">{new Date(event.created_at).toLocaleTimeString()}</Text>
+            </Group>
           ))}
-        </ol>
+        </Stack>
       ) : null}
       {status === 'failed' || datasets.length ? (
-        <div className="operation-card__actions">
+        <Group className="operation-card__actions" gap="xs" mt="xs">
           {datasets.map((dataset) => (
-            <button key={dataset.datasetId} type="button" onClick={() => onOpenDataset(dataset.datasetId)}>
-              <Database size={13} />
+            <Button
+              key={dataset.datasetId}
+              type="button"
+              variant="subtle"
+              size="xs"
+              leftSection={<Database size={13} />}
+              onClick={() => onOpenDataset(dataset.datasetId)}
+            >
               {datasets.length === 1 ? '查看数据集' : `查看 ${dataset.label}`}
-            </button>
+            </Button>
           ))}
           {status === 'failed' ? (
-            <button type="button" onClick={() => onExplain(failure?.message ?? latest?.summary ?? title)}>
-              <MessageSquareText size={13} />
+            <Button
+              type="button"
+              variant="subtle"
+              size="xs"
+              leftSection={<MessageSquareText size={13} />}
+              onClick={() => onExplain(failure?.message ?? latest?.summary ?? title)}
+            >
               让 Agent 解释
-            </button>
+            </Button>
           ) : null}
-        </div>
+        </Group>
       ) : null}
-    </article>
+    </Card>
   )
 }
 
@@ -120,19 +161,26 @@ interface EventCardProps {
 export function EventCard({ event, onOpenDataset }: EventCardProps) {
   const datasetId = datasetIdOf(event)
   return (
-    <article className="operation-card is-event">
-      <div className="operation-card__head">
-        <Database size={14} />
-        <span className="operation-card__title">{event.summary}</span>
-      </div>
+    <Card className="operation-card is-event" padding="sm" radius="md">
+      <Group className="operation-card__head" gap={8}>
+        <ThemeIcon size="sm" variant="light" color="gray" aria-hidden="true">
+          <Database size={14} />
+        </ThemeIcon>
+        <Text className="operation-card__title" size="sm" fw={600}>{event.summary}</Text>
+      </Group>
       {datasetId ? (
-        <div className="operation-card__actions">
-          <button type="button" onClick={() => onOpenDataset(datasetId)}>
-            <Database size={13} />
+        <Group className="operation-card__actions" gap="xs" mt="xs">
+          <Button
+            type="button"
+            variant="subtle"
+            size="xs"
+            leftSection={<Database size={13} />}
+            onClick={() => onOpenDataset(datasetId)}
+          >
             查看数据集
-          </button>
-        </div>
+          </Button>
+        </Group>
       ) : null}
-    </article>
+    </Card>
   )
 }

@@ -1,3 +1,4 @@
+import { Code, Group, Paper, Text, UnstyledButton } from '@mantine/core'
 import { ChevronRight, CircleAlert, CircleCheck, LoaderCircle, Wrench } from 'lucide-react'
 import { useState } from 'react'
 import type { MessageBlock } from '../../../shared/types'
@@ -16,10 +17,13 @@ export function ToolCallBlock({ block }: { block: ToolBlock }) {
   const agent = block.agent ? subagentLabel(block.agent) : null
 
   return (
-    <div
+    <Paper
       className={`tool-block tool-block--${block.status} ${agent ? 'tool-block--subagent' : ''}`}
+      withBorder
+      radius="md"
+      p="xs"
     >
-      <button
+      <UnstyledButton
         type="button"
         className="tool-block__head"
         title={block.name}
@@ -27,42 +31,44 @@ export function ToolCallBlock({ block }: { block: ToolBlock }) {
         disabled={!hasDetail}
         onClick={() => setOpen((value) => !value)}
       >
-        {block.status === 'running' ? (
-          <LoaderCircle size={13} className="is-spinning" />
-        ) : block.status === 'error' ? (
-          <CircleAlert size={13} />
-        ) : (
-          <CircleCheck size={13} />
-        )}
-        {agent ? <span className="tool-block__agent">{agent}</span> : null}
-        <span className="tool-block__label">{toolLabel(block.name, block.args)}</span>
-        {block.summary ? (
-          <span className="tool-block__summary" title={block.summary}>
-            {block.summary}
-          </span>
-        ) : null}
-        {block.durationMs ? <em>{block.durationMs}ms</em> : null}
-        {hasDetail ? <ChevronRight size={13} className={open ? 'is-open' : ''} /> : null}
-      </button>
+        <Group gap={6} wrap="nowrap">
+          {block.status === 'running' ? (
+            <LoaderCircle size={13} className="is-spinning" />
+          ) : block.status === 'error' ? (
+            <CircleAlert size={13} />
+          ) : (
+            <CircleCheck size={13} />
+          )}
+          {agent ? <Text component="span" size="xs" c="dimmed">{agent}</Text> : null}
+          <Text component="span" size="xs" fw={600}>{toolLabel(block.name, block.args)}</Text>
+          {block.summary ? (
+            <Text component="span" size="xs" c="dimmed" title={block.summary} truncate>
+              {block.summary}
+            </Text>
+          ) : null}
+          {block.durationMs ? <Text component="span" size="xs" c="dimmed">{block.durationMs}ms</Text> : null}
+          {hasDetail ? <ChevronRight size={13} className={open ? 'is-open' : ''} /> : null}
+        </Group>
+      </UnstyledButton>
       {open ? (
         <div className="tool-block__body">
           {args ? (
             <>
-              <span className="tool-block__caption">参数</span>
-              <pre>{args}</pre>
+              <Text className="tool-block__caption" size="xs" c="dimmed">参数</Text>
+              <Code block>{args}</Code>
             </>
           ) : null}
           {result ? (
             <>
-              <span className="tool-block__caption">
+              <Text className="tool-block__caption" size="xs" c="dimmed">
                 <Wrench size={11} />
                 结果{block.truncated ? '（已截断）' : ''}
-              </span>
-              <pre>{result}</pre>
+              </Text>
+              <Code block>{result}</Code>
             </>
           ) : null}
         </div>
       ) : null}
-    </div>
+    </Paper>
   )
 }

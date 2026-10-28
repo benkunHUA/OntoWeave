@@ -1,3 +1,4 @@
+import { ActionIcon, Text, Title } from '@mantine/core'
 import { X } from 'lucide-react'
 import type { ObjectPreview, RelationPreview } from '../../../../shared/types'
 import { CANVAS_COPY } from './copy'
@@ -18,16 +19,16 @@ export function MappingPreviewDrawer({ preview, onClose }: MappingPreviewDrawerP
       <header className="mapping-preview__head">
         <div>
           <span className="eyebrow">{CANVAS_COPY.eyebrow}</span>
-          <h2>{CANVAS_COPY.previewTitle}</h2>
+          <Title order={2}>{CANVAS_COPY.previewTitle}</Title>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" onClick={onClose} aria-label={CANVAS_COPY.close}>
+        <ActionIcon type="button" variant="subtle" color="gray" onClick={onClose} aria-label={CANVAS_COPY.close}>
           <X size={15} />
-        </button>
+        </ActionIcon>
       </header>
-      <p className="mapping-preview__note">{CANVAS_COPY.previewNoEffect}</p>
+      <Text className="mapping-preview__note" size="xs" c="dimmed">{CANVAS_COPY.previewNoEffect}</Text>
 
       <section className="mapping-preview__section">
-        <h3>{objectPreview ? CANVAS_COPY.previewObjectHead : CANVAS_COPY.previewRelationHead}</h3>
+        <Title order={4}>{objectPreview ? CANVAS_COPY.previewObjectHead : CANVAS_COPY.previewRelationHead}</Title>
         {objectPreview && preview.rows.length ? (
           <div className="mapping-preview__rows">
             {preview.rows.map((row) => (
@@ -54,23 +55,23 @@ export function MappingPreviewDrawer({ preview, onClose }: MappingPreviewDrawerP
           </div>
         ) : null}
         {(!objectPreview && !preview.pairs.length) || (objectPreview && !preview.rows.length) ? (
-          <p className="mapping-preview__empty">{CANVAS_COPY.previewEmpty}</p>
+          <Text className="mapping-preview__empty" size="xs" c="dimmed">{CANVAS_COPY.previewEmpty}</Text>
         ) : null}
       </section>
 
       <section className="mapping-preview__section">
-        <h3>{CANVAS_COPY.previewSkipped}</h3>
+        <Title order={4}>{CANVAS_COPY.previewSkipped}</Title>
         {skippedReasons(preview).length ? (
           <ul className="mapping-preview__reasons">
             {skippedReasons(preview).map(([code, count]) => (
               <li key={code}><code>{code}</code><span>{count}</span></li>
             ))}
           </ul>
-        ) : <p className="mapping-preview__empty">0</p>}
+        ) : <Text className="mapping-preview__empty" size="xs" c="dimmed">0</Text>}
         {preview.skipped.map((item, index) => (
-          <p className="mapping-preview__skip" key={`${item.code}:${item.reference ?? index}`}>
+          <Text className="mapping-preview__skip" size="xs" c="dimmed" key={`${item.code}:${item.reference ?? index}`}>
             {item.message}{item.reference ? ` · ${item.reference}` : ''}
-          </p>
+          </Text>
         ))}
       </section>
     </aside>

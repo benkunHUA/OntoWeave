@@ -1,3 +1,4 @@
+import { Badge } from '@mantine/core'
 import { buildStatusLabel } from '../../lib/buildStatus'
 
 interface BuildStatusBadgeProps {
@@ -7,9 +8,18 @@ interface BuildStatusBadgeProps {
 
 export function BuildStatusBadge({ status, subtle = false }: BuildStatusBadgeProps) {
   const tone = status?.toLowerCase() ?? 'unknown'
+  const color = tone === 'succeeded'
+    ? 'teal'
+    : tone === 'failed'
+      ? 'red'
+      : tone === 'running'
+        ? 'blue'
+        : tone === 'queued'
+          ? 'yellow'
+          : 'gray'
   return (
-    <span className={`pipeline-build-status is-${tone}${subtle ? ' is-subtle' : ''}`}>
+    <Badge color={color} variant={subtle ? 'light' : 'filled'} className="pipeline-build-status">
       {buildStatusLabel(status)}
-    </span>
+    </Badge>
   )
 }

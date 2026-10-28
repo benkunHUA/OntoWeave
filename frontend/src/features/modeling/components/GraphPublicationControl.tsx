@@ -1,3 +1,4 @@
+import { Badge, Button, Group } from '@mantine/core'
 import { CheckCircle2, CloudUpload } from 'lucide-react'
 import type { GraphPublication } from '../../../shared/types'
 import { formatPublishedAt, PUBLISH_COPY } from '../lib/publication'
@@ -36,26 +37,26 @@ export function GraphPublicationControl({
       : PUBLISH_COPY.publish
 
   return (
-    <div className="canvas-publish">
-      <span
-        className={`canvas-publish__state ${published ? 'is-published' : ''} ${
-          blockedReason ? 'is-blocked' : ''
-        }`}
+    <Group className="canvas-publish" gap="xs" wrap="nowrap">
+      <Badge
+        color={published ? 'teal' : blockedReason ? 'yellow' : 'gray'}
+        variant="light"
         title={published ? PUBLISH_COPY.publishedHint : blockedReason ?? undefined}
+        leftSection={published ? <CheckCircle2 size={12} /> : <CloudUpload size={12} />}
       >
-        {published ? <CheckCircle2 size={12} /> : <CloudUpload size={12} />}
         {stateText}
-      </span>
-      <button
+      </Badge>
+      <Button
         type="button"
-        className="secondary-button canvas-publish__button"
+        variant="default"
+        size="xs"
         disabled={disabled}
         title={blockedReason ?? undefined}
+        leftSection={<CloudUpload size={14} />}
         onClick={onPublish}
       >
-        <CloudUpload size={14} />
         {buttonLabel}
-      </button>
-    </div>
+      </Button>
+    </Group>
   )
 }

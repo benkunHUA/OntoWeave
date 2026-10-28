@@ -1,5 +1,16 @@
+import {
+  ActionIcon,
+  Button,
+  Group,
+  NavLink,
+  ScrollArea,
+  Stack,
+  Text,
+} from '@mantine/core'
 import { House, MessageSquareText, Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Brand } from '../../../shared/components/Brand'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import { SearchField } from '../../../shared/components/form/controls'
 import type { Conversation } from '../../../shared/types'
 import { QUERY_COPY } from '../lib/constants'
@@ -50,28 +61,28 @@ export function QueryConversationSidebar({
 
   return (
     <aside className="query-sidebar">
-      <header className="query-sidebar__header">
-        <div className="brand brand--compact">
-          <span className="brand__mark"><MessageSquareText size={17} /></span>
-          <div>
-            <strong>{QUERY_COPY.brandSubtitle}</strong>
-            <span>{QUERY_COPY.brandTitle}</span>
-          </div>
-        </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label="返回首页" onClick={onHome}>
+      <Group className="query-sidebar__header" justify="space-between" wrap="nowrap">
+        <Brand
+          compact
+          icon={<MessageSquareText size={17} />}
+          title={QUERY_COPY.brandSubtitle}
+          subtitle={QUERY_COPY.brandTitle}
+        />
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label="返回首页" onClick={onHome}>
           <House size={17} />
-        </button>
-      </header>
+        </ActionIcon>
+      </Group>
 
-      <button
+      <Button
         type="button"
         className="query-new-button"
+        fullWidth
+        leftSection={<Plus size={16} />}
         onClick={onCreate}
         disabled={isCreating}
       >
-        <Plus size={16} />
         {isCreating ? QUERY_COPY.creating : QUERY_COPY.newConversation}
-      </button>
+      </Button>
 
       <SearchField
         className="query-search"
@@ -81,44 +92,55 @@ export function QueryConversationSidebar({
         aria-label={QUERY_COPY.searchPlaceholder}
       />
 
-      <nav className="query-conversation-list" aria-label="问答会话列表">
-        {filtered.map((conversation) => {
-          const active = conversation.id === activeId
-          const title = conversation.title || QUERY_COPY.newConversation
-          return (
-            <div
-              key={conversation.id}
-              className={`query-conversation-list__item ${active ? 'is-active' : ''}`}
-            >
-              <button
-                type="button"
-                className="query-conversation-list__select"
+      <ScrollArea className="query-conversation-list" type="auto" offsetScrollbars>
+        <Stack component="nav" aria-label="问答会话列表" gap={4} p="xs">
+          {filtered.map((conversation) => {
+            const active = conversation.id === activeId
+            const title = conversation.title || QUERY_COPY.newConversation
+            return (
+              <NavLink
+                key={conversation.id}
+                className="query-conversation-list__item"
+                classNames={{ label: 'query-conversation-list__title' }}
+                active={active}
                 onClick={() => onSelect(conversation)}
                 aria-current={active ? 'page' : undefined}
-              >
-                <span className="query-conversation-list__dot" />
-                <span className="query-conversation-list__title">{title}</span>
-              </button>
-              <button
-                type="button"
-                className="query-conversation-list__delete"
-                aria-label={`删除问答：${title}`}
-                onClick={() => setPendingDelete(conversation)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          )
-        })}
-        {isLoading ? <div className="query-conversation-list__empty">正在读取问答会话…</div> : null}
-        {!isLoading && !filtered.length ? (
-          <div className="query-conversation-list__empty">
-            <strong>{QUERY_COPY.listEmpty}</strong>
-            <span>{QUERY_COPY.listEmptyHint}</span>
-          </div>
-        ) : null}
-        {error ? <div className="query-conversation-list__error">{error}</div> : null}
-      </nav>
+                label={title}
+                title={title}
+                noWrap
+                leftSection={<span className="query-conversation-list__dot" />}
+                rightSection={
+                  <ActionIcon
+                    type="button"
+                    className="query-conversation-list__delete"
+                    variant="subtle"
+                    color="gray"
+                    size="sm"
+                    aria-label={`删除问答：${title}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setPendingDelete(conversation)
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </ActionIcon>
+                }
+              />
+            )
+          })}
+          {isLoading ? (
+            <EmptyState className="query-conversation-list__empty" title="正在读取问答会话…" />
+          ) : null}
+          {!isLoading && !filtered.length ? (
+            <EmptyState
+              className="query-conversation-list__empty"
+              title={QUERY_COPY.listEmpty}
+              body={QUERY_COPY.listEmptyHint}
+            />
+          ) : null}
+          {error ? <Text className="query-conversation-list__error" size="xs">{error}</Text> : null}
+        </Stack>
+      </ScrollArea>
 
       {pendingDelete ? (
         <DeleteQueryConversationDialog

@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import type { ChatMessage, InterruptOption } from '../../../shared/types'
+import { EmptyState } from '../../components/EmptyState'
 import { ChatScrollArea } from './ChatScrollArea'
 import { MessageBubble } from './MessageBubble'
 
@@ -25,11 +26,12 @@ export function MessageList({
   return (
     <ChatScrollArea resetKey={scrollKey}>
       {showEmptyState ? (
-        <div className="chat-empty">
-          <Sparkles size={26} />
-          <strong>从一个业务故事开始</strong>
-          <p>新建对话，或者从左侧继续已有的一张图。</p>
-        </div>
+        <EmptyState
+          className="chat-empty"
+          icon={<Sparkles size={22} />}
+          title="从一个业务故事开始"
+          body="新建对话，或者从左侧继续已有的一张图。"
+        />
       ) : null}
 
       {messages.map((message) => (

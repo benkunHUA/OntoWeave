@@ -38,6 +38,12 @@ uv run uvicorn app.main:app --reload --port 18000
 cp .env.example .env
 ```
 
+Compose 会把 `backend/.env` 注入 `app` 容器。修改配置后需要重建容器才能生效：
+
+```bash
+docker compose up -d --force-recreate app
+```
+
 六组配置：
 
 | 组 | 变量 | 说明 |

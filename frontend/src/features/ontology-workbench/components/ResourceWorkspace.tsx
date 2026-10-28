@@ -1,3 +1,4 @@
+import { Badge, Group, Stack, Text, Title } from '@mantine/core'
 import { Database } from 'lucide-react'
 import type { IndexRun, OntologyResource } from '../../../shared/types'
 import {
@@ -72,35 +73,38 @@ export function ResourceWorkspace({
   return (
     <section className="ontology-workspace" aria-label={`${resource.name} 工作区`}>
       <header className="ontology-workspace__header">
-        <div className="ontology-workspace__identity">
+        <Group className="ontology-workspace__identity" gap="sm" wrap="nowrap">
           <span className="ontology-workspace__icon">
             <ResourceCategoryIcon category={category} size={17} />
           </span>
-          <div className="ontology-workspace__copy">
-            <span className="eyebrow">{RESOURCE_CATEGORY_LABELS[category]}</span>
-            <div className="ontology-workspace__title-row">
-              <h1>{resource.name}</h1>
+          <Stack className="ontology-workspace__copy" gap={2} align="flex-start">
+            <Text className="eyebrow" size="xs" c="dimmed">{RESOURCE_CATEGORY_LABELS[category]}</Text>
+            <Group className="ontology-workspace__title-row" gap="sm" align="baseline">
+              <Title order={1}>{resource.name}</Title>
               {category === 'object_type' ? null : (
-                <span className="ontology-workspace__direction">{direction}</span>
+                <Badge color="blue" variant="light">{direction}</Badge>
               )}
-            </div>
-          </div>
-        </div>
+            </Group>
+          </Stack>
+        </Group>
         <ResourceTabBar tabs={tabs} activeId={selected?.id ?? 'mapping'} onChange={onTabChange} />
-        <div className="ontology-workspace__meta">
-          <span className={`ontology-binding-status ${isBound ? 'is-bound' : 'is-unbound'}`}>
-            <Database size={11} />
+        <Group className="ontology-workspace__meta" gap={6}>
+          <Badge
+            color={isBound ? 'teal' : 'gray'}
+            variant="light"
+            leftSection={<Database size={11} />}
+          >
             {binding}
-          </span>
-          <span className={`ontology-status is-${resource.status}`}>
+          </Badge>
+          <Badge color="blue" variant="light">
             {RESOURCE_STATUS_LABELS[resource.status] ?? resource.status}
-          </span>
+          </Badge>
           {run ? (
-            <span className={`ontology-run-status is-${run.status.toLowerCase()}`}>
+            <Badge color={run.status === 'SUCCEEDED' ? 'teal' : run.status === 'FAILED' ? 'red' : 'gray'} variant="light">
               {RUN_STATUS_LABELS[run.status] ?? run.status}
-            </span>
+            </Badge>
           ) : null}
-        </div>
+        </Group>
       </header>
       <div className="ontology-workspace__body" role="tabpanel">
         {tabBody()}

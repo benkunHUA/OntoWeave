@@ -10,6 +10,7 @@ import {
   type EdgeMouseHandler,
   type NodeMouseHandler,
 } from '@xyflow/react'
+import { ActionIcon, Group, Text } from '@mantine/core'
 import {
   Bookmark,
   Compass,
@@ -179,42 +180,50 @@ function CanvasInner({
                 color="#2c2c2c"
               />
             </ReactFlow>
-            <div className="canvas-controls">
-              <button
+            <Group className="canvas-controls" gap={4} wrap="nowrap">
+              <ActionIcon
                 type="button"
-                className="canvas-controls__btn"
+                variant="subtle"
+                color="gray"
+                size="sm"
                 aria-label="缩小"
                 onClick={() => zoomOut()}
               >
                 <Minus size={16} />
-              </button>
-              <span className="canvas-controls__zoom">{Math.round(zoom * 100)}%</span>
-              <button
+              </ActionIcon>
+              <Text className="canvas-controls__zoom" component="span" size="xs" fw={700}>{Math.round(zoom * 100)}%</Text>
+              <ActionIcon
                 type="button"
-                className="canvas-controls__btn"
+                variant="subtle"
+                color="gray"
+                size="sm"
                 aria-label="放大"
                 onClick={() => zoomIn()}
               >
                 <Plus size={16} />
-              </button>
+              </ActionIcon>
               <span className="canvas-controls__divider" />
-              <button
+              <ActionIcon
                 type="button"
-                className="canvas-controls__btn"
+                variant="subtle"
+                color="gray"
+                size="sm"
                 aria-label="适应画面"
                 onClick={() => fitView({ padding: 0.2, duration: 260 })}
               >
                 <Maximize2 size={16} />
-              </button>
-              <button
+              </ActionIcon>
+              <ActionIcon
                 type="button"
-                className="canvas-controls__btn"
+                variant="subtle"
+                color="gray"
+                size="sm"
                 aria-label="保存视图"
                 onClick={onSaveView}
               >
                 <Bookmark size={16} />
-              </button>
-            </div>
+              </ActionIcon>
+            </Group>
           </>
         ) : (
           <div className="canvas-empty">

@@ -57,8 +57,7 @@
 .ontology-data-toolbar__summary { color: var(--faint); font-size: 11px; }
 .ontology-data-panel__meta { color: var(--faint); font-size: 10px; text-align: right; }
 
-.ontology-data-inline-error,
-.ontology-detail-error {
+.ontology-data-inline-error {
   margin: 0;
   padding: 8px 10px;
   border-radius: 8px;
@@ -309,8 +308,8 @@
 }
 
 .ontology-detail-section { display: grid; gap: 8px; }
-.ontology-detail-section h3,
-.ontology-run-samples h3 {
+.ontology-detail-section h4,
+.ontology-run-samples h4 {
   margin: 0;
   color: var(--faint);
   font-size: 10px;

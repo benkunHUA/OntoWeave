@@ -1,3 +1,4 @@
+import { Tabs } from '@mantine/core'
 import type { ResourceTabDefinition, ResourceTabId } from '../../lib/constants'
 
 interface ResourceTabBarProps {
@@ -8,19 +9,21 @@ interface ResourceTabBarProps {
 
 export function ResourceTabBar({ tabs, activeId, onChange }: ResourceTabBarProps) {
   return (
-    <nav className="ontology-tabs" role="tablist" aria-label="对象工作台视图">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={tab.id === activeId}
-          className={`ontology-tabs__tab ${tab.id === activeId ? 'is-active' : ''}`}
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </nav>
+    <Tabs
+      className="ontology-tabs"
+      value={activeId}
+      onChange={(value) => {
+        if (value) onChange(value as ResourceTabId)
+      }}
+      aria-label="对象工作台视图"
+    >
+      <Tabs.List>
+        {tabs.map((tab) => (
+          <Tabs.Tab key={tab.id} value={tab.id}>
+            {tab.label}
+          </Tabs.Tab>
+        ))}
+      </Tabs.List>
+    </Tabs>
   )
 }

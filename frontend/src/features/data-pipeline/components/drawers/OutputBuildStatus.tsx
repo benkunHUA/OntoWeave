@@ -1,3 +1,4 @@
+import { Anchor, Button, Group, Text } from '@mantine/core'
 import { ExternalLink } from 'lucide-react'
 import type { PipelineBuild } from '../../../../shared/types'
 import { buildStatusLabel, outputElapsedLabel } from '../../lib/buildStatus'
@@ -20,24 +21,24 @@ export function OutputBuildStatus({
   return (
     <section className="pipeline-output-build" aria-label={OUTPUT_BUILD_COPY.ariaLabel}>
       <header>
-        <strong>{OUTPUT_BUILD_COPY.title}</strong>
-        <span>{output ? buildStatusLabel(output.status) : OUTPUT_BUILD_COPY.missingOutput}</span>
+        <Text component="strong" size="xs">{OUTPUT_BUILD_COPY.title}</Text>
+        <Text component="span" size="xs" c="dimmed">{output ? buildStatusLabel(output.status) : OUTPUT_BUILD_COPY.missingOutput}</Text>
       </header>
       {output && outputElapsedLabel(output)
-        ? <small>{OUTPUT_BUILD_COPY.elapsed} {outputElapsedLabel(output)}</small>
+        ? <Text component="small" size="xs" c="dimmed">{OUTPUT_BUILD_COPY.elapsed} {outputElapsedLabel(output)}</Text>
         : null}
-      <div>
+      <Group gap="xs">
         {onOpenBuildDetails ? (
-          <button type="button" className="text-button" onClick={() => onOpenBuildDetails(build.id)}>
+          <Button type="button" variant="subtle" size="compact-xs" onClick={() => onOpenBuildDetails(build.id)}>
             {BUILD_COPY.viewDetails}
-          </button>
+          </Button>
         ) : null}
         {logUri ? (
-          <a className="pipeline-build-log-link" href={logUri} target="_blank" rel="noreferrer">
+          <Anchor className="pipeline-build-log-link" href={logUri} target="_blank" rel="noreferrer" size="xs">
             {OUTPUT_BUILD_COPY.log} <ExternalLink size={11} />
-          </a>
-        ) : <small>{BUILD_COPY.logMissing}</small>}
-      </div>
+          </Anchor>
+        ) : <Text component="small" size="xs" c="dimmed">{BUILD_COPY.logMissing}</Text>}
+      </Group>
     </section>
   )
 }

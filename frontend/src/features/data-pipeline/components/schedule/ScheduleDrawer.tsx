@@ -8,7 +8,7 @@ import {
 import type { Pipeline } from '../../../../shared/types'
 import { httpErrorText } from '../../../../shared/api/errors'
 import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { usePipelineSchedule } from '../../hooks/usePipelineSchedule'
 import { SCHEDULE_COPY } from '../../lib/executionConstants'
 import { formatDateTime } from '../../lib/format'

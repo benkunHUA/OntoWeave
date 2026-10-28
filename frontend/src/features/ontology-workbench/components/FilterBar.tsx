@@ -1,3 +1,13 @@
+import {
+  ActionIcon,
+  Button,
+  Group,
+  NativeSelect,
+  Paper,
+  Stack,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import type { FilterCondition, OntologyProperty } from '../../../shared/types'
@@ -65,101 +75,109 @@ export function FilterBar({ properties, value, onChange, disabled = false }: Fil
   }
 
   return (
-    <section className="ontology-filter-bar" aria-label={FILTER_COPY.title}>
-      <header className="ontology-filter-bar__head">
-        <div>
-          <strong><SlidersHorizontal size={14} /> {FILTER_COPY.title}</strong>
-          <span>{FILTER_COPY.hint}</span>
-        </div>
-        <button type="button" className="secondary-button" onClick={addDraft} disabled={!canAdd}>
-          <Plus size={13} /> {FILTER_COPY.add}
-        </button>
-      </header>
+    <Paper component="section" className="ontology-filter-bar" aria-label={FILTER_COPY.title} withBorder radius="md" p="sm">
+      <Group className="ontology-filter-bar__head" justify="space-between" align="flex-start">
+        <Stack gap={2}>
+          <Group gap={6}><SlidersHorizontal size={14} /><Text component="strong" size="sm">{FILTER_COPY.title}</Text></Group>
+          <Text size="xs" c="dimmed">{FILTER_COPY.hint}</Text>
+        </Stack>
+        <Button
+          type="button"
+          variant="default"
+          size="xs"
+          leftSection={<Plus size={13} />}
+          onClick={addDraft}
+          disabled={!canAdd}
+        >
+          {FILTER_COPY.add}
+        </Button>
+      </Group>
 
-      {!drafts.length ? <p className="ontology-filter-bar__empty">{FILTER_COPY.empty}</p> : null}
+      {!drafts.length ? <Text className="ontology-filter-bar__empty" size="xs" c="dimmed" mt="xs">{FILTER_COPY.empty}</Text> : null}
 
       {drafts.length ? (
-        <div className="ontology-filter-bar__rows">
+        <Stack className="ontology-filter-bar__rows" gap="xs" mt="sm">
           {drafts.map((draft) => {
             const property = filterable.find((item) => item.id === draft.attributeId)
             const datatype = property?.datatype ?? 'text'
             const inputType = filterInputType(datatype)
             const showInvalid = invalid && !result.valid && result.draftId === draft.id
             return (
-              <div className={`ontology-filter-row${showInvalid ? ' is-invalid' : ''}`} key={draft.id}>
-                <select
+              <Group className={`ontology-filter-row${showInvalid ? ' is-invalid' : ''}`} key={draft.id} gap="xs" wrap="nowrap">
+                <NativeSelect
                   aria-label={FILTER_COPY.attribute}
+                  size="xs"
                   value={draft.attributeId}
-                  onChange={(event) => changeProperty(draft.id, event.target.value)}
+                  onChange={(event) => changeProperty(draft.id, event.currentTarget.value)}
                   disabled={disabled}
-                >
-                  {filterable.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
-                </select>
-                <select
+                  data={filterable.map((item) => ({ value: item.id, label: item.name }))}
+                />
+                <NativeSelect
                   aria-label={FILTER_COPY.operator}
+                  size="xs"
                   value={draft.op}
-                  onChange={(event) => changeOperator(draft.id, event.target.value as FilterDraft['op'])}
+                  onChange={(event) => changeOperator(draft.id, event.currentTarget.value as FilterDraft['op'])}
                   disabled={disabled}
-                >
-                  {operatorsFor(datatype).map((operator) => (
-                    <option key={operator.value} value={operator.value}>{operator.label}</option>
-                  ))}
-                </select>
+                  data={operatorsFor(datatype).map((operator) => ({ value: operator.value, label: operator.label }))}
+                />
                 {isUnaryOperator(draft.op) ? (
-                  <span className="ontology-filter-row__unary">无需填写值</span>
+                  <Text className="ontology-filter-row__unary" size="xs" c="dimmed">无需填写值</Text>
                 ) : inputType === 'select' ? (
-                  <select
+                  <NativeSelect
                     aria-label={FILTER_COPY.value}
+                    size="xs"
                     value={draft.value}
-                    onChange={(event) => updateDraft(draft.id, { value: event.target.value })}
+                    onChange={(event) => updateDraft(draft.id, { value: event.currentTarget.value })}
                     disabled={disabled}
-                  >
-                    <option value="true">{FILTER_COPY.true}</option>
-                    <option value="false">{FILTER_COPY.false}</option>
-                  </select>
+                    data={[
+                      { value: 'true', label: FILTER_COPY.true },
+                      { value: 'false', label: FILTER_COPY.false },
+                    ]}
+                  />
                 ) : (
-                  <input
+                  <TextInput
                     aria-label={FILTER_COPY.value}
+                    size="xs"
                     type={inputType}
                     value={draft.value}
                     placeholder={FILTER_COPY.selectValue}
-                    step={datatype === 'integer' ? 1 : datatype === 'decimal' ? 'any' : undefined}
-                    onChange={(event) => updateDraft(draft.id, { value: event.target.value })}
+                    onChange={(event) => updateDraft(draft.id, { value: event.currentTarget.value })}
                     disabled={disabled}
                   />
                 )}
-                <button
+                <ActionIcon
                   type="button"
-                  className="icon-button icon-button--quiet"
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
                   aria-label={FILTER_COPY.remove}
                   onClick={() => setDrafts((current) => current.filter((item) => item.id !== draft.id))}
                   disabled={disabled}
                 >
                   <Trash2 size={14} />
-                </button>
-              </div>
+                </ActionIcon>
+              </Group>
             )
           })}
-        </div>
+        </Stack>
       ) : null}
 
-      {invalid ? <p className="ontology-filter-bar__error" role="alert">{result.reason}</p> : null}
+      {invalid ? <Text className="ontology-filter-bar__error" size="xs" c="red" role="alert" mt="xs">{result.reason}</Text> : null}
 
-      <footer className="ontology-filter-bar__actions">
-        <button
+      <Group className="ontology-filter-bar__actions" justify="flex-end" gap="xs" mt="sm">
+        <Button
           type="button"
-          className="secondary-button"
+          variant="default"
+          size="xs"
           onClick={clear}
           disabled={disabled || (!drafts.length && !value.length)}
         >
           {FILTER_COPY.clear}
-        </button>
-        <button type="button" className="primary-button" onClick={apply} disabled={disabled || invalid}>
+        </Button>
+        <Button type="button" size="xs" onClick={apply} disabled={disabled || invalid}>
           {FILTER_COPY.apply}
-        </button>
-      </footer>
-    </section>
+        </Button>
+      </Group>
+    </Paper>
   )
 }

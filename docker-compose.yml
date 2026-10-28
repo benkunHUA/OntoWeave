@@ -177,6 +177,9 @@ services:
   app:
     build:
       context: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://ontoweave:ontoweave@db:5432/ontoweave?options=-csearch_path%3Dapp%2Cpublic
       DATA_SERVICE_URL: http://data-service:8081

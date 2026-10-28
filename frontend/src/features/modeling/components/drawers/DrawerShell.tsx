@@ -1,4 +1,4 @@
-import { ActionIcon, Button } from '@mantine/core'
+import { ActionIcon, Button, Group, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
 import { CircleCheck, Save, X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Status } from '../../../../shared/types'
@@ -40,13 +40,21 @@ export function DrawerShell({
   children,
 }: DrawerShellProps) {
   return (
-    <aside className={`drawer${className ? ` ${className}` : ''}`} aria-label={ariaLabel}>
-      <header className="drawer__header">
-        <span className="drawer__icon">{icon}</span>
-        <div className="drawer__heading">
-          <strong>{title}</strong>
+    <Paper
+      component="aside"
+      className={`drawer${className ? ` ${className}` : ''}`}
+      aria-label={ariaLabel}
+      withBorder={false}
+      radius={0}
+    >
+      <Group className="drawer__header" gap={10} wrap="nowrap">
+        <ThemeIcon className="drawer__icon" size={34} radius="md" variant="light" color="brand">
+          {icon}
+        </ThemeIcon>
+        <Stack className="drawer__heading" gap={4}>
+          <Text component="strong" size="sm">{title}</Text>
           <span className={`status-dot status-dot--${status}`}>{STATUS_LABEL[status]}</span>
-        </div>
+        </Stack>
         <ActionIcon
           type="button"
           variant="subtle"
@@ -56,7 +64,7 @@ export function DrawerShell({
         >
           <X size={16} />
         </ActionIcon>
-      </header>
+      </Group>
 
       <form
         className="drawer__form"
@@ -67,10 +75,10 @@ export function DrawerShell({
       >
         {children}
 
-        {error ? <p className="drawer__error">{error}</p> : null}
-        {hint ? <p className="drawer__hint">{hint}</p> : null}
+        {error ? <Text className="drawer__error" size="xs">{error}</Text> : null}
+        {hint ? <Text className="drawer__hint" size="xs">{hint}</Text> : null}
 
-        <footer className="drawer__footer">
+        <Group className="drawer__footer" gap="xs" wrap="wrap">
           {extraActions}
           <Button type="button" variant="default" onClick={onClose}>
             关闭
@@ -92,8 +100,8 @@ export function DrawerShell({
           >
             {isSaving ? '处理中' : '保存并确认'}
           </Button>
-        </footer>
+        </Group>
       </form>
-    </aside>
+    </Paper>
   )
 }

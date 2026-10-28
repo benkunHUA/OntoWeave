@@ -1,3 +1,4 @@
+import { Badge, Code, Group, Text, UnstyledButton } from '@mantine/core'
 import { ChevronRight } from 'lucide-react'
 import { useId, useState } from 'react'
 
@@ -12,19 +13,21 @@ export function FailureDetails({ message, code }: FailureDetailsProps) {
 
   return (
     <div className="failure-details">
-      <button
+      <UnstyledButton
         type="button"
         className="failure-details__toggle"
         aria-controls={contentId}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        <ChevronRight size={12} className={open ? 'is-open' : ''} />
-        失败详情
-        {code ? <span className="failure-details__code">{code}</span> : null}
-      </button>
+        <Group gap={6} wrap="nowrap">
+          <ChevronRight size={12} className={open ? 'is-open' : ''} />
+          <Text component="span" size="xs">失败详情</Text>
+          {code ? <Badge size="xs" color="red" variant="light">{code}</Badge> : null}
+        </Group>
+      </UnstyledButton>
       {open ? (
-        <pre id={contentId} className="failure-details__content">{message}</pre>
+        <Code id={contentId} className="failure-details__content" block mt="xs">{message}</Code>
       ) : null}
     </div>
   )

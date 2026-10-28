@@ -1,7 +1,8 @@
+import { Button, List, Stack, Text, UnstyledButton } from '@mantine/core'
 import { CalendarClock, LoaderCircle, Play, TerminalSquare } from 'lucide-react'
 import { useState } from 'react'
 import type { PipelineBuild, PipelineCheckResult } from '../../../../shared/types'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { buildElapsedLabel, buildStageLabel } from '../../lib/buildStatus'
 import { BUILD_ACTIVE_STATUSES, BUILD_COPY } from '../../lib/executionConstants'
 import type { PipelineOutputRef } from '../../lib/outputs'
@@ -80,10 +81,10 @@ export function BuildBar({
   return (
     <div className="pipeline-build-bar">
       {error || prepareError ? (
-        <span className="pipeline-build-bar__error">{error ?? prepareError}</span>
+        <Text className="pipeline-build-bar__error" size="xs" c="red">{error ?? prepareError}</Text>
       ) : null}
       {build ? (
-        <button
+        <UnstyledButton
           type="button"
           className="pipeline-build-status-button"
           aria-label={`${BUILD_COPY.viewDetails}：${buildStageLabel(build.stage)}`}
@@ -93,24 +94,28 @@ export function BuildBar({
           <span>{buildStageLabel(build.stage)}</span>
           {buildElapsedLabel(build) ? <small>{buildElapsedLabel(build)}</small> : null}
           <TerminalSquare size={14} />
-        </button>
+        </UnstyledButton>
       ) : null}
       {!active ? (
-        <button
+        <Button
           type="button"
-          className="primary-button pipeline-build-button"
+          className="pipeline-build-button"
           disabled={!canBuild}
           title={blockTitle}
+          leftSection={isCreating || preparing ? <LoaderCircle size={14} /> : <Play size={14} />}
           onClick={() => void prepareBuild()}
         >
-          {isCreating || preparing ? <LoaderCircle size={14} /> : <Play size={14} />}
           {isCreating ? BUILD_COPY.creating : preparing ? BUILD_COPY.preparing : build ? BUILD_COPY.rebuild : BUILD_COPY.build}
-        </button>
+        </Button>
       ) : null}
-      <button type="button" className="secondary-button" onClick={onOpenSchedule}>
-        <CalendarClock size={14} />
+      <Button
+        type="button"
+        variant="default"
+        leftSection={<CalendarClock size={14} />}
+        onClick={onOpenSchedule}
+      >
         {BUILD_COPY.schedule}
-      </button>
+      </Button>
 
       {confirming ? (
         <DialogShell
@@ -119,27 +124,26 @@ export function BuildBar({
           subtitle={BUILD_COPY.confirmSubtitle}
           onClose={() => setConfirming(false)}
           footer={<>
-            <button type="button" className="secondary-button" onClick={() => setConfirming(false)}>
+            <Button type="button" variant="default" onClick={() => setConfirming(false)}>
               {BUILD_COPY.cancel}
-            </button>
-            <button type="button" className="primary-button" onClick={confirmBuild}>
-              <Play size={14} />
+            </Button>
+            <Button type="button" leftSection={<Play size={14} />} onClick={confirmBuild}>
               {BUILD_COPY.confirm}
-            </button>
+            </Button>
           </>}
         >
-          <div className="view-dialog__body pipeline-build-confirm">
-            <p>{BUILD_COPY.revision} {confirmRevision ?? '—'}</p>
-            <div>
-              <strong>{BUILD_COPY.outputs}</strong>
-              <ul>
+          <Stack className="view-dialog__body pipeline-build-confirm" gap="sm">
+            <Text size="sm">{BUILD_COPY.revision} {confirmRevision ?? '—'}</Text>
+            <Stack gap={4}>
+              <Text component="strong" size="sm">{BUILD_COPY.outputs}</Text>
+              <List size="sm">
                 {outputs.map((output) => (
-                  <li key={output.nodeId}>{output.name}</li>
+                  <List.Item key={output.nodeId}>{output.name}</List.Item>
                 ))}
-              </ul>
-            </div>
-            <p className="pipeline-build-frozen-hint">{BUILD_COPY.frozenHint}</p>
-          </div>
+              </List>
+            </Stack>
+            <Text className="pipeline-build-frozen-hint" size="xs">{BUILD_COPY.frozenHint}</Text>
+          </Stack>
         </DialogShell>
       ) : null}
     </div>

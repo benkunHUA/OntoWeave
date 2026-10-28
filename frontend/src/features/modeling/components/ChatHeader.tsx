@@ -1,5 +1,7 @@
+import { ActionIcon } from '@mantine/core'
 import { CircleCheck, LoaderCircle, Pencil } from 'lucide-react'
 import { useState } from 'react'
+import { ChatPaneHeader } from '../../../shared/chat/components/ChatPaneHeader'
 import { useModeling } from '../context/modelingContext'
 import { RenameConversationDialog } from './dialogs/RenameConversationDialog'
 
@@ -36,29 +38,28 @@ export function ChatHeader() {
   }
 
   return (
-    <header className="chat-header">
-      <div>
-        <p className="eyebrow">Conversation</p>
-        <div className="chat-title-row">
-          <h1>{conversation?.title || '新对话'}</h1>
-          {conversation ? (
-            <button
-              type="button"
-              className="icon-button icon-button--quiet"
-              aria-label="重命名会话"
-              onClick={openRenameDialog}
-            >
-              <Pencil size={14} />
-            </button>
-          ) : null}
-        </div>
-      </div>
-      {conversation ? (
-        <span className={`run-status ${agent.isRunning ? 'is-running' : ''}`}>
-          {agent.isRunning ? <LoaderCircle size={14} /> : <CircleCheck size={14} />}
-          {agent.isRunning ? '正在整理' : '已同步'}
-        </span>
-      ) : null}
+    <>
+      <ChatPaneHeader
+        eyebrow="Conversation"
+        title={conversation?.title || '新对话'}
+        status={conversation ? (agent.isRunning ? '正在整理' : '已同步') : '未选择'}
+        statusColor={conversation ? (agent.isRunning ? 'blue' : 'teal') : 'gray'}
+        statusIcon={conversation
+          ? (agent.isRunning ? <LoaderCircle size={14} /> : <CircleCheck size={14} />)
+          : undefined}
+        titleAdornment={conversation ? (
+          <ActionIcon
+            type="button"
+            variant="subtle"
+            color="gray"
+            size="sm"
+            aria-label="重命名会话"
+            onClick={openRenameDialog}
+          >
+            <Pencil size={14} />
+          </ActionIcon>
+        ) : null}
+      />
 
       {renameOpen ? (
         <RenameConversationDialog
@@ -69,6 +70,6 @@ export function ChatHeader() {
           onSubmit={() => void submitRename()}
         />
       ) : null}
-    </header>
+    </>
   )
 }

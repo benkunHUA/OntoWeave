@@ -1,5 +1,17 @@
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  ScrollArea,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core'
 import { ChevronRight, Database, House, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Brand } from '../../../shared/components/Brand'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import { SearchField } from '../../../shared/components/form/controls'
 import type { DataConnection } from '../../../shared/types'
 import { CONNECTION_STATUS_LABELS, RUN_STATUS_LABELS, TEST_STATUS_LABELS } from '../lib/labels'
@@ -30,25 +42,28 @@ export function ConnectionListPane({
 
   return (
     <aside className="connection-list-pane">
-      <header className="connection-list-pane__header">
-        <div className="brand brand--compact">
-          <span className="brand__mark">
-            <Database size={17} />
-          </span>
-          <div>
-            <strong>OntoWeave</strong>
-            <span>数据连接工作台</span>
-          </div>
-        </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label="返回首页" onClick={onHome}>
+      <Group className="connection-list-pane__header" justify="space-between" wrap="nowrap">
+        <Brand
+          compact
+          icon={<Database size={17} />}
+          title="OntoWeave"
+          subtitle="数据连接工作台"
+        />
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label="返回首页" onClick={onHome}>
           <House size={17} />
-        </button>
-      </header>
+        </ActionIcon>
+      </Group>
 
-      <button type="button" className="new-connection-button" onClick={onCreate} disabled={isCreating}>
-        <Plus size={16} />
+      <Button
+        type="button"
+        className="new-connection-button"
+        fullWidth
+        leftSection={<Plus size={16} />}
+        onClick={onCreate}
+        disabled={isCreating}
+      >
         {isCreating ? '正在创建' : '新建数据连接'}
-      </button>
+      </Button>
 
       <SearchField
         className="connection-search"
@@ -58,41 +73,44 @@ export function ConnectionListPane({
         aria-label="搜索数据连接"
       />
 
-      <nav className="connection-list" aria-label="数据连接列表">
-        {filtered.map((connection) => {
-          const isActive = connection.id === activeId
-          return (
-            <button
-              type="button"
-              key={connection.id}
-              className={`connection-list__item ${isActive ? 'is-active' : ''}`}
-              onClick={() => onSelect(connection)}
-            >
-              <span className={`connection-list__status is-${connection.status}`} />
-              <span className="connection-list__body">
-                <span className="connection-list__name">{connection.name}</span>
-                <span className="connection-list__meta">
-                  {connection.kind.toUpperCase()} · {TEST_STATUS_LABELS[connection.last_test_status]}
-                </span>
-                <span className="connection-list__meta">
-                  最近同步：{connection.last_sync_status
-                    ? RUN_STATUS_LABELS[connection.last_sync_status]
-                    : '暂无'}
-                </span>
-              </span>
-              <span className={`connection-list__badge is-${connection.status}`}>
-                {CONNECTION_STATUS_LABELS[connection.status]}
-              </span>
-              <ChevronRight size={14} />
-            </button>
-          )
-        })}
-        {!filtered.length ? (
-          <div className="connection-list__empty">
-            {connections.length ? '没有匹配的连接' : '还没有数据连接'}
-          </div>
-        ) : null}
-      </nav>
+      <ScrollArea className="connection-list" type="auto" offsetScrollbars>
+        <Stack component="nav" aria-label="数据连接列表" gap={4} p="xs">
+          {filtered.map((connection) => {
+            const isActive = connection.id === activeId
+            return (
+              <UnstyledButton
+                type="button"
+                key={connection.id}
+                className={`connection-list__item ${isActive ? 'is-active' : ''}`}
+                onClick={() => onSelect(connection)}
+              >
+                <span className={`connection-list__status is-${connection.status}`} />
+                <Stack className="connection-list__body" gap={3} align="flex-start">
+                  <Text className="connection-list__name" size="sm" fw={600}>{connection.name}</Text>
+                  <Text className="connection-list__meta" size="xs" c="dimmed">
+                    {connection.kind.toUpperCase()} · {TEST_STATUS_LABELS[connection.last_test_status]}
+                  </Text>
+                  <Text className="connection-list__meta" size="xs" c="dimmed">
+                    最近同步：{connection.last_sync_status
+                      ? RUN_STATUS_LABELS[connection.last_sync_status]
+                      : '暂无'}
+                  </Text>
+                </Stack>
+                <Badge color={connection.status === 'active' ? 'teal' : 'gray'} variant="light">
+                  {CONNECTION_STATUS_LABELS[connection.status]}
+                </Badge>
+                <ChevronRight size={14} />
+              </UnstyledButton>
+            )
+          })}
+          {!filtered.length ? (
+            <EmptyState
+              className="connection-list__empty"
+              title={connections.length ? '没有匹配的连接' : '还没有数据连接'}
+            />
+          ) : null}
+        </Stack>
+      </ScrollArea>
     </aside>
   )
 }

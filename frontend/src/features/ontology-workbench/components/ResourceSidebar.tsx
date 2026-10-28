@@ -1,5 +1,17 @@
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  ScrollArea,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core'
 import { House, Network, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Brand } from '../../../shared/components/Brand'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import { SearchField } from '../../../shared/components/form/controls'
 import type { OntologyResource, OntologyResources } from '../../../shared/types'
 import {
@@ -54,18 +66,17 @@ export function ResourceSidebar({
 
   return (
     <aside className="ontology-sidebar">
-      <header className="ontology-sidebar__header">
-        <div className="brand brand--compact">
-          <span className="brand__mark"><Network size={17} /></span>
-          <div>
-            <strong>OntoWeave</strong>
-            <span>{RESOURCE_COPY.appLabel}</span>
-          </div>
-        </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label="返回首页" onClick={onHome}>
+      <Group className="ontology-sidebar__header" justify="space-between" wrap="nowrap">
+        <Brand
+          compact
+          icon={<Network size={17} />}
+          title="OntoWeave"
+          subtitle={RESOURCE_COPY.appLabel}
+        />
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label="返回首页" onClick={onHome}>
           <House size={17} />
-        </button>
-      </header>
+        </ActionIcon>
+      </Group>
 
       <SearchField
         className="ontology-sidebar__search"
@@ -75,58 +86,66 @@ export function ResourceSidebar({
         aria-label={RESOURCE_COPY.searchPlaceholder}
       />
 
-      <nav className="ontology-resource-groups" aria-label="对象与关系">
-        {groups.map((group) => (
-          <section className="ontology-resource-group" key={group.category}>
-            <h2>
-              <ResourceCategoryIcon category={group.category} />
-              <span>{group.label}</span>
-              <em>{group.items.length}</em>
-            </h2>
-            {group.items.map((resource) => {
-              const active = `${resource.kind}:${resource.id}` === activeKey
-              return (
-                <button
-                  type="button"
-                  key={`${resource.kind}:${resource.id}`}
-                  className={`ontology-resource ${active ? 'is-active' : ''}`}
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => onSelect(resource)}
-                >
-                  <span className="ontology-resource__body">
-                    <strong>{resource.name}</strong>
-                    <span>{resourceDirection(resource)}</span>
-                  </span>
-                  <span className="ontology-resource__binding">
-                    {bindingLabel(resource.binding)}
-                  </span>
-                </button>
-              )
-            })}
-          </section>
-        ))}
-        {isLoading && !allResources.length ? (
-          <div className="ontology-sidebar__empty">{RESOURCE_COPY.loading}</div>
-        ) : null}
-        {!isLoading && !allResources.length ? (
-          <div className="ontology-sidebar__empty">
-            <strong>{RESOURCE_COPY.emptyTitle}</strong>
-            <span>{RESOURCE_COPY.emptyBody}</span>
-          </div>
-        ) : null}
-        {!isLoading && allResources.length && !groups.some((group) => group.items.length) ? (
-          <div className="ontology-sidebar__empty">{RESOURCE_COPY.emptySearch}</div>
-        ) : null}
-        {error ? (
-          <div className="ontology-sidebar__error">
-            <span>{error}</span>
-            <button type="button" onClick={onRetry}>
-              <RefreshCw size={13} />
-              {RESOURCE_COPY.retry}
-            </button>
-          </div>
-        ) : null}
-      </nav>
+      <ScrollArea className="ontology-resource-groups" type="auto" offsetScrollbars>
+        <Stack component="nav" aria-label="对象与关系" gap="md" p="xs">
+          {groups.map((group) => (
+            <Stack component="section" className="ontology-resource-group" key={group.category} gap={4}>
+              <Group gap={6} px="xs">
+                <ResourceCategoryIcon category={group.category} />
+                <Text component="h2" size="xs" fw={700} c="dimmed">{group.label}</Text>
+                <Badge size="xs" color="gray" variant="light" ml="auto">{group.items.length}</Badge>
+              </Group>
+              {group.items.map((resource) => {
+                const active = `${resource.kind}:${resource.id}` === activeKey
+                return (
+                  <UnstyledButton
+                    type="button"
+                    key={`${resource.kind}:${resource.id}`}
+                    className={`ontology-resource ${active ? 'is-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => onSelect(resource)}
+                  >
+                    <Stack className="ontology-resource__body" gap={2} align="flex-start">
+                      <Text component="strong" size="sm">{resource.name}</Text>
+                      <Text component="span" size="xs" c="dimmed">{resourceDirection(resource)}</Text>
+                    </Stack>
+                    <Badge size="xs" color="gray" variant="light">
+                      {bindingLabel(resource.binding)}
+                    </Badge>
+                  </UnstyledButton>
+                )
+              })}
+            </Stack>
+          ))}
+          {isLoading && !allResources.length ? (
+            <EmptyState className="ontology-sidebar__empty" title={RESOURCE_COPY.loading} />
+          ) : null}
+          {!isLoading && !allResources.length ? (
+            <EmptyState
+              className="ontology-sidebar__empty"
+              title={RESOURCE_COPY.emptyTitle}
+              body={RESOURCE_COPY.emptyBody}
+            />
+          ) : null}
+          {!isLoading && allResources.length && !groups.some((group) => group.items.length) ? (
+            <EmptyState className="ontology-sidebar__empty" title={RESOURCE_COPY.emptySearch} />
+          ) : null}
+          {error ? (
+            <Stack className="ontology-sidebar__error" gap="xs" p="xs">
+              <Text size="xs" c="red">{error}</Text>
+              <Button
+                type="button"
+                variant="default"
+                size="xs"
+                leftSection={<RefreshCw size={13} />}
+                onClick={onRetry}
+              >
+                {RESOURCE_COPY.retry}
+              </Button>
+            </Stack>
+          ) : null}
+        </Stack>
+      </ScrollArea>
     </aside>
   )
 }

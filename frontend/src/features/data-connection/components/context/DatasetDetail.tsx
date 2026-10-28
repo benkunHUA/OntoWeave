@@ -1,8 +1,20 @@
-import { ArrowLeft, Database, KeyRound, Maximize2 } from 'lucide-react'
+import {
+  Alert,
+  Button,
+  Group,
+  Loader,
+  SegmentedControl,
+  Table,
+  Text,
+  Title,
+  UnstyledButton,
+} from '@mantine/core'
+import { ArrowLeft, Database, KeyRound, Maximize2, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { getDataset, getDatasetPreview } from '../../../../shared/api'
 import type { Dataset, DatasetPreview } from '../../../../shared/types'
 import { DatasetPreviewTable } from '../../../../shared/components/DatasetPreviewTable'
+import { EmptyState } from '../../../../shared/components/EmptyState'
 import { DATASET_PREVIEW_LIMIT } from '../../lib/constants'
 import { DatasetPreviewDialog } from '../../dialogs/DatasetPreviewDialog'
 import { schemaFields } from '../../lib/datasetSchema'
@@ -82,18 +94,24 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
 
   return (
     <div className="dataset-detail">
-      <button type="button" className="back-button" onClick={onBack}>
-        <ArrowLeft size={14} />
+      <Button
+        type="button"
+        className="back-button"
+        variant="subtle"
+        size="compact-sm"
+        leftSection={<ArrowLeft size={14} />}
+        onClick={onBack}
+      >
         返回数据集列表
-      </button>
+      </Button>
 
-      {error ? <div className="inline-alert is-error">{error}</div> : null}
-      {!dataset && !error ? <div className="empty-panel">正在读取数据集…</div> : null}
+      {error ? <Alert color="red" variant="light" title="读取数据集失败">{error}</Alert> : null}
+      {!dataset && !error ? <EmptyState icon={<Loader size="sm" />} title="正在读取数据集…" /> : null}
 
       {dataset ? (
         <>
           <section className="context-section">
-            <h2><Database size={16} /> {dataset.name}</h2>
+            <Group gap={6}><Database size={16} /><Title order={3}>{dataset.name}</Title></Group>
             <dl className="detail-grid">
               <div><dt>当前版本</dt><dd>{dataset.current_version ? `v${dataset.current_version.version_number}` : '—'}</dd></div>
               <div><dt>版本数量</dt><dd>{dataset.version_count || dataset.versions.length}</dd></div>
@@ -109,32 +127,32 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
           </section>
 
           <section className="context-section">
-            <h2>字段</h2>
+            <Title order={3}>字段</Title>
             {fields.length ? (
               <div className="schema-table-wrap">
-                <table className="schema-table">
-                  <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
-                  <tbody>
+                <Table className="schema-table">
+                  <Table.Thead><Table.Tr><Table.Th>字段</Table.Th><Table.Th>类型</Table.Th><Table.Th>必填</Table.Th><Table.Th>说明</Table.Th></Table.Tr></Table.Thead>
+                  <Table.Tbody>
                     {fields.map((field) => (
-                      <tr key={field.name}>
-                        <td>{field.name} {field.required ? <KeyRound size={11} /> : null}</td>
-                        <td><code>{field.type}</code></td>
-                        <td>{field.required ? '是' : '否'}</td>
-                        <td>{field.doc ?? '—'}</td>
-                      </tr>
+                      <Table.Tr key={field.name}>
+                        <Table.Td>{field.name} {field.required ? <KeyRound size={11} /> : null}</Table.Td>
+                        <Table.Td><code>{field.type}</code></Table.Td>
+                        <Table.Td>{field.required ? '是' : '否'}</Table.Td>
+                        <Table.Td>{field.doc ?? '—'}</Table.Td>
+                      </Table.Tr>
                     ))}
-                  </tbody>
-                </table>
+                  </Table.Tbody>
+                </Table>
               </div>
-            ) : <div className="empty-panel">这个版本没有可展示的字段结构</div>}
+            ) : <EmptyState title="这个版本没有可展示的字段结构" />}
           </section>
 
           <section className="context-section">
-            <h2>版本历史</h2>
+            <Title order={3}>版本历史</Title>
             <ul className="version-list">
               {dataset.versions.map((item) => (
                 <li key={item.id}>
-                  <button
+                  <UnstyledButton
                     type="button"
                     className={item.id === version?.id ? 'is-active' : ''}
                     onClick={() => {
@@ -142,12 +160,14 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
                       setVersionId(item.id)
                     }}
                   >
-                    <span>v{item.version_number}</span>
-                    <span>{formatRows(item.row_count)} 行 · {item.column_count} 列</span>
-                    <span>{item.source_run_id ? `运行 ${item.source_run_id.slice(0, 8)}` : '来源运行 —'}</span>
-                    <span>{formatDateTime(item.published_at ?? item.committed_at)}</span>
-                    {item.id === dataset.current_version_id ? <em>当前</em> : null}
-                  </button>
+                    <Group gap={5} wrap="nowrap">
+                      <Text component="span" size="sm" fw={600}>v{item.version_number}</Text>
+                      {item.id === dataset.current_version_id ? <Text component="em" size="xs" c="brand">当前</Text> : null}
+                    </Group>
+                    <Text component="span" size="xs" c="dimmed">{formatRows(item.row_count)} 行 · {item.column_count} 列</Text>
+                    <Text component="span" size="xs" c="dimmed">{item.source_run_id ? `运行 ${item.source_run_id.slice(0, 8)}` : '来源运行 —'}</Text>
+                    <Text component="span" size="xs" c="dimmed">{formatDateTime(item.published_at ?? item.committed_at)}</Text>
+                  </UnstyledButton>
                 </li>
               ))}
             </ul>
@@ -155,31 +175,38 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
 
           <section className="context-section">
             <div className="context-section__heading">
-              <h2>数据预览</h2>
-              <div className="preview-actions">
-                <button
+              <Title order={3}>数据预览</Title>
+              <Group className="preview-actions" gap="xs" wrap="nowrap">
+                <SegmentedControl
+                  size="xs"
+                  value={live ? 'live' : 'version'}
+                  disabled={!version && !live}
+                  onChange={(value) => setLive(value === 'live')}
+                  data={[
+                    { value: 'version', label: PREVIEW_MODE_LABELS.version, disabled: !version },
+                    { value: 'live', label: PREVIEW_MODE_LABELS.live },
+                  ]}
+                />
+                <Button
                   type="button"
-                  className={!live ? 'is-active' : ''}
-                  disabled={!version}
-                  onClick={() => setLive(false)}
+                  variant="default"
+                  size="compact-xs"
+                  leftSection={<RefreshCw size={13} />}
+                  onClick={() => setRefreshToken((value) => value + 1)}
                 >
-                  {PREVIEW_MODE_LABELS.version}
-                </button>
-                <button
-                  type="button"
-                  className={live ? 'is-active' : ''}
-                  onClick={() => setLive(true)}
-                >
-                  {PREVIEW_MODE_LABELS.live}
-                </button>
-                <button type="button" onClick={() => setRefreshToken((value) => value + 1)}>
                   {PREVIEW_MODE_LABELS.refresh}
-                </button>
-                <button type="button" onClick={() => setPreviewOpen(true)} disabled={!preview}>
-                  <Maximize2 size={13} />
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  size="compact-xs"
+                  leftSection={<Maximize2 size={13} />}
+                  onClick={() => setPreviewOpen(true)}
+                  disabled={!preview}
+                >
                   放大
-                </button>
-              </div>
+                </Button>
+              </Group>
             </div>
             {live || version ? (
               <DatasetPreviewTable
@@ -188,7 +215,7 @@ export function DatasetDetail({ datasetId, connectionName, onBack }: DatasetDeta
                 error={previewError}
                 limit={DATASET_PREVIEW_LIMIT}
               />
-            ) : <div className="empty-panel">还没有已发布版本</div>}
+            ) : <EmptyState title="还没有已发布版本" />}
           </section>
         </>
       ) : null}

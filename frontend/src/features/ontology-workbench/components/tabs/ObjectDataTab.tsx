@@ -1,3 +1,4 @@
+import { Text, TextInput } from '@mantine/core'
 import { Search } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { httpErrorText } from '../../../../shared/api/errors'
@@ -116,20 +117,19 @@ export function ObjectDataTab({ resource }: ResourceTabProps) {
   return (
     <section className="ontology-data-panel" aria-label={`${resource.name} 对象数据`}>
       <div className="ontology-data-toolbar">
-        <label className="ontology-data-search">
-          <Search size={14} />
-          <span className="sr-only">{OBJECT_DATA_COPY.searchLabel}</span>
-          <input
-            type="search"
-            aria-label={OBJECT_DATA_COPY.searchLabel}
-            placeholder={OBJECT_DATA_COPY.searchPlaceholder}
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-          />
-        </label>
-        <span className="ontology-data-toolbar__summary">
+        <TextInput
+          className="ontology-data-search"
+          type="search"
+          aria-label={OBJECT_DATA_COPY.searchLabel}
+          placeholder={OBJECT_DATA_COPY.searchPlaceholder}
+          leftSection={<Search size={14} />}
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.currentTarget.value)}
+          size="xs"
+        />
+        <Text className="ontology-data-toolbar__summary" size="xs" c="dimmed">
           {resource.name} · {OBJECT_DATA_COPY.primaryKey} / {OBJECT_DATA_COPY.title}
-        </span>
+        </Text>
       </div>
 
       <FilterBar
@@ -140,7 +140,7 @@ export function ObjectDataTab({ resource }: ResourceTabProps) {
         disabled={isLoading && !data}
       />
 
-      {definitionError ? <p className="ontology-data-inline-error" role="alert">{definitionError}</p> : null}
+      {definitionError ? <Text className="ontology-data-inline-error" size="xs" c="red" role="alert">{definitionError}</Text> : null}
 
       <ObjectTable
         ariaLabel={`${resource.name} 对象列表`}
@@ -174,9 +174,9 @@ export function ObjectDataTab({ resource }: ResourceTabProps) {
       />
 
       {definition ? (
-        <p className="ontology-data-panel__meta">
+        <Text className="ontology-data-panel__meta" size="xs" c="dimmed">
           属性定义 {definition.properties.length} 个 · 当前索引版本 {currentVersion?.slice(0, 8) || '—'}
-        </p>
+        </Text>
       ) : null}
 
       {selectedPrimaryKey ? (

@@ -1,4 +1,4 @@
-import { ActionIcon, Button } from '@mantine/core'
+import { ActionIcon, Button, Group, Text } from '@mantine/core'
 import { Send, Square } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { TextAreaField } from '../../components/form/controls'
@@ -59,9 +59,11 @@ export function Composer({
           }
         }}
       />
-      <div className="composer__footer">
-        <span>{isRunning ? '智能体正在处理' : 'Enter 发送 · Shift + Enter 换行'}</span>
-        <div className="composer__actions">
+      <Group className="composer__footer" justify="space-between" gap="sm">
+        <Text component="span" size="xs" c="dimmed">
+          {isRunning ? '智能体正在处理' : 'Enter 发送 · Shift + Enter 换行'}
+        </Text>
+        <Group className="composer__actions" gap="xs">
           {isRunning ? (
             <ActionIcon type="button" variant="default" aria-label="停止" onClick={onAbort}>
               <Square size={15} />
@@ -76,8 +78,8 @@ export function Composer({
           >
             发送
           </Button>
-        </div>
-      </div>
+        </Group>
+      </Group>
     </form>
   )
 }

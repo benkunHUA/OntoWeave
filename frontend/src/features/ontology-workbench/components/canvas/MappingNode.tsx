@@ -1,4 +1,5 @@
 import { Handle, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
+import { NativeSelect } from '@mantine/core'
 import { AlertTriangle, CircleAlert, CircleCheck, KeyRound } from 'lucide-react'
 import { CANVAS_COPY } from './copy'
 import type { MappingFlowNode } from './types'
@@ -21,28 +22,26 @@ export function MappingNode({ id, data }: NodeProps<MappingFlowNode>) {
         <div className="mapping-node__keys nodrag">
           <label>
             <span>{CANVAS_COPY.primaryLabel}</span>
-            <select
+            <NativeSelect
+              size="xs"
               aria-label={CANVAS_COPY.primaryLabel}
               value={data.keyControls.primaryValue}
-              onChange={(event) => data.keyControls?.onPrimaryChange(event.target.value)}
-            >
-              {data.keyControls.primaryOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
+              onChange={(event) => data.keyControls?.onPrimaryChange(event.currentTarget.value)}
+              data={data.keyControls.primaryOptions.map((option) => ({ value: option.id, label: option.label }))}
+            />
           </label>
           <label>
             <span>{CANVAS_COPY.titleLabel}</span>
-            <select
+            <NativeSelect
+              size="xs"
               aria-label={CANVAS_COPY.titleLabel}
               value={data.keyControls.titleValue ?? ''}
-              onChange={(event) => data.keyControls?.onTitleChange(event.target.value || null)}
-            >
-              <option value="">{CANVAS_COPY.noTitle}</option>
-              {data.keyControls.titleOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
+              onChange={(event) => data.keyControls?.onTitleChange(event.currentTarget.value || null)}
+              data={[
+                { value: '', label: CANVAS_COPY.noTitle },
+                ...data.keyControls.titleOptions.map((option) => ({ value: option.id, label: option.label })),
+              ]}
+            />
           </label>
         </div>
       ) : null}

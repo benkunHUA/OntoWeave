@@ -1,3 +1,4 @@
+import { Alert, Button, Group, Paper, Text } from '@mantine/core'
 import { ArrowRight, CircleAlert, CircleCheck, PlugZap } from 'lucide-react'
 import type { DataConnectionState, MissingStep } from '../../../../shared/types'
 import { formatDateTime } from '../../lib/format'
@@ -45,9 +46,8 @@ export function ConnectionOverview({ state, isBusy, onEdit, onTest, onOpenTab }:
       <section className="context-section">
         <h2>测试结果</h2>
         {connection.last_test_status === 'success' ? (
-          <div className="inline-alert is-success">
-            <CircleCheck size={15} />
-            <span>
+          <Alert color="teal" variant="light" icon={<CircleCheck size={15} />}>
+            <Text size="xs">
               {TEST_STATUS_LABELS.success}
               {connection.last_test_details?.serverVersion
                 ? ` · MySQL ${String(connection.last_test_details.serverVersion)}`
@@ -55,18 +55,16 @@ export function ConnectionOverview({ state, isBusy, onEdit, onTest, onOpenTab }:
               {connection.last_test_details?.latencyMs
                 ? ` · ${String(connection.last_test_details.latencyMs)}ms`
                 : ''}
-            </span>
-          </div>
+            </Text>
+          </Alert>
         ) : connection.last_test_status === 'failed' ? (
-          <div className="inline-alert is-error">
-            <CircleAlert size={15} />
-            <span>{connection.last_test_error ?? TEST_STATUS_LABELS.failed}</span>
-          </div>
+          <Alert color="red" variant="light" icon={<CircleAlert size={15} />}>
+            <Text size="xs">{connection.last_test_error ?? TEST_STATUS_LABELS.failed}</Text>
+          </Alert>
         ) : (
-          <div className="inline-alert">
-            <PlugZap size={15} />
-            <span>{TEST_STATUS_LABELS.untested}</span>
-          </div>
+          <Alert color="gray" variant="light" icon={<PlugZap size={15} />}>
+            <Text size="xs">{TEST_STATUS_LABELS.untested}</Text>
+          </Alert>
         )}
       </section>
 
@@ -81,16 +79,23 @@ export function ConnectionOverview({ state, isBusy, onEdit, onTest, onOpenTab }:
       </section>
 
       {step ? (
-        <section className="next-step-card">
-          <div>
-            <span className="eyebrow">下一步</span>
-            <strong>{MISSING_STEP_LABELS[step]}</strong>
-          </div>
-          <button type="button" className="primary-button" disabled={isBusy} onClick={runNextStep}>
+        <Paper component="section" className="next-step-card" withBorder radius="md" p="sm">
+          <Group justify="space-between" gap="sm">
+            <Group gap={6}>
+              <Text className="eyebrow" size="xs" c="dimmed">下一步</Text>
+              <Text component="strong" size="sm">{MISSING_STEP_LABELS[step]}</Text>
+            </Group>
+          </Group>
+          <Button
+            type="button"
+            size="xs"
+            rightSection={<ArrowRight size={15} />}
+            disabled={isBusy}
+            onClick={runNextStep}
+          >
             {MISSING_STEP_LABELS[step]}
-            <ArrowRight size={15} />
-          </button>
-        </section>
+          </Button>
+        </Paper>
       ) : null}
     </div>
   )

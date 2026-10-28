@@ -1,4 +1,6 @@
-import { Sparkles, Workflow } from 'lucide-react'
+import { Loader } from '@mantine/core'
+import { CircleCheck, Sparkles, Workflow } from 'lucide-react'
+import { ChatPaneHeader } from '../../../shared/chat/components/ChatPaneHeader'
 import { Composer } from '../../../shared/chat/components/Composer'
 import { ConversationTimeline } from '../../../shared/chat/components/ConversationTimeline'
 import { ErrorToast } from '../../../shared/chat/components/ErrorToast'
@@ -39,16 +41,13 @@ export function PipelineConversationPane({
 }: PipelineConversationPaneProps) {
   return (
     <section className="chat-pane data-pipeline-chat">
-      <header className="chat-header">
-        <div>
-          <span className="eyebrow">Data pipeline</span>
-          <h1>{title || '数据整理助手'}</h1>
-        </div>
-        <span className={`chat-header__status ${isRunning ? 'is-running' : ''}`}>
-          <span />
-          {isRunning ? '处理中' : '在线'}
-        </span>
-      </header>
+      <ChatPaneHeader
+        eyebrow="Data pipeline"
+        title={title || '数据整理助手'}
+        status={isRunning ? '处理中' : '在线'}
+        statusColor={isRunning ? 'blue' : 'teal'}
+        statusIcon={isRunning ? <Loader size={12} /> : <CircleCheck size={12} />}
+      />
 
       <ConversationTimeline
         messages={messages}

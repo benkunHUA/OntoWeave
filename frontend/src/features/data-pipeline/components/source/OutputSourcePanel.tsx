@@ -1,4 +1,5 @@
-import { Database, GitBranch, LoaderCircle } from 'lucide-react'
+import { Alert, Anchor, Button, Group, Loader, Text, Title } from '@mantine/core'
+import { Database, GitBranch } from 'lucide-react'
 import { buildStatusLabel } from '../../lib/buildStatus'
 import { SOURCE_COPY } from '../../lib/executionConstants'
 import { formatCount, formatDateTime } from '../../lib/format'
@@ -26,53 +27,53 @@ export function OutputSourcePanel({
   })
 
   if (isLoading) {
-    return <p className="pipeline-source-loading"><LoaderCircle size={14} />{SOURCE_COPY.loading}</p>
+    return <Group className="pipeline-source-loading" gap="xs"><Loader size="sm" /><Text size="xs">{SOURCE_COPY.loading}</Text></Group>
   }
-  if (error) return <p className="pipeline-alert is-error">{error}</p>
+  if (error) return <Alert color="red" variant="light"><Text size="xs">{error}</Text></Alert>
   if (!source) return null
 
   return (
     <section className="pipeline-source-panel" aria-label={SOURCE_COPY.title}>
       <header>
         <span className="eyebrow">{SOURCE_COPY.title}</span>
-        <h4>{source.output.name}</h4>
+        <Title order={4}>{source.output.name}</Title>
       </header>
       <div className="pipeline-source-summary">
-        <span>{SOURCE_COPY.output} v{source.output.version_number}</span>
-        <span>{formatCount(source.output.row_count)} 行</span>
-        <span>{formatDateTime(source.output.published_at)}</span>
+        <Text component="span" size="xs" c="dimmed">{SOURCE_COPY.output} v{source.output.version_number}</Text>
+        <Text component="span" size="xs" c="dimmed">{formatCount(source.output.row_count)} 行</Text>
+        <Text component="span" size="xs" c="dimmed">{formatDateTime(source.output.published_at)}</Text>
       </div>
       <div className="pipeline-source-grid">
         {source.build ? (
           <div>
-            <span>{SOURCE_COPY.build}</span>
-            <strong>{shortId(source.build.build_id)} · {buildStatusLabel(source.build.status)}</strong>
-            <small>{formatDateTime(source.build.finished_at ?? source.build.started_at)}</small>
+            <Text component="span" size="xs" c="dimmed">{SOURCE_COPY.build}</Text>
+            <Text component="strong" size="sm">{shortId(source.build.build_id)} · {buildStatusLabel(source.build.status)}</Text>
+            <Text component="small" size="xs" c="dimmed">{formatDateTime(source.build.finished_at ?? source.build.started_at)}</Text>
             <div className="pipeline-source-build-actions">
               {onOpenBuild ? (
-                <button type="button" className="text-button" onClick={() => onOpenBuild(source.build!.build_id)}>
+                <Button type="button" variant="subtle" size="compact-xs" onClick={() => onOpenBuild(source.build!.build_id)}>
                   {SOURCE_COPY.buildDetails}
-                </button>
+                </Button>
               ) : null}
               {source.build.log_uri ? (
-                <a className="pipeline-build-log-link" href={source.build.log_uri} target="_blank" rel="noreferrer">
+                <Anchor className="pipeline-build-log-link" href={source.build.log_uri} target="_blank" rel="noreferrer" size="xs">
                   {SOURCE_COPY.buildLog}
-                </a>
-              ) : <small>{SOURCE_COPY.logMissing}</small>}
+                </Anchor>
+              ) : <Text component="small" size="xs" c="dimmed">{SOURCE_COPY.logMissing}</Text>}
             </div>
           </div>
-        ) : <p className="pipeline-source-note">{SOURCE_COPY.buildUnavailable}</p>}
+        ) : <Text className="pipeline-source-note" size="xs" c="dimmed">{SOURCE_COPY.buildUnavailable}</Text>}
         {source.pipeline_version ? (
           <div>
-            <span>{SOURCE_COPY.pipelineVersion}</span>
-            <strong><GitBranch size={12} /> v{source.pipeline_version.version_number}</strong>
-            <small>{formatDateTime(source.pipeline_version.created_at)}</small>
+            <Text component="span" size="xs" c="dimmed">{SOURCE_COPY.pipelineVersion}</Text>
+            <Text component="strong" size="sm"><GitBranch size={12} /> v{source.pipeline_version.version_number}</Text>
+            <Text component="small" size="xs" c="dimmed">{formatDateTime(source.pipeline_version.created_at)}</Text>
           </div>
         ) : null}
       </div>
 
       <div className="pipeline-source-inputs">
-        <strong>{SOURCE_COPY.directInputs}</strong>
+        <Text component="strong" size="xs">{SOURCE_COPY.directInputs}</Text>
         {source.inputs.length ? source.inputs.map((input) => {
           const view = sourceInputView(input)
           return (
@@ -82,12 +83,12 @@ export function OutputSourcePanel({
                 <span>{view.title}</span>
                 <em>{view.versionLabel}</em>
               </div>
-              {view.connection ? <p>连接：{view.connection}</p> : null}
-              {view.sourceTable ? <p>源表：{view.sourceTable}</p> : null}
-              {view.note ? <p className="pipeline-source-note">{view.note}</p> : null}
+              {view.connection ? <Text size="xs" c="dimmed">连接：{view.connection}</Text> : null}
+              {view.sourceTable ? <Text size="xs" c="dimmed">源表：{view.sourceTable}</Text> : null}
+              {view.note ? <Text className="pipeline-source-note" size="xs" c="dimmed">{view.note}</Text> : null}
             </article>
           )
-        }) : <p className="pipeline-source-note">{SOURCE_COPY.noInputs}</p>}
+        }) : <Text className="pipeline-source-note" size="xs" c="dimmed">{SOURCE_COPY.noInputs}</Text>}
       </div>
     </section>
   )

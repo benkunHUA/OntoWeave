@@ -1,3 +1,4 @@
+import { Box, Button, Stack, Text, ThemeIcon, Title } from '@mantine/core'
 import { Boxes } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -146,14 +147,16 @@ export function OntologyWorkbenchView() {
             onRefreshRun={() => void indexRun.refresh()}
           />
         ) : (
-          <section className="ontology-workspace ontology-workspace--empty">
-            <span className="ontology-tab-panel__icon"><Boxes size={28} /></span>
-            <h1>{RESOURCE_COPY.emptyTitle}</h1>
-            <p>{RESOURCE_COPY.emptyBody}</p>
-            <button type="button" className="secondary-button" onClick={() => navigate(ONTOLOGY_PATH)}>
-              返回工作台
-            </button>
-          </section>
+          <Box component="section" className="ontology-workspace ontology-workspace--empty">
+            <Stack align="center" justify="center" gap="sm" h="100%">
+              <ThemeIcon size={56} radius="lg" variant="light" color="brand"><Boxes size={28} /></ThemeIcon>
+              <Title order={2}>{RESOURCE_COPY.emptyTitle}</Title>
+              <Text size="sm" c="dimmed" ta="center" maw={360}>{RESOURCE_COPY.emptyBody}</Text>
+              <Button type="button" variant="default" onClick={() => navigate(ONTOLOGY_PATH)}>
+                返回工作台
+              </Button>
+            </Stack>
+          </Box>
         )
       }
     />

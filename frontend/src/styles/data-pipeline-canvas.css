@@ -56,31 +56,6 @@
   font-size: 11px;
 }
 
-.pipeline-check-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.pipeline-check-chip.is-ok {
-  color: var(--green);
-  background: var(--green-soft);
-}
-
-.pipeline-check-chip.is-warning {
-  color: var(--amber-ink);
-  background: var(--amber-soft);
-}
-
-.pipeline-check-chip.is-error {
-  color: var(--red);
-  background: var(--red-soft);
-}
-
 .pipeline-canvas-actions {
   display: flex;
   flex: 0 0 auto;

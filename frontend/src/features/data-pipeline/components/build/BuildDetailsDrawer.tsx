@@ -1,4 +1,5 @@
-import { Ban, LoaderCircle, X } from 'lucide-react'
+import { ActionIcon, Alert, Anchor, Button, Group, Loader, Text, Title } from '@mantine/core'
+import { Ban, X } from 'lucide-react'
 import { useState } from 'react'
 import type { PipelineBuild } from '../../../../shared/types'
 import { httpErrorText } from '../../../../shared/api/errors'
@@ -59,50 +60,54 @@ export function BuildDetailsDrawer({
       <header className="pipeline-drawer__head">
         <div>
           <span className="eyebrow">Build</span>
-          <h2>{BUILD_COPY.detailsTitle}</h2>
+          <Title order={2}>{BUILD_COPY.detailsTitle}</Title>
         </div>
-        <button
+        <ActionIcon
           type="button"
-          className="icon-button icon-button--quiet"
+          variant="subtle"
+          color="gray"
           aria-label="关闭"
           onClick={onClose}
         >
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       <div className="pipeline-drawer__body">
         {isLoading && !build ? (
-          <p className="pipeline-preview-loading"><LoaderCircle size={16} />读取构建中…</p>
+          <Group className="pipeline-preview-loading" gap="xs"><Loader size="sm" /> <Text size="xs">读取构建中…</Text></Group>
         ) : null}
-        {error ? <p className="pipeline-alert is-error">{error}</p> : null}
-        {!build && !isLoading ? <p className="pipeline-issue-empty">{BUILD_COPY.noBuild}</p> : null}
+        {error ? <Alert color="red" variant="light"><Text size="xs">{error}</Text></Alert> : null}
+        {!build && !isLoading ? <Text className="pipeline-issue-empty" size="xs" c="dimmed">{BUILD_COPY.noBuild}</Text> : null}
         {build ? (
           <>
             <section className="pipeline-build-overview">
               <div>
                 <BuildStatusBadge status={build.status} />
-                <span>{buildStageLabel(build.stage)}</span>
-                {buildElapsedLabel(build) ? <span>{buildElapsedLabel(build)}</span> : null}
+                <Text component="span" size="xs">{buildStageLabel(build.stage)}</Text>
+                {buildElapsedLabel(build) ? <Text component="span" size="xs" c="dimmed">{buildElapsedLabel(build)}</Text> : null}
               </div>
-              <small>构建 {shortId(build.id)} · {build.trigger}</small>
-              <small>{formatDateTime(build.started_at)} → {formatDateTime(build.finished_at)}</small>
+              <Text component="small" size="xs" c="dimmed">构建 {shortId(build.id)} · {build.trigger}</Text>
+              <Text component="small" size="xs" c="dimmed">{formatDateTime(build.started_at)} → {formatDateTime(build.finished_at)}</Text>
               {build.log_uri ? (
-                <a
+                <Anchor
                   className="pipeline-build-log-link"
                   href={build.log_uri}
                   target="_blank"
                   rel="noreferrer"
+                  size="xs"
                 >
                   {BUILD_COPY.logOpen}
-                </a>
+                </Anchor>
               ) : (
-                <small>{BUILD_COPY.logMissing}</small>
+                <Text component="small" size="xs" c="dimmed">{BUILD_COPY.logMissing}</Text>
               )}
               {build.error_message || build.error_code ? (
-                <p className="pipeline-alert is-error">
+                <Alert color="red" variant="light">
+                  <Text size="xs">
                   {build.error_code ? `${build.error_code} · ` : ''}{build.error_message}
-                </p>
+                  </Text>
+                </Alert>
               ) : null}
             </section>
             {build.outputs.map((output) => (
@@ -120,7 +125,7 @@ export function BuildDetailsDrawer({
 
       {build && BUILD_ACTIVE_STATUSES.has(build.status) ? (
         <footer className="pipeline-drawer__foot pipeline-build-drawer__foot">
-          <span className="pipeline-save-state" role={cancelError ? 'alert' : undefined}>
+          <Text className="pipeline-save-state" size="xs" c="dimmed" role={cancelError ? 'alert' : undefined}>
             {cancelState === 'sent'
               ? BUILD_COPY.cancelRequested
               : cancelState === 'sending'
@@ -128,16 +133,18 @@ export function BuildDetailsDrawer({
                 : cancelState === 'failed'
                   ? cancelError ?? BUILD_COPY.cancelFailed
                   : '构建执行中'}
-          </span>
-          <button
+          </Text>
+          <Button
             type="button"
-            className="danger-button"
+            color="red"
+            variant="light"
+            size="xs"
+            leftSection={<Ban size={14} />}
             disabled={cancelState === 'sending' || cancelRequested}
             onClick={() => void requestCancel()}
           >
-            <Ban size={14} />
             {BUILD_COPY.cancelBuild}
-          </button>
+          </Button>
         </footer>
       ) : null}
     </aside>

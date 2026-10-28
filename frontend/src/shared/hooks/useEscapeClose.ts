@@ -14,7 +14,7 @@ export function useEscapeClose(active: boolean, onClose: () => void) {
     const token = Symbol('escape-layer')
     escapeStack.push(token)
     function onKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || escapeStack.at(-1) !== token) return
+      if (event.key !== 'Escape' || event.defaultPrevented || escapeStack.at(-1) !== token) return
       event.preventDefault()
       event.stopPropagation()
       closeRef.current()

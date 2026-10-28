@@ -1,4 +1,5 @@
-import { Ban, History, LoaderCircle, RefreshCw, RotateCcw } from 'lucide-react'
+import { Badge, Button, Group, Loader, Stack, Table, Text } from '@mantine/core'
+import { Ban, History, RefreshCw, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { httpErrorText } from '../../../../shared/api/errors'
 import {
@@ -14,6 +15,7 @@ import { RUN_POLL_INTERVAL_MS, RUN_STATUS_LABELS, isActiveRun } from '../../lib/
 import { CancelRunDialog } from '../dialogs/CancelRunDialog'
 import { GenerateDialog } from '../dialogs/GenerateDialog'
 import { RunDetailDrawer } from '../dialogs/RunDetailDrawer'
+import { EmptyState } from '../../../../shared/components/EmptyState'
 import { RUN_TRIGGER_LABELS, formatRunTime, runCounts } from '../dialogs/runFormat'
 import type { RunsTabProps } from './types'
 
@@ -161,87 +163,98 @@ export function RunsTab({ resource, run, isLoading, error, onRefresh }: RunsTabP
   return (
     <section className="ontology-runs-panel" aria-label={`${resource.name} 运行记录`}>
       <header className="ontology-runs-panel__head">
-        <div>
+        <Group gap={6}>
           <History size={16} />
-          <strong>{RUNS_COPY.title}</strong>
-          <span>{resource.name}</span>
-        </div>
-        <button type="button" className="secondary-button" onClick={refreshAll} disabled={listLoading || isLoading}>
-          <RefreshCw size={13} /> {RUNS_COPY.refresh}
-        </button>
+          <Text component="strong" size="sm">{RUNS_COPY.title}</Text>
+          <Text size="xs" c="dimmed">{resource.name}</Text>
+        </Group>
+        <Button
+          type="button"
+          variant="default"
+          size="xs"
+          leftSection={<RefreshCw size={13} />}
+          onClick={refreshAll}
+          disabled={listLoading || isLoading}
+        >
+          {RUNS_COPY.refresh}
+        </Button>
       </header>
 
-      {displayError ? <p className="ontology-data-inline-error" role="alert">{displayError}</p> : null}
+      {displayError ? <Text className="ontology-data-inline-error" size="xs" c="red" role="alert">{displayError}</Text> : null}
 
       {listLoading && !runs.length ? (
-        <p className="ontology-run-list-state"><LoaderCircle size={15} className="is-spinning" /> {RUNS_COPY.loading}</p>
+        <Group className="ontology-run-list-state" gap="xs"><Loader size="sm" /> <Text size="xs">{RUNS_COPY.loading}</Text></Group>
       ) : null}
       {!listLoading && !runs.length ? (
-        <div className="ontology-run-list-state is-empty">
-          <strong>{RUNS_COPY.emptyTitle}</strong>
-          <span>{RUNS_COPY.emptyBody}</span>
-        </div>
+        <EmptyState className="ontology-run-list-state" title={RUNS_COPY.emptyTitle} body={RUNS_COPY.emptyBody} />
       ) : null}
 
       {runs.length ? (
         <div className="ontology-run-table-wrap">
-          <table className="ontology-run-table" aria-label={`${resource.name} 运行列表`}>
-            <thead>
-              <tr>
-                <th>{RUNS_COPY.status}</th>
-                <th>{RUNS_COPY.trigger}</th>
-                <th>{RUNS_COPY.sourceVersion}</th>
-                <th>{RUNS_COPY.started} / {RUNS_COPY.finished}</th>
-                <th>{RUNS_COPY.written}</th>
-                <th>{RUNS_COPY.warnings} / {RUNS_COPY.skipped}</th>
-                <th>{RUNS_COPY.actions}</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="ontology-run-table" aria-label={`${resource.name} 运行列表`}>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{RUNS_COPY.status}</Table.Th>
+                <Table.Th>{RUNS_COPY.trigger}</Table.Th>
+                <Table.Th>{RUNS_COPY.sourceVersion}</Table.Th>
+                <Table.Th>{RUNS_COPY.started} / {RUNS_COPY.finished}</Table.Th>
+                <Table.Th>{RUNS_COPY.written}</Table.Th>
+                <Table.Th>{RUNS_COPY.warnings} / {RUNS_COPY.skipped}</Table.Th>
+                <Table.Th>{RUNS_COPY.actions}</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {runs.map((item) => {
                 const counts = runCounts(item)
                 const active = isActiveRun(item)
                 return (
-                  <tr key={item.id} onClick={() => setSelectedId(item.id)} tabIndex={0}>
-                    <td><span className={`ontology-run-status is-${item.status.toLowerCase()}`}>{RUN_STATUS_LABELS[item.status]}</span></td>
-                    <td>{RUN_TRIGGER_LABELS[item.trigger_type]}</td>
-                    <td><code title={item.target_dataset_version_id}>{item.target_dataset_version_id.slice(0, 8)}</code></td>
-                    <td className="ontology-run-time">
-                      <span>{formatRunTime(item.started_at)}</span>
-                      <span>{formatRunTime(item.finished_at)}</span>
-                    </td>
-                    <td>{counts.written}</td>
-                    <td>{counts.warnings} / {counts.skipped}</td>
-                    <td className="ontology-run-actions">
-                      <button
+                  <Table.Tr key={item.id} onClick={() => setSelectedId(item.id)} tabIndex={0}>
+                    <Table.Td>
+                      <Badge color={item.status === 'SUCCEEDED' ? 'teal' : item.status === 'FAILED' ? 'red' : 'gray'} variant="light">
+                        {RUN_STATUS_LABELS[item.status]}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{RUN_TRIGGER_LABELS[item.trigger_type]}</Table.Td>
+                    <Table.Td><code title={item.target_dataset_version_id}>{item.target_dataset_version_id.slice(0, 8)}</code></Table.Td>
+                    <Table.Td className="ontology-run-time">
+                      <Stack gap={0}><span>{formatRunTime(item.started_at)}</span><span>{formatRunTime(item.finished_at)}</span></Stack>
+                    </Table.Td>
+                    <Table.Td>{counts.written}</Table.Td>
+                    <Table.Td>{counts.warnings} / {counts.skipped}</Table.Td>
+                    <Table.Td className="ontology-run-actions">
+                      <Button
                         type="button"
-                        className="text-button"
+                        variant="subtle"
+                        size="xs"
                         disabled={!active}
+                        leftSection={<Ban size={12} />}
                         onClick={(event) => {
                           event.stopPropagation()
                           requestCancel(item)
                         }}
                       >
-                        <Ban size={12} /> {RUNS_COPY.cancel}
-                      </button>
+                        {RUNS_COPY.cancel}
+                      </Button>
                       {item.status === 'FAILED' ? (
-                        <button
+                        <Button
                           type="button"
-                          className="text-button"
+                          variant="subtle"
+                          size="xs"
+                          leftSection={<RotateCcw size={12} />}
                           onClick={(event) => {
                             event.stopPropagation()
                             requestRetry(item)
                           }}
                         >
-                          <RotateCcw size={12} /> {RUNS_COPY.retry}
-                        </button>
+                          {RUNS_COPY.retry}
+                        </Button>
                       ) : null}
-                    </td>
-                  </tr>
+                    </Table.Td>
+                  </Table.Tr>
                 )
               })}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         </div>
       ) : null}
 

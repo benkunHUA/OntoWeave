@@ -1,4 +1,4 @@
-import { Button } from '@mantine/core'
+import { Alert, Button, Text, Title } from '@mantine/core'
 import { useState } from 'react'
 import {
   CheckboxField,
@@ -54,15 +54,14 @@ export function ConnectionForm({ connection, isBusy, onSave }: ConnectionFormPro
   return (
     <div className="connection-form">
       <div className="context-section">
-        <h2>连接配置</h2>
-        <p className="context-hint">密码只用于建立连接，不会写入对话或日志。</p>
+        <Title order={3}>连接配置</Title>
+        <Text className="context-hint" size="xs" c="dimmed">密码只用于建立连接，不会写入对话或日志。</Text>
       </div>
 
       {connection.last_test_status === 'failed' ? (
-        <div className="inline-alert is-error">
-          <strong>上次连接测试失败</strong>
-          <span>{connection.last_test_error ?? '请检查主机、端口和账号信息。'}</span>
-        </div>
+        <Alert color="red" variant="light" title="上次连接测试失败">
+          <Text size="xs">{connection.last_test_error ?? '请检查主机、端口和账号信息。'}</Text>
+        </Alert>
       ) : null}
 
       <div className="form-grid">

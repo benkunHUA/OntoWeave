@@ -3,7 +3,7 @@ import { Trash2 } from 'lucide-react'
 import { RadioField } from '../../../../shared/components/form/controls'
 import type { DeleteScope } from '../../../../shared/types'
 import { DELETE_SCOPE_OPTIONS } from '../../lib/deleteScopes'
-import { DialogShell } from './DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 
 interface DeleteConversationDialogProps {
   conversationTitle: string | null

@@ -1,6 +1,6 @@
 import { Button } from '@mantine/core'
 import { ChevronLeft, Trash2 } from 'lucide-react'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { PIPELINE_DELETE_COPY } from '../../lib/constants'
 
 interface DeletePipelineDialogProps {

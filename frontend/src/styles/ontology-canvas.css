@@ -70,14 +70,6 @@
 
 .mapping-toolbar__status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mapping-toolbar__actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-.mapping-toolbar__status span { padding: 2px 6px; border-radius: 999px; color: var(--faint); font-size: 9px; background: var(--raised); }
-.mapping-toolbar__status .is-dirty,
-.mapping-toolbar__status .is-warning { color: #e0ad51; background: rgba(224, 173, 81, 0.12); }
-.mapping-toolbar__status .is-blocking { color: var(--red); background: var(--red-soft); }
-.mapping-toolbar__status .is-saved,
-.mapping-toolbar__status .is-ok { color: var(--green); background: var(--green-soft); }
-.mapping-toolbar .secondary-button,
-.mapping-toolbar .primary-button { min-height: 30px; padding: 0 9px; font-size: 11px; white-space: nowrap; }
 .mapping-toolbar button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .mapping-banner {

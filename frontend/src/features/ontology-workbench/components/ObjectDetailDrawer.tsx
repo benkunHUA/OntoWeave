@@ -1,3 +1,4 @@
+import { ActionIcon, Alert, Button, Group, Text, Title } from '@mantine/core'
 import { ArrowLeft, ArrowRight, ChevronRight, Database, LoaderCircle, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { httpErrorText } from '../../../shared/api/errors'
@@ -148,20 +149,20 @@ export function ObjectDetailDrawer({
       <header className="ontology-detail-drawer__head">
         <div className="ontology-detail-drawer__identity">
           {selectedGroup ? (
-            <button type="button" className="icon-button icon-button--quiet" aria-label={DETAIL_COPY.back} onClick={backToDetail}>
+            <ActionIcon type="button" variant="subtle" color="gray" aria-label={DETAIL_COPY.back} onClick={backToDetail}>
               <ArrowLeft size={15} />
-            </button>
+            </ActionIcon>
           ) : (
             <span className="ontology-detail-drawer__icon"><Database size={16} /></span>
           )}
           <div>
-            <strong>{selectedGroup ? selectedGroup.label || DETAIL_COPY.peerTitle : title}</strong>
-            <span>{selectedGroup ? `${DETAIL_COPY.peerTitle} · ${selectedGroup.total} 个` : primaryKey}</span>
+            <Text component="strong" size="sm">{selectedGroup ? selectedGroup.label || DETAIL_COPY.peerTitle : title}</Text>
+            <Text component="span" size="xs" c="dimmed">{selectedGroup ? `${DETAIL_COPY.peerTitle} · ${selectedGroup.total} 个` : primaryKey}</Text>
           </div>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label={DETAIL_COPY.close} onClick={onClose}>
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label={DETAIL_COPY.close} onClick={onClose}>
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       {selectedGroup ? (
@@ -188,19 +189,21 @@ export function ObjectDetailDrawer({
       ) : (
         <div className="ontology-detail-drawer__body">
           {isLoading ? (
-            <p className="ontology-detail-drawer__state"><LoaderCircle size={15} className="is-spinning" /> {DETAIL_COPY.loading}</p>
+            <Group className="ontology-detail-drawer__state" gap="xs"><LoaderCircle size={15} className="is-spinning" /> <Text size="xs">{DETAIL_COPY.loading}</Text></Group>
           ) : null}
           {error ? (
-            <div className="ontology-data-state is-error" role="alert">
-              <span>{error}</span>
-              <button type="button" className="secondary-button" onClick={() => void loadDetail()}>{DETAIL_COPY.retry}</button>
-            </div>
+            <Alert className="ontology-data-state" color="red" variant="light" title="读取对象详情失败" role="alert">
+              <Group justify="space-between" gap="sm">
+                <Text size="xs">{error}</Text>
+                <Button type="button" variant="default" size="xs" onClick={() => void loadDetail()}>{DETAIL_COPY.retry}</Button>
+              </Group>
+            </Alert>
           ) : null}
 
           {detail ? (
             <>
               <section className="ontology-detail-section">
-                <h3>{DETAIL_COPY.properties}</h3>
+                <Title order={4}>{DETAIL_COPY.properties}</Title>
                 {properties.length ? (
                   <dl className="ontology-detail-properties">
                     {properties.map((property) => (
@@ -213,13 +216,13 @@ export function ObjectDetailDrawer({
                       </div>
                     ))}
                   </dl>
-                ) : <p className="ontology-detail-empty">{DETAIL_COPY.emptyProperties}</p>}
+                ) : <Text className="ontology-detail-empty" size="xs" c="dimmed">{DETAIL_COPY.emptyProperties}</Text>}
               </section>
 
               <section className="ontology-detail-section">
-                <h3>{DETAIL_COPY.relations}</h3>
-                {groupsError ? <p className="ontology-detail-error" role="alert">{groupsError}</p> : null}
-                {!groupsError && !groups.length ? <p className="ontology-detail-empty">{DETAIL_COPY.emptyRelations}</p> : null}
+                <Title order={4}>{DETAIL_COPY.relations}</Title>
+                {groupsError ? <Alert color="red" variant="light" role="alert"><Text size="xs">{groupsError}</Text></Alert> : null}
+                {!groupsError && !groups.length ? <Text className="ontology-detail-empty" size="xs" c="dimmed">{DETAIL_COPY.emptyRelations}</Text> : null}
                 <div className="ontology-relation-groups">
                   {groups.map((group) => (
                     <article className="ontology-relation-group" key={`${group.relation_id}-${group.direction}`}>
@@ -236,9 +239,15 @@ export function ObjectDetailDrawer({
                             {' · '}{group.total} 个
                           </span>
                         </div>
-                        <button type="button" className="text-button" onClick={() => openGroup(group)}>
-                          {DETAIL_COPY.viewAll} <ChevronRight size={12} />
-                        </button>
+                        <Button
+                          type="button"
+                          variant="subtle"
+                          size="compact-xs"
+                          rightSection={<ChevronRight size={12} />}
+                          onClick={() => openGroup(group)}
+                        >
+                          {DETAIL_COPY.viewAll}
+                        </Button>
                       </header>
                       <ul>
                         {group.items.slice(0, 5).map((item) => (

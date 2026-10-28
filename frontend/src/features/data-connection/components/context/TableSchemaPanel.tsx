@@ -1,7 +1,9 @@
+import { Alert, Button, Group, Loader, Table, Text, Title } from '@mantine/core'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { describeTable } from '../../../../shared/api'
 import type { TableDetail } from '../../../../shared/types'
+import { EmptyState } from '../../../../shared/components/EmptyState'
 
 interface TableSchemaPanelProps {
   connectionId: string
@@ -33,43 +35,51 @@ export function TableSchemaPanel({ connectionId, schema, table, onBack }: TableS
 
   return (
     <div className="table-schema-panel">
-      <button type="button" className="back-button" onClick={onBack}>
-        <ArrowLeft size={14} />
+      <Button
+        type="button"
+        className="back-button"
+        variant="subtle"
+        size="compact-sm"
+        leftSection={<ArrowLeft size={14} />}
+        onClick={onBack}
+      >
         返回表列表
-      </button>
+      </Button>
       <div className="context-section">
-        <h2>{schema}.{table}</h2>
-        {detail?.comment ? <p className="context-hint">{detail.comment}</p> : null}
+        <Group gap={6}>
+          <Title order={3}>{schema}.{table}</Title>
+        </Group>
+        {detail?.comment ? <Text className="context-hint" size="xs" c="dimmed">{detail.comment}</Text> : null}
       </div>
-      {error ? <div className="inline-alert is-error">{error}</div> : null}
+      {error ? <Alert color="red" variant="light" title="读取表结构失败">{error}</Alert> : null}
       {detail ? (
         <div className="schema-table-wrap">
-          <table className="schema-table">
-            <thead>
-              <tr>
-                <th>字段</th>
-                <th>类型</th>
-                <th>可空</th>
-                <th>默认值</th>
-                <th>主键</th>
-                <th>注释</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="schema-table">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>字段</Table.Th>
+                <Table.Th>类型</Table.Th>
+                <Table.Th>可空</Table.Th>
+                <Table.Th>默认值</Table.Th>
+                <Table.Th>主键</Table.Th>
+                <Table.Th>注释</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {detail.columns.map((column) => (
-                <tr key={column.name}>
-                  <td>{column.name}</td>
-                  <td><code>{column.column_type ?? column.data_type}</code></td>
-                  <td>{column.nullable ? '是' : '否'}</td>
-                  <td>{column.default ?? '—'}</td>
-                  <td>{column.is_primary_key ? <KeyRound size={13} /> : '—'}</td>
-                  <td>{column.comment ?? '—'}</td>
-                </tr>
+                <Table.Tr key={column.name}>
+                  <Table.Td>{column.name}</Table.Td>
+                  <Table.Td><code>{column.column_type ?? column.data_type}</code></Table.Td>
+                  <Table.Td>{column.nullable ? '是' : '否'}</Table.Td>
+                  <Table.Td>{column.default ?? '—'}</Table.Td>
+                  <Table.Td>{column.is_primary_key ? <KeyRound size={13} /> : '—'}</Table.Td>
+                  <Table.Td>{column.comment ?? '—'}</Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
         </div>
-      ) : !error ? <div className="empty-panel">正在读取字段…</div> : null}
+      ) : !error ? <EmptyState icon={<Loader size="sm" />} title="正在读取字段…" /> : null}
     </div>
   )
 }

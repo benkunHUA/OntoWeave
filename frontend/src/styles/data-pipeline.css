@@ -159,26 +159,6 @@
   white-space: nowrap;
 }
 
-.pipeline-list__badge {
-  padding: 2px 6px;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  background: var(--raised);
-  white-space: nowrap;
-}
-
-.pipeline-list__badge.is-active {
-  color: var(--green);
-  background: var(--green-soft);
-}
-
-.pipeline-list__badge.is-draft {
-  color: var(--blue-ink);
-  background: var(--blue-soft);
-}
-
 .pipeline-list__error {
   margin: 8px 6px;
   padding: 8px 10px;

@@ -128,20 +128,6 @@
   white-space: nowrap;
 }
 
-.connection-list__badge {
-  padding: 2px 6px;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  background: var(--raised);
-}
-
-.connection-list__badge.is-active {
-  color: var(--green);
-  background: var(--green-soft);
-}
-
 .connection-list__empty {
   padding: 20px 12px;
   color: var(--faint);
@@ -153,36 +139,7 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
-.chat-header__status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  color: var(--green);
-  font-size: 11px;
-  font-weight: 800;
-  background: var(--green-soft);
-  white-space: nowrap;
-}
-
-.chat-header__status span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.chat-header__status.is-running {
-  color: var(--amber-ink);
-  background: var(--amber-soft);
-}
-
 .chat-empty--loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
   margin-top: 40px;
 }
 
@@ -231,12 +188,6 @@
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.operation-card__status {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
 }
 
 .operation-card__summary {
@@ -291,15 +242,6 @@
 
 .failure-details__toggle svg.is-open {
   transform: rotate(90deg);
-}
-
-.failure-details__code {
-  padding: 1px 5px;
-  border-radius: 4px;
-  color: var(--faint);
-  font-size: 9px;
-  font-weight: 600;
-  background: var(--raised);
 }
 
 .failure-details__content {

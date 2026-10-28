@@ -1,4 +1,5 @@
-import { AlertTriangle, CircleAlert, Info, RefreshCw, X } from 'lucide-react'
+import { Alert, Button, Group } from '@mantine/core'
+import { AlertTriangle, CircleAlert, Info, RefreshCw } from 'lucide-react'
 import type { MappingIssue } from '../../../../shared/types'
 import type { MappingFeedback } from './useMappingDraft'
 import { CANVAS_COPY } from './copy'
@@ -15,25 +16,34 @@ export function MappingBanners(props: MappingBannersProps) {
   return (
     <>
       {props.conflict ? (
-        <div className="mapping-banner is-error" role="alert">
-          <CircleAlert size={15} />
-          <span>{props.conflict}</span>
-          <button type="button" className="text-button" onClick={props.onRetry}><RefreshCw size={12} />{CANVAS_COPY.retry}</button>
-        </div>
+        <Alert className="mapping-banner" color="red" variant="light" icon={<CircleAlert size={15} />} role="alert">
+          <Group justify="space-between" gap="sm">
+            <span>{props.conflict}</span>
+            <Button type="button" variant="subtle" size="xs" leftSection={<RefreshCw size={12} />} onClick={props.onRetry}>{CANVAS_COPY.retry}</Button>
+          </Group>
+        </Alert>
       ) : null}
       {props.error ? (
-        <div className="mapping-banner is-error" role="alert">
-          <CircleAlert size={15} />
-          <span>{props.error}</span>
-          <button type="button" className="text-button" onClick={props.onRetry}><RefreshCw size={12} />{CANVAS_COPY.retry}</button>
-        </div>
+        <Alert className="mapping-banner" color="red" variant="light" icon={<CircleAlert size={15} />} role="alert">
+          <Group justify="space-between" gap="sm">
+            <span>{props.error}</span>
+            <Button type="button" variant="subtle" size="xs" leftSection={<RefreshCw size={12} />} onClick={props.onRetry}>{CANVAS_COPY.retry}</Button>
+          </Group>
+        </Alert>
       ) : null}
       {props.feedback ? (
-        <div className={`mapping-banner is-${props.feedback.tone}`} role="status">
-          {props.feedback.tone === 'error' ? <CircleAlert size={15} /> : <Info size={15} />}
-          <span>{props.feedback.message}</span>
-          <button type="button" className="text-button" onClick={props.onDismissFeedback} aria-label={CANVAS_COPY.close}><X size={12} /></button>
-        </div>
+        <Alert
+          className="mapping-banner"
+          color={props.feedback.tone === 'error' ? 'red' : 'blue'}
+          variant="light"
+          icon={props.feedback.tone === 'error' ? <CircleAlert size={15} /> : <Info size={15} />}
+          role="status"
+          withCloseButton
+          closeButtonLabel={CANVAS_COPY.close}
+          onClose={props.onDismissFeedback}
+        >
+          {props.feedback.message}
+        </Alert>
       ) : null}
     </>
   )

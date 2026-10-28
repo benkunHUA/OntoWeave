@@ -87,39 +87,6 @@
   background: var(--raised);
 }
 
-.pipeline-build-status {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 800;
-  background: var(--raised);
-  white-space: nowrap;
-}
-
-.pipeline-build-status.is-running,
-.pipeline-build-status.is-queued {
-  color: var(--blue-ink);
-  background: var(--blue-soft);
-}
-
-.pipeline-build-status.is-succeeded {
-  color: var(--green);
-  background: var(--green-soft);
-}
-
-.pipeline-build-status.is-failed {
-  color: var(--red);
-  background: var(--red-soft);
-}
-
-.pipeline-build-status.is-canceled {
-  color: var(--amber-ink);
-  background: var(--amber-soft);
-}
-
 .pipeline-build-confirm {
   display: grid;
   gap: 12px;
@@ -221,46 +188,9 @@
   background: #1b1b1b;
 }
 
-.pipeline-expectations {
-  display: grid;
-  gap: 5px;
-}
-
-.pipeline-expectations > header,
-.pipeline-expectation > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pipeline-expectations > header {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.pipeline-expectation {
-  padding: 7px 8px;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-}
-
 .pipeline-expectation.is-failed {
   border-color: rgba(255, 112, 112, 0.32);
   background: var(--red-soft);
-}
-
-.pipeline-expectation strong,
-.pipeline-expectation span,
-.pipeline-expectation p,
-.pipeline-expectation small {
-  font-size: 9px;
-}
-
-.pipeline-expectation p,
-.pipeline-expectation small {
-  margin-top: 3px;
-  color: var(--faint);
 }
 
 .pipeline-source-build-actions {

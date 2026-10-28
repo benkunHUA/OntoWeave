@@ -1,3 +1,12 @@
+import {
+  ActionIcon,
+  Badge,
+  Group,
+  Stack,
+  Tabs,
+  Text,
+  Title,
+} from '@mantine/core'
 import { Database, Pencil, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import type {
@@ -8,6 +17,7 @@ import type {
 } from '../../../../shared/types'
 import { CONTEXT_TABS, type ContextTab } from '../../lib/constants'
 import { CONNECTION_STATUS_LABELS, MISSING_STEP_LABELS, TEST_STATUS_LABELS } from '../../lib/labels'
+import { EmptyState } from '../../../../shared/components/EmptyState'
 import type { ConnectionFormValues } from '../../lib/validation'
 import { ConnectionForm } from './ConnectionForm'
 import { ConnectionOverview } from './ConnectionOverview'
@@ -59,11 +69,12 @@ export function ContextPanel({
   if (!state) {
     return (
       <aside className="context-panel">
-        <div className="context-empty">
-          <Database size={24} />
-          <strong>新建连接后在这里配置</strong>
-          <p>{error ?? (isLoading ? '正在读取连接状态…' : '左侧选择或新建一个数据连接。')}</p>
-        </div>
+        <EmptyState
+          className="context-empty"
+          icon={<Database size={22} />}
+          title="新建连接后在这里配置"
+          body={error ?? (isLoading ? '正在读取连接状态…' : '左侧选择或新建一个数据连接。')}
+        />
       </aside>
     )
   }
@@ -73,35 +84,35 @@ export function ContextPanel({
 
   return (
     <aside className="context-panel">
-      <header className="context-panel__header">
-        <div>
-          <span className="eyebrow">{connection.kind.toUpperCase()}</span>
-          <h1>{connection.name}</h1>
-          <div className="context-panel__badges">
-            <span className={`status-pill is-${connection.status}`}>
+      <Group className="context-panel__header" justify="space-between" align="flex-start" wrap="nowrap">
+        <Stack gap="xs">
+          <Text className="eyebrow" size="xs" c="dimmed">{connection.kind.toUpperCase()}</Text>
+          <Title order={1}>{connection.name}</Title>
+          <Group className="context-panel__badges" gap={6}>
+            <Badge color={connection.status === 'active' ? 'teal' : 'gray'} variant="light">
               {CONNECTION_STATUS_LABELS[connection.status]}
-            </span>
-            <span className={`status-pill is-test-${connection.last_test_status}`}>
+            </Badge>
+            <Badge color={connection.last_test_status === 'success' ? 'teal' : connection.last_test_status === 'failed' ? 'red' : 'gray'} variant="light">
               {TEST_STATUS_LABELS[connection.last_test_status]}
-            </span>
+            </Badge>
             {state.missing_steps.slice(0, 2).map((step) => (
-              <span key={step} className="missing-step-pill">
+              <Badge key={step} color="yellow" variant="light">
                 {MISSING_STEP_LABELS[step as keyof typeof MISSING_STEP_LABELS] ?? step}
-              </span>
+              </Badge>
             ))}
-          </div>
-        </div>
-        <div className="context-panel__tools">
-          <button type="button" className="icon-button" aria-label="刷新状态" onClick={() => void onRefresh()}>
+          </Group>
+        </Stack>
+        <Group className="context-panel__tools" gap="xs">
+          <ActionIcon type="button" variant="subtle" color="gray" aria-label="刷新状态" onClick={() => void onRefresh()}>
             <RefreshCw size={15} className={isRefreshing ? 'is-spinning' : ''} />
-          </button>
+          </ActionIcon>
           {connection.status === 'active' && !showForm ? (
-            <button type="button" className="icon-button" aria-label="编辑连接" onClick={() => setEditing(true)}>
+            <ActionIcon type="button" variant="subtle" color="gray" aria-label="编辑连接" onClick={() => setEditing(true)}>
               <Pencil size={15} />
-            </button>
+            </ActionIcon>
           ) : null}
-        </div>
-      </header>
+        </Group>
+      </Group>
 
       {showForm ? (
         <div className="context-panel__body">
@@ -125,22 +136,24 @@ export function ContextPanel({
         </div>
       ) : (
         <>
-          <nav className="context-tabs" aria-label="连接上下文">
-            {CONTEXT_TABS.map((item) => (
-              <button
-                type="button"
-                key={item.id}
-                className={tab === item.id ? 'is-active' : ''}
-                onClick={() => {
-                  setTab(item.id)
-                  setSchemaTarget(null)
-                  if (item.id === 'tables') void onReloadTables()
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
+          <Tabs
+            className="context-tabs"
+            value={tab}
+            onChange={(value) => {
+              if (!value) return
+              const next = value as ContextTab
+              setTab(next)
+              setSchemaTarget(null)
+              if (next === 'tables') void onReloadTables()
+            }}
+            aria-label="连接上下文"
+          >
+            <Tabs.List>
+              {CONTEXT_TABS.map((item) => (
+                <Tabs.Tab key={item.id} value={item.id}>{item.label}</Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs>
           <div className="context-panel__body">
             {tab === 'overview' ? (
               <ConnectionOverview
@@ -203,7 +216,7 @@ function DatasetsTab({
       {datasets.length ? (
         <DatasetList datasets={datasets} runs={runs} onSelect={onSelect} />
       ) : (
-        <div className="empty-panel">同步成功后，数据集会显示在这里</div>
+        <EmptyState title="同步成功后，数据集会显示在这里" />
       )}
     </div>
   )

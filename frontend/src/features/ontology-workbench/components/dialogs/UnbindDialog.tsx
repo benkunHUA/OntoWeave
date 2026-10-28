@@ -1,6 +1,7 @@
+import { Button, Checkbox } from '@mantine/core'
 import { Unlink } from 'lucide-react'
 import { useState } from 'react'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { UNBIND_DIALOG_COPY } from './constants'
 import { useConfirmOnce } from './useConfirmOnce'
 
@@ -35,17 +36,18 @@ export function UnbindDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="secondary-button" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="default" onClick={onCancel} disabled={isSubmitting}>
             {UNBIND_DIALOG_COPY.cancel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="danger-button"
+            color="red"
             onClick={confirm}
             disabled={isSubmitting || !acknowledged}
+            leftSection={<Unlink size={14} />}
           >
-            <Unlink size={14} /> {isSubmitting ? UNBIND_DIALOG_COPY.submitting : UNBIND_DIALOG_COPY.confirm}
-          </button>
+            {isSubmitting ? UNBIND_DIALOG_COPY.submitting : UNBIND_DIALOG_COPY.confirm}
+          </Button>
         </>
       }
     >
@@ -62,15 +64,13 @@ export function UnbindDialog({
           </div>
         </dl>
         <p className="ontology-confirm-dialog__warning">{UNBIND_DIALOG_COPY.warning}</p>
-        <label className="ontology-confirm-dialog__ack">
-          <input
-            type="checkbox"
-            checked={acknowledged}
-            onChange={(event) => setAcknowledged(event.target.checked)}
-            disabled={isSubmitting}
-          />
-          {UNBIND_DIALOG_COPY.acknowledgement}
-        </label>
+        <Checkbox
+          className="ontology-confirm-dialog__ack"
+          checked={acknowledged}
+          onChange={(event) => setAcknowledged(event.currentTarget.checked)}
+          disabled={isSubmitting}
+          label={UNBIND_DIALOG_COPY.acknowledgement}
+        />
         {error ? <p className="ontology-confirm-dialog__error" role="alert">{error}</p> : null}
       </div>
     </DialogShell>

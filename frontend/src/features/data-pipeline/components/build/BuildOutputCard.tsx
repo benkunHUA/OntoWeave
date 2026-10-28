@@ -1,3 +1,4 @@
+import { Anchor, Button, Code, Group, Paper, Stack, Text } from '@mantine/core'
 import type { PipelineBuildOutput } from '../../../../shared/types'
 import { useState } from 'react'
 import {
@@ -23,37 +24,37 @@ export function BuildOutputCard({ pipelineId, output, name, onOpenBuild }: Build
   const [datasetOpen, setDatasetOpen] = useState(false)
   const published = Boolean(output.dataset_id && output.dataset_version_id)
   return (
-    <article className="pipeline-build-output">
-      <header>
-        <div>
-          <strong>{name ?? `输出 ${shortId(output.output_id)}`}</strong>
-          <small>{BUILD_COPY.outputTitle} · {shortId(output.output_id)}</small>
-        </div>
+    <Paper component="article" className="pipeline-build-output" withBorder p="sm" radius="md">
+      <Group component="header" justify="space-between" align="flex-start" gap="xs">
+        <Stack gap={2}>
+          <Text component="strong" size="sm">{name ?? `输出 ${shortId(output.output_id)}`}</Text>
+          <Text component="small" size="xs" c="dimmed">{BUILD_COPY.outputTitle} · {shortId(output.output_id)}</Text>
+        </Stack>
         <BuildStatusBadge status={output.status} />
-      </header>
-      <div className="pipeline-build-output-meta">
-        <span>{buildStageLabel(output.stage)}</span>
-        <span>{formatCount(outputRowCount(output))} 行</span>
-        {outputElapsedLabel(output) ? <span>{outputElapsedLabel(output)}</span> : null}
-      </div>
+      </Group>
+      <Group className="pipeline-build-output-meta" gap="xs">
+        <Text component="span" size="xs" c="dimmed">{buildStageLabel(output.stage)}</Text>
+        <Text component="span" size="xs" c="dimmed">{formatCount(outputRowCount(output))} 行</Text>
+        {outputElapsedLabel(output) ? <Text component="span" size="xs" c="dimmed">{outputElapsedLabel(output)}</Text> : null}
+      </Group>
       <ExpectationResults output={output} />
-      <section className="pipeline-build-diagnostics">
-        <strong>{BUILD_COPY.diagnostics}</strong>
+      <Stack className="pipeline-build-diagnostics" gap={4}>
+        <Text component="strong" size="xs">{BUILD_COPY.diagnostics}</Text>
         {output.log_uri ? (
-          <a className="pipeline-build-log-link" href={output.log_uri} target="_blank" rel="noreferrer">
+          <Anchor className="pipeline-build-log-link" href={output.log_uri} target="_blank" rel="noreferrer" size="xs">
             {BUILD_COPY.logOpen}
-          </a>
-        ) : <small>{BUILD_COPY.logMissing}</small>}
+          </Anchor>
+        ) : <Text component="small" size="xs" c="dimmed">{BUILD_COPY.logMissing}</Text>}
         {output.error_message || output.error_code ? (
-          <p>{output.error_code ? `${output.error_code} · ` : ''}{output.error_message}</p>
-        ) : <p>{BUILD_COPY.noDiagnostics}</p>}
-        {output.engine_job_id ? <small>引擎作业：{output.engine_job_id}</small> : null}
-        {output.stats ? <pre>{JSON.stringify(output.stats, null, 2)}</pre> : null}
-      </section>
+          <Text size="xs" c="red">{output.error_code ? `${output.error_code} · ` : ''}{output.error_message}</Text>
+        ) : <Text size="xs" c="dimmed">{BUILD_COPY.noDiagnostics}</Text>}
+        {output.engine_job_id ? <Text component="small" size="xs" c="dimmed">引擎作业：{output.engine_job_id}</Text> : null}
+        {output.stats ? <Code block>{JSON.stringify(output.stats, null, 2)}</Code> : null}
+      </Stack>
       {published ? (
-        <button type="button" className="secondary-button" onClick={() => setDatasetOpen(true)}>
+        <Button type="button" variant="default" size="xs" onClick={() => setDatasetOpen(true)}>
           {BUILD_COPY.outputDataset}
-        </button>
+        </Button>
       ) : null}
       {datasetOpen && output.dataset_id && output.dataset_version_id ? (
         <OutputDatasetDialog
@@ -64,6 +65,6 @@ export function BuildOutputCard({ pipelineId, output, name, onOpenBuild }: Build
           onOpenBuild={onOpenBuild}
         />
       ) : null}
-    </article>
+    </Paper>
   )
 }

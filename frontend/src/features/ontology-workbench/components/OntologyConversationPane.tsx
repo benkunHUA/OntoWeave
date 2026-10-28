@@ -1,4 +1,6 @@
-import { Network, Sparkles } from 'lucide-react'
+import { Loader } from '@mantine/core'
+import { CircleCheck, Network, Sparkles } from 'lucide-react'
+import { ChatPaneHeader } from '../../../shared/chat/components/ChatPaneHeader'
 import { Composer } from '../../../shared/chat/components/Composer'
 import { ConversationTimeline } from '../../../shared/chat/components/ConversationTimeline'
 import { ErrorToast } from '../../../shared/chat/components/ErrorToast'
@@ -41,16 +43,13 @@ export function OntologyConversationPane({
 }: OntologyConversationPaneProps) {
   return (
     <section className="chat-pane ontology-chat-pane">
-      <header className="chat-header">
-        <div>
-          <span className="eyebrow">{CONVERSATION_COPY.eyebrow}</span>
-          <h1>{resource ? `${resource.name} 映射` : CONVERSATION_COPY.title}</h1>
-        </div>
-        <span className={`chat-header__status ${isRunning ? 'is-running' : ''}`}>
-          <span />
-          {isRunning ? '处理中' : '在线'}
-        </span>
-      </header>
+      <ChatPaneHeader
+        eyebrow={CONVERSATION_COPY.eyebrow}
+        title={resource ? `${resource.name} 映射` : CONVERSATION_COPY.title}
+        status={isRunning ? '处理中' : '在线'}
+        statusColor={isRunning ? 'blue' : 'teal'}
+        statusIcon={isRunning ? <Loader size={12} /> : <CircleCheck size={12} />}
+      />
 
       <ConversationTimeline
         messages={messages}

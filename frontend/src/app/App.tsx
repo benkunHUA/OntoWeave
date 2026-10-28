@@ -1,4 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
+import { Center, Loader, Stack, Text } from '@mantine/core'
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import '@xyflow/react/dist/style.css'
@@ -60,7 +61,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Suspense fallback={<div className="route-loading">正在打开工作台…</div>}>
+        <Suspense fallback={(
+          <Center className="route-loading" h="100vh">
+            <Stack align="center" gap="sm">
+              <Loader size="sm" />
+              <Text size="sm" c="dimmed">正在打开工作台…</Text>
+            </Stack>
+          </Center>
+        )}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/modeling" element={<ModelingPage />} />

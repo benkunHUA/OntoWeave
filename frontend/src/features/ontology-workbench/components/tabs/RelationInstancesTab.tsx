@@ -1,3 +1,4 @@
+import { Button, Group, TextInput } from '@mantine/core'
 import { ArrowRight, Search } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { httpErrorText } from '../../../../shared/api/errors'
@@ -123,29 +124,29 @@ export function RelationInstancesTab({ resource }: ResourceTabProps) {
           applyFilters()
         }}
       >
-        <label>
-          <span>{INSTANCE_COPY.fromKey}</span>
-          <input
-            value={fromDraft}
-            placeholder={fromName}
-            onChange={(event) => setFromDraft(event.target.value)}
-          />
-        </label>
+        <TextInput
+          label={INSTANCE_COPY.fromKey}
+          value={fromDraft}
+          placeholder={fromName}
+          onChange={(event) => setFromDraft(event.currentTarget.value)}
+          size="xs"
+        />
         <span className="ontology-instance-filters__arrow"><ArrowRight size={14} /></span>
-        <label>
-          <span>{INSTANCE_COPY.toKey}</span>
-          <input
-            value={toDraft}
-            placeholder={toName}
-            onChange={(event) => setToDraft(event.target.value)}
-          />
-        </label>
-        <button type="submit" className="primary-button" disabled={isLoading}>
-          <Search size={13} /> {INSTANCE_COPY.search}
-        </button>
-        <button type="button" className="secondary-button" onClick={clearFilters} disabled={isLoading}>
-          {INSTANCE_COPY.clear}
-        </button>
+        <TextInput
+          label={INSTANCE_COPY.toKey}
+          value={toDraft}
+          placeholder={toName}
+          onChange={(event) => setToDraft(event.currentTarget.value)}
+          size="xs"
+        />
+        <Group gap="xs" align="flex-end">
+          <Button type="submit" size="xs" leftSection={<Search size={13} />} disabled={isLoading}>
+            {INSTANCE_COPY.search}
+          </Button>
+          <Button type="button" variant="default" size="xs" onClick={clearFilters} disabled={isLoading}>
+            {INSTANCE_COPY.clear}
+          </Button>
+        </Group>
       </form>
 
       <ObjectTable

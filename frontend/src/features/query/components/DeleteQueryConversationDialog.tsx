@@ -1,6 +1,6 @@
 import { Button } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
-import { DialogShell } from '../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../shared/components/dialogs/DialogShell'
 import { QUERY_COPY } from '../lib/constants'
 
 interface DeleteQueryConversationDialogProps {

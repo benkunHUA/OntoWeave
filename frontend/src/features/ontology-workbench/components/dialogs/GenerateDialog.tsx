@@ -1,5 +1,6 @@
+import { Button } from '@mantine/core'
 import { Play } from 'lucide-react'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { GENERATE_DIALOG_COPY } from './constants'
 import { useConfirmOnce } from './useConfirmOnce'
 
@@ -34,12 +35,17 @@ export function GenerateDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="secondary-button" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="default" onClick={onCancel} disabled={isSubmitting}>
             {GENERATE_DIALOG_COPY.cancel}
-          </button>
-          <button type="button" className="primary-button" onClick={confirm} disabled={isSubmitting}>
-            <Play size={14} /> {isSubmitting ? GENERATE_DIALOG_COPY.submitting : GENERATE_DIALOG_COPY.confirm}
-          </button>
+          </Button>
+          <Button
+            type="button"
+            leftSection={<Play size={14} />}
+            onClick={confirm}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? GENERATE_DIALOG_COPY.submitting : GENERATE_DIALOG_COPY.confirm}
+          </Button>
         </>
       }
     >

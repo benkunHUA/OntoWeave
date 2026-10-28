@@ -1,4 +1,4 @@
-import { ActionIcon, Button } from '@mantine/core'
+import { ActionIcon, Alert, Button, Group, Text, UnstyledButton } from '@mantine/core'
 import { AlertTriangle, KeyRound, RefreshCw, SlidersHorizontal, Table2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -6,6 +6,7 @@ import {
   NativeSelectField,
   SearchField,
 } from '../../../../shared/components/form/controls'
+import { EmptyState } from '../../../../shared/components/EmptyState'
 import type {
   SyncMode,
   SyncRun,
@@ -164,10 +165,9 @@ export function TablePicker({
       </div>
 
       {warnings.map((warning) => (
-        <div key={warning} className="inline-alert">
-          <AlertTriangle size={14} />
-          <span>{warning}</span>
-        </div>
+        <Alert key={warning} color="yellow" variant="light" icon={<AlertTriangle size={14} />}>
+          <Text size="xs">{warning}</Text>
+        </Alert>
       ))}
 
       <ul className="table-list">
@@ -190,9 +190,9 @@ export function TablePicker({
                   aria-label={`选择 ${table.schema}.${table.name}`}
                 />
                 <Table2 size={15} />
-                <button type="button" className="table-row__name" onClick={() => onOpenSchema(table.schema, table.name)}>
+                <UnstyledButton type="button" className="table-row__name" onClick={() => onOpenSchema(table.schema, table.name)}>
                   {table.schema}.{table.name}
-                </button>
+                </UnstyledButton>
                 {running ? (
                   <span className="table-row__running">运行中</span>
                 ) : table.has_primary_key ? (
@@ -257,28 +257,30 @@ export function TablePicker({
         })}
       </ul>
 
-      {!filtered.length ? <div className="empty-panel">没有可选的数据表</div> : null}
+      {!filtered.length ? <EmptyState title="没有可选的数据表" /> : null}
 
       <div className="context-footer">
-        <span className="selection-count">
+        <Text className="selection-count" size="xs" c="dimmed">
           {hasRunningSelection ? '选中的表正在同步，请先停止运行' : `已选 ${selectedCount} 张表`}
-        </span>
-        <Button
-          type="button"
-          variant="default"
-          disabled={isBusy || selectedCount === 0}
-          onClick={() => void submit(false)}
-        >
-          仅保存选择
-        </Button>
-        <Button
-          type="button"
-          disabled={isBusy || selectedCount === 0 || hasRunningSelection}
-          loading={isBusy}
-          onClick={() => void submit(true)}
-        >
-          {isBusy ? '处理中…' : hasRunningSelection ? '请先停止运行中的表' : '保存并开始同步'}
-        </Button>
+        </Text>
+        <Group gap="xs" wrap="nowrap">
+          <Button
+            type="button"
+            variant="default"
+            disabled={isBusy || selectedCount === 0}
+            onClick={() => void submit(false)}
+          >
+            仅保存选择
+          </Button>
+          <Button
+            type="button"
+            disabled={isBusy || selectedCount === 0 || hasRunningSelection}
+            loading={isBusy}
+            onClick={() => void submit(true)}
+          >
+            {isBusy ? '处理中…' : hasRunningSelection ? '请先停止运行中的表' : '保存并开始同步'}
+          </Button>
+        </Group>
       </div>
     </div>
   )

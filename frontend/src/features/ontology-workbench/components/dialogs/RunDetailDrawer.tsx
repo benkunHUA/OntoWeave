@@ -1,3 +1,4 @@
+import { ActionIcon, Alert, Button, Group, Text, Title } from '@mantine/core'
 import { Ban, RefreshCw, X } from 'lucide-react'
 import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
 import { RUN_STATUS_LABELS, isActiveRun } from '../../lib/constants'
@@ -57,16 +58,16 @@ export function RunDetailDrawer({
       <header className="ontology-run-drawer__head">
         <div>
           <span className="eyebrow">{RUN_DETAIL_COPY.title}</span>
-          <strong><code>{run.id}</code></strong>
+          <Text component="strong" size="sm"><code>{run.id}</code></Text>
         </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label={RUN_DETAIL_COPY.close} onClick={onClose}>
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label={RUN_DETAIL_COPY.close} onClick={onClose}>
           <X size={16} />
-        </button>
+        </ActionIcon>
       </header>
 
       <div className="ontology-run-drawer__body">
-        {isLoading ? <p className="ontology-run-drawer__loading">{RUN_DETAIL_COPY.loading}</p> : null}
-        {error ? <p className="ontology-detail-error" role="alert">{error}</p> : null}
+        {isLoading ? <Text className="ontology-run-drawer__loading" size="xs" c="dimmed">{RUN_DETAIL_COPY.loading}</Text> : null}
+        {error ? <Alert color="red" variant="light" role="alert"><Text size="xs">{error}</Text></Alert> : null}
 
         <dl className="ontology-run-facts">
           {fact(RUN_DETAIL_COPY.status, RUN_STATUS_LABELS[run.status] ?? run.status)}
@@ -94,24 +95,26 @@ export function RunDetailDrawer({
         ) : null}
 
         <section className="ontology-run-samples">
-          <h3>{RUN_DETAIL_COPY.samples}</h3>
+          <Title order={4}>{RUN_DETAIL_COPY.samples}</Title>
           {samples.length ? (
             <ol>{samples.map((sample, index) => <li key={`${index}-${sample}`}><code>{sample}</code></li>)}</ol>
-          ) : <p>{RUN_DETAIL_COPY.noSamples}</p>}
+          ) : <Text size="xs" c="dimmed">{RUN_DETAIL_COPY.noSamples}</Text>}
         </section>
       </div>
 
       <footer className="ontology-run-drawer__foot">
-        {run.status === 'FAILED' && onRetry ? (
-          <button type="button" className="secondary-button" onClick={() => onRetry(run)}>
-            <RefreshCw size={13} /> {RUN_DETAIL_COPY.retry}
-          </button>
-        ) : null}
-        {isActiveRun(run) && onCancel ? (
-          <button type="button" className="danger-button" onClick={() => onCancel(run)}>
-            <Ban size={13} /> {RUN_DETAIL_COPY.cancel}
-          </button>
-        ) : null}
+        <Group gap="xs" justify="flex-end">
+          {run.status === 'FAILED' && onRetry ? (
+            <Button type="button" variant="default" size="xs" leftSection={<RefreshCw size={13} />} onClick={() => onRetry(run)}>
+              {RUN_DETAIL_COPY.retry}
+            </Button>
+          ) : null}
+          {isActiveRun(run) && onCancel ? (
+            <Button type="button" color="red" variant="light" size="xs" leftSection={<Ban size={13} />} onClick={() => onCancel(run)}>
+              {RUN_DETAIL_COPY.cancel}
+            </Button>
+          ) : null}
+        </Group>
       </footer>
     </aside>
   )

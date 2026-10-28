@@ -1,3 +1,4 @@
+import { Button, Group, Paper, Text, Title } from '@mantine/core'
 import { CANVAS_COPY } from './copy'
 
 interface MappingConfirmDialogProps {
@@ -10,14 +11,14 @@ interface MappingConfirmDialogProps {
 export function MappingConfirmDialog(props: MappingConfirmDialogProps) {
   return (
     <div className="mapping-confirm-backdrop" role="presentation">
-      <section className="mapping-confirm" role="dialog" aria-modal="true" aria-labelledby="mapping-confirm-title">
-        <h2 id="mapping-confirm-title">{props.title}</h2>
-        <p>{props.body}</p>
-        <div className="mapping-confirm__actions">
-          <button type="button" className="secondary-button" onClick={props.onCancel}>{CANVAS_COPY.cancel}</button>
-          <button type="button" className="primary-button" onClick={props.onConfirm}>{CANVAS_COPY.confirm}</button>
-        </div>
-      </section>
+      <Paper className="mapping-confirm" role="dialog" aria-modal="true" aria-labelledby="mapping-confirm-title" withBorder radius="lg" p="lg">
+        <Title id="mapping-confirm-title" order={3}>{props.title}</Title>
+        <Text size="sm" c="dimmed" mt="xs">{props.body}</Text>
+        <Group className="mapping-confirm__actions" justify="flex-end" gap="xs" mt="md">
+          <Button type="button" variant="default" onClick={props.onCancel}>{CANVAS_COPY.cancel}</Button>
+          <Button type="button" onClick={props.onConfirm}>{CANVAS_COPY.confirm}</Button>
+        </Group>
+      </Paper>
     </div>
   )
 }

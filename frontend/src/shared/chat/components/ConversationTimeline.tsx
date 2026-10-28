@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import type { ChatMessage, ConversationEvent, InterruptOption } from '../../types'
+import { EmptyState } from '../../components/EmptyState'
 import type { PendingInterrupt } from '../lib/messageBlocks'
 import { ChatScrollArea } from './ChatScrollArea'
 import { MessageBubble } from './MessageBubble'
@@ -77,11 +78,12 @@ export function ConversationTimeline({
   return (
     <ChatScrollArea resetKey={scrollKey}>
       {!timeline.length && !isLoading && emptyTitle ? (
-        <div className="chat-empty">
-          {emptyIcon}
-          <strong>{emptyTitle}</strong>
-          {emptyBody ? <p>{emptyBody}</p> : null}
-        </div>
+        <EmptyState
+          className="chat-empty"
+          icon={emptyIcon}
+          title={emptyTitle}
+          body={emptyBody}
+        />
       ) : null}
 
       {timeline.map((item) => {
@@ -108,10 +110,11 @@ export function ConversationTimeline({
       })}
 
       {isLoading ? (
-        <div className="chat-empty chat-empty--loading">
-          {loadingIcon}
-          <span>{loadingLabel ?? '正在读取会话…'}</span>
-        </div>
+        <EmptyState
+          className="chat-empty chat-empty--loading"
+          icon={loadingIcon}
+          title={loadingLabel ?? '正在读取会话…'}
+        />
       ) : null}
     </ChatScrollArea>
   )

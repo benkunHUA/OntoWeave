@@ -112,6 +112,12 @@ cd backend
 cp .env.example .env
 ```
 
+`backend/.env` 会由 Docker Compose 注入 `app` 容器；修改模型配置后重启后端：
+
+```bash
+docker compose up -d --force-recreate app
+```
+
 | 组 | 变量 | 用途 |
 |---|---|---|
 | 数据库 | `DATABASE_URL` / `POSTGRES_*` | 本地默认值可直接用 |

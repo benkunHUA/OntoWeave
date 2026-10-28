@@ -1,3 +1,4 @@
+import { Group, Paper, Text, UnstyledButton } from '@mantine/core'
 import { Brain, ChevronRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
@@ -18,8 +19,8 @@ export function ThinkingBlock({ text, done }: ThinkingBlockProps) {
   }, [done])
 
   return (
-    <div className={`thinking-block ${done ? '' : 'is-live'}`}>
-      <button
+    <Paper className={`thinking-block ${done ? '' : 'is-live'}`} withBorder radius="md" p="xs">
+      <UnstyledButton
         type="button"
         className="thinking-block__head"
         aria-expanded={open}
@@ -28,11 +29,17 @@ export function ThinkingBlock({ text, done }: ThinkingBlockProps) {
           setOpen((value) => !value)
         }}
       >
-        <Brain size={13} />
-        <span>{done ? '思考过程' : '正在思考…'}</span>
-        <ChevronRight size={13} className={open ? 'is-open' : ''} />
-      </button>
-      {open ? <div className="thinking-block__body">{text}</div> : null}
-    </div>
+        <Group gap={6} wrap="nowrap" justify="space-between">
+          <Group gap={6} wrap="nowrap">
+            <Brain size={13} />
+            <Text component="span" size="xs" fw={600}>
+              {done ? '思考过程' : '正在思考…'}
+            </Text>
+          </Group>
+          <ChevronRight size={13} className={open ? 'is-open' : ''} />
+        </Group>
+      </UnstyledButton>
+      {open ? <Text className="thinking-block__body" size="xs">{text}</Text> : null}
+    </Paper>
   )
 }

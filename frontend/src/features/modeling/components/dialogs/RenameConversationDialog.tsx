@@ -1,7 +1,7 @@
 import { Button } from '@mantine/core'
 import { ChevronLeft, Pencil } from 'lucide-react'
 import { TextField } from '../../../../shared/components/form/controls'
-import { DialogShell } from './DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 
 interface RenameConversationDialogProps {
   title: string

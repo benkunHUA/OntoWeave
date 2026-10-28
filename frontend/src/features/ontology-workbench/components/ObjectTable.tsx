@@ -1,3 +1,14 @@
+import {
+  ActionIcon,
+  Alert,
+  Button,
+  Group,
+  Loader,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+} from '@mantine/core'
 import { ChevronLeft, ChevronRight, LoaderCircle, RefreshCw } from 'lucide-react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -97,63 +108,75 @@ export function ObjectTable<T>({
   return (
     <div className="ontology-object-table">
       {versionNotice ? (
-        <div className="ontology-data-notice" role="status">
-          <span>{versionNotice}</span>
-          {onDismissVersionNotice ? (
-            <button type="button" onClick={onDismissVersionNotice}>知道了</button>
-          ) : null}
-        </div>
+        <Alert className="ontology-data-notice" color="blue" variant="light" role="status">
+          <Group justify="space-between" gap="sm">
+            <Text size="xs">{versionNotice}</Text>
+            {onDismissVersionNotice ? (
+              <Button type="button" variant="subtle" size="xs" onClick={onDismissVersionNotice}>知道了</Button>
+            ) : null}
+          </Group>
+        </Alert>
       ) : null}
 
       {error ? (
-        <div className="ontology-data-state is-error" role="alert">
-          <strong>数据读取失败</strong>
-          <span>{error}</span>
-          {onRetry ? (
-            <button type="button" className="secondary-button" onClick={onRetry}>
-              <RefreshCw size={13} /> {PAGE_COPY.retry}
-            </button>
-          ) : null}
-        </div>
+        <Alert className="ontology-data-state" color="red" variant="light" title="数据读取失败" role="alert">
+          <Stack gap="sm">
+            <Text size="xs">{error}</Text>
+            {onRetry ? (
+              <Button
+                type="button"
+                variant="default"
+                size="xs"
+                leftSection={<RefreshCw size={13} />}
+                onClick={onRetry}
+                w="fit-content"
+              >
+                {PAGE_COPY.retry}
+              </Button>
+            ) : null}
+          </Stack>
+        </Alert>
       ) : (
         <div className="ontology-object-table__scroll">
-          <table aria-label={ariaLabel}>
-            <thead>
-              <tr>
+          <Table aria-label={ariaLabel}>
+            <Table.Thead>
+              <Table.Tr>
                 {columns.map((column) => (
-                  <th key={column.key} className={column.className} scope="col">{column.header}</th>
+                  <Table.Th key={column.key} className={column.className} scope="col">{column.header}</Table.Th>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {isLoading && !items.length ? (
-                <tr>
-                  <td colSpan={columns.length} className="ontology-object-table__state">
-                    <LoaderCircle size={16} className="is-spinning" /> {loadingText}
-                  </td>
-                </tr>
+                <Table.Tr>
+                  <Table.Td colSpan={columns.length} className="ontology-object-table__state">
+                    <Group gap="xs" justify="center"><Loader size="sm" /> <Text size="xs">{loadingText}</Text></Group>
+                  </Table.Td>
+                </Table.Tr>
               ) : null}
               {!isLoading && !items.length ? (
-                <tr>
-                  <td colSpan={columns.length} className="ontology-object-table__state">
-                    <strong>{emptyTitle}</strong>
-                    <span>{emptyBody}</span>
-                  </td>
-                </tr>
+                <Table.Tr>
+                  <Table.Td colSpan={columns.length} className="ontology-object-table__state">
+                    <Stack gap={2} align="center">
+                      <Text component="strong" size="sm">{emptyTitle}</Text>
+                      <Text component="span" size="xs" c="dimmed">{emptyBody}</Text>
+                    </Stack>
+                  </Table.Td>
+                </Table.Tr>
               ) : null}
               {items.map((item) => (
-                <tr
+                <Table.Tr
                   key={getRowKey(item)}
                   className={onRowClick ? 'is-clickable' : undefined}
                   {...clickableRowProps(onRowClick ? () => onRowClick(item) : undefined)}
                 >
                   {columns.map((column) => (
-                    <td key={column.key} className={column.className}>{column.render(item)}</td>
+                    <Table.Td key={column.key} className={column.className}>{column.render(item)}</Table.Td>
                   ))}
-                </tr>
+                </Table.Tr>
               ))}
-            </tbody>
-          </table>
+            </Table.Tbody>
+          </Table>
           {isLoading && items.length ? (
             <div className="ontology-object-table__refreshing">
               <LoaderCircle size={13} className="is-spinning" /> {PAGE_COPY.refreshing}
@@ -163,20 +186,22 @@ export function ObjectTable<T>({
       )}
 
       <footer className="ontology-object-table__footer">
-        <span>{totalLabel ?? PAGE_COPY.total(total)}</span>
-        <div className="ontology-object-table__pager">
-          <button
+        <Text size="xs" c="dimmed">{totalLabel ?? PAGE_COPY.total(total)}</Text>
+        <Group className="ontology-object-table__pager" gap="xs">
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="gray"
+            size="sm"
             aria-label={PAGE_COPY.previous}
             disabled={isLoading || clampedPage <= 1}
             onClick={() => onPageChange(clampedPage - 1)}
           >
             <ChevronLeft size={15} />
-          </button>
-          <label>
-            {PAGE_COPY.jump}
-            <input
+          </ActionIcon>
+          <Group gap={4} wrap="nowrap">
+            <Text size="xs" c="dimmed">{PAGE_COPY.jump}</Text>
+            <TextInput
               aria-label="页码"
               inputMode="numeric"
               value={pageInput}
@@ -186,19 +211,23 @@ export function ObjectTable<T>({
                 if (event.key === 'Enter') commitPageInput()
               }}
               disabled={isLoading}
+              size="xs"
+              w={54}
             />
-            / {pageCount} {PAGE_COPY.page}
-          </label>
-          <button
+            <Text size="xs" c="dimmed">/ {pageCount} {PAGE_COPY.page}</Text>
+          </Group>
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="gray"
+            size="sm"
             aria-label={PAGE_COPY.next}
             disabled={isLoading || clampedPage >= pageCount}
             onClick={() => onPageChange(clampedPage + 1)}
           >
             <ChevronRight size={15} />
-          </button>
-        </div>
+          </ActionIcon>
+        </Group>
       </footer>
     </div>
   )

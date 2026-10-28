@@ -1,3 +1,4 @@
+import { Box } from '@mantine/core'
 import { MessageBubble } from '../../../shared/chat/components/MessageBubble'
 import type { ChatMessage, InterruptOption } from '../../../shared/types'
 import { evidenceFromMessage } from '../lib/evidence'
@@ -19,7 +20,7 @@ export function QueryMessageBubble({
 }: QueryMessageBubbleProps) {
   const evidence = message.role === 'assistant' ? evidenceFromMessage(message) : []
   return (
-    <div className="query-message">
+    <Box className="query-message">
       <MessageBubble
         message={message}
         pendingInterruptId={pendingInterruptId}
@@ -27,6 +28,6 @@ export function QueryMessageBubble({
         onAnswer={onAnswer}
       />
       <QueryEvidence evidence={evidence} />
-    </div>
+    </Box>
   )
 }

@@ -1,3 +1,4 @@
+import { Button, Stack, Text } from '@mantine/core'
 import { ExternalLink } from 'lucide-react'
 import type { PipelineScheduleRun } from '../../../../shared/types'
 import { SCHEDULE_COPY } from '../../lib/executionConstants'
@@ -19,23 +20,28 @@ export function ScheduleRunList({ runs, timeZone, onOpenBuild }: ScheduleRunList
   return (
     <section className="pipeline-schedule-runs">
       <h3>{SCHEDULE_COPY.history}</h3>
-      {!runs.length ? <p className="pipeline-issue-empty">{SCHEDULE_COPY.emptyHistory}</p> : null}
+      {!runs.length ? <Text className="pipeline-issue-empty" size="xs" c="dimmed">{SCHEDULE_COPY.emptyHistory}</Text> : null}
       {runs.map((run) => (
         <article key={run.id}>
-          <div>
-            <strong>{scheduleRunLabel(run)}</strong>
-            <small>
+          <Stack gap={2}>
+            <Text component="strong" size="sm">{scheduleRunLabel(run)}</Text>
+            <Text component="small" size="xs" c="dimmed">
               {formatDateTime(run.scheduled_for, timeZone)} · {timeZone} · {triggerTypeLabel(run.trigger_type)} · {scheduleRunStatusLabel(run.status)}
-            </small>
+            </Text>
             {scheduleRunTimingLabel(run) ? (
-              <small>{scheduleRunTimingLabel(run)}</small>
+              <Text component="small" size="xs" c="dimmed">{scheduleRunTimingLabel(run)}</Text>
             ) : null}
-          </div>
+          </Stack>
           {run.build_id ? (
-            <button type="button" className="text-button" onClick={() => onOpenBuild(run.build_id!)}>
+            <Button
+              type="button"
+              variant="subtle"
+              size="compact-xs"
+              rightSection={<ExternalLink size={12} />}
+              onClick={() => onOpenBuild(run.build_id!)}
+            >
               {SCHEDULE_COPY.buildLink}
-              <ExternalLink size={12} />
-            </button>
+            </Button>
           ) : null}
         </article>
       ))}

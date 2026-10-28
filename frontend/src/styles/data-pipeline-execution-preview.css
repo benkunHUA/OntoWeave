@@ -108,14 +108,12 @@
 
 .pipeline-preview-table {
   width: 100%;
-  border-collapse: collapse;
   font-size: 11px;
 }
 
 .pipeline-preview-table th,
 .pipeline-preview-table td {
   max-width: 280px;
-  padding: 6px 9px;
   border-bottom: 1px solid var(--line-soft);
   overflow: hidden;
   text-align: left;
@@ -134,7 +132,6 @@
   color: var(--muted);
 }
 
-.pipeline-preview-empty,
 .pipeline-preview-inputs {
   color: var(--faint);
   font-size: 10px;

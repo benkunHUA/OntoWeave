@@ -1,4 +1,5 @@
-import { LoaderCircle, RefreshCw, X } from 'lucide-react'
+import { ActionIcon, Alert, Button, Group, Loader, Text, Title } from '@mantine/core'
+import { RefreshCw, X } from 'lucide-react'
 import type { PipelinePreview, PipelinePreviewIssue } from '../../../../shared/types'
 import { useEscapeClose } from '../../../../shared/hooks/useEscapeClose'
 import { PREVIEW_COPY } from '../../lib/executionConstants'
@@ -44,55 +45,51 @@ export function PreviewPanel({
       <header className="pipeline-preview-head">
         <div>
           <span className="eyebrow">Preview</span>
-          <h2>{nodeName}</h2>
+          <Title order={2}>{nodeName}</Title>
           <div className="pipeline-preview-meta">
-            <span>修订 {preview?.draft_revision ?? draftRevision ?? '—'}</span>
-            <span>{PREVIEW_COPY.currentDraft}</span>
-            {preview ? <span>{previewRowsLabel(preview)}</span> : null}
-            {preview ? <span>{previewElapsedLabel(preview.elapsed_ms)}</span> : null}
+            <Text component="span" size="xs" c="dimmed">修订 {preview?.draft_revision ?? draftRevision ?? '—'}</Text>
+            <Text component="span" size="xs" c="dimmed">{PREVIEW_COPY.currentDraft}</Text>
+            {preview ? <Text component="span" size="xs" c="dimmed">{previewRowsLabel(preview)}</Text> : null}
+            {preview ? <Text component="span" size="xs" c="dimmed">{previewElapsedLabel(preview.elapsed_ms)}</Text> : null}
             {state === 'stale' ? (
-              <span className="pipeline-preview-stale">{PREVIEW_COPY.stale}</span>
+              <Text component="span" className="pipeline-preview-stale" size="xs">{PREVIEW_COPY.stale}</Text>
             ) : null}
           </div>
         </div>
         <div className="pipeline-preview-actions">
-          <button type="button" className="secondary-button" onClick={onRefresh} disabled={isLoading}>
-            <RefreshCw size={14} />
+          <Button type="button" variant="default" size="xs" leftSection={<RefreshCw size={14} />} onClick={onRefresh} disabled={isLoading}>
             {PREVIEW_COPY.refresh}
-          </button>
-          <button
+          </Button>
+          <ActionIcon
             type="button"
-            className="icon-button icon-button--quiet"
+            variant="subtle"
+            color="gray"
             aria-label={isLoading ? PREVIEW_COPY.cancel : PREVIEW_COPY.close}
             onClick={onClose}
           >
             <X size={16} />
-          </button>
+          </ActionIcon>
         </div>
       </header>
 
       <div className={`pipeline-preview-body${state === 'stale' ? ' is-stale' : ''}`}>
         {isLoading ? (
-          <p className="pipeline-preview-loading">
-            <LoaderCircle size={16} />
-            {PREVIEW_COPY.loading}
-          </p>
+          <Group className="pipeline-preview-loading" gap="xs"><Loader size="sm" /><Text size="xs">{PREVIEW_COPY.loading}</Text></Group>
         ) : null}
         {error ? (
-          <div className="pipeline-preview-error">
-            <strong>{error.kind === 'revision' ? '草稿版本冲突' : '预览失败'}</strong>
-            <p>{error.message}</p>
-          </div>
+          <Alert color="red" variant="light" title={error.kind === 'revision' ? '草稿版本冲突' : '预览失败'}>
+            <Text size="xs">{error.message}</Text>
+          </Alert>
         ) : null}
-        {truncation ? <p className="pipeline-preview-warning">{truncation}</p> : null}
+        {truncation ? <Text className="pipeline-preview-warning" size="xs" c="yellow">{truncation}</Text> : null}
         {preview ? <PreviewTable preview={preview} /> : null}
         {preview?.input_versions.length ? (
           <div className="pipeline-preview-inputs">
-            <strong>{PREVIEW_COPY.inputs}</strong>
+            <Text component="strong" size="xs">{PREVIEW_COPY.inputs}</Text>
             {preview.input_versions.map((input) => (
-              <span key={`${input.dataset_id}-${input.dataset_version_id}`}>
+              <Text component="span" size="xs" c="dimmed" key={`${input.dataset_id}-${input.dataset_version_id}`}>
                 {input.dataset_id.slice(0, 8)}… · v{input.dataset_version_number}
-              </span>
+              </Text>
             ))}
           </div>
         ) : null}

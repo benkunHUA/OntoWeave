@@ -1,7 +1,7 @@
 import { Button } from '@mantine/core'
 import { ChevronLeft, Pencil } from 'lucide-react'
 import { TextField } from '../../../../shared/components/form/controls'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { PIPELINE_RENAME_COPY } from '../../lib/constants'
 
 interface RenamePipelineDialogProps {

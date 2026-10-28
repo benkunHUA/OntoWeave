@@ -1,4 +1,5 @@
-import { CircleAlert, X } from 'lucide-react'
+import { Affix, Alert } from '@mantine/core'
+import { CircleAlert } from 'lucide-react'
 
 interface ErrorToastProps {
   message: string | null
@@ -10,12 +11,19 @@ export function ErrorToast({ message, onClose }: ErrorToastProps) {
   if (!message) return null
 
   return (
-    <div className="error-toast">
-      <CircleAlert size={16} />
-      <span>{message}</span>
-      <button type="button" aria-label="关闭错误" onClick={onClose}>
-        <X size={14} />
-      </button>
-    </div>
+    <Affix position={{ bottom: 24, right: 24 }} zIndex={300}>
+      <Alert
+        className="error-toast"
+        icon={<CircleAlert size={16} />}
+        color="red"
+        variant="light"
+        withCloseButton
+        closeButtonLabel="关闭错误"
+        onClose={onClose}
+        maw={420}
+      >
+        {message}
+      </Alert>
+    </Affix>
   )
 }

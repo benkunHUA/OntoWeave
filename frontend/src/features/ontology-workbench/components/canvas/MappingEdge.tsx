@@ -5,6 +5,7 @@ import {
   type Edge,
   type EdgeProps,
 } from '@xyflow/react'
+import { ActionIcon } from '@mantine/core'
 import { X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -70,8 +71,12 @@ export function MappingEdge({
         />
       </g>
       <EdgeLabelRenderer>
-        <button
+        <ActionIcon
           type="button"
+          variant="filled"
+          color="red"
+          size="compact-xs"
+          radius="xl"
           className={`mapping-edge__remove nodrag nopan ${removeVisible ? 'is-visible' : ''}`}
           style={{ left: `${labelX}px`, top: `${labelY}px` }}
           aria-label={`删除连线 ${data?.label ?? id}`}
@@ -81,7 +86,7 @@ export function MappingEdge({
           onClick={() => data?.onRemove(id)}
         >
           <X size={10} />
-        </button>
+        </ActionIcon>
       </EdgeLabelRenderer>
     </>
   )

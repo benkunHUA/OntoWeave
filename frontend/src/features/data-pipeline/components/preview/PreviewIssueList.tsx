@@ -1,3 +1,4 @@
+import { Text, Title, UnstyledButton } from '@mantine/core'
 import { CircleAlert, Info } from 'lucide-react'
 import type { PipelinePreviewIssue } from '../../../../shared/types'
 import { PREVIEW_COPY } from '../../lib/executionConstants'
@@ -11,9 +12,9 @@ export function PreviewIssueList({ issues, onSelectIssue }: PreviewIssueListProp
   if (!issues.length) return null
   return (
     <section className="pipeline-preview-issues" aria-label={PREVIEW_COPY.errors}>
-      <h3>{PREVIEW_COPY.errors}</h3>
+      <Title order={4}>{PREVIEW_COPY.errors}</Title>
       {issues.map((issue, index) => (
-        <button
+        <UnstyledButton
           key={`${issue.code ?? 'issue'}-${issue.node_id ?? 'node'}-${index}`}
           type="button"
           className={`pipeline-preview-issue ${issue.level === 'warning' ? 'is-warning' : 'is-error'}`}
@@ -22,14 +23,14 @@ export function PreviewIssueList({ issues, onSelectIssue }: PreviewIssueListProp
         >
           {issue.level === 'warning' ? <Info size={14} /> : <CircleAlert size={14} />}
           <span>
-            <strong>{issue.message ?? issue.code ?? '预览错误'}</strong>
-            <small>
+            <Text component="strong" size="xs">{issue.message ?? issue.code ?? '预览错误'}</Text>
+            <Text component="small" size="xs" c="dimmed">
               {[issue.code, issue.field ? `字段 ${issue.field}` : null, issue.hint]
                 .filter(Boolean)
                 .join(' · ')}
-            </small>
+            </Text>
           </span>
-        </button>
+        </UnstyledButton>
       ))}
     </section>
   )

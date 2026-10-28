@@ -46,39 +46,7 @@
   white-space: nowrap;
 }
 
-.ontology-workspace__direction {
-  overflow: hidden;
-  color: var(--faint);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .ontology-workspace__meta { display: flex; grid-area: meta; align-items: center; gap: 6px; justify-self: end; }
-
-.ontology-status,
-.ontology-run-status,
-.ontology-binding-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.ontology-status { color: var(--blue-ink); background: var(--blue-soft); }
-.ontology-binding-status { color: var(--muted); background: var(--raised); }
-.ontology-binding-status.is-bound { color: var(--green); background: var(--green-soft); }
-.ontology-binding-status.is-unbound { color: var(--faint); }
-.ontology-run-status { color: var(--muted); background: var(--raised); }
-.ontology-run-status.is-running,
-.ontology-run-status.is-queued { color: var(--blue-ink); background: var(--blue-soft); }
-.ontology-run-status.is-succeeded { color: var(--green); background: var(--green-soft); }
-.ontology-run-status.is-failed,
-.ontology-run-status.is-cancelled { color: var(--red); background: var(--red-soft); }
 
 .ontology-tabs {
   display: flex;
@@ -91,19 +59,6 @@
   background: var(--panel-soft);
 }
 
-.ontology-tabs__tab {
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 7px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  background: transparent;
-  cursor: pointer;
-}
-
-.ontology-tabs__tab:hover { color: var(--ink); }
-.ontology-tabs__tab.is-active { color: var(--ink); background: var(--raised-hi); }
 .ontology-workspace__body { display: flex; flex: 1; min-height: 0; padding: 14px 18px 18px; }
 
 @media (max-width: 1280px) {
@@ -117,5 +72,4 @@
   }
 
   .ontology-tabs { justify-self: stretch; overflow-x: auto; }
-  .ontology-tabs__tab { flex: 1 0 auto; }
 }

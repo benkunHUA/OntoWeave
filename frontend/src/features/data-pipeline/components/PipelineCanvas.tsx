@@ -1,3 +1,4 @@
+import { ActionIcon, Badge, Button, Text, Title } from '@mantine/core'
 import { CircleAlert, CircleCheck, LayoutGrid, Pencil, RefreshCw } from 'lucide-react'
 import {
   Background,
@@ -46,6 +47,7 @@ import {
 import { RenamePipelineDialog } from './dialogs/RenamePipelineDialog'
 import { NodePalette } from './NodePalette'
 import { PipelineNode as PipelineNodeView } from './nodes/PipelineNode'
+import { EmptyState } from '../../../shared/components/EmptyState'
 
 const nodeTypes = { pipeline: PipelineNodeView }
 
@@ -206,47 +208,51 @@ function CanvasSurface(props: PipelineCanvasProps) {
         <div className="pipeline-canvas-title">
           <span className="eyebrow">Data pipeline</span>
           <div className="pipeline-canvas-heading">
-            <h1>{pipeline?.name || '数据整理'}</h1>
+            <Title order={1}>{pipeline?.name || '数据整理'}</Title>
             {pipeline ? (
-              <button
+              <ActionIcon
                 type="button"
-                className="icon-button icon-button--quiet"
+                variant="subtle"
+                color="gray"
+                size="sm"
                 aria-label="重命名数据整理流程"
                 onClick={openRename}
               >
                 <Pencil size={13} />
-              </button>
+              </ActionIcon>
             ) : null}
           </div>
           <div className="pipeline-canvas-meta">
             {pipeline ? (
-              <span className={`status-pill is-${pipeline.status}`}>
+              <Badge color={pipeline.status === 'active' ? 'teal' : 'gray'} variant="light">
                 {PIPELINE_STATUS_LABELS[pipeline.status] ?? pipeline.status}
-              </span>
+              </Badge>
             ) : null}
-            <span>{CANVAS_COPY.revision} {draft?.revision ?? '—'}</span>
+            <Text component="span" size="xs" c="dimmed">{CANVAS_COPY.revision} {draft?.revision ?? '—'}</Text>
             {check ? (
-              <span className={`pipeline-check-chip ${blocking ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`}>
-                {blocking ? <CircleAlert size={12} /> : <CircleCheck size={12} />}
+              <Badge
+                color={blocking ? 'red' : warnings ? 'yellow' : 'teal'}
+                variant="light"
+                leftSection={blocking ? <CircleAlert size={12} /> : <CircleCheck size={12} />}
+              >
                 {blocking ? `${blocking} 个阻塞` : warnings ? `${warnings} 个提醒` : '检查通过'}
-              </span>
+              </Badge>
             ) : null}
           </div>
         </div>
         <div className="pipeline-canvas-actions">
           {actions}
-          <button type="button" className="secondary-button" onClick={arrange} disabled={!draft || isWriting}>
-            <LayoutGrid size={14} />
+          <Button type="button" variant="default" size="xs" leftSection={<LayoutGrid size={14} />} onClick={arrange} disabled={!draft || isWriting}>
             {CANVAS_COPY.fit}
-          </button>
-          <button
+          </Button>
+          <ActionIcon
             type="button"
-            className="icon-button"
+            variant="default"
             aria-label="适应画布"
             onClick={() => void fitView({ duration: 180, padding: 0.2 })}
           >
             <RefreshCw size={15} />
-          </button>
+          </ActionIcon>
         </div>
       </header>
 
@@ -256,24 +262,25 @@ function CanvasSurface(props: PipelineCanvasProps) {
             <strong>{CONFLICT_COPY.title}</strong>
             <span>{CONFLICT_COPY.body}</span>
           </div>
-          <button type="button" className="secondary-button" onClick={onReloadConflict}>
+          <Button type="button" variant="default" size="xs" onClick={onReloadConflict}>
             {CONFLICT_COPY.reload}
-          </button>
+          </Button>
         </div>
       ) : null}
       {error || connectionError ? (
         <div className="pipeline-canvas-banner is-error">
           <span>{connectionError ?? error}</span>
-          <button
+          <Button
             type="button"
-            className="text-button"
+            variant="subtle"
+            size="xs"
             onClick={() => {
               setConnectionError(null)
               onClearError()
             }}
           >
             关闭
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -309,10 +316,11 @@ function CanvasSurface(props: PipelineCanvasProps) {
             <Controls showInteractive={false} />
           </ReactFlow>
           {!draft?.definition.nodes.length ? (
-            <div className="pipeline-canvas-empty">
-              <strong>{pipeline ? '画布还是空的' : '选择一条流程'}</strong>
-              <p>{pipeline ? '从节点面板拖入节点开始搭建。' : '在左侧新建或选择一条数据整理流程。'}</p>
-            </div>
+            <EmptyState
+              className="pipeline-canvas-empty"
+              title={pipeline ? '画布还是空的' : '选择一条流程'}
+              body={pipeline ? '从节点面板拖入节点开始搭建。' : '在左侧新建或选择一条数据整理流程。'}
+            />
           ) : null}
         </div>
       </div>

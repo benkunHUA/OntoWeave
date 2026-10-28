@@ -1,7 +1,8 @@
+import { Button } from '@mantine/core'
 import { Database } from 'lucide-react'
 import type { PipelineBuildOutput } from '../../../../shared/types'
 import { DatasetPreviewTable } from '../../../../shared/components/DatasetPreviewTable'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { usePipelineDatasetPreview } from '../../hooks/usePipelineDatasetPreview'
 import {
   OUTPUT_DATASET_COPY,
@@ -35,12 +36,12 @@ export function OutputDatasetDialog({
   if (!output.dataset_id || !output.dataset_version_id) return null
   return (
     <DialogShell
-      className="view-dialog--wide"
       icon={<Database size={20} />}
       title={OUTPUT_DATASET_COPY.title}
       subtitle={name}
+      size="xl"
       onClose={onClose}
-      footer={<button type="button" className="secondary-button" onClick={onClose}>{OUTPUT_DATASET_COPY.close}</button>}
+      footer={<Button type="button" variant="default" onClick={onClose}>{OUTPUT_DATASET_COPY.close}</Button>}
     >
       <div className="view-dialog__body pipeline-output-dataset-dialog">
         <dl>

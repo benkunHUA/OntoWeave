@@ -1,9 +1,12 @@
-import { Database, Sparkles } from 'lucide-react'
+import { Loader } from '@mantine/core'
+import { CircleCheck, Sparkles } from 'lucide-react'
 import { useMemo } from 'react'
 import { ChatScrollArea } from '../../../shared/chat/components/ChatScrollArea'
+import { ChatPaneHeader } from '../../../shared/chat/components/ChatPaneHeader'
 import { Composer } from '../../../shared/chat/components/Composer'
 import { ErrorToast } from '../../../shared/chat/components/ErrorToast'
 import { MessageBubble } from '../../../shared/chat/components/MessageBubble'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import type { PendingInterrupt } from '../../../shared/chat/lib/messageBlocks'
 import type { ChatMessage, ConversationEvent, InterruptOption } from '../../../shared/types'
 import { mergeTimeline, type TimelineItem } from '../lib/operationTimeline'
@@ -53,24 +56,22 @@ export function ConversationPane({
 
   return (
     <section className="chat-pane data-connection-chat">
-      <header className="chat-header">
-        <div>
-          <span className="eyebrow">Data connection</span>
-          <h1>{title || '数据连接助手'}</h1>
-        </div>
-        <span className={`chat-header__status ${isRunning ? 'is-running' : ''}`}>
-          <span />
-          {isRunning ? '处理中' : '在线'}
-        </span>
-      </header>
+      <ChatPaneHeader
+        eyebrow="Data connection"
+        title={title || '数据连接助手'}
+        status={isRunning ? '处理中' : '在线'}
+        statusColor={isRunning ? 'blue' : 'teal'}
+        statusIcon={isRunning ? <Loader size={12} /> : <CircleCheck size={12} />}
+      />
 
       <ChatScrollArea resetKey={scrollKey}>
         {!timeline.length && !isLoading ? (
-          <div className="chat-empty">
-            <Sparkles size={26} />
-            <strong>从一个数据源开始</strong>
-            <p>在右侧填写连接信息；保存、测试、选表和同步都会回到这里。</p>
-          </div>
+          <EmptyState
+            className="chat-empty"
+            icon={<Sparkles size={22} />}
+            title="从一个数据源开始"
+            body="在右侧填写连接信息；保存、测试、选表和同步都会回到这里。"
+          />
         ) : null}
 
         {timeline.map((item) => {
@@ -107,10 +108,11 @@ export function ConversationPane({
         })}
 
         {isLoading ? (
-          <div className="chat-empty chat-empty--loading">
-            <Database size={22} />
-            <span>正在读取会话记录…</span>
-          </div>
+          <EmptyState
+            className="chat-empty chat-empty--loading"
+            icon={<Loader size="sm" />}
+            title="正在读取会话记录…"
+          />
         ) : null}
       </ChatScrollArea>
 

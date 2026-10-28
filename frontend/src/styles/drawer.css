@@ -159,49 +159,8 @@
   gap: 6px;
   padding-left: 2px;
 }
-.field-row__flag {
-  padding: 2px 8px;
-  border: 1px solid #3a3a3a;
-  border-radius: 999px;
-  color: var(--faint);
-  background: transparent;
-  font-size: 10px;
-  cursor: pointer;
-  transition:
-    color 140ms ease,
-    background 140ms ease,
-    border-color 140ms ease;
-}
-.field-row__flag.is-on {
-  border-color: rgba(76, 141, 255, 0.5);
-  color: #cfe0ff;
-  background: rgba(76, 141, 255, 0.16);
-}
-
 .field-row__main > * {
   min-width: 0;
-}
-
-.field-row__remove {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  color: var(--faint);
-  background: transparent;
-  cursor: pointer;
-  transition:
-    color 140ms ease,
-    background 140ms ease,
-    border-color 140ms ease;
-}
-
-.field-row__remove:hover {
-  border-color: rgba(255, 112, 112, 0.35);
-  color: var(--red);
-  background: var(--red-soft);
 }
 
 .enum-values {
@@ -248,9 +207,4 @@
 /* 按钮不压缩、不折行；一行放不下就整体换行，而不是把文字挤成竖排。 */
 .drawer__footer > * {
   flex: 0 0 auto;
-}
-
-.drawer__pending {
-  color: var(--faint);
-  font-size: 11px;
 }

@@ -1,5 +1,6 @@
+import { Button } from '@mantine/core'
 import { RefreshCw } from 'lucide-react'
-import { DialogShell } from '../../../modeling/components/dialogs/DialogShell'
+import { DialogShell } from '../../../../shared/components/dialogs/DialogShell'
 import { REBIND_DIALOG_COPY } from './constants'
 import { useConfirmOnce } from './useConfirmOnce'
 
@@ -32,12 +33,17 @@ export function RebindDialog({
       onClose={onCancel}
       footer={
         <>
-          <button type="button" className="secondary-button" onClick={onCancel} disabled={isSubmitting}>
+          <Button type="button" variant="default" onClick={onCancel} disabled={isSubmitting}>
             {REBIND_DIALOG_COPY.cancel}
-          </button>
-          <button type="button" className="primary-button" onClick={confirm} disabled={isSubmitting}>
-            <RefreshCw size={14} /> {isSubmitting ? REBIND_DIALOG_COPY.submitting : REBIND_DIALOG_COPY.confirm}
-          </button>
+          </Button>
+          <Button
+            type="button"
+            leftSection={<RefreshCw size={14} />}
+            onClick={confirm}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? REBIND_DIALOG_COPY.submitting : REBIND_DIALOG_COPY.confirm}
+          </Button>
         </>
       }
     >

@@ -1,3 +1,4 @@
+import { ActionIcon, Badge, Button, Group } from '@mantine/core'
 import { Eye, Redo2, Rocket, Save, ShieldCheck, Sparkles, Undo2 } from 'lucide-react'
 import type { MappingMode } from '../../lib/mapping'
 import { CANVAS_COPY } from './copy'
@@ -37,51 +38,51 @@ export function MappingToolbar(props: MappingToolbarProps) {
   const busy = isSaving || isSuggesting || isValidating || isPreviewing || isGenerating
   return (
     <div className="mapping-toolbar">
-      <div className="mapping-toolbar__status" aria-live="polite">
-        <span>{CANVAS_COPY.revision} {revision}</span>
-        <span className={dirty ? 'is-dirty' : 'is-saved'}>
+      <Group className="mapping-toolbar__status" gap="xs" aria-live="polite">
+        <Badge color="gray" variant="light">{CANVAS_COPY.revision} {revision}</Badge>
+        <Badge color={dirty ? 'yellow' : 'teal'} variant="light">
           {dirty ? CANVAS_COPY.unsaved : CANVAS_COPY.saved}
-        </span>
+        </Badge>
         {blockingCount ? (
-          <span className="is-blocking">{CANVAS_COPY.blockingCount(blockingCount)}</span>
+          <Badge color="red" variant="light">{CANVAS_COPY.blockingCount(blockingCount)}</Badge>
         ) : warningCount ? (
-          <span className="is-warning">{CANVAS_COPY.warningCount(warningCount)}</span>
+          <Badge color="yellow" variant="light">{CANVAS_COPY.warningCount(warningCount)}</Badge>
         ) : hasDataset ? (
-          <span className="is-ok">{CANVAS_COPY.valid}</span>
+          <Badge color="teal" variant="light">{CANVAS_COPY.valid}</Badge>
         ) : null}
-      </div>
-      <div className="mapping-toolbar__actions">
-        <button type="button" className="icon-button icon-button--quiet" onClick={onUndo} disabled={!canUndo || busy} aria-label={CANVAS_COPY.undo} title={CANVAS_COPY.undo}>
+      </Group>
+      <Group className="mapping-toolbar__actions" gap="xs">
+        <ActionIcon type="button" variant="subtle" color="gray" onClick={onUndo} disabled={!canUndo || busy} aria-label={CANVAS_COPY.undo} title={CANVAS_COPY.undo}>
           <Undo2 size={14} />
-        </button>
-        <button type="button" className="icon-button icon-button--quiet" onClick={onRedo} disabled={!canRedo || busy} aria-label={CANVAS_COPY.redo} title={CANVAS_COPY.redo}>
+        </ActionIcon>
+        <ActionIcon type="button" variant="subtle" color="gray" onClick={onRedo} disabled={!canRedo || busy} aria-label={CANVAS_COPY.redo} title={CANVAS_COPY.redo}>
           <Redo2 size={14} />
-        </button>
-        <button type="button" className="secondary-button" onClick={onSuggest} disabled={!hasDataset || busy}>
-          <Sparkles size={14} />{CANVAS_COPY.suggest}
-        </button>
-        <button type="button" className="secondary-button" onClick={onValidate} disabled={!hasDataset || busy}>
-          <ShieldCheck size={14} />{CANVAS_COPY.validate}
-        </button>
-        <button type="button" className="secondary-button" onClick={onPreview} disabled={!hasDataset || busy}>
-          <Eye size={14} />{CANVAS_COPY.preview}
-        </button>
-        <button type="button" className="secondary-button" onClick={onSave} disabled={!canSave || busy}>
-          <Save size={14} />{isSaving ? CANVAS_COPY.savePending : CANVAS_COPY.save}
-        </button>
-        <button
+        </ActionIcon>
+        <Button type="button" variant="default" size="xs" leftSection={<Sparkles size={14} />} onClick={onSuggest} disabled={!hasDataset || busy}>
+          {CANVAS_COPY.suggest}
+        </Button>
+        <Button type="button" variant="default" size="xs" leftSection={<ShieldCheck size={14} />} onClick={onValidate} disabled={!hasDataset || busy}>
+          {CANVAS_COPY.validate}
+        </Button>
+        <Button type="button" variant="default" size="xs" leftSection={<Eye size={14} />} onClick={onPreview} disabled={!hasDataset || busy}>
+          {CANVAS_COPY.preview}
+        </Button>
+        <Button type="button" variant="default" size="xs" leftSection={<Save size={14} />} onClick={onSave} disabled={!canSave || busy}>
+          {isSaving ? CANVAS_COPY.savePending : CANVAS_COPY.save}
+        </Button>
+        <Button
           type="button"
-          className="primary-button"
+          size="xs"
           onClick={onGenerate}
           disabled={!canGenerate || busy}
           title={dirty ? CANVAS_COPY.saveBeforeGenerate : undefined}
+          leftSection={<Rocket size={14} />}
         >
-          <Rocket size={14} />
           {isGenerating
             ? CANVAS_COPY.generatePending
             : mode === 'object' ? CANVAS_COPY.generateObject : CANVAS_COPY.generateRelation}
-        </button>
-      </div>
+        </Button>
+      </Group>
     </div>
   )
 }

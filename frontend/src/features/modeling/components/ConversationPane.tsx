@@ -1,6 +1,17 @@
+import {
+  ActionIcon,
+  Button,
+  Group,
+  ScrollArea,
+  Stack,
+  Text,
+  ThemeIcon,
+  UnstyledButton,
+} from '@mantine/core'
 import { MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Sparkles, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import {
   CONVERSATION_KIND_MODELING,
   type Conversation,
@@ -52,72 +63,89 @@ export function ConversationPane() {
 
   return (
     <aside className="conversation-pane">
-      <header className="conversation-pane__header">
-        <div className="brand brand--compact">
-          <span className="brand__mark">
+      <Group className="conversation-pane__header" justify="space-between" wrap="nowrap">
+        {panes.collapsed ? (
+          <ThemeIcon size={34} radius="md" variant="light" color="brand" aria-label="OntoWeave 建模工作台">
             <Sparkles size={17} />
-          </span>
-          {!panes.collapsed ? (
-            <div>
-              <strong>OntoWeave</strong>
-              <span>建模工作台</span>
-            </div>
-          ) : null}
-        </div>
-        <button
+          </ThemeIcon>
+        ) : (
+          <Group gap={8} wrap="nowrap">
+            <ThemeIcon size={34} radius="md" variant="light" color="brand" aria-hidden="true">
+              <Sparkles size={17} />
+            </ThemeIcon>
+            <Stack gap={1}>
+              <Text fw={700} size="sm" lh={1.2}>OntoWeave</Text>
+              <Text size="xs" c="dimmed" lh={1.2}>建模工作台</Text>
+            </Stack>
+          </Group>
+        )}
+        <ActionIcon
           type="button"
-          className="icon-button icon-button--quiet"
+          variant="subtle"
+          color="gray"
           aria-label={panes.collapsed ? '展开会话栏' : '收起会话栏'}
           onClick={panes.toggleCollapsed}
         >
           {panes.collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-        </button>
-      </header>
+        </ActionIcon>
+      </Group>
 
-      <button
+      <Button
         type="button"
         className="new-conversation-button"
+        fullWidth={!panes.collapsed}
+        aria-label="新建对话"
+        leftSection={<MessageSquarePlus size={17} />}
         onClick={startConversation}
       >
-        <MessageSquarePlus size={17} />
         {!panes.collapsed ? '新建对话' : null}
-      </button>
+      </Button>
 
-      <nav className="conversation-list" aria-label="会话列表">
-        {modelingConversations.map((conversation) => (
-          <div
-            key={conversation.id}
-            className={`conversation-list__item ${
-              conversation.id === activeId ? 'is-active' : ''
-            }`}
-          >
-            <button
-              type="button"
-              className="conversation-list__open"
-              onClick={() => navigate(`/modeling/${conversation.id}`)}
-              title={conversation.title || '未命名对话'}
+      <ScrollArea className="conversation-list" type="auto" offsetScrollbars>
+        <Stack component="nav" aria-label="会话列表" gap={4} p="xs">
+          {modelingConversations.map((conversation) => (
+            <Group
+              key={conversation.id}
+              className={`conversation-list__item ${
+                conversation.id === activeId ? 'is-active' : ''
+              }`}
+              gap={2}
+              wrap="nowrap"
             >
-              <span className="conversation-list__dot" />
-              {!panes.collapsed ? (
-                <span className="conversation-list__title">
-                  {conversation.title || '未命名对话'}
-                </span>
-              ) : null}
-            </button>
-            {!panes.collapsed ? (
-              <button
+              <UnstyledButton
                 type="button"
-                className="conversation-list__delete"
-                aria-label={`删除对话 ${conversation.title || '未命名对话'}`}
-                title="删除对话"
-                onClick={() => openDeleteDialog(conversation)}
+                className="conversation-list__open"
+                onClick={() => navigate(`/modeling/${conversation.id}`)}
+                title={conversation.title || '未命名对话'}
               >
-                <Trash2 size={14} />
-              </button>
-            ) : null}
-          </div>
-        ))}
-      </nav>
+                <span className="conversation-list__dot" />
+                {!panes.collapsed ? (
+                  <Text className="conversation-list__title" component="span" size="xs" truncate>
+                    {conversation.title || '未命名对话'}
+                  </Text>
+                ) : null}
+              </UnstyledButton>
+              {!panes.collapsed ? (
+                <ActionIcon
+                  type="button"
+                  className="conversation-list__delete"
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  aria-label={`删除对话 ${conversation.title || '未命名对话'}`}
+                  title="删除对话"
+                  onClick={() => openDeleteDialog(conversation)}
+                >
+                  <Trash2 size={14} />
+                </ActionIcon>
+              ) : null}
+            </Group>
+          ))}
+          {!modelingConversations.length ? (
+            <EmptyState title={panes.collapsed ? '暂无会话' : '还没有会话'} />
+          ) : null}
+        </Stack>
+      </ScrollArea>
 
       {pendingDelete ? (
         <DeleteConversationDialog

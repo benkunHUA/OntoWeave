@@ -1,5 +1,17 @@
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  ScrollArea,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core'
 import { House, Plus, Trash2, Workflow } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Brand } from '../../../shared/components/Brand'
+import { EmptyState } from '../../../shared/components/EmptyState'
 import { SearchField } from '../../../shared/components/form/controls'
 import type { Pipeline } from '../../../shared/types'
 import {
@@ -59,28 +71,28 @@ export function PipelineListPane({
 
   return (
     <aside className="pipeline-list-pane">
-      <header className="pipeline-list-pane__header">
-        <div className="brand brand--compact">
-          <span className="brand__mark"><Workflow size={17} /></span>
-          <div>
-            <strong>OntoWeave</strong>
-            <span>数据整理工作台</span>
-          </div>
-        </div>
-        <button type="button" className="icon-button icon-button--quiet" aria-label="返回首页" onClick={onHome}>
+      <Group className="pipeline-list-pane__header" justify="space-between" wrap="nowrap">
+        <Brand
+          compact
+          icon={<Workflow size={17} />}
+          title="OntoWeave"
+          subtitle="数据整理工作台"
+        />
+        <ActionIcon type="button" variant="subtle" color="gray" aria-label="返回首页" onClick={onHome}>
           <House size={17} />
-        </button>
-      </header>
+        </ActionIcon>
+      </Group>
 
-      <button
+      <Button
         type="button"
         className="pipeline-new-button"
+        fullWidth
+        leftSection={<Plus size={16} />}
         onClick={() => void create()}
         disabled={isCreating}
       >
-        <Plus size={16} />
         {isCreating ? PIPELINE_NEW_COPY.creating : PIPELINE_NEW_COPY.create}
-      </button>
+      </Button>
 
       <SearchField
         className="pipeline-search"
@@ -90,51 +102,59 @@ export function PipelineListPane({
         aria-label="搜索数据整理流程"
       />
 
-      <nav className="pipeline-list" aria-label="数据整理流程列表">
-        {filtered.map((pipeline) => {
-          const active = pipeline.id === activeId
-          return (
-            <div
-              key={pipeline.id}
-              className={`pipeline-list__item ${active ? 'is-active' : ''}`}
-            >
-              <button
-                type="button"
-                className="pipeline-list__select"
-                onClick={() => onSelect(pipeline)}
-                aria-current={active ? 'page' : undefined}
+      <ScrollArea className="pipeline-list" type="auto" offsetScrollbars>
+        <Stack component="nav" aria-label="数据整理流程列表" gap={4} p="xs">
+          {filtered.map((pipeline) => {
+            const active = pipeline.id === activeId
+            return (
+              <Group
+                key={pipeline.id}
+                className={`pipeline-list__item ${active ? 'is-active' : ''}`}
+                gap={4}
+                wrap="nowrap"
               >
-                <span className={`pipeline-list__status is-${pipeline.status}`} />
-                <span className="pipeline-list__body">
-                  <span className="pipeline-list__name">{pipeline.name}</span>
-                  <span className="pipeline-list__meta">
-                    {pipeline.current_version_id ? '已发布版本可用' : '尚未发布'}
-                  </span>
-                </span>
-                <span className={`pipeline-list__badge is-${pipeline.status}`}>
-                  {PIPELINE_STATUS_LABELS[pipeline.status] ?? pipeline.status}
-                </span>
-              </button>
-              <button
-                type="button"
-                className="pipeline-list__delete"
-                aria-label={`${PIPELINE_DELETE_COPY.action}：${pipeline.name}`}
-                onClick={() => setPendingDelete(pipeline)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          )
-        })}
-        {isLoading ? <div className="pipeline-list__empty">正在读取流程…</div> : null}
-        {!isLoading && !filtered.length ? (
-          <div className="pipeline-list__empty">
-            <strong>{PIPELINE_EMPTY_COPY.list}</strong>
-            <span>{PIPELINE_EMPTY_COPY.listHint}</span>
-          </div>
-        ) : null}
-        {error ? <div className="pipeline-list__error">{error}</div> : null}
-      </nav>
+                <UnstyledButton
+                  type="button"
+                  className="pipeline-list__select"
+                  onClick={() => onSelect(pipeline)}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  <span className={`pipeline-list__status is-${pipeline.status}`} />
+                  <Stack className="pipeline-list__body" gap={3} align="flex-start">
+                    <Text className="pipeline-list__name" size="sm" fw={600}>{pipeline.name}</Text>
+                    <Text className="pipeline-list__meta" size="xs" c="dimmed">
+                      {pipeline.current_version_id ? '已发布版本可用' : '尚未发布'}
+                    </Text>
+                  </Stack>
+                  <Badge color={pipeline.status === 'active' ? 'teal' : 'gray'} variant="light">
+                    {PIPELINE_STATUS_LABELS[pipeline.status] ?? pipeline.status}
+                  </Badge>
+                </UnstyledButton>
+                <ActionIcon
+                  type="button"
+                  className="pipeline-list__delete"
+                  variant="subtle"
+                  color="gray"
+                  size="sm"
+                  aria-label={`${PIPELINE_DELETE_COPY.action}：${pipeline.name}`}
+                  onClick={() => setPendingDelete(pipeline)}
+                >
+                  <Trash2 size={14} />
+                </ActionIcon>
+              </Group>
+            )
+          })}
+          {isLoading ? <EmptyState className="pipeline-list__empty" title="正在读取流程…" /> : null}
+          {!isLoading && !filtered.length ? (
+            <EmptyState
+              className="pipeline-list__empty"
+              title={PIPELINE_EMPTY_COPY.list}
+              body={PIPELINE_EMPTY_COPY.listHint}
+            />
+          ) : null}
+          {error ? <Text className="pipeline-list__error" size="xs">{error}</Text> : null}
+        </Stack>
+      </ScrollArea>
       {pendingDelete ? (
         <DeletePipelineDialog
           name={pendingDelete.name}

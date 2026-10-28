@@ -202,11 +202,11 @@ describe('BuildDetailsDrawer', () => {
     fireEvent.click(screen.getByRole('button', { name: '查看输出数据集' }))
     expect(screen.getByText('输出数据集详情')).toBeTruthy()
 
-    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByText('输出数据集详情')).toBeNull())
     expect(onClose).not.toHaveBeenCalled()
 
-    fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 

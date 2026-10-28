@@ -1,3 +1,4 @@
+import { Badge, Code, Group, Paper, Stack, Text, UnstyledButton } from '@mantine/core'
 import { ChevronRight, Database, Hash } from 'lucide-react'
 import { useState } from 'react'
 import { QUERY_COPY } from '../lib/constants'
@@ -13,54 +14,63 @@ export function QueryEvidence({ evidence }: QueryEvidenceProps) {
   if (!evidence.length) return null
 
   return (
-    <section className="query-evidence">
-      <button
+    <Paper component="section" className="query-evidence" withBorder radius="md" p="xs">
+      <UnstyledButton
         type="button"
         className="query-evidence__toggle"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
+        w="100%"
       >
-        <Database size={13} />
-        <span>{QUERY_COPY.evidenceTitle}</span>
-        <em>{evidence.length}</em>
-        <ChevronRight size={13} className={open ? 'is-open' : ''} />
-      </button>
+        <Group gap={6} wrap="nowrap">
+          <Database size={13} />
+          <Text component="span" size="xs" fw={600}>{QUERY_COPY.evidenceTitle}</Text>
+          <Badge size="xs" variant="light" color="gray">{evidence.length}</Badge>
+          <ChevronRight size={13} className={open ? 'is-open' : ''} />
+        </Group>
+      </UnstyledButton>
       {open ? (
-        <div className="query-evidence__list">
+        <Stack className="query-evidence__list" gap="xs" mt="xs">
           {evidence.map((item, index) => (
-            <article className="query-evidence__item" key={`${item.stepId}-${item.primaryKey}-${index}`}>
-              <header>
-                <strong>{item.title || item.primaryKey}</strong>
-                <code>
+            <Paper className="query-evidence__item" key={`${item.stepId}-${item.primaryKey}-${index}`} bg="dark.8" p="xs" radius="sm">
+              <Group justify="space-between" gap="xs" mb="xs">
+                <Text component="strong" size="xs">{item.title || item.primaryKey}</Text>
+                <Code>
                   <Hash size={11} />
                   {item.primaryKey}
-                </code>
-              </header>
-              <dl>
-                <div>
-                  <dt>{QUERY_COPY.evidenceStep}</dt>
-                  <dd>{item.stepId || '—'}</dd>
-                </div>
-                <div>
-                  <dt>{QUERY_COPY.evidenceIndex}</dt>
-                  <dd title={item.indexVersionId ?? undefined}>
+                </Code>
+              </Group>
+              <Stack className="query-evidence__facts" gap={3} mt={7}>
+                <Group className="query-evidence__row" gap={8} wrap="nowrap">
+                  <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate>
+                    {QUERY_COPY.evidenceStep}
+                  </Text>
+                  <Text className="query-evidence__value" size="xs" truncate>{item.stepId || '—'}</Text>
+                </Group>
+                <Group className="query-evidence__row" gap={8} wrap="nowrap">
+                  <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate>
+                    {QUERY_COPY.evidenceIndex}
+                  </Text>
+                  <Text className="query-evidence__value" size="xs" truncate title={item.indexVersionId ?? undefined}>
                     {shortId(item.indexVersionId)}
-                  </dd>
-                </div>
+                  </Text>
+                </Group>
                 {Object.entries(item.properties)
                   .slice(0, 4)
                   .map(([key, value]) => (
-                    <div key={key}>
-                      <dt title={key}>{shortId(key)}</dt>
-                      <dd>{formatValue(value)}</dd>
-                    </div>
+                    <Group className="query-evidence__row" key={key} gap={8} wrap="nowrap">
+                      <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate title={key}>
+                        {shortId(key)}
+                      </Text>
+                      <Text className="query-evidence__value" size="xs" truncate>{formatValue(value)}</Text>
+                    </Group>
                   ))}
-              </dl>
-            </article>
+              </Stack>
+            </Paper>
           ))}
-        </div>
+        </Stack>
       ) : null}
-    </section>
+    </Paper>
   )
 }
 
