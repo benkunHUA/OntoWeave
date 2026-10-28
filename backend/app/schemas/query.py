@@ -1,10 +1,10 @@
-"""查询子 Agent 的输入、工具结果与最终结构化输出。"""
+"""业务问答的查询工具入参与结果形状。"""
 
 from __future__ import annotations
 
 import uuid
 from enum import StrEnum
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -15,14 +15,6 @@ class QueryStatus(StrEnum):
     TRUNCATED = "TRUNCATED"
     NOT_INDEXED = "NOT_INDEXED"
     FAILED = "FAILED"
-
-
-class QueryAgentStatus(StrEnum):
-    OK = "OK"
-    EMPTY = "EMPTY"
-    NOT_INDEXED = "NOT_INDEXED"
-    NEEDS_USER = "NEEDS_USER"
-    BLOCKED = "BLOCKED"
 
 
 class QueryDirection(StrEnum):
@@ -62,15 +54,6 @@ class QueryFilterOp(StrEnum):
 
 UNARY_QUERY_OPS = frozenset({QueryFilterOp.IS_NULL, QueryFilterOp.IS_NOT_NULL})
 
-_EXPECTED_CARDINALITY_ALIASES = {
-    "one": "one",
-    "many": "many",
-    "one_to_one": "one",
-    "one_to_many": "many",
-    "many_to_one": "one",
-    "many_to_many": "many",
-}
-
 
 class _PropertyRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -108,38 +91,42 @@ class QueryObjectsInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     object_type_id: str
-    primary_key: str | None = None
+    primary_keys: list[str] = Field(default_factory=list, max_length=50)
     q: str | None = None
     filters: list[QueryFilter] = Field(default_factory=list, max_length=20)
     sort: list[QuerySort] = Field(default_factory=list, max_length=3)
     limit: int = Field(default=20, ge=1, le=50)
     project: list[str] = Field(default_factory=list, max_length=50)
 
-    @model_validator(mode="after")
-    def primary_key_is_exclusive(self) -> QueryObjectsInput:
-        if self.primary_key is not None and (self.q or self.filters or self.sort):
-            raise ValueError("primary_key cannot be combined with q, filters or sort")
-        return self
+    @field_validator("primary_keys")
+    @classmethod
+    def normalize_primary_keys(cls, values: list[str]) -> list[str]:
+        resolved: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            text = value.strip()
+            if not text:
+                raise ValueError("primary_keys cannot contain empty values")
+            if text not in seen:
+                seen.add(text)
+                resolved.append(text)
+        return resolved
 
 
-class QueryStepInput(BaseModel):
+class ObjectReferenceInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    input_step_id: str = Field(min_length=1)
+    object_type_id: str
+    primary_key: str = Field(min_length=1)
+
+
+class RelatedObjectsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     relation_id: str
     direction: QueryDirection
-    filters: list[QueryFilter] = Field(default_factory=list, max_length=20)
-    sort: list[QuerySort] = Field(default_factory=list, max_length=3)
-    limit: int = Field(default=20, ge=1, le=50)
-    project: list[str] = Field(default_factory=list, max_length=50)
-    expected_cardinality: Literal["one", "many"] | None = None
-
-    @field_validator("expected_cardinality", mode="before")
-    @classmethod
-    def normalize_expected_cardinality(cls, value: object) -> object:
-        if value is None:
-            return None
-        return _EXPECTED_CARDINALITY_ALIASES.get(str(value).strip().lower(), value)
+    inputs: list[ObjectReferenceInput] = Field(min_length=1, max_length=50)
+    limit: int = Field(default=50, ge=1, le=50)
 
 
 class QueryItem(BaseModel):
@@ -150,7 +137,6 @@ class QueryItem(BaseModel):
 
 
 class QueryObjectsResult(BaseModel):
-    step_id: str
     object_type_id: uuid.UUID
     index_version_id: uuid.UUID | None = None
     items: list[QueryItem] = Field(default_factory=list)
@@ -159,43 +145,17 @@ class QueryObjectsResult(BaseModel):
     truncated: bool = False
 
 
-class QueryStepResult(BaseModel):
-    step_id: str
+class RelatedObjectItem(BaseModel):
+    object_type_id: uuid.UUID
+    primary_key: str
+    title: str | None = None
+
+
+class RelatedObjectsResult(BaseModel):
+    relation_id: uuid.UUID
     target_type_id: uuid.UUID
     index_version_id: uuid.UUID | None = None
-    items: list[QueryItem] = Field(default_factory=list)
+    items: list[RelatedObjectItem] = Field(default_factory=list)
     total: int = 0
     status: QueryStatus
     truncated: bool = False
-
-
-class QueryEvidence(BaseModel):
-    # 模型只负责给答案；最终证据由 runner 从工具状态注入。这里放宽必填字段，
-    # 避免模型手抄证据时漏字段导致整份结构化结果作废。
-    step_id: str = ""
-    object_type_id: uuid.UUID | None = None
-    object_type_name: str | None = None
-    primary_key: str = ""
-    title: str | None = None
-    properties: dict[str, Any] = Field(default_factory=dict)
-    property_names: dict[str, str] = Field(default_factory=dict)
-    index_version_id: uuid.UUID | None = None
-
-
-class QueryAgentResult(BaseModel):
-    status: QueryAgentStatus
-    answer: str | None = None
-    evidence: list[QueryEvidence] = Field(default_factory=list)
-    question: str | None = None
-    options: list[str] = Field(default_factory=list)
-    limitations: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="after")
-    def required_fields_by_status(self) -> QueryAgentResult:
-        if self.status is QueryAgentStatus.NEEDS_USER and not (self.question or "").strip():
-            raise ValueError("NEEDS_USER requires question")
-        if self.status is QueryAgentStatus.OK and not (self.answer or "").strip():
-            raise ValueError("OK requires answer")
-        if self.status is QueryAgentStatus.BLOCKED and not self.limitations:
-            raise ValueError("BLOCKED requires limitations")
-        return self

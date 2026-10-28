@@ -148,6 +148,27 @@ def get_relation(session: Session, relation_id: uuid.UUID) -> Relation:
     return rel
 
 
+def relation_label(
+    relation: Relation,
+    direction: str,
+    *,
+    source_name: str | None = None,
+    target_name: str | None = None,
+) -> str:
+    """返回方向相关的可读关系名，跳过与两端对象名重复的无信息标签。"""
+    if direction == "incoming":
+        candidate = relation.reverse_label
+    elif direction == "outgoing":
+        candidate = relation.forward_label
+    else:
+        candidate = relation.name
+    label = candidate.strip() if candidate else ""
+    endpoint_names = {name.strip() for name in (source_name, target_name) if name and name.strip()}
+    if label and label not in endpoint_names:
+        return label
+    return relation.name.strip() or label
+
+
 def transition_relation(
     session: Session,
     relation_id: uuid.UUID,

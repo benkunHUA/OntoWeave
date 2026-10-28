@@ -27,7 +27,7 @@ P3「变成对象」已完成并通过 2026-10-24 验收：对象/多对多映�
 
 P3 已知限制：性能验收在 20 万行 × 8 属性上完成三批对比，50 万行因本机资源未跑完；真实 Flink/Iceberg/MySQL/RabbitMQ 端到端、浏览器拖拽 E2E 和 Agent 线上确认链路未在本轮覆盖；前端与 Java/Python 全量测试已分别通过。
 
-P4「Agent 使用」的只读查询已实施：查询改写、图向量召回、图卡选图、图详情读取，再由独立的持久化查询子 Agent 解析锚点、逐步执行图内查询并返回证据；动作执行后置。图采用整图发布、不做多版本，发布图卡 + 图向量，不使用 RDF/OWL；查询任务不建 `queryTask` 表，取消 `match_question_to_graph` 和 `plan_next_query_step`，实例数据只经 `query_objects`、`execute_query_step` 读取。Java 查询原语与独立查询工作台已接入。详细结论见 [只读查询 Agent 设计](specs/2026-10-27-agent-query-design.md)，实施步骤见 [只读查询 Agent 计划](plans/2026-10-27-agent-query-plan.md)。
+P4「Agent 使用」的只读查询已实施：查询改写、图向量召回、图卡选图、图详情读取，再由主 Agent 解析锚点、推理关系路径并逐步执行图内查询；动作执行后置。图采用整图发布、不做多版本，发布图卡 + 图向量，不使用 RDF/OWL；查询任务不建 `queryTask` 表，也不设查询子 Agent，取消 `match_question_to_graph` 和 `plan_next_query_step`，实例数据只经 `query_objects`、`get_related_objects` 读取。Java 查询原语与独立查询工作台已接入。详细结论见 [只读查询 Agent 设计](specs/2026-10-27-agent-query-design.md)，实施步骤见 [只读查询 Agent 计划](plans/2026-10-27-agent-query-plan.md)。
 
 ## 3. 阶段依赖
 

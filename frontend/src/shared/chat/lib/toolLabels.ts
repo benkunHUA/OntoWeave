@@ -43,7 +43,7 @@ export const TOOL_LABELS: Record<string, string> = {
   search_graphs: '检索业务图',
   get_graph_detail: '读取业务图详情',
   query_objects: '查询对象',
-  execute_query_step: '沿关系查询',
+  get_related_objects: '沿关系取对象',
 
   // 数据连接
   get_data_connection_state: '读取连接状态',
@@ -100,7 +100,6 @@ export const TOOL_LABELS: Record<string, string> = {
 export const SUBAGENT_LABELS: Record<string, string> = {
   action_modeler: '动作建模',
   view_designer: '视觉整理',
-  query_agent: '业务查询',
 }
 
 export function subagentLabel(name: string): string {

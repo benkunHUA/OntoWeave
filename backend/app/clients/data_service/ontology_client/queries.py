@@ -18,6 +18,7 @@ class QueryClientMixin:
         object_type_id: uuid.UUID,
         *,
         owner_id: uuid.UUID,
+        primary_keys: list[str] | None = None,
         q: str | None = None,
         filters: list[dict] | None = None,
         sort: list[dict] | None = None,
@@ -30,6 +31,7 @@ class QueryClientMixin:
             json={
                 "owner_id": owner_id,
                 "q": q,
+                "primary_keys": primary_keys or [],
                 "filters": filters or [],
                 "sort": sort or [],
                 "limit": limit,
@@ -37,30 +39,23 @@ class QueryClientMixin:
             },
         )
 
-    def query_step(
+    def related_objects(
         self,
         relation_id: uuid.UUID,
         *,
         owner_id: uuid.UUID,
         direction: str,
         inputs: list[dict],
-        filters: list[dict] | None = None,
-        sort: list[dict] | None = None,
-        limit: int = 20,
-        project: list[uuid.UUID] | None = None,
+        limit: int = 50,
     ) -> dict:
         return self._ontology_request(
             "POST",
-            "/query-steps",
+            f"/relation-types/{relation_id}/related-objects",
             json={
                 "owner_id": owner_id,
-                "relation_id": relation_id,
                 "direction": direction,
                 "inputs": inputs,
-                "filters": filters or [],
-                "sort": sort or [],
                 "limit": limit,
-                "project": project or [],
             },
         )
 

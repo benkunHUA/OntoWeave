@@ -47,6 +47,7 @@ public class ObjectQueryService {
     public QueryPageResponse query(UUID objectTypeId, ObjectQueryRequest request) {
         requireIds(objectTypeId, request == null ? null : request.ownerId());
         int limit = QueryLimits.limit(request.limit());
+        List<String> primaryKeys = QueryLimits.primaryKeys(request.primaryKeys());
         JdbcObjectQuery.ObjectVersionRow version = objects
                 .findCurrentVersion(objectTypeId, request.ownerId())
                 .orElse(null);
@@ -59,6 +60,7 @@ public class ObjectQueryService {
                 version.id(),
                 objectTypeId,
                 request.q(),
+                primaryKeys,
                 parsed,
                 sorts.parse(mapping, request.sort()),
                 MappingSupport.primaryKeyDatatype(mapping),

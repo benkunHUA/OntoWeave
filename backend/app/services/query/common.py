@@ -1,4 +1,4 @@
-"""查询结果的本地过滤、排序与投影。"""
+"""查询结果的归属校验与结果归一。"""
 
 from __future__ import annotations
 
@@ -11,13 +11,6 @@ from sqlalchemy.orm import Session
 from app.errors import InvalidRequestError
 from app.models import Property
 from app.schemas.query import QueryItem
-
-
-def project_properties(item: dict[str, Any], project: list[str]) -> dict[str, Any]:
-    properties = _properties(item)
-    if not project:
-        return {}
-    return {key: properties[key] for key in project if key in properties}
 
 
 def ensure_projectable(
@@ -95,8 +88,3 @@ def _result_properties(value: Any) -> dict[str, Any]:
         if attribute_id is not None:
             properties[str(attribute_id)] = item.get("value")
     return properties
-
-
-def _properties(item: dict[str, Any]) -> dict[str, Any]:
-    value = item.get("properties")
-    return value if isinstance(value, dict) else {}

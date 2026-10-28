@@ -2,20 +2,27 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.query import (
-    QueryAgentResult,
-    QueryAgentStatus,
     QueryDirection,
-    QueryEvidence,
     QueryFilter,
     QueryObjectsInput,
     QuerySort,
-    QueryStepInput,
+    RelatedObjectsInput,
 )
 
 
-def test_primary_key_cannot_be_combined_with_search_or_filters() -> None:
+def test_primary_keys_are_deduped_and_can_combine_with_filters() -> None:
+    payload = QueryObjectsInput(
+        object_type_id="type",
+        primary_keys=["c-1", "c-1", "c-2"],
+        filters=[{"property_id": "p", "op": "eq", "value": "open"}],
+    )
+
+    assert payload.primary_keys == ["c-1", "c-2"]
+
+
+def test_primary_keys_reject_empty_values() -> None:
     with pytest.raises(ValidationError):
-        QueryObjectsInput(object_type_id="type", primary_key="1", q="订单")
+        QueryObjectsInput(object_type_id="type", primary_keys=[""])
 
 
 def test_unary_filter_rejects_a_value() -> None:
@@ -38,68 +45,25 @@ def test_filter_accepts_operator_alias() -> None:
     assert query_filter.op == "eq"
 
 
-def test_expected_cardinality_is_limited_to_one_or_many() -> None:
+def test_related_inputs_require_at_least_one_reference() -> None:
     with pytest.raises(ValidationError):
-        QueryStepInput(
-            input_step_id="s0",
-            relation_id="r",
-            direction="outgoing",
-            expected_cardinality="some",
-        )
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("one_to_one", "one"),
-        ("one_to_many", "many"),
-        ("many_to_one", "one"),
-        ("many_to_many", "many"),
-    ],
-)
-def test_expected_cardinality_accepts_relation_cardinality_aliases(
-    value: str, expected: str
-) -> None:
-    payload = QueryStepInput(
-        input_step_id="s0",
-        relation_id="r",
-        direction="outgoing",
-        expected_cardinality=value,
-    )
-
-    assert payload.expected_cardinality == expected
+        RelatedObjectsInput(relation_id="r", direction="outgoing", inputs=[])
 
 
 def test_query_direction_accepts_forward_and_backward_aliases() -> None:
     assert (
-        QueryStepInput(input_step_id="s0", relation_id="r", direction="forward").direction
+        RelatedObjectsInput(
+            relation_id="r",
+            direction="forward",
+            inputs=[{"object_type_id": "t", "primary_key": "1"}],
+        ).direction
         is QueryDirection.OUTGOING
     )
     assert (
-        QueryStepInput(input_step_id="s0", relation_id="r", direction="backward").direction
+        RelatedObjectsInput(
+            relation_id="r",
+            direction="backward",
+            inputs=[{"object_type_id": "t", "primary_key": "1"}],
+        ).direction
         is QueryDirection.INCOMING
     )
-    assert (
-        QueryStepInput(input_step_id="s0", relation_id="r", direction=" FORWARD ").direction
-        is QueryDirection.OUTGOING
-    )
-
-
-def test_agent_result_requires_fields_for_its_status() -> None:
-    with pytest.raises(ValidationError):
-        QueryAgentResult(status=QueryAgentStatus.OK)
-    with pytest.raises(ValidationError):
-        QueryAgentResult(status=QueryAgentStatus.NEEDS_USER)
-    with pytest.raises(ValidationError):
-        QueryAgentResult(status=QueryAgentStatus.BLOCKED)
-
-    result = QueryAgentResult(status=QueryAgentStatus.NEEDS_USER, question="选哪个客户？")
-    assert result.question == "选哪个客户？"
-
-
-def test_evidence_can_be_partial_until_runner_injects_tool_state() -> None:
-    evidence = QueryEvidence.model_validate({"step_id": "s0", "title": "客户 112"})
-
-    assert evidence.step_id == "s0"
-    assert evidence.object_type_id is None
-    assert evidence.primary_key == ""

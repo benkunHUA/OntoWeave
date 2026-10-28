@@ -25,7 +25,6 @@ export const QUERY_COPY = {
   cancel: '取消',
   evidenceTitle: '查询证据',
   evidenceEmpty: '本次回答没有返回结构化证据。',
-  evidenceStep: '步骤',
   evidenceIndexVersion: '索引版本',
   evidencePrimaryKey: '主键',
   evidenceObjectFallback: '业务对象',

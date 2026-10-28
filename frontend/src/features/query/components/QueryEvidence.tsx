@@ -19,7 +19,7 @@ interface QueryEvidenceProps {
   evidence: QueryEvidenceItem[]
 }
 
-/** task 结果里的结构化证据：默认收起，展开后看业务对象、字段和查询步骤。 */
+/** query_objects 结果里的证据：默认收起，展开后看业务对象、字段和索引版本。 */
 export function QueryEvidence({ evidence }: QueryEvidenceProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
@@ -47,7 +47,7 @@ export function QueryEvidence({ evidence }: QueryEvidenceProps) {
         <Stack className="query-evidence__list" gap="xs" mt="xs">
           {evidence.map((item, index) => (
             <EvidenceCard
-              key={`${item.stepId}-${item.primaryKey}-${index}`}
+              key={`${item.objectTypeId}-${item.primaryKey}-${index}`}
               item={item}
               metadata={metadata[item.objectTypeId]}
             />
@@ -115,7 +115,6 @@ function EvidenceCard({
         <Text size="xs" c="dimmed">{QUERY_COPY.evidenceNoProperties}</Text>
       )}
       <Group className="query-evidence__meta" gap="md" wrap="wrap">
-        <Text size="xs" c="dimmed">{QUERY_COPY.evidenceStep} {item.stepId || '—'}</Text>
         <Text size="xs" c="dimmed" title={item.indexVersionId ?? undefined}>
           {QUERY_COPY.evidenceIndexVersion} {shortId(item.indexVersionId)}
         </Text>

@@ -12,47 +12,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-class OntologyQueryStepApiTest extends RelationQueryFixtureSupport {
+class OntologyRelatedObjectsApiTest extends RelationQueryFixtureSupport {
 
     @Test
-    void objectQueryEndpointAcceptsSortProjectionAndLimit() throws Exception {
-        UUID ownerId = UUID.randomUUID();
-        ObjectFixture fixture = createObjectFixture(ownerId, List.of(
-                attribute("id", "integer"),
-                attribute("name", "text"),
-                attribute("amount", "integer")
-        ));
-        AttributeSpec name = fixture.attributes().get(1);
-        AttributeSpec amount = fixture.attributes().get(2);
-        insertObject(fixture.versionId(), fixture, "1", "one",
-                Map.of(name.attributeId(), "one", amount.attributeId(), 10));
-        insertObject(fixture.versionId(), fixture, "2", "two",
-                Map.of(name.attributeId(), "two", amount.attributeId(), 20));
-
-        String body = """
-                {
-                  "ownerId": "%s",
-                  "sort": [{"attributeId": "%s", "direction": "desc"}],
-                  "limit": 1,
-                  "project": ["%s"]
-                }
-                """.formatted(ownerId, amount.attributeId(), name.attributeId());
-
-        mvc.perform(post("/internal/v1/ontology/object-types/{id}/objects/query",
-                                fixture.objectTypeId())
-                        .header(InternalTokenFilter.HEADER, INTERNAL_TOKEN)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(body))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(2))
-                .andExpect(jsonPath("$.truncated").value(true))
-                .andExpect(jsonPath("$.items[0].primaryKey").value("2"))
-                .andExpect(jsonPath("$.items[0].properties[0].attributeId")
-                        .value(name.attributeId().toString()));
-    }
-
-    @Test
-    void queryStepEndpointTraversesRelationAndReturnsEvidenceFields() throws Exception {
+    void relatedObjectsEndpointReturnsBatchPeerReferences() throws Exception {
         UUID ownerId = UUID.randomUUID();
         ObjectFixture customer = createObjectFixture(ownerId, List.of(
                 attribute("id", "integer"),
@@ -63,7 +26,9 @@ class OntologyQueryStepApiTest extends RelationQueryFixtureSupport {
                 attribute("name", "text")
         ));
         insertObject(customer.versionId(), customer, "1", "Alice", Map.of());
+        insertObject(customer.versionId(), customer, "2", "Bob", Map.of());
         insertObject(order.versionId(), order, "10", "Order 10", Map.of());
+        insertObject(order.versionId(), order, "20", "Order 20", Map.of());
         UUID relationId = createRelationDefinition(
                 ownerId,
                 customer,
@@ -81,27 +46,32 @@ class OntologyQueryStepApiTest extends RelationQueryFixtureSupport {
                 true
         );
         insertInstance(relation.versionId(), relationId, customer, order, "1", "10");
+        insertInstance(relation.versionId(), relationId, customer, order, "2", "20");
 
         String body = """
                 {
                   "ownerId": "%s",
-                  "relationId": "%s",
                   "direction": "outgoing",
-                  "inputs": [{"objectTypeId": "%s", "primaryKey": "1"}],
+                  "inputs": [
+                    {"objectTypeId": "%s", "primaryKey": "1"},
+                    {"objectTypeId": "%s", "primaryKey": "2"}
+                  ],
                   "limit": 20
                 }
-                """.formatted(ownerId, relationId, customer.objectTypeId());
+                """.formatted(ownerId, customer.objectTypeId(), customer.objectTypeId());
 
-        mvc.perform(post("/internal/v1/ontology/query-steps")
+        mvc.perform(post("/internal/v1/ontology/relation-types/{id}/related-objects", relationId)
                         .header(InternalTokenFilter.HEADER, INTERNAL_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.truncated").value(false))
+                .andExpect(jsonPath("$.indexVersionId").value(relation.versionId().toString()))
                 .andExpect(jsonPath("$.items[0].objectTypeId")
                         .value(order.objectTypeId().toString()))
                 .andExpect(jsonPath("$.items[0].primaryKey").value("10"))
-                .andExpect(jsonPath("$.indexVersionId").value(order.versionId().toString()));
+                .andExpect(jsonPath("$.items[1].primaryKey").value("20"));
     }
 
     private AttributeSpec attribute(String column, String datatype) {

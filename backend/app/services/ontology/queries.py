@@ -18,6 +18,7 @@ from app.services.ontology.common import (
     resource_subject,
 )
 from app.services.ontology.relation_sync import sync_subject_relations_best_effort
+from app.services.relation import relation_label
 
 
 def get_run(client: Any, *, owner_id: uuid.UUID, run_id: uuid.UUID) -> dict[str, Any]:
@@ -225,12 +226,12 @@ def decorate_group(session: Session, group: dict[str, Any]) -> dict[str, Any]:
     target = get_object_type(session, relation.target_type_id) if relation else None
     label = group.get("label")
     if relation is not None:
-        if direction == "incoming":
-            label = relation.reverse_label or relation.name
-        elif direction == "outgoing":
-            label = relation.forward_label or relation.name
-        else:
-            label = relation.name
+        label = relation_label(
+            relation,
+            direction,
+            source_name=source.name if source is not None else None,
+            target_name=target.name if target is not None else None,
+        )
     items = (
         group.get("items")
         or group.get("objects")

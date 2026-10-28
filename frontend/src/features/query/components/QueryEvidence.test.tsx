@@ -12,7 +12,6 @@ vi.mock('../../../shared/api/ontology', () => ontologyApi)
 
 const evidence: QueryEvidenceItem[] = [
   {
-    stepId: 's20',
     objectTypeId: 'type-order-line',
     objectTypeName: '订单明细',
     primaryKey: '1',
@@ -47,7 +46,6 @@ describe('QueryEvidence', () => {
     expect(screen.getByText('order_id')).toBeTruthy()
     expect(screen.getByText('unit_price')).toBeTruthy()
     expect(screen.getByText('1255.08')).toBeTruthy()
-    expect(screen.getByText(`${QUERY_COPY.evidenceStep} s20`)).toBeTruthy()
     expect(screen.getByText(`${QUERY_COPY.evidenceIndexVersion} 755c137e`)).toBeTruthy()
   })
 
@@ -60,7 +58,6 @@ describe('QueryEvidence', () => {
     render(
       <QueryEvidence
         evidence={[{
-          stepId: 's20',
           objectTypeId: 'legacy-type',
           objectTypeName: null,
           primaryKey: '1',

@@ -1,4 +1,4 @@
-"""query_objects：对象实例的锚点搜索、条件列表与按主键读取。"""
+"""query_objects：对象实例的搜索、条件列表与按主键批量读取。"""
 
 from __future__ import annotations
 
@@ -7,13 +7,10 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError
-from app.schemas.query import QueryItem, QueryObjectsInput, QueryObjectsResult, QueryStatus
-from app.services import ontology
+from app.schemas.query import QueryObjectsInput, QueryObjectsResult, QueryStatus
 from app.services.query.common import (
     ensure_projectable,
     items_from_result,
-    project_properties,
 )
 
 
@@ -23,31 +20,13 @@ def query_objects(
     *,
     owner_id: uuid.UUID,
     payload: QueryObjectsInput,
-    step_id: str,
 ) -> QueryObjectsResult:
     object_type_id = uuid.UUID(payload.object_type_id)
     project_ids = ensure_projectable(session, object_type_id, payload.project)
-    if payload.primary_key is not None:
-        detail = _detail(session, client, owner_id, object_type_id, payload.primary_key)
-        if detail is None:
-            return QueryObjectsResult(
-                step_id=step_id,
-                object_type_id=object_type_id,
-                status=QueryStatus.EMPTY,
-            )
-        item = _item(object_type_id, detail, [str(value) for value in project_ids])
-        return QueryObjectsResult(
-            step_id=step_id,
-            object_type_id=object_type_id,
-            index_version_id=detail.get("index_version_id"),
-            items=[item],
-            total=1,
-            status=QueryStatus.OK,
-        )
-
     raw = client.query_objects(
         object_type_id,
         owner_id=owner_id,
+        primary_keys=payload.primary_keys,
         q=payload.q,
         filters=[_filter_payload(item) for item in payload.filters],
         sort=[_sort_payload(item) for item in payload.sort],
@@ -57,7 +36,6 @@ def query_objects(
     version = raw.get("index_version_id")
     if version is None:
         return QueryObjectsResult(
-            step_id=step_id,
             object_type_id=object_type_id,
             status=QueryStatus.NOT_INDEXED,
         )
@@ -68,41 +46,12 @@ def query_objects(
         QueryStatus.EMPTY if not items else QueryStatus.TRUNCATED if truncated else QueryStatus.OK
     )
     return QueryObjectsResult(
-        step_id=step_id,
         object_type_id=object_type_id,
         index_version_id=version,
         items=items,
         total=total,
         status=status,
         truncated=truncated,
-    )
-
-
-def _detail(
-    session: Session,
-    client: Any,
-    owner_id: uuid.UUID,
-    object_type_id: uuid.UUID,
-    primary_key: str,
-) -> dict[str, Any] | None:
-    try:
-        return ontology.get_object(
-            session,
-            client,
-            owner_id=owner_id,
-            object_type_id=object_type_id,
-            primary_key=primary_key,
-        )
-    except NotFoundError:
-        return None
-
-
-def _item(object_type_id: uuid.UUID, detail: dict[str, Any], project: list[str]) -> QueryItem:
-    return QueryItem(
-        object_type_id=object_type_id,
-        primary_key=str(detail.get("primary_key") or ""),
-        title=detail.get("title"),
-        properties=project_properties(detail, project),
     )
 
 

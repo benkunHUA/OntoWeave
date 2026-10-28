@@ -156,12 +156,13 @@ def test_client_posts_controlled_query_contracts():
     client.query_objects(
         object_type_id,
         owner_id=owner,
+        primary_keys=["o-1", "o-2"],
         filters=[{"attribute_id": attribute_id, "op": "eq", "value": "open"}],
         sort=[{"attribute_id": attribute_id, "direction": "desc"}],
         limit=1,
         project=[attribute_id],
     )
-    client.query_step(
+    client.related_objects(
         relation_id,
         owner_id=owner,
         direction="outgoing",
@@ -170,12 +171,13 @@ def test_client_posts_controlled_query_contracts():
     )
 
     object_body = json.loads(captured[0].read())
-    step_body = json.loads(captured[1].read())
+    related_body = json.loads(captured[1].read())
     assert captured[0].url.path.endswith(f"/object-types/{object_type_id}/objects/query")
+    assert object_body["primaryKeys"] == ["o-1", "o-2"]
     assert object_body["filters"][0]["attributeId"] == str(attribute_id)
     assert object_body["sort"][0]["direction"] == "desc"
-    assert captured[1].url.path.endswith("/query-steps")
-    assert step_body["inputs"][0]["primaryKey"] == "c-1"
+    assert captured[1].url.path.endswith(f"/relation-types/{relation_id}/related-objects")
+    assert related_body["inputs"][0]["primaryKey"] == "c-1"
 
 
 def test_client_reads_bindable_dataset_detail_for_indexing():

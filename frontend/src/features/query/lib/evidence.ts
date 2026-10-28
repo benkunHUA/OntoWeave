@@ -1,7 +1,6 @@
 import type { ChatMessage, MessageBlock } from '../../../shared/types'
 
 export interface QueryEvidenceItem {
-  stepId: string
   objectTypeId: string
   objectTypeName: string | null
   primaryKey: string
@@ -11,34 +10,39 @@ export interface QueryEvidenceItem {
   indexVersionId: string | null
 }
 
-interface QueryAgentResultLike {
-  evidence?: unknown
+interface QueryObjectsResultLike {
+  items?: unknown
+  index_version_id?: unknown
+  indexVersionId?: unknown
 }
 
 type ToolBlock = Extract<MessageBlock, { kind: 'tool' }>
 
-/** 从 task 工具结果（QueryAgentResult JSON）里提取证据；解析失败或没有证据时返回空。 */
-export function evidenceFromTaskResult(result: string | null | undefined): QueryEvidenceItem[] {
+/** 从 query_objects 工具结果里提取证据；解析失败或没有对象时返回空。 */
+export function evidenceFromQueryObjectsResult(
+  result: string | null | undefined,
+): QueryEvidenceItem[] {
   if (!result) return []
   try {
-    const payload = JSON.parse(result) as QueryAgentResultLike
-    return normalizeEvidence(payload.evidence)
+    const payload = JSON.parse(result) as QueryObjectsResultLike
+    const indexVersionId = stringValue(payload.index_version_id ?? payload.indexVersionId)
+    return normalizeItems(payload.items, indexVersionId)
   } catch {
     return []
   }
 }
 
-/** 一条助手消息里最后一次带证据的 task，用于紧贴最终回答展示。 */
+/** 一条助手消息里最后一次带对象的查询，用于紧贴最终回答展示。 */
 export function evidenceFromMessage(message: ChatMessage): QueryEvidenceItem[] {
-  const blocks = taskBlocks(message.blocks)
+  const blocks = queryBlocks(message.blocks)
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
-    const evidence = evidenceFromTaskResult(blocks[index].result)
+    const evidence = evidenceFromQueryObjectsResult(blocks[index].result)
     if (evidence.length) return evidence
   }
   return []
 }
 
-/** 整个会话最近一次带证据的 task 结果。 */
+/** 整个会话最近一次带对象的查询结果。 */
 export function latestEvidence(messages: ChatMessage[]): QueryEvidenceItem[] {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const evidence = evidenceFromMessage(messages[index])
@@ -47,13 +51,13 @@ export function latestEvidence(messages: ChatMessage[]): QueryEvidenceItem[] {
   return []
 }
 
-function taskBlocks(blocks: MessageBlock[]): ToolBlock[] {
+function queryBlocks(blocks: MessageBlock[]): ToolBlock[] {
   return blocks.filter(
-    (block): block is ToolBlock => block.kind === 'tool' && block.name === 'task',
+    (block): block is ToolBlock => block.kind === 'tool' && block.name === 'query_objects',
   )
 }
 
-function normalizeEvidence(value: unknown): QueryEvidenceItem[] {
+function normalizeItems(value: unknown, indexVersionId: string | null): QueryEvidenceItem[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
     if (!item || typeof item !== 'object') return []
@@ -62,16 +66,16 @@ function normalizeEvidence(value: unknown): QueryEvidenceItem[] {
     if (!primaryKey) return []
     return [
       {
-        stepId: stringValue(record.step_id ?? record.stepId) ?? '',
         objectTypeId: stringValue(record.object_type_id ?? record.objectTypeId) ?? '',
         objectTypeName: stringValue(record.object_type_name ?? record.objectTypeName),
         primaryKey,
         title: stringValue(record.title),
-        properties: record.properties && typeof record.properties === 'object'
-          ? (record.properties as Record<string, unknown>)
-          : {},
+        properties:
+          record.properties && typeof record.properties === 'object'
+            ? (record.properties as Record<string, unknown>)
+            : {},
         propertyNames: stringRecord(record.property_names ?? record.propertyNames),
-        indexVersionId: stringValue(record.index_version_id ?? record.indexVersionId),
+        indexVersionId: stringValue(record.index_version_id ?? record.indexVersionId) ?? indexVersionId,
       },
     ]
   })

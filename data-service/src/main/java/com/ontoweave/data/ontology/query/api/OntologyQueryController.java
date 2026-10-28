@@ -7,8 +7,9 @@ import com.ontoweave.data.ontology.query.api.dto.OntologyObjectDetailResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectPageResponse;
 import com.ontoweave.data.ontology.query.api.dto.ObjectQueryRequest;
 import com.ontoweave.data.ontology.query.api.dto.QueryPageResponse;
-import com.ontoweave.data.ontology.query.api.dto.QueryStepRequest;
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectPageResponse;
+import com.ontoweave.data.ontology.query.api.dto.RelatedObjectsRequest;
+import com.ontoweave.data.ontology.query.api.dto.RelatedObjectsResponse;
 import com.ontoweave.data.ontology.query.api.dto.RelationGroupsResponse;
 import com.ontoweave.data.ontology.query.api.dto.RelationInstancePageResponse;
 import com.ontoweave.data.ontology.query.common.QueryErrors;
@@ -76,9 +77,12 @@ public class OntologyQueryController {
         return objects.query(objectTypeId, request);
     }
 
-    @PostMapping("/query-steps")
-    public QueryPageResponse queryStep(@RequestBody QueryStepRequest request) {
-        return relations.step(request);
+    @PostMapping("/relation-types/{relationId}/related-objects")
+    public RelatedObjectsResponse relatedObjectsBatch(
+            @PathVariable UUID relationId,
+            @RequestBody RelatedObjectsRequest request
+    ) {
+        return relations.relatedBatch(relationId, request);
     }
 
     @GetMapping("/object-types/{objectTypeId}/object-relations")

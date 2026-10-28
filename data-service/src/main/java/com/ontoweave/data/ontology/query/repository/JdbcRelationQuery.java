@@ -96,9 +96,15 @@ public class JdbcRelationQuery {
             UUID objectTypeId,
             String primaryKey
     ) {
-        RelatedSql sql = relatedSql(version, ownerId, direction, objectTypeId, primaryKey);
+        RelatedSql sql = relatedSql(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                List.of(primaryKey)
+        );
         Long count = jdbc.queryForObject(
-                "SELECT count(*) " + sql.fromClause(),
+                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
                 Long.class,
                 sql.arguments().toArray()
         );
@@ -114,16 +120,26 @@ public class JdbcRelationQuery {
             QueryDatatype peerPrimaryKeyType,
             int limit
     ) {
-        RelatedSql sql = relatedSql(version, ownerId, direction, objectTypeId, primaryKey);
+        RelatedSql sql = relatedSql(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                List.of(primaryKey)
+        );
         List<Object> arguments = new ArrayList<>(sql.arguments());
         arguments.add(limit);
         return jdbc.query("""
                         SELECT peer.primary_key_value, peer.title_value
                         """ + sql.fromClause() + """
+                        GROUP BY peer.primary_key_value, peer.title_value, peer.%s
                         ORDER BY peer.%s ASC NULLS LAST,
                                  peer.primary_key_value COLLATE "C" ASC
                         LIMIT ?
-                        """.formatted(peerPrimaryKeyType.sortColumn()),
+                        """.formatted(
+                        peerPrimaryKeyType.sortColumn(),
+                        peerPrimaryKeyType.sortColumn()
+                ),
                 (resultSet, rowNumber) -> new RelatedRow(
                         resultSet.getString("primary_key_value"),
                         resultSet.getString("title_value")
@@ -141,9 +157,35 @@ public class JdbcRelationQuery {
             QueryDatatype peerPrimaryKeyType,
             PageRequest page
     ) {
-        RelatedSql sql = relatedSql(version, ownerId, direction, objectTypeId, primaryKey);
+        return relatedPage(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                List.of(primaryKey),
+                peerPrimaryKeyType,
+                page
+        );
+    }
+
+    public RelatedPage relatedPage(
+            RelationVersionRow version,
+            UUID ownerId,
+            QueryDirection direction,
+            UUID objectTypeId,
+            List<String> primaryKeys,
+            QueryDatatype peerPrimaryKeyType,
+            PageRequest page
+    ) {
+        RelatedSql sql = relatedSql(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                primaryKeys
+        );
         Long total = jdbc.queryForObject(
-                "SELECT count(*) " + sql.fromClause(),
+                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
                 Long.class,
                 sql.arguments().toArray()
         );
@@ -153,10 +195,57 @@ public class JdbcRelationQuery {
         List<RelatedRow> items = jdbc.query("""
                         SELECT peer.primary_key_value, peer.title_value
                         """ + sql.fromClause() + """
+                        GROUP BY peer.primary_key_value, peer.title_value, peer.%s
                         ORDER BY peer.%s ASC NULLS LAST,
                                  peer.primary_key_value COLLATE "C" ASC
                         LIMIT ? OFFSET ?
-                        """.formatted(peerPrimaryKeyType.sortColumn()),
+                        """.formatted(
+                        peerPrimaryKeyType.sortColumn(),
+                        peerPrimaryKeyType.sortColumn()
+                ),
+                (resultSet, rowNumber) -> new RelatedRow(
+                        resultSet.getString("primary_key_value"),
+                        resultSet.getString("title_value")
+                ),
+                arguments.toArray()
+        );
+        return new RelatedPage(items, total == null ? 0L : total);
+    }
+
+    public RelatedPage relatedRefs(
+            RelationVersionRow version,
+            UUID ownerId,
+            QueryDirection direction,
+            UUID objectTypeId,
+            List<String> primaryKeys,
+            QueryDatatype peerPrimaryKeyType,
+            int limit
+    ) {
+        RelatedSql sql = relatedSql(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                primaryKeys
+        );
+        Long total = jdbc.queryForObject(
+                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
+                Long.class,
+                sql.arguments().toArray()
+        );
+        List<Object> arguments = new ArrayList<>(sql.arguments());
+        arguments.add(limit);
+        List<RelatedRow> items = jdbc.query("""
+                        SELECT peer.primary_key_value, peer.title_value
+                        """ + sql.fromClause() + """
+                        GROUP BY peer.primary_key_value, peer.title_value, peer.%s
+                        ORDER BY peer.%s ASC NULLS LAST,
+                                 peer.primary_key_value COLLATE "C" ASC
+                        LIMIT ?
+                        """.formatted(
+                        peerPrimaryKeyType.sortColumn(),
+                        peerPrimaryKeyType.sortColumn()
+                ),
                 (resultSet, rowNumber) -> new RelatedRow(
                         resultSet.getString("primary_key_value"),
                         resultSet.getString("title_value")
@@ -214,8 +303,11 @@ public class JdbcRelationQuery {
             UUID ownerId,
             QueryDirection direction,
             UUID objectTypeId,
-            String primaryKey
+            List<String> primaryKeys
     ) {
+        if (primaryKeys.isEmpty()) {
+            throw new IllegalArgumentException("primaryKeys must not be empty");
+        }
         boolean outgoing = direction == QueryDirection.OUTGOING;
         UUID peerTypeId = outgoing ? version.toObjectTypeId() : version.fromObjectTypeId();
         String peerKeyColumn = outgoing ? "to_primary_key" : "from_primary_key";
@@ -234,12 +326,24 @@ public class JdbcRelationQuery {
                 WHERE ri.version_id = ?
                   AND ri.relation_id = ?
                   AND ri.%s = ?
-                  AND ri.%s = ?
-                """.formatted(peerKeyColumn, currentTypeColumn, currentKeyColumn);
+                  AND ri.%s IN (%s)
+                """.formatted(
+                peerKeyColumn,
+                currentTypeColumn,
+                currentKeyColumn,
+                String.join(", ", java.util.Collections.nCopies(primaryKeys.size(), "?"))
+        );
+        List<Object> arguments = new ArrayList<>(List.of(
+                ownerId,
+                peerTypeId,
+                version.id(),
+                version.relationId(),
+                objectTypeId
+        ));
+        arguments.addAll(primaryKeys);
         return new RelatedSql(
                 fromClause,
-                List.of(ownerId, peerTypeId, version.id(), version.relationId(),
-                        objectTypeId, primaryKey)
+                arguments
         );
     }
 

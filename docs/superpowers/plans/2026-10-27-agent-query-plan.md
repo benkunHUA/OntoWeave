@@ -1,5 +1,7 @@
 # P4 只读查询 Agent Implementation Plan
 
+> **2026-10-29 决议：** 已取消查询子 Agent 与 `execute_query_step`。主 Agent 直接使用 `query_objects` 和 `get_related_objects`；多对多关系由后者在数据服务内部查询关系实例。本文以下涉及查询子 Agent 的内容为历史设计。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 交付只读查询闭环：改写问题、召回并选择图、读取图详情，由持久化查询子 Agent 解析锚点、逐步执行关系查询并返回带证据的答案。

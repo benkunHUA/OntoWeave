@@ -11,7 +11,7 @@ interface QueryMessageBubbleProps {
   onAnswer: (option: InterruptOption) => void
 }
 
-/** 复用共享气泡，只在助手回答下面追加本次 task 的查询证据。 */
+/** 复用共享气泡，只在助手回答下面追加本次对象查询的证据。 */
 export function QueryMessageBubble({
   message,
   pendingInterruptId,

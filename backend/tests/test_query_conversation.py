@@ -1,19 +1,22 @@
-"""`test_query_agent.py` 中 conversation 相关测试。"""
+"""业务问答会话的创建与列表测试。"""
 
 from __future__ import annotations
 
 import uuid
 
 import pytest
+from fastapi.testclient import TestClient
 
+from app.main import create_app
 from app.models import Graph
 from app.services import conversation
-from tests.support.query_agent_fixtures import API, build_client
+
+API = "/api/v1"
 
 
 @pytest.fixture
 def client(session_factory):
-    return build_client(session_factory)
+    return TestClient(create_app(session_factory=session_factory))
 
 
 def test_query_conversation_has_random_resource_and_no_graph(session):

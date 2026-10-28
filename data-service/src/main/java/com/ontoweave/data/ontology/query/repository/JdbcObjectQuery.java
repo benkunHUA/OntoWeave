@@ -56,7 +56,7 @@ public class JdbcObjectQuery {
             PageRequest page
     ) {
         List<Object> arguments = new ArrayList<>();
-        String where = pageWhere(versionId, objectTypeId, q, filters, arguments);
+        String where = pageWhere(versionId, objectTypeId, q, List.of(), filters, arguments);
         long total = count("""
                 SELECT count(*)
                 FROM data.ontology_object_instance o
@@ -85,13 +85,14 @@ public class JdbcObjectQuery {
             UUID versionId,
             UUID objectTypeId,
             String q,
+            List<String> primaryKeys,
             ParsedFilters filters,
             List<SortSpec> sort,
             QueryDatatype primaryKeyType,
             int limit
     ) {
         List<Object> arguments = new ArrayList<>();
-        String where = pageWhere(versionId, objectTypeId, q, filters, arguments);
+        String where = pageWhere(versionId, objectTypeId, q, primaryKeys, filters, arguments);
         long total = count("""
                 SELECT count(*)
                 FROM data.ontology_object_instance o
@@ -139,6 +140,7 @@ public class JdbcObjectQuery {
             UUID versionId,
             UUID objectTypeId,
             String q,
+            List<String> primaryKeys,
             ParsedFilters filters,
             List<Object> arguments
     ) {
@@ -154,6 +156,15 @@ public class JdbcObjectQuery {
             String pattern = "%" + q.trim() + "%";
             arguments.add(pattern);
             arguments.add(pattern);
+        }
+        if (!primaryKeys.isEmpty()) {
+            where.append("  AND o.primary_key_value IN (");
+            where.append(String.join(", ", java.util.Collections.nCopies(
+                    primaryKeys.size(),
+                    "?"
+            )));
+            where.append(")\n");
+            arguments.addAll(primaryKeys);
         }
         for (String clause : filters.clauses()) {
             where.append("  AND ").append(clause).append('\n');

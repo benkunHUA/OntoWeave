@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.models import ObjectType, Relation
+from app.services.relation import relation_label
 
 _OUTGOING = "outgoing"
 _INCOMING = "incoming"
@@ -24,17 +25,19 @@ def summarize_query_tool_call(
     payload = args if isinstance(args, dict) else {}
     if name == "query_objects":
         return _query_objects_summary(session, owner_id=owner_id, args=payload)
-    if name == "execute_query_step":
-        return _query_step_summary(session, owner_id=owner_id, args=payload)
+    if name == "get_related_objects":
+        return _related_objects_summary(session, owner_id=owner_id, args=payload)
     return None
 
 
 def _query_objects_summary(session: Session, *, owner_id: uuid.UUID, args: dict[str, Any]) -> str:
     object_type = _owned_object_type(session, owner_id=owner_id, raw_id=args.get("object_type_id"))
     label = object_type.name if object_type is not None else "对象"
-    primary_key = _text(args.get("primary_key"))
-    if primary_key:
-        return f"{label} · 按主键「{primary_key}」"
+    primary_keys = args.get("primary_keys")
+    if isinstance(primary_keys, list) and primary_keys:
+        if len(primary_keys) == 1:
+            return f"{label} · 按主键「{_text(primary_keys[0]) or ''}」"
+        return f"{label} · 按 {len(primary_keys)} 个主键"
 
     keyword = _text(args.get("q"))
     if keyword:
@@ -43,17 +46,19 @@ def _query_objects_summary(session: Session, *, owner_id: uuid.UUID, args: dict[
         filters = args.get("filters")
         filter_count = len(filters) if isinstance(filters, list) else 0
         detail = f"按 {filter_count} 个条件筛选" if filter_count else "读取列表"
-    limit = _limit(args.get("limit"))
+    limit = _limit(args.get("limit"), default=20)
     return f"{label} · {detail}，最多 {limit} 条"
 
 
-def _query_step_summary(session: Session, *, owner_id: uuid.UUID, args: dict[str, Any]) -> str:
+def _related_objects_summary(session: Session, *, owner_id: uuid.UUID, args: dict[str, Any]) -> str:
     relation = _owned_relation(session, owner_id=owner_id, raw_id=args.get("relation_id"))
     direction = _text(args.get("direction")) or _OUTGOING
-    limit = _limit(args.get("limit"))
+    limit = _limit(args.get("limit"), default=50)
+    inputs = args.get("inputs")
+    starts = len(inputs) if isinstance(inputs, list) else 0
     if relation is None:
         turn = "向外" if direction == _OUTGOING else "向内"
-        return f"沿关系{turn}查询，最多 {limit} 条"
+        return f"沿关系{turn}取 {starts} 个起点，最多 {limit} 条"
 
     source = session.get(ObjectType, relation.source_type_id)
     target = session.get(ObjectType, relation.target_type_id)
@@ -61,11 +66,15 @@ def _query_step_summary(session: Session, *, owner_id: uuid.UUID, args: dict[str
     target_name = target.name if target is not None else "目标对象"
     if direction == _INCOMING:
         from_name, to_name = target_name, source_name
-        edge = relation.reverse_label or relation.name
     else:
         from_name, to_name = source_name, target_name
-        edge = relation.forward_label or relation.name
-    return f"从「{from_name}」沿「{edge}」查「{to_name}」，最多 {limit} 条"
+    edge = relation_label(
+        relation,
+        direction,
+        source_name=source_name,
+        target_name=target_name,
+    )
+    return f"从「{from_name}」沿「{edge}」查「{to_name}」，{starts} 个起点，最多 {limit} 条"
 
 
 def _owned_object_type(
@@ -100,7 +109,7 @@ def _text(value: object) -> str | None:
     return stripped or None
 
 
-def _limit(value: object) -> int:
+def _limit(value: object, *, default: int) -> int:
     if isinstance(value, int) and value > 0:
         return value
-    return 20
+    return default
