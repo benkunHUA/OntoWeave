@@ -3,9 +3,11 @@ import type { ChatMessage, MessageBlock } from '../../../shared/types'
 export interface QueryEvidenceItem {
   stepId: string
   objectTypeId: string
+  objectTypeName: string | null
   primaryKey: string
   title: string | null
   properties: Record<string, unknown>
+  propertyNames: Record<string, string>
   indexVersionId: string | null
 }
 
@@ -62,11 +64,13 @@ function normalizeEvidence(value: unknown): QueryEvidenceItem[] {
       {
         stepId: stringValue(record.step_id ?? record.stepId) ?? '',
         objectTypeId: stringValue(record.object_type_id ?? record.objectTypeId) ?? '',
+        objectTypeName: stringValue(record.object_type_name ?? record.objectTypeName),
         primaryKey,
         title: stringValue(record.title),
         properties: record.properties && typeof record.properties === 'object'
           ? (record.properties as Record<string, unknown>)
           : {},
+        propertyNames: stringRecord(record.property_names ?? record.propertyNames),
         indexVersionId: stringValue(record.index_version_id ?? record.indexVersionId),
       },
     ]
@@ -77,4 +81,11 @@ function stringValue(value: unknown): string | null {
   if (typeof value === 'string') return value
   if (typeof value === 'number') return String(value)
   return null
+}
+
+function stringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
 }

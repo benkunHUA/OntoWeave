@@ -26,5 +26,11 @@ export const QUERY_COPY = {
   evidenceTitle: '查询证据',
   evidenceEmpty: '本次回答没有返回结构化证据。',
   evidenceStep: '步骤',
-  evidenceIndex: '索引',
+  evidenceIndexVersion: '索引版本',
+  evidencePrimaryKey: '主键',
+  evidenceObjectFallback: '业务对象',
+  evidenceFieldFallback: '字段',
+  evidenceNoProperties: '暂无属性',
+  trueValue: '是',
+  falseValue: '否',
 } as const

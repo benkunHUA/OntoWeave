@@ -73,6 +73,30 @@ class EvidenceChild(FakeChild):
         }
 
 
+class LabeledEvidenceChild(FakeChild):
+    def invoke(self, state, config):
+        self.calls.append((state, config))
+        return {
+            "messages": [AIMessage(content="答案")],
+            "structured_response": QueryAgentResult(
+                status=QueryAgentStatus.OK,
+                answer="答案",
+            ),
+            "evidence": [
+                {
+                    "turn_id": state["turn_id"],
+                    "step_id": "s0",
+                    "object_type_id": "cc78d0bd-155f-4b23-b2ce-748efadceb8c",
+                    "primary_key": "8",
+                    "title": "订单 SO202601030008",
+                    "properties": {"prop-order-no": "SO202601030008"},
+                    "index_version_id": "3a9aafbe-2e31-4117-bacf-d4fa358581e2",
+                    "status": "OK",
+                }
+            ],
+        }
+
+
 class BlockedChild(FakeChild):
     def invoke(self, state, config):
         self.calls.append((state, config))

@@ -9,9 +9,11 @@ const result = JSON.stringify({
     {
       step_id: 's0',
       object_type_id: 'type-1',
+      object_type_name: '订单',
       primary_key: 'O-100',
       title: '订单 100',
       properties: { 'prop-amount': 1280 },
+      property_names: { 'prop-amount': 'amount' },
       index_version_id: 'index-1',
     },
   ],
@@ -23,12 +25,25 @@ describe('query evidence parsing', () => {
       {
         stepId: 's0',
         objectTypeId: 'type-1',
+        objectTypeName: '订单',
         primaryKey: 'O-100',
         title: '订单 100',
         properties: { 'prop-amount': 1280 },
+        propertyNames: { 'prop-amount': 'amount' },
         indexVersionId: 'index-1',
       },
     ])
+  })
+
+  it('defaults missing readable metadata for older evidence', () => {
+    const legacy = JSON.stringify({
+      evidence: [{ step_id: 's0', primary_key: '1', properties: {} }],
+    })
+
+    expect(evidenceFromTaskResult(legacy)[0]).toMatchObject({
+      objectTypeName: null,
+      propertyNames: {},
+    })
   })
 
   it('keeps raw results when parsing fails', () => {

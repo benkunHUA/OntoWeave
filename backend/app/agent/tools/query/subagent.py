@@ -122,7 +122,7 @@ class _QueryRunner:
                 if not self._reset_after_history_error(exc, child_config):
                     raise
                 result = self.child.invoke(child_state, child_config)
-            return _project(result, turn_id)
+            return _project(result, turn_id, graph_detail)
         except Exception as exc:
             message = AIMessage(content=f"查询输入无效：{exc}")
             return {
@@ -237,13 +237,14 @@ def _child_config(
     return child
 
 
-def _project(result: dict[str, Any], turn_id: str) -> dict[str, Any]:
+def _project(result: dict[str, Any], turn_id: str, graph_detail: dict[str, Any]) -> dict[str, Any]:
     messages = result.get("messages") if isinstance(result, dict) else None
     last = messages[-1] if isinstance(messages, list) and messages else AIMessage(content="")
     structured = result.get("structured_response") if isinstance(result, dict) else None
     evidence = _evidence_from_state(
         result.get("evidence") if isinstance(result, dict) else None,
         turn_id,
+        graph_detail,
     )
     if isinstance(structured, QueryAgentResult):
         update: dict[str, Any] = {"evidence": evidence}
@@ -257,9 +258,12 @@ def _project(result: dict[str, Any], turn_id: str) -> dict[str, Any]:
     }
 
 
-def _evidence_from_state(raw: Any, turn_id: str) -> list[QueryEvidence]:
+def _evidence_from_state(
+    raw: Any, turn_id: str, graph_detail: dict[str, Any]
+) -> list[QueryEvidence]:
     if not isinstance(raw, list):
         return []
+    object_names, property_names = _evidence_labels(graph_detail)
     evidence: list[QueryEvidence] = []
     for item in raw:
         if (
@@ -269,5 +273,56 @@ def _evidence_from_state(raw: Any, turn_id: str) -> list[QueryEvidence]:
             or not item.get("primary_key")
         ):
             continue
-        evidence.append(QueryEvidence.model_validate(item))
+        object_type_id = str(item["object_type_id"])
+        properties = item.get("properties")
+        property_ids = properties if isinstance(properties, dict) else {}
+        payload: dict[str, Any] = {
+            **item,
+            "object_type_name": object_names.get(object_type_id),
+            "property_names": {
+                key: property_names[object_type_id][key]
+                for key in property_ids
+                if key in property_names.get(object_type_id, {})
+            },
+        }
+        evidence.append(QueryEvidence.model_validate(payload))
     return evidence
+
+
+def _evidence_labels(
+    graph_detail: dict[str, Any],
+) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """从图详情建立对象类型、属性 ID 到展示名的映射。"""
+    object_names: dict[str, str] = {}
+    property_names: dict[str, dict[str, str]] = {}
+    rows = graph_detail.get("object_types")
+    if not isinstance(rows, list):
+        return object_names, property_names
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        object_type_id = _text(row.get("id"))
+        if object_type_id is None:
+            continue
+        object_name = _text(row.get("name"))
+        if object_name is not None:
+            object_names[object_type_id] = object_name
+        labels: dict[str, str] = {}
+        properties = row.get("properties")
+        if isinstance(properties, list):
+            for prop in properties:
+                if not isinstance(prop, dict):
+                    continue
+                property_id = _text(prop.get("id"))
+                property_name = _text(prop.get("name"))
+                if property_id is not None and property_name is not None:
+                    labels[property_id] = property_name
+        property_names[object_type_id] = labels
+    return object_names, property_names
+
+
+def _text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None

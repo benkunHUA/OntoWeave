@@ -1,6 +1,17 @@
-import { Badge, Code, Group, Paper, Stack, Text, UnstyledButton } from '@mantine/core'
+import {
+  Badge,
+  Code,
+  Collapse,
+  Divider,
+  Group,
+  Paper,
+  Stack,
+  Text,
+  UnstyledButton,
+} from '@mantine/core'
 import { ChevronRight, Database, Hash } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { useEvidenceMetadata, type EvidenceTypeMetadata } from '../hooks/useEvidenceMetadata'
 import { QUERY_COPY } from '../lib/constants'
 import type { QueryEvidenceItem } from '../lib/evidence'
 
@@ -8,9 +19,11 @@ interface QueryEvidenceProps {
   evidence: QueryEvidenceItem[]
 }
 
-/** task 结果里的结构化证据：默认收起，展开后看对象、步骤和索引版本。 */
+/** task 结果里的结构化证据：默认收起，展开后看业务对象、字段和查询步骤。 */
 export function QueryEvidence({ evidence }: QueryEvidenceProps) {
   const [open, setOpen] = useState(false)
+  const panelId = useId()
+  const metadata = useEvidenceMetadata(evidence)
   if (!evidence.length) return null
 
   return (
@@ -19,6 +32,7 @@ export function QueryEvidence({ evidence }: QueryEvidenceProps) {
         type="button"
         className="query-evidence__toggle"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
         w="100%"
       >
@@ -29,49 +43,120 @@ export function QueryEvidence({ evidence }: QueryEvidenceProps) {
           <ChevronRight size={13} className={open ? 'is-open' : ''} />
         </Group>
       </UnstyledButton>
-      {open ? (
+      <Collapse id={panelId} expanded={open}>
         <Stack className="query-evidence__list" gap="xs" mt="xs">
           {evidence.map((item, index) => (
-            <Paper className="query-evidence__item" key={`${item.stepId}-${item.primaryKey}-${index}`} bg="dark.8" p="xs" radius="sm">
-              <Group justify="space-between" gap="xs" mb="xs">
-                <Text component="strong" size="xs">{item.title || item.primaryKey}</Text>
-                <Code>
-                  <Hash size={11} />
-                  {item.primaryKey}
-                </Code>
-              </Group>
-              <Stack className="query-evidence__facts" gap={3} mt={7}>
-                <Group className="query-evidence__row" gap={8} wrap="nowrap">
-                  <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate>
-                    {QUERY_COPY.evidenceStep}
-                  </Text>
-                  <Text className="query-evidence__value" size="xs" truncate>{item.stepId || '—'}</Text>
-                </Group>
-                <Group className="query-evidence__row" gap={8} wrap="nowrap">
-                  <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate>
-                    {QUERY_COPY.evidenceIndex}
-                  </Text>
-                  <Text className="query-evidence__value" size="xs" truncate title={item.indexVersionId ?? undefined}>
-                    {shortId(item.indexVersionId)}
-                  </Text>
-                </Group>
-                {Object.entries(item.properties)
-                  .slice(0, 4)
-                  .map(([key, value]) => (
-                    <Group className="query-evidence__row" key={key} gap={8} wrap="nowrap">
-                      <Text className="query-evidence__label" size="xs" c="dimmed" w={76} truncate title={key}>
-                        {shortId(key)}
-                      </Text>
-                      <Text className="query-evidence__value" size="xs" truncate>{formatValue(value)}</Text>
-                    </Group>
-                  ))}
-              </Stack>
-            </Paper>
+            <EvidenceCard
+              key={`${item.stepId}-${item.primaryKey}-${index}`}
+              item={item}
+              metadata={metadata[item.objectTypeId]}
+            />
           ))}
         </Stack>
-      ) : null}
+      </Collapse>
     </Paper>
   )
+}
+
+function EvidenceCard({
+  item,
+  metadata,
+}: {
+  item: QueryEvidenceItem
+  metadata: EvidenceTypeMetadata | undefined
+}) {
+  const typeName = objectTypeName(item, metadata)
+  const title = cardTitle(item, typeName)
+  const subtitle = cardTypeName(item, typeName)
+  const properties = Object.entries(item.properties)
+
+  return (
+    <Paper className="query-evidence__item" bg="dark.8" p="sm" radius="sm">
+      <Group justify="space-between" align="flex-start" gap="sm" wrap="nowrap">
+        <Stack gap={2} miw={0}>
+          <Text className="query-evidence__title" component="strong" size="sm" title={title}>
+            {title}
+          </Text>
+          {subtitle ? <Text size="xs" c="dimmed">{subtitle}</Text> : null}
+        </Stack>
+        <Code
+          className="query-evidence__primary-key"
+          title={`${QUERY_COPY.evidencePrimaryKey} ${item.primaryKey}`}
+        >
+          <Hash size={11} />
+          {item.primaryKey}
+        </Code>
+      </Group>
+      <Divider my={9} color="dark.6" />
+      {properties.length ? (
+        <Stack gap={5}>
+          {properties.map(([key, value]) => {
+            const label = propertyLabel(item, metadata, key)
+            const formatted = formatValue(value)
+            return (
+              <Group
+                className="query-evidence__row"
+                key={key}
+                gap="sm"
+                align="flex-start"
+                wrap="nowrap"
+              >
+                <Text className="query-evidence__label" size="xs" c="dimmed" title={label}>
+                  {label}
+                </Text>
+                <Text className="query-evidence__value" size="xs" title={formatted}>
+                  {formatted}
+                </Text>
+              </Group>
+            )
+          })}
+        </Stack>
+      ) : (
+        <Text size="xs" c="dimmed">{QUERY_COPY.evidenceNoProperties}</Text>
+      )}
+      <Group className="query-evidence__meta" gap="md" wrap="wrap">
+        <Text size="xs" c="dimmed">{QUERY_COPY.evidenceStep} {item.stepId || '—'}</Text>
+        <Text size="xs" c="dimmed" title={item.indexVersionId ?? undefined}>
+          {QUERY_COPY.evidenceIndexVersion} {shortId(item.indexVersionId)}
+        </Text>
+      </Group>
+    </Paper>
+  )
+}
+
+function objectTypeName(
+  item: QueryEvidenceItem,
+  metadata: EvidenceTypeMetadata | undefined,
+): string | null {
+  return cleanText(item.objectTypeName) ?? cleanText(metadata?.name)
+}
+
+function cardTitle(item: QueryEvidenceItem, typeName: string | null): string {
+  const title = cleanText(item.title)
+  if (!title || (title === item.primaryKey && typeName)) {
+    return typeName ?? QUERY_COPY.evidenceObjectFallback
+  }
+  return title
+}
+
+function cardTypeName(item: QueryEvidenceItem, typeName: string | null): string | null {
+  const title = cleanText(item.title)
+  return title && title !== item.primaryKey && typeName !== title ? typeName : null
+}
+
+function propertyLabel(
+  item: QueryEvidenceItem,
+  metadata: EvidenceTypeMetadata | undefined,
+  key: string,
+): string {
+  return cleanText(item.propertyNames[key])
+    ?? cleanText(metadata?.propertyNames[key])
+    ?? `${QUERY_COPY.evidenceFieldFallback} ${shortId(key)}`
+}
+
+function cleanText(value: string | null | undefined): string | null {
+  const text = value?.trim()
+  return text ? text : null
 }
 
 function shortId(value: string | null): string {
@@ -81,7 +166,9 @@ function shortId(value: string | null): string {
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '—'
-  if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (typeof value === 'string') return value.trim() || '—'
+  if (typeof value === 'boolean') return value ? QUERY_COPY.trueValue : QUERY_COPY.falseValue
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '—'
+  if (Array.isArray(value)) return value.length ? value.map(formatValue).join('、') : '—'
   return JSON.stringify(value)
 }

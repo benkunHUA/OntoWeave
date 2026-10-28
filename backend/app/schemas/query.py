@@ -174,9 +174,11 @@ class QueryEvidence(BaseModel):
     # 避免模型手抄证据时漏字段导致整份结构化结果作废。
     step_id: str = ""
     object_type_id: uuid.UUID | None = None
+    object_type_name: str | None = None
     primary_key: str = ""
     title: str | None = None
     properties: dict[str, Any] = Field(default_factory=dict)
+    property_names: dict[str, str] = Field(default_factory=dict)
     index_version_id: uuid.UUID | None = None
 
 

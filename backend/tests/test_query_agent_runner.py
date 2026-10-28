@@ -20,6 +20,7 @@ from tests.support.query_agent_fixtures import (
     FakeCheckpointer,
     FakeChild,
     FlakyChild,
+    LabeledEvidenceChild,
 )
 
 
@@ -100,6 +101,32 @@ def test_query_runner_replaces_model_evidence_with_current_turn_tool_state():
     assert evidence[0].primary_key == "8"
     assert evidence[0].title == "订单 SO202601030008"
     assert result["structured_response"].limitations == []
+
+
+def test_query_runner_adds_readable_object_and_property_names_to_evidence():
+    graph_id = uuid.uuid4()
+    runner = _QueryRunner(LabeledEvidenceChild(), uuid.uuid4())
+    payload = {
+        "graph_id": str(graph_id),
+        "graph_detail": {
+            "graph_id": str(graph_id),
+            "object_types": [
+                {
+                    "id": "cc78d0bd-155f-4b23-b2ce-748efadceb8c",
+                    "name": "订单",
+                    "properties": [{"id": "prop-order-no", "name": "order_no"}],
+                }
+            ],
+            "relations": [],
+        },
+        "rewritten_query": "查询订单",
+    }
+
+    result = runner({"messages": [HumanMessage(content=json.dumps(payload, ensure_ascii=False))]})
+
+    evidence = result["structured_response"].evidence[0]
+    assert evidence.object_type_name == "订单"
+    assert evidence.property_names == {"prop-order-no": "order_no"}
 
 
 def test_query_runner_keeps_limitations_when_blocked():
