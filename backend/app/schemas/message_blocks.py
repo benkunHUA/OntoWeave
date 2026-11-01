@@ -37,6 +37,67 @@ class FreeTextMode(BaseModel):
     wrap: Literal["raw", "respond"]
 
 
+class ActionFieldChange(BaseModel):
+    """行动确认卡里的一个字段前后值。"""
+
+    property_id: str | None = None
+    name: str | None = None
+    before: Any = None
+    after: Any = None
+
+
+class ActionObjectChange(BaseModel):
+    """行动确认卡里的一个对象变更。"""
+
+    kind: str
+    object_type_id: str | None = None
+    object_type_name: str | None = None
+    primary_key: str = ""
+    title: str = ""
+    fields: list[ActionFieldChange] = Field(default_factory=list)
+
+
+class ActionRelationChange(BaseModel):
+    """行动确认卡里的一条关系变更。"""
+
+    kind: str
+    relation_id: str | None = None
+    relation_name: str | None = None
+    from_object_type_id: str | None = None
+    from_object_type_name: str | None = None
+    from_primary_key: str = ""
+    to_object_type_id: str | None = None
+    to_object_type_name: str | None = None
+    to_primary_key: str = ""
+    before_exists: bool = False
+    after_exists: bool = False
+
+
+class ActionConfirmationAction(BaseModel):
+    """确认卡标题区展示的行动基本信息。"""
+
+    id: str | None = None
+    name: str
+    description: str | None = None
+
+
+class ActionConfirmation(BaseModel):
+    """`execute_action` 的结构化确认载荷。"""
+
+    model_config = ConfigDict(extra="allow")
+
+    kind: Literal["action_confirmation"] = "action_confirmation"
+    title: str
+    summary: str
+    action: ActionConfirmationAction
+    preview_hash: str
+    execution_id: str
+    object_changes: list[ActionObjectChange] = Field(default_factory=list)
+    relation_changes: list[ActionRelationChange] = Field(default_factory=list)
+    warnings: list[Any] = Field(default_factory=list)
+    options: list[InterruptOption] = Field(default_factory=list)
+
+
 class _Block(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -85,6 +146,8 @@ class InterruptBlock(_Block):
     options: list[InterruptOption] = Field(default_factory=list)
     freeText: FreeTextMode | None = None
     details: list[InterruptDetail] = Field(default_factory=list)
+    # 行动执行的富确认载荷；普通 ask_user 中断不带这个字段。
+    confirmation: ActionConfirmation | None = None
 
 
 MessageBlock = Annotated[

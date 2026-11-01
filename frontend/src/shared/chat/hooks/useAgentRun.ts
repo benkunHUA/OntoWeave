@@ -88,7 +88,7 @@ export function useAgentRun({
           setInterrupt({
             blockId: event.blockId,
             question: event.question ?? '需要你确认一下',
-            options: event.options ?? [],
+            options: event.confirmation?.options ?? event.options ?? [],
             freeText: event.freeText ?? null,
           })
         } else if (event.type === 'tool.end') {

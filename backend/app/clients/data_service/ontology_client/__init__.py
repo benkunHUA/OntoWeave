@@ -4,5 +4,6 @@ from __future__ import annotations
 
 from app.clients.data_service.ontology_client.base import ONTOLOGY_PREFIX
 from app.clients.data_service.ontology_client.client import OntologyDataServiceClient
+from app.clients.data_service.ontology_client.errors import EditConflict
 
-__all__ = ["ONTOLOGY_PREFIX", "OntologyDataServiceClient"]
+__all__ = ["EditConflict", "ONTOLOGY_PREFIX", "OntologyDataServiceClient"]

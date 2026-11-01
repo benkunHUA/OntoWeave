@@ -179,13 +179,16 @@ def stream_run(
                     paused = True
                     for item in update if isinstance(update, (list, tuple)) else [update]:
                         value = getattr(item, "value", None) or {}
-                        question, options, free_text, details = normalize_interrupt(value)
+                        question, options, free_text, details, confirmation = normalize_interrupt(
+                            value
+                        )
                         interrupt_question = question or interrupt_question
                         for event in turn.interrupt(
                             question=question,
                             options=options,
                             free_text=free_text,
                             details=details,
+                            confirmation=confirmation,
                         ):
                             yield sse(event)
                     continue

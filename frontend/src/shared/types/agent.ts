@@ -17,6 +17,53 @@ export interface InterruptDetail {
   value: string
 }
 
+/** 行动确认卡里的字段前后值。 */
+export interface ActionFieldChange {
+  property_id?: string | null
+  name?: string | null
+  before: unknown
+  after: unknown
+}
+
+/** 行动确认卡里的对象变更。 */
+export interface ActionObjectChange {
+  kind: string
+  object_type_id?: string | null
+  object_type_name?: string | null
+  primary_key: string
+  title: string
+  fields: ActionFieldChange[]
+}
+
+/** 行动确认卡里的关系变更。 */
+export interface ActionRelationChange {
+  kind: string
+  relation_id?: string | null
+  relation_name?: string | null
+  from_object_type_id?: string | null
+  from_object_type_name?: string | null
+  from_primary_key: string
+  to_object_type_id?: string | null
+  to_object_type_name?: string | null
+  to_primary_key: string
+  before_exists: boolean
+  after_exists: boolean
+}
+
+/** `execute_action` 在 preview 后返回的结构化确认载荷。 */
+export interface ActionConfirmation {
+  kind: 'action_confirmation'
+  title: string
+  summary: string
+  action: { id?: string | null; name: string; description?: string | null }
+  preview_hash: string
+  execution_id: string
+  object_changes: ActionObjectChange[]
+  relation_changes: ActionRelationChange[]
+  warnings: unknown[]
+  options: InterruptOption[]
+}
+
 /** 助手回合里按时间排列的内容块；思考 / 正文 / 工具调用共用一套渲染。 */
 export type MessageBlock =
   | { id: string; kind: 'text'; text: string; done?: boolean }
@@ -46,6 +93,8 @@ export type MessageBlock =
       options: InterruptOption[]
       freeText: FreeTextMode
       details?: InterruptDetail[]
+      /** 行动执行的富确认载荷；普通提问中断没有。 */
+      confirmation?: ActionConfirmation | null
     }
 
 /** 一条渲染出来的消息：用户输入，或助手的一次运行。 */
@@ -95,6 +144,7 @@ export type AgentEvent =
       options: InterruptOption[]
       freeText: FreeTextMode
       details?: InterruptDetail[]
+      confirmation?: ActionConfirmation | null
     }
   | {
       v: number

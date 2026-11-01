@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from langgraph.errors import GraphBubbleUp
 from sqlalchemy.orm import Session
 
 
@@ -43,6 +44,8 @@ class ToolContext:
         try:
             with self.lock:
                 return call()
+        except GraphBubbleUp:
+            raise
         except Exception as exc:
             return self.error_result(exc)
 

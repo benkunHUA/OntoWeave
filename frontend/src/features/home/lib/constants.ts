@@ -36,10 +36,10 @@ export const HOME_FEATURES: readonly HomeFeature[] = [
     icon: Network,
   },
   {
-    id: 'query',
-    title: '业务问答',
-    description: '用业务语言查询已发布业务图，回答附带对象与步骤证据',
-    path: '/query',
+    id: 'business',
+    title: '业务工作台',
+    description: '用业务语言查询已发布业务图，或在确认后执行图内行动',
+    path: '/business',
     icon: MessageSquareText,
   },
   {

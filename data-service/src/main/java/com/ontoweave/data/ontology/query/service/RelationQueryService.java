@@ -174,8 +174,8 @@ public class RelationQueryService {
             );
         }
         InstancePage rows = relations.instances(
-                version.id(),
-                relationId,
+                version,
+                ownerId,
                 fromPrimaryKey,
                 toPrimaryKey,
                 request

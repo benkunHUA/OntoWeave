@@ -21,6 +21,8 @@ import java.util.UUID;
 @Component
 public class FilterParser {
 
+    private static final String BASE_VALUE_TABLE = "data.ontology_object_value";
+
     public ParsedFilters parse(MappingSnapshot mapping, List<FilterCondition> conditions) {
         return parse(mapping, conditions, "o");
     }
@@ -30,8 +32,20 @@ public class FilterParser {
             List<FilterCondition> conditions,
             String tableAlias
     ) {
+        return parse(mapping, conditions, tableAlias, BASE_VALUE_TABLE);
+    }
+
+    public ParsedFilters parse(
+            MappingSnapshot mapping,
+            List<FilterCondition> conditions,
+            String tableAlias,
+            String valueTable
+    ) {
         if (tableAlias == null || !tableAlias.matches("[a-z_][a-z0-9_]*")) {
             throw new IllegalArgumentException("invalid table alias");
+        }
+        if (valueTable == null || !valueTable.matches("[a-z_][a-z0-9_.]*")) {
+            throw new IllegalArgumentException("invalid value table");
         }
         if (conditions == null || conditions.isEmpty()) {
             return ParsedFilters.empty();
@@ -43,7 +57,7 @@ public class FilterParser {
         List<String> clauses = new ArrayList<>();
         List<Object> parameters = new ArrayList<>();
         for (FilterCondition condition : conditions) {
-            parseOne(condition, attributes, clauses, parameters, tableAlias);
+            parseOne(condition, attributes, clauses, parameters, tableAlias, valueTable);
         }
         return new ParsedFilters(clauses, parameters);
     }
@@ -53,7 +67,8 @@ public class FilterParser {
             Map<UUID, MappingSnapshot.AttributeMapping> attributes,
             List<String> clauses,
             List<Object> parameters,
-            String tableAlias
+            String tableAlias,
+            String valueTable
     ) {
         if (condition == null) {
             throw invalidFilter("筛选条件不能为空", Map.of());
@@ -91,17 +106,17 @@ public class FilterParser {
         }
         String column = datatype.valueColumn();
         if (operator == FilterOperator.IS_NULL) {
-            clauses.add(notExistsNonNull(column, tableAlias));
+            clauses.add(notExistsNonNull(column, tableAlias, valueTable));
             parameters.add(attributeId);
             return;
         }
         if (operator == FilterOperator.IS_NOT_NULL) {
-            clauses.add(existsNonNull(column, tableAlias));
+            clauses.add(existsNonNull(column, tableAlias, valueTable));
             parameters.add(attributeId);
             return;
         }
         Object value = typedValue(datatype, operator, condition.value(), attributeId);
-        clauses.add(comparison(column, operator, tableAlias));
+        clauses.add(comparison(column, operator, tableAlias, valueTable));
         parameters.add(attributeId);
         parameters.add(value);
     }
@@ -256,27 +271,32 @@ public class FilterParser {
         return attributes;
     }
 
-    private String notExistsNonNull(String column, String tableAlias) {
+    private String notExistsNonNull(String column, String tableAlias, String valueTable) {
         return """
-                NOT EXISTS (SELECT 1 FROM data.ontology_object_value v
+                NOT EXISTS (SELECT 1 FROM %3$s v
                             WHERE v.version_id = %1$s.version_id
                               AND v.primary_key_value = %1$s.primary_key_value
                               AND v.attribute_id = ?
                               AND v.%2$s IS NOT NULL)
-                """.formatted(tableAlias, column);
+                """.formatted(tableAlias, column, valueTable);
     }
 
-    private String existsNonNull(String column, String tableAlias) {
+    private String existsNonNull(String column, String tableAlias, String valueTable) {
         return """
-                EXISTS (SELECT 1 FROM data.ontology_object_value v
+                EXISTS (SELECT 1 FROM %3$s v
                         WHERE v.version_id = %1$s.version_id
                           AND v.primary_key_value = %1$s.primary_key_value
                           AND v.attribute_id = ?
                           AND v.%2$s IS NOT NULL)
-                """.formatted(tableAlias, column);
+                """.formatted(tableAlias, column, valueTable);
     }
 
-    private String comparison(String column, FilterOperator operator, String tableAlias) {
+    private String comparison(
+            String column,
+            FilterOperator operator,
+            String tableAlias,
+            String valueTable
+    ) {
         String sqlOperator = switch (operator) {
             case EQ -> "=";
             case NE -> "<>";
@@ -288,12 +308,12 @@ public class FilterParser {
             case IS_NULL, IS_NOT_NULL -> throw new IllegalArgumentException("unary operator");
         };
         return """
-                EXISTS (SELECT 1 FROM data.ontology_object_value v
+                EXISTS (SELECT 1 FROM %4$s v
                         WHERE v.version_id = %1$s.version_id
                           AND v.primary_key_value = %1$s.primary_key_value
                           AND v.attribute_id = ?
                           AND v.%2$s %3$s ?)
-                """.formatted(tableAlias, column, sqlOperator);
+                """.formatted(tableAlias, column, sqlOperator, valueTable);
     }
 
     private com.ontoweave.data.common.web.ApiException invalidFilter(

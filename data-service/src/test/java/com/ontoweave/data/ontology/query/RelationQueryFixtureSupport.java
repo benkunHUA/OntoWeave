@@ -2,7 +2,7 @@ package com.ontoweave.data.ontology.query;
 
 import java.util.UUID;
 
-abstract class RelationQueryFixtureSupport extends ObjectQueryFixtureSupport {
+public abstract class RelationQueryFixtureSupport extends ObjectQueryFixtureSupport {
 
     protected UUID createRelationDefinition(
             UUID ownerId,
@@ -156,6 +156,6 @@ abstract class RelationQueryFixtureSupport extends ObjectQueryFixtureSupport {
         return versionId;
     }
 
-    protected record M2mFixture(UUID relationId, UUID bindingId, UUID versionId) {
+    public record M2mFixture(UUID relationId, UUID bindingId, UUID versionId) {
     }
 }

@@ -2,6 +2,7 @@ import { Alert, Button, Group, Paper, Stack, Text } from '@mantine/core'
 import { CircleAlert } from 'lucide-react'
 import type { InterruptOption, MessageBlock } from '../../../shared/types'
 import { INTERRUPT_HINT } from '../lib/interruptCopy'
+import { ActionConfirmationCard } from './ActionConfirmationCard'
 import { InterruptDetails } from './InterruptDetails'
 
 type InterruptBlock = Extract<MessageBlock, { kind: 'interrupt' }>
@@ -17,6 +18,17 @@ interface InterruptCardProps {
 
 /** 一问一答的确认卡片：问题 + 候选详情 + 选项。 */
 export function InterruptCard({ block, pending, disabled, onAnswer }: InterruptCardProps) {
+  if (block.confirmation) {
+    return (
+      <ActionConfirmationCard
+        confirmation={block.confirmation}
+        pending={pending}
+        disabled={disabled}
+        onAnswer={onAnswer}
+      />
+    )
+  }
+
   return (
     <Paper
       className={`interrupt-card ${pending ? 'is-pending' : ''}`}

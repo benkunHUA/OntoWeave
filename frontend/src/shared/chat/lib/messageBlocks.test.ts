@@ -266,6 +266,44 @@ describe('reduceBlocks interrupt', () => {
       },
     ])
   })
+
+  it('carries the structured action confirmation through to the block', () => {
+    const confirmation = {
+      kind: 'action_confirmation' as const,
+      title: '执行「关闭工单」？',
+      summary: '修改 1 个对象',
+      action: { id: 'action-1', name: '关闭工单' },
+      preview_hash: 'hash',
+      execution_id: 'execution-1',
+      object_changes: [],
+      relation_changes: [],
+      warnings: [],
+      options: [{ label: '确认执行', answer: { decision: 'approve', preview_hash: 'hash' } }],
+    }
+
+    const blocks = reduceBlocks([], {
+      v: 1,
+      type: 'interrupt',
+      messageId: 'm1',
+      blockId: 'i1',
+      question: confirmation.title,
+      options: [],
+      freeText: null,
+      confirmation,
+    })
+
+    expect(blocks).toEqual([
+      {
+        id: 'i1',
+        kind: 'interrupt',
+        question: confirmation.title,
+        options: [],
+        freeText: null,
+        details: [],
+        confirmation,
+      },
+    ])
+  })
 })
 
 describe('isNoticeMessage', () => {

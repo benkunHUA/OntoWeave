@@ -9,6 +9,7 @@ import httpx
 
 from app.clients.data_service.client import DataServiceClient, RevisionConflict
 from app.clients.data_service.ontology_client.codec import camel_keys, list_from, snake_keys
+from app.clients.data_service.ontology_client.errors import EditConflict
 from app.errors import DataServiceUnavailableError
 
 ONTOLOGY_PREFIX = "/internal/v1/ontology"
@@ -75,6 +76,8 @@ class OntologyClientBase(DataServiceClient):
             details["currentMapping"] = details["draft"]
         if "revision" in details and "currentRevision" not in details:
             details["currentRevision"] = details["revision"]
+        if code == "EDIT_CONFLICT":
+            raise EditConflict(message or "edit set 不可应用", code=code, details=details)
         raise RevisionConflict(
             message or response.text or "本体映射冲突",
             code=code or "ONTOLOGY_CONFLICT",

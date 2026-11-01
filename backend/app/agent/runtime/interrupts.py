@@ -7,7 +7,14 @@
 
 from __future__ import annotations
 
-from app.schemas.message_blocks import FreeTextMode, InterruptDetail, InterruptOption
+from pydantic import ValidationError
+
+from app.schemas.message_blocks import (
+    ActionConfirmation,
+    FreeTextMode,
+    InterruptDetail,
+    InterruptOption,
+)
 from app.services import element_kinds
 
 _FIELD_LABELS = {
@@ -92,15 +99,22 @@ def _normalize_details(raw: object) -> list[InterruptDetail]:
 
 def normalize_interrupt(
     value: dict,
-) -> tuple[str, list[InterruptOption], FreeTextMode | None, list[InterruptDetail]]:
+) -> tuple[
+    str,
+    list[InterruptOption],
+    FreeTextMode | None,
+    list[InterruptDetail],
+    ActionConfirmation | None,
+]:
     """把两种中断折成同一份给前端的形状。
 
     一是 `ask_user` 的提问（question / options），二是工具审批（HumanInTheLoop
     的 action_requests / review_configs）。审批的 resume 必须回填 decisions，
     提问回填一个字符串，所以每个选项直接带上自己的 resume 载荷。
 
-    返回 (问题, 选项, 自由文本回填方式, 详情)；自由文本为 None 表示只能点选项。
+    返回 (问题, 选项, 自由文本回填方式, 详情, 行动确认)；自由文本为 None 表示只能点选项。
     """
+    confirmation = _normalize_confirmation(value.get("confirmation"))
     question = value.get("question")
     if isinstance(question, str) and question.strip():
         asked_options = [
@@ -111,8 +125,9 @@ def normalize_interrupt(
         return (
             question,
             asked_options,
-            FreeTextMode(wrap="raw"),
+            None if confirmation is not None else FreeTextMode(wrap="raw"),
             _normalize_details(value.get("details")),
+            confirmation,
         )
 
     requests = value.get("action_requests")
@@ -136,7 +151,22 @@ def normalize_interrupt(
                 )
             )
         free_text = FreeTextMode(wrap="respond") if "respond" in allowed else None
-        return "以下操作需要你确认：", options, free_text, details
+        return "以下操作需要你确认：", options, free_text, details, confirmation
 
     # 认不出来的中断也别吞掉，给用户一个可回复的出口。
-    return "需要你确认一项操作，请直接回复你的决定。", [], FreeTextMode(wrap="raw"), []
+    return (
+        "需要你确认一项操作，请直接回复你的决定。",
+        [],
+        FreeTextMode(wrap="raw"),
+        [],
+        confirmation,
+    )
+
+
+def _normalize_confirmation(raw: object) -> ActionConfirmation | None:
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return ActionConfirmation.model_validate(raw)
+    except ValidationError:
+        return None

@@ -9,6 +9,9 @@ public record RelationDefinitionRow(
         UUID sourceTypeId,
         UUID targetTypeId,
         String name,
+        String cardinality,
+        UUID foreignKeyPropertyId,
+        String foreignKeyDatatype,
         String sourcePrimaryKeyDatatype,
         String targetPrimaryKeyDatatype
 ) {

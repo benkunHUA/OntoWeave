@@ -2,7 +2,12 @@ package com.ontoweave.data.ontology.query.repository;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ontoweave.data.ontology.edit.query.EffectiveObjectSql;
+import com.ontoweave.data.ontology.edit.query.EffectiveValueSql;
+import com.ontoweave.data.ontology.query.common.CteDefinition;
+import com.ontoweave.data.ontology.query.common.EffectiveQuerySql;
 import com.ontoweave.data.ontology.query.common.PageRequest;
+import com.ontoweave.data.ontology.query.common.SqlFragment;
 import com.ontoweave.data.ontology.query.common.SortSpec;
 import com.ontoweave.data.ontology.query.filter.ParsedFilters;
 import com.ontoweave.data.ontology.query.filter.QueryDatatype;
@@ -49,25 +54,27 @@ public class JdbcObjectQuery {
 
     public ObjectPageRows findPage(
             UUID versionId,
+            UUID ownerId,
             UUID objectTypeId,
             String q,
             ParsedFilters filters,
             QueryDatatype primaryKeyType,
             PageRequest page
     ) {
-        List<Object> arguments = new ArrayList<>();
-        String where = pageWhere(versionId, objectTypeId, q, List.of(), filters, arguments);
+        SqlFragment ctes = effectiveCtes(versionId, ownerId, objectTypeId);
+        List<Object> arguments = new ArrayList<>(ctes.arguments());
+        String where = pageWhere(q, List.of(), filters, arguments);
         long total = count("""
                 SELECT count(*)
-                FROM data.ontology_object_instance o
-                """ + where, arguments);
+                FROM effective_object o
+                """ + where, ctes, arguments);
 
         List<Object> pageArguments = new ArrayList<>(arguments);
         pageArguments.add(page.pageSize());
         pageArguments.add(page.offset());
-        List<ObjectListItemRow> items = jdbc.query("""
+        List<ObjectListItemRow> items = jdbc.query(ctes.sql() + """
                         SELECT o.primary_key_value, o.title_value
-                        FROM data.ontology_object_instance o
+                        FROM effective_object o
                         """ + where + """
                         ORDER BY o.%s ASC NULLS LAST, o.primary_key_value COLLATE "C" ASC
                         LIMIT ? OFFSET ?
@@ -83,6 +90,7 @@ public class JdbcObjectQuery {
 
     public ObjectQueryRows query(
             UUID versionId,
+            UUID ownerId,
             UUID objectTypeId,
             String q,
             List<String> primaryKeys,
@@ -91,18 +99,19 @@ public class JdbcObjectQuery {
             QueryDatatype primaryKeyType,
             int limit
     ) {
-        List<Object> arguments = new ArrayList<>();
-        String where = pageWhere(versionId, objectTypeId, q, primaryKeys, filters, arguments);
+        SqlFragment ctes = effectiveCtes(versionId, ownerId, objectTypeId);
+        List<Object> arguments = new ArrayList<>(ctes.arguments());
+        String where = pageWhere(q, primaryKeys, filters, arguments);
         long total = count("""
                 SELECT count(*)
-                FROM data.ontology_object_instance o
-                """ + where, arguments);
+                FROM effective_object o
+                """ + where, ctes, arguments);
         List<Object> queryArguments = new ArrayList<>(arguments);
         String order = queryOrder(sort, primaryKeyType, queryArguments);
         queryArguments.add(limit);
-        List<ObjectQueryRow> items = jdbc.query("""
+        List<ObjectQueryRow> items = jdbc.query(ctes.sql() + """
                         SELECT o.primary_key_value, o.title_value, o.properties
-                        FROM data.ontology_object_instance o
+                        FROM effective_object o
                         """ + where + order + " LIMIT ?",
                 (resultSet, rowNumber) -> new ObjectQueryRow(
                         resultSet.getString("primary_key_value"),
@@ -116,39 +125,39 @@ public class JdbcObjectQuery {
 
     public Optional<ObjectDetailRow> findDetail(
             UUID versionId,
+            UUID ownerId,
             UUID objectTypeId,
             String primaryKey
     ) {
-        List<ObjectDetailRow> rows = jdbc.query("""
+        CteDefinition objectCte = EffectiveObjectSql.cte(
+                EffectiveObjectSql.DEFAULT_NAME,
+                versionId,
+                ownerId,
+                objectTypeId
+        );
+        SqlFragment ctes = EffectiveQuerySql.with(objectCte);
+        List<ObjectDetailRow> rows = jdbc.query(ctes.sql() + """
                         SELECT primary_key_value, title_value, properties
-                        FROM data.ontology_object_instance
-                        WHERE version_id = ? AND object_type_id = ? AND primary_key_value = ?
+                        FROM effective_object
+                        WHERE primary_key_value = ?
                         """,
                 (resultSet, rowNumber) -> new ObjectDetailRow(
                         resultSet.getString("primary_key_value"),
                         resultSet.getString("title_value"),
                         json(resultSet.getString("properties"))
                 ),
-                versionId,
-                objectTypeId,
-                primaryKey
+                append(ctes.arguments(), primaryKey).toArray()
         );
         return rows.stream().findFirst();
     }
 
     private String pageWhere(
-            UUID versionId,
-            UUID objectTypeId,
             String q,
             List<String> primaryKeys,
             ParsedFilters filters,
             List<Object> arguments
     ) {
-        StringBuilder where = new StringBuilder("""
-                WHERE o.version_id = ? AND o.object_type_id = ?
-                """);
-        arguments.add(versionId);
-        arguments.add(objectTypeId);
+        StringBuilder where = new StringBuilder("WHERE TRUE\n");
         if (q != null && !q.isBlank()) {
             where.append("""
                       AND (o.primary_key_value ILIKE ? OR COALESCE(o.title_value, '') ILIKE ?)
@@ -181,7 +190,7 @@ public class JdbcObjectQuery {
         StringBuilder order = new StringBuilder(" ORDER BY ");
         for (SortSpec item : sort) {
             order.append("""
-                    (SELECT v.%s FROM data.ontology_object_value v
+                    (SELECT v.%s FROM effective_value_dedup v
                      WHERE v.version_id = o.version_id
                        AND v.primary_key_value = o.primary_key_value
                        AND v.attribute_id = ? LIMIT 1) %s NULLS LAST,
@@ -196,9 +205,39 @@ public class JdbcObjectQuery {
         return order.toString();
     }
 
-    private long count(String sql, List<Object> arguments) {
-        Long value = jdbc.queryForObject(sql, Long.class, arguments.toArray());
+    private SqlFragment effectiveCtes(
+            UUID versionId,
+            UUID ownerId,
+            UUID objectTypeId
+    ) {
+        CteDefinition objectCte = EffectiveObjectSql.cte(
+                EffectiveObjectSql.DEFAULT_NAME,
+                versionId,
+                ownerId,
+                objectTypeId
+        );
+        CteDefinition valueCte = EffectiveValueSql.cte(
+                EffectiveValueSql.DEFAULT_NAME,
+                versionId,
+                ownerId,
+                objectTypeId
+        );
+        return EffectiveQuerySql.with(objectCte, valueCte);
+    }
+
+    private long count(String sql, SqlFragment ctes, List<Object> arguments) {
+        Long value = jdbc.queryForObject(
+                ctes.sql() + sql,
+                Long.class,
+                arguments.toArray()
+        );
         return value == null ? 0L : value;
+    }
+
+    private List<Object> append(List<Object> values, Object value) {
+        List<Object> result = new ArrayList<>(values);
+        result.add(value);
+        return result;
     }
 
     private JsonNode json(String value) {

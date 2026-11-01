@@ -3,7 +3,7 @@ from app.schemas.message_blocks import FreeTextMode, InterruptDetail, InterruptO
 
 
 def test_tool_approval_interrupt_maps_to_decisions():
-    question, options, free_text, details = normalize_interrupt(
+    question, options, free_text, details, confirmation = normalize_interrupt(
         {
             "action_requests": [
                 {"name": "remove_element", "args": {"element_kind": "property", "element_id": "p1"}}
@@ -23,10 +23,11 @@ def test_tool_approval_interrupt_maps_to_decisions():
     ]
     assert free_text == FreeTextMode(wrap="respond")
     assert details == [InterruptDetail(label="标记删除属性", value="确认改动后才会真正删除")]
+    assert confirmation is None
 
 
 def test_tool_approval_interrupt_summarizes_the_patch_instead_of_json():
-    question, _, _, details = normalize_interrupt(
+    question, _, _, details, _ = normalize_interrupt(
         {
             "action_requests": [
                 {
@@ -52,7 +53,7 @@ def test_tool_approval_interrupt_summarizes_the_patch_instead_of_json():
 
 
 def test_ask_user_interrupt_carries_details():
-    question, options, free_text, details = normalize_interrupt(
+    question, options, free_text, details, confirmation = normalize_interrupt(
         {
             "question": "要复用已有的「客户」吗？",
             "options": ["复用这个", "新建单独的"],
@@ -74,3 +75,48 @@ def test_ask_user_interrupt_carries_details():
         InterruptDetail(label="名称", value="客户"),
         InterruptDetail(label="描述", value="下订单、购买产品的一方"),
     ]
+    assert confirmation is None
+
+
+def test_action_confirmation_is_carried_with_the_interrupt():
+    question, _, free_text, _, confirmation = normalize_interrupt(
+        {
+            "question": "执行「关闭工单」？",
+            "details": [{"label": "变更摘要", "value": "修改 1 个对象"}],
+            "confirmation": {
+                "kind": "action_confirmation",
+                "title": "执行「关闭工单」？",
+                "summary": "修改 1 个对象",
+                "action": {"id": "a1", "name": "关闭工单", "description": "记录解决说明"},
+                "preview_hash": "hash",
+                "execution_id": "e1",
+                "object_changes": [
+                    {
+                        "kind": "OBJECT_MODIFY",
+                        "object_type_id": "t1",
+                        "object_type_name": "工单",
+                        "primary_key": "T-1",
+                        "title": "打印机故障",
+                        "fields": [
+                            {
+                                "property_id": "p1",
+                                "name": "解决说明",
+                                "before": None,
+                                "after": "已修复",
+                            }
+                        ],
+                    }
+                ],
+                "relation_changes": [],
+                "warnings": [],
+                "options": [{"label": "确认执行", "answer": {"decision": "approve"}}],
+            },
+        }
+    )
+
+    assert question == "执行「关闭工单」？"
+    assert free_text is None
+    assert confirmation is not None
+    assert confirmation.title == "执行「关闭工单」？"
+    assert confirmation.object_changes[0].fields[0].after == "已修复"
+    assert confirmation.options[0].answer == {"decision": "approve"}

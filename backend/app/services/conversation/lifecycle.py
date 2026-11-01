@@ -32,14 +32,14 @@ def create_conversation(
     conversation_id: uuid.UUID | None = None,
 ) -> Conversation:
     """按会话类型建立资源绑定；建模会话仍保持一次对话一张图。"""
-    _ensure_supported_kind(kind)
+    kind = _ensure_supported_kind(kind)
     if kind == ConversationKind.MODELING:
         if resource_id is not None:
             raise InvariantViolationError("modeling conversations cannot set resource_id")
         g = graph.create_graph(session, owner_id=owner_id, name=title)
         resource_id = g.id
-    elif kind == ConversationKind.QUERY:
-        # 查询会话可以跨图连续追问，resource_id 只是会话身份，不绑定固定图。
+    elif kind == ConversationKind.BUSINESS:
+        # 业务会话可以跨图连续追问，resource_id 只是会话身份，不绑定固定图。
         resource_id = resource_id or uuid.uuid4()
     elif resource_id is None:
         raise InvariantViolationError(f"{kind} conversations require a resource_id")
@@ -90,6 +90,7 @@ def ensure_resource_conversation_with_status(
     资源方（数据连接 / 数据流程）会先分配 conversation_id 并交给 Java 保存，
     所以这里允许用该 id 建行，保证两边指向同一个会话。
     """
+    kind = _ensure_supported_kind(kind)
     if kind == ConversationKind.MODELING:
         raise InvariantViolationError("modeling conversations cannot bind an external resource")
 
@@ -189,7 +190,7 @@ def list_conversations(
     offset: int = 0,
 ) -> list[Conversation]:
     if kind is not None:
-        _ensure_supported_kind(kind)
+        kind = _ensure_supported_kind(kind)
     stmt = select(Conversation)
     if owner_id is not None:
         stmt = stmt.where(Conversation.owner_id == owner_id)

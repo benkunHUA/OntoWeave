@@ -4,12 +4,14 @@ export const CONVERSATION_KIND_MODELING = 'modeling' as const
 export const CONVERSATION_KIND_DATA_CONNECTION = 'data_connection' as const
 export const CONVERSATION_KIND_DATA_PIPELINE = 'data_pipeline' as const
 export const CONVERSATION_KIND_QUERY = 'query' as const
+export const CONVERSATION_KIND_BUSINESS = 'business' as const
 
 export type ConversationKind =
   | typeof CONVERSATION_KIND_MODELING
   | typeof CONVERSATION_KIND_DATA_CONNECTION
   | typeof CONVERSATION_KIND_DATA_PIPELINE
   | typeof CONVERSATION_KIND_QUERY
+  | typeof CONVERSATION_KIND_BUSINESS
 
 export interface Conversation {
   id: string

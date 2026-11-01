@@ -1,6 +1,7 @@
 package com.ontoweave.data.ontology.query.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ontoweave.data.ontology.edit.query.EffectiveValueSql;
 import com.ontoweave.data.ontology.common.MappingSnapshot;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectDetailResponse;
 import com.ontoweave.data.ontology.query.api.dto.OntologyObjectPageResponse;
@@ -55,9 +56,15 @@ public class ObjectQueryService {
             return new QueryPageResponse(List.of(), 0, false, null);
         }
         MappingSnapshot mapping = MappingSupport.parse(mapper, version.mappingSnapshot());
-        ParsedFilters parsed = filters.parse(mapping, request.filters());
+        ParsedFilters parsed = filters.parse(
+                mapping,
+                request.filters(),
+                "o",
+                EffectiveValueSql.DEFAULT_NAME
+        );
         JdbcObjectQuery.ObjectQueryRows rows = objects.query(
                 version.id(),
+                request.ownerId(),
                 objectTypeId,
                 request.q(),
                 primaryKeys,
@@ -100,9 +107,15 @@ public class ObjectQueryService {
             );
         }
         MappingSnapshot mapping = MappingSupport.parse(mapper, version.mappingSnapshot());
-        ParsedFilters parsed = filters.parse(mapping, conditions);
+        ParsedFilters parsed = filters.parse(
+                mapping,
+                conditions,
+                "o",
+                EffectiveValueSql.DEFAULT_NAME
+        );
         JdbcObjectQuery.ObjectPageRows rows = objects.findPage(
                 version.id(),
+                ownerId,
                 objectTypeId,
                 q,
                 parsed,
@@ -139,7 +152,7 @@ public class ObjectQueryService {
                 .orElseThrow(() -> QueryErrors.notFound("对象不存在"));
         MappingSnapshot mapping = MappingSupport.parse(mapper, version.mappingSnapshot());
         JdbcObjectQuery.ObjectDetailRow row = objects
-                .findDetail(version.id(), objectTypeId, primaryKey)
+                .findDetail(version.id(), ownerId, objectTypeId, primaryKey)
                 .orElseThrow(() -> QueryErrors.notFound("对象不存在"));
         List<OntologyPropertyResponse> properties = mapping.attributes().stream()
                 .map(attribute -> new OntologyPropertyResponse(

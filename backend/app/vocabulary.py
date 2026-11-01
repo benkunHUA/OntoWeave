@@ -46,10 +46,25 @@ class ConversationKind(StrEnum):
     DATA_CONNECTION = "data_connection"
     DATA_PIPELINE = "data_pipeline"
     ONTOLOGY_WORKBENCH = "ontology_workbench"
-    QUERY = "query"
+    BUSINESS = "business"
+
+    @classmethod
+    def _missing_(cls, value: object) -> ConversationKind | None:
+        """兼容旧客户端的 query 别名；持久化只写 business。"""
+        if value == "query":
+            return cls.BUSINESS
+        return None
 
 
 CONVERSATION_KINDS: tuple[str, ...] = tuple(kind.value for kind in ConversationKind)
+
+
+def normalize_conversation_kind(kind: str) -> str:
+    """把旧 query 别名收敛到 business；无效值原样返回由调用方报错。"""
+    try:
+        return ConversationKind(kind).value
+    except ValueError:
+        return kind
 
 
 class ActionParameterKind(StrEnum):

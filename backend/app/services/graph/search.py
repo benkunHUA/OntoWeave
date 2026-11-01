@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.errors import NotFoundError
 from app.models import Graph, Property
+from app.services.action import presentation
 from app.services.embedding import Embedder, embedder_model_name, ensure_embedding_dim
 from app.services.graph import core as graph
 
@@ -55,6 +56,7 @@ def get_graph_detail(
         raise NotFoundError(f"published graph {graph_id} not found")
     snapshot = graph.get_graph_snapshot(session, graph_id, owner_id=owner_id)
     object_names = {node.id: node.name for node in snapshot.nodes}
+    action_summaries = presentation.load_action_summaries(session, graph_id, owner_id=owner_id)
     return {
         "graph_id": str(row.id),
         "name": row.name,
@@ -85,6 +87,7 @@ def get_graph_detail(
             }
             for relation in snapshot.relations
         ],
+        "actions": [presentation.summary_to_dict(item) for item in action_summaries],
     }
 
 

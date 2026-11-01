@@ -10,11 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvalidRequestError
 from app.models import Property, Relation
-from app.services import status
+from app.services.action import presentation
+from app.services.action.detail import ActionDetail
+from app.services.action.validation import PUBLISHABLE_STATUSES, unpublished_elements
 from app.services.embedding import Embedder, embedder_model_name
 from app.services.graph import core as graph
-
-PUBLISHABLE_STATUSES = frozenset({status.CONFIRMED, status.APPROVED})
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,9 @@ def publish_graph(
 ) -> GraphPublication:
     snapshot = graph.get_graph_snapshot(session, graph_id, owner_id=owner_id)
     _validate_publishable(snapshot)
-    card = render_graph_card(snapshot)
+    action_summaries = presentation.load_action_summaries(session, graph_id, owner_id=owner_id)
+    _validate_actions(session, snapshot, action_summaries)
+    card = render_graph_card(snapshot, action_summaries)
     vector = embedder.embed([card])[0]
     model = embedder_model_name(embedder)
     published_at = datetime.now(UTC)
@@ -65,7 +67,10 @@ def get_publication(
     )
 
 
-def render_graph_card(snapshot: graph.GraphSnapshot) -> str:
+def render_graph_card(
+    snapshot: graph.GraphSnapshot,
+    action_summaries: list[presentation.ActionSummary] | None = None,
+) -> str:
     graph_name = snapshot.graph.name or "未命名业务图"
     lines = [f"图：{graph_name}", "", "对象类型："]
     for node in snapshot.nodes:
@@ -95,6 +100,9 @@ def render_graph_card(snapshot: graph.GraphSnapshot) -> str:
             f"- {relation.name}（{relation.id}）：{source} -> {target}，"
             f"{relation.cardinality}，{label}"
         )
+    action_lines = presentation.render_action_card_section(action_summaries or [])
+    if action_lines:
+        lines.extend(["", *action_lines])
     return "\n".join(lines)
 
 
@@ -118,6 +126,55 @@ def _validate_publishable(snapshot: graph.GraphSnapshot) -> None:
         raise InvalidRequestError(
             "graph contains unpublished elements: " + "、".join(sorted(set(labels)))
         )
+
+
+def _validate_actions(
+    session: Session,
+    snapshot: graph.GraphSnapshot,
+    summaries: list[presentation.ActionSummary],
+) -> None:
+    graph_object_ids = {node.id for node in snapshot.nodes}
+    graph_relation_ids = {relation.id for relation in snapshot.relations}
+    unpublished: list[str] = []
+    outside: list[str] = []
+    for summary in summaries:
+        detail = presentation.load_action_detail_in_graph(
+            session,
+            summary.id,
+            owner_id=snapshot.graph.owner_id,
+            graph_id=snapshot.graph.id,
+        )
+        unpublished.extend(unpublished_elements(session, detail))
+        outside.extend(_outside_graph_elements(detail, graph_object_ids, graph_relation_ids))
+    if unpublished:
+        raise InvalidRequestError(
+            "graph contains unpublished actions: " + "、".join(sorted(set(unpublished)))
+        )
+    if outside:
+        raise InvalidRequestError(
+            "actions reference elements outside the graph: " + "、".join(sorted(set(outside)))
+        )
+
+
+def _outside_graph_elements(
+    detail: ActionDetail,
+    object_ids: set[uuid.UUID],
+    relation_ids: set[uuid.UUID],
+) -> list[str]:
+    missing: list[str] = []
+    for parameter in detail.parameters:
+        if (
+            parameter.target_object_type_id is not None
+            and parameter.target_object_type_id not in object_ids
+        ):
+            missing.append(f"parameter {parameter.name!r} of action {detail.action.name!r}")
+    for item in detail.rules:
+        rule = item.rule
+        if rule.target_object_type_id is not None and rule.target_object_type_id not in object_ids:
+            missing.append(f"rule {rule.rule_kind!r} of action {detail.action.name!r}")
+        if rule.target_relation_id is not None and rule.target_relation_id not in relation_ids:
+            missing.append(f"rule {rule.rule_kind!r} of action {detail.action.name!r}")
+    return missing
 
 
 def _first(properties: list[Property], flag: str) -> Property | None:

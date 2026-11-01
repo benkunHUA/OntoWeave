@@ -3,6 +3,12 @@ package com.ontoweave.data.ontology.query.repository;
 import com.ontoweave.data.ontology.query.common.PageRequest;
 import com.ontoweave.data.ontology.query.common.QueryDirection;
 import com.ontoweave.data.ontology.query.filter.QueryDatatype;
+import com.ontoweave.data.ontology.edit.query.EffectiveObjectSql;
+import com.ontoweave.data.ontology.edit.query.EffectiveRelationSql;
+import com.ontoweave.data.ontology.edit.query.EffectiveValueSql;
+import com.ontoweave.data.ontology.query.common.CteDefinition;
+import com.ontoweave.data.ontology.query.common.EffectiveQuerySql;
+import com.ontoweave.data.ontology.query.common.SqlFragment;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -34,7 +40,8 @@ public class JdbcRelationQuery {
             """;
 
     private static final String DEFINITION_SELECT = """
-            SELECT relation_id, source_type_id, target_type_id, name,
+            SELECT relation_id, source_type_id, target_type_id, name, cardinality,
+                   foreign_key_property_id, foreign_key_datatype,
                    source_primary_key_datatype, target_primary_key_datatype
             FROM data.ontology_relation_definition
             """;
@@ -89,6 +96,28 @@ public class JdbcRelationQuery {
         );
     }
 
+    public List<Boolean> findRelationInstances(
+            UUID versionId,
+            UUID relationId,
+            UUID fromTypeId,
+            String fromPrimaryKey,
+            UUID toTypeId,
+            String toPrimaryKey
+    ) {
+        return jdbc.query("""
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM data.ontology_relation_instance
+                            WHERE version_id = ? AND relation_id = ?
+                              AND from_object_type_id = ? AND from_primary_key = ?
+                              AND to_object_type_id = ? AND to_primary_key = ?
+                        ) AS found
+                        """,
+                (resultSet, rowNumber) -> resultSet.getBoolean("found"),
+                versionId, relationId, fromTypeId, fromPrimaryKey, toTypeId, toPrimaryKey
+        );
+    }
+
     public long countRelated(
             RelationVersionRow version,
             UUID ownerId,
@@ -104,7 +133,7 @@ public class JdbcRelationQuery {
                 List.of(primaryKey)
         );
         Long count = jdbc.queryForObject(
-                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
+                sql.prefix() + "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
                 Long.class,
                 sql.arguments().toArray()
         );
@@ -129,7 +158,7 @@ public class JdbcRelationQuery {
         );
         List<Object> arguments = new ArrayList<>(sql.arguments());
         arguments.add(limit);
-        return jdbc.query("""
+        return jdbc.query(sql.prefix() + """
                         SELECT peer.primary_key_value, peer.title_value
                         """ + sql.fromClause() + """
                         GROUP BY peer.primary_key_value, peer.title_value, peer.%s
@@ -185,14 +214,14 @@ public class JdbcRelationQuery {
                 primaryKeys
         );
         Long total = jdbc.queryForObject(
-                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
+                sql.prefix() + "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
                 Long.class,
                 sql.arguments().toArray()
         );
         List<Object> arguments = new ArrayList<>(sql.arguments());
         arguments.add(page.pageSize());
         arguments.add(page.offset());
-        List<RelatedRow> items = jdbc.query("""
+        List<RelatedRow> items = jdbc.query(sql.prefix() + """
                         SELECT peer.primary_key_value, peer.title_value
                         """ + sql.fromClause() + """
                         GROUP BY peer.primary_key_value, peer.title_value, peer.%s
@@ -229,13 +258,13 @@ public class JdbcRelationQuery {
                 primaryKeys
         );
         Long total = jdbc.queryForObject(
-                "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
+                sql.prefix() + "SELECT count(DISTINCT peer.primary_key_value) " + sql.fromClause(),
                 Long.class,
                 sql.arguments().toArray()
         );
         List<Object> arguments = new ArrayList<>(sql.arguments());
         arguments.add(limit);
-        List<RelatedRow> items = jdbc.query("""
+        List<RelatedRow> items = jdbc.query(sql.prefix() + """
                         SELECT peer.primary_key_value, peer.title_value
                         """ + sql.fromClause() + """
                         GROUP BY peer.primary_key_value, peer.title_value, peer.%s
@@ -256,41 +285,36 @@ public class JdbcRelationQuery {
     }
 
     public InstancePage instances(
-            UUID versionId,
-            UUID relationId,
+            RelationVersionRow version,
+            UUID ownerId,
             String fromPrimaryKey,
             String toPrimaryKey,
             PageRequest page
     ) {
-        List<Object> arguments = new ArrayList<>();
-        String where = instancesWhere(
-                versionId,
-                relationId,
-                fromPrimaryKey,
-                toPrimaryKey,
-                arguments
-        );
+        InstanceSql sql = instanceSql(version, ownerId, fromPrimaryKey, toPrimaryKey);
+        if (sql == null) {
+            return new InstancePage(List.of(), 0);
+        }
         Long total = jdbc.queryForObject(
-                "SELECT count(*) FROM data.ontology_relation_instance ri " + where,
+                sql.prefix() + "SELECT count(*) " + sql.fromClause() + sql.where(),
                 Long.class,
-                arguments.toArray()
+                sql.arguments().toArray()
         );
-        List<Object> pageArguments = new ArrayList<>(arguments);
+        List<Object> pageArguments = new ArrayList<>(sql.arguments());
         pageArguments.add(page.pageSize());
         pageArguments.add(page.offset());
-        List<InstanceRow> items = jdbc.query("""
-                        SELECT ri.from_object_type_id, ri.from_primary_key,
-                               ri.to_object_type_id, ri.to_primary_key
-                        FROM data.ontology_relation_instance ri
-                        """ + where + """
-                        ORDER BY ri.from_primary_key COLLATE "C" ASC,
-                                 ri.to_primary_key COLLATE "C" ASC
+        List<InstanceRow> items = jdbc.query(sql.prefix() + """
+                        SELECT source.primary_key_value AS from_primary_key,
+                               target.primary_key_value AS to_primary_key
+                        """ + sql.fromClause() + sql.where() + """
+                        ORDER BY source.primary_key_value COLLATE "C" ASC,
+                                 target.primary_key_value COLLATE "C" ASC
                         LIMIT ? OFFSET ?
                         """,
                 (resultSet, rowNumber) -> new InstanceRow(
-                        resultSet.getObject("from_object_type_id", UUID.class),
+                        version.fromObjectTypeId(),
                         resultSet.getString("from_primary_key"),
-                        resultSet.getObject("to_object_type_id", UUID.class),
+                        version.toObjectTypeId(),
                         resultSet.getString("to_primary_key")
                 ),
                 pageArguments.toArray()
@@ -309,65 +333,274 @@ public class JdbcRelationQuery {
             throw new IllegalArgumentException("primaryKeys must not be empty");
         }
         boolean outgoing = direction == QueryDirection.OUTGOING;
+        UUID currentTypeId = outgoing ? version.fromObjectTypeId() : version.toObjectTypeId();
         UUID peerTypeId = outgoing ? version.toObjectTypeId() : version.fromObjectTypeId();
-        String peerKeyColumn = outgoing ? "to_primary_key" : "from_primary_key";
+        if (!currentTypeId.equals(objectTypeId)) {
+            return RelatedSql.empty();
+        }
+        UUID currentVersionId = currentObjectVersion(ownerId, currentTypeId);
+        UUID peerVersionId = currentObjectVersion(ownerId, peerTypeId);
+        if (currentVersionId == null || peerVersionId == null) {
+            return RelatedSql.empty();
+        }
+        CteDefinition currentObject = EffectiveObjectSql.cte(
+                "current_object", currentVersionId, ownerId, currentTypeId
+        );
+        CteDefinition peerObject = EffectiveObjectSql.cte(
+                "peer_object", peerVersionId, ownerId, peerTypeId
+        );
+        RelationDefinitionRow definition = findDefinition(version.relationId(), ownerId)
+                .orElse(null);
+        if (definition != null && definition.foreignKeyPropertyId() != null) {
+            return foreignKeyRelatedSql(
+                    definition,
+                    outgoing,
+                    currentObject,
+                    peerObject,
+                    ownerId,
+                    peerTypeId,
+                    primaryKeys
+            );
+        }
+        CteDefinition relation = EffectiveRelationSql.manyToMany(
+                EffectiveRelationSql.DEFAULT_NAME,
+                version.id(),
+                version.relationId(),
+                ownerId
+        );
+        SqlFragment ctes = EffectiveQuerySql.with(currentObject, peerObject, relation);
         String currentTypeColumn = outgoing ? "from_object_type_id" : "to_object_type_id";
         String currentKeyColumn = outgoing ? "from_primary_key" : "to_primary_key";
+        String peerKeyColumn = outgoing ? "to_primary_key" : "from_primary_key";
         String fromClause = """
-                FROM data.ontology_relation_instance ri
-                JOIN data.ontology_object_binding peer_binding
-                  ON peer_binding.owner_id = ?
-                 AND peer_binding.object_type_id = ?
-                 AND peer_binding.status = 'ACTIVE'
-                JOIN data.ontology_object_instance peer
-                  ON peer.version_id = peer_binding.current_index_version_id
-                 AND peer.object_type_id = peer_binding.object_type_id
+                FROM effective_relation ri
+                JOIN current_object current_object
+                  ON current_object.object_type_id = ri.%s
+                 AND current_object.primary_key_value = ri.%s
+                JOIN peer_object peer
+                  ON peer.object_type_id = ri.%s
                  AND peer.primary_key_value = ri.%s
-                WHERE ri.version_id = ?
-                  AND ri.relation_id = ?
-                  AND ri.%s = ?
-                  AND ri.%s IN (%s)
+                WHERE ri.%s IN (%s)
                 """.formatted(
-                peerKeyColumn,
                 currentTypeColumn,
+                currentKeyColumn,
+                outgoing ? "to_object_type_id" : "from_object_type_id",
+                peerKeyColumn,
                 currentKeyColumn,
                 String.join(", ", java.util.Collections.nCopies(primaryKeys.size(), "?"))
         );
-        List<Object> arguments = new ArrayList<>(List.of(
-                ownerId,
-                peerTypeId,
-                version.id(),
-                version.relationId(),
-                objectTypeId
-        ));
+        List<Object> arguments = new ArrayList<>(ctes.arguments());
         arguments.addAll(primaryKeys);
-        return new RelatedSql(
-                fromClause,
-                arguments
-        );
+        return new RelatedSql(ctes.sql() + "\n", fromClause, arguments);
     }
 
-    private String instancesWhere(
-            UUID versionId,
-            UUID relationId,
+    private RelatedSql foreignKeyRelatedSql(
+            RelationDefinitionRow definition,
+            boolean outgoing,
+            CteDefinition currentObject,
+            CteDefinition peerObject,
+            UUID ownerId,
+            UUID peerTypeId,
+            List<String> primaryKeys
+    ) {
+        UUID sourceTypeId = outgoing ? currentObjectType(currentObject) : peerTypeId;
+        UUID sourceVersionId = outgoing
+                ? versionId(currentObject)
+                : versionId(peerObject);
+        CteDefinition values = EffectiveValueSql.cte(
+                "effective_fk_value",
+                sourceVersionId,
+                ownerId,
+                sourceTypeId
+        );
+        SqlFragment ctes = EffectiveQuerySql.with(currentObject, peerObject, values);
+        String join = fkJoinCondition(
+                definition, outgoing ? "peer" : "current_object");
+        String fromClause;
+        List<Object> arguments = new ArrayList<>(ctes.arguments());
+        arguments.add(definition.foreignKeyPropertyId());
+        if (outgoing) {
+            fromClause = """
+                    FROM current_object current_object
+                    JOIN effective_fk_value fk
+                      ON fk.primary_key_value = current_object.primary_key_value
+                     AND fk.attribute_id = ?
+                    JOIN peer_object peer ON %s
+                    WHERE current_object.primary_key_value IN (%s)
+                    """.formatted(join, placeholders(primaryKeys.size()));
+        } else {
+            fromClause = """
+                    FROM peer_object peer
+                    JOIN effective_fk_value fk
+                      ON fk.primary_key_value = peer.primary_key_value
+                     AND fk.attribute_id = ?
+                    JOIN current_object current_object ON %s
+                    WHERE current_object.primary_key_value IN (%s)
+                    """.formatted(join, placeholders(primaryKeys.size()));
+        }
+        arguments.addAll(primaryKeys);
+        return new RelatedSql(ctes.sql() + "\n", fromClause, arguments);
+    }
+
+    private InstanceSql instanceSql(
+            RelationVersionRow version,
+            UUID ownerId,
+            String fromPrimaryKey,
+            String toPrimaryKey
+    ) {
+        UUID fromVersionId = currentObjectVersion(ownerId, version.fromObjectTypeId());
+        UUID toVersionId = currentObjectVersion(ownerId, version.toObjectTypeId());
+        if (fromVersionId == null || toVersionId == null) {
+            return null;
+        }
+        CteDefinition source = EffectiveObjectSql.cte(
+                "source_object", fromVersionId, ownerId, version.fromObjectTypeId()
+        );
+        CteDefinition target = EffectiveObjectSql.cte(
+                "target_object", toVersionId, ownerId, version.toObjectTypeId()
+        );
+        RelationDefinitionRow definition = findDefinition(version.relationId(), ownerId)
+                .orElse(null);
+        List<CteDefinition> ctes = new ArrayList<>(List.of(source, target));
+        List<Object> arguments = new ArrayList<>();
+        String fromClause;
+        String where = where(fromPrimaryKey, toPrimaryKey, arguments);
+        if (definition != null && definition.foreignKeyPropertyId() != null) {
+            CteDefinition values = EffectiveValueSql.cte(
+                    "effective_fk_value",
+                    fromVersionId,
+                    ownerId,
+                    version.fromObjectTypeId()
+            );
+            ctes.add(values);
+            arguments.add(0, definition.foreignKeyPropertyId());
+            fromClause = """
+                    FROM source_object source
+                    JOIN effective_fk_value fk
+                      ON fk.primary_key_value = source.primary_key_value
+                     AND fk.attribute_id = ?
+                    JOIN target_object target ON %s
+                    """.formatted(fkJoinCondition(definition, "target"));
+            return new InstanceSql(
+                    EffectiveQuerySql.with(ctes.toArray(CteDefinition[]::new)).sql() + "\n",
+                    fromClause,
+                    where,
+                    merge(EffectiveQuerySql.with(ctes.toArray(CteDefinition[]::new)).arguments(), arguments)
+            );
+        }
+        CteDefinition relation = EffectiveRelationSql.manyToMany(
+                EffectiveRelationSql.DEFAULT_NAME,
+                version.id(),
+                version.relationId(),
+                ownerId
+        );
+        ctes.add(relation);
+        SqlFragment cteFragment = EffectiveQuerySql.with(ctes.toArray(CteDefinition[]::new));
+        arguments.addAll(0, cteFragment.arguments());
+        fromClause = """
+                FROM effective_relation ri
+                JOIN source_object source
+                  ON source.object_type_id = ri.from_object_type_id
+                 AND source.primary_key_value = ri.from_primary_key
+                JOIN target_object target
+                  ON target.object_type_id = ri.to_object_type_id
+                 AND target.primary_key_value = ri.to_primary_key
+                """;
+        return new InstanceSql(cteFragment.sql() + "\n", fromClause, where, arguments);
+    }
+
+    private String where(
             String fromPrimaryKey,
             String toPrimaryKey,
             List<Object> arguments
     ) {
-        StringBuilder where = new StringBuilder("""
-                WHERE ri.version_id = ? AND ri.relation_id = ?
-                """);
-        arguments.add(versionId);
-        arguments.add(relationId);
+        StringBuilder where = new StringBuilder("WHERE TRUE\n");
         if (fromPrimaryKey != null && !fromPrimaryKey.isBlank()) {
-            where.append("  AND ri.from_primary_key = ?\n");
+            where.append("  AND source.primary_key_value = ?\n");
             arguments.add(fromPrimaryKey);
         }
         if (toPrimaryKey != null && !toPrimaryKey.isBlank()) {
-            where.append("  AND ri.to_primary_key = ?\n");
+            where.append("  AND target.primary_key_value = ?\n");
             arguments.add(toPrimaryKey);
         }
         return where.toString();
+    }
+
+    private UUID currentObjectVersion(UUID ownerId, UUID objectTypeId) {
+        List<UUID> rows = jdbc.query("""
+                        SELECT current_index_version_id
+                        FROM data.ontology_object_binding
+                        WHERE owner_id = ? AND object_type_id = ? AND status = 'ACTIVE'
+                          AND current_index_version_id IS NOT NULL
+                        """,
+                (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class),
+                ownerId,
+                objectTypeId
+        );
+        return rows.stream().findFirst().orElse(null);
+    }
+
+    private String primaryKeyColumn(QueryDatatype datatype) {
+        return datatype.sortColumn();
+    }
+
+    private String comparisonColumn(QueryDatatype datatype) {
+        return switch (datatype) {
+            case INTEGER, DECIMAL -> "num_value";
+            case DATE -> "date_value";
+            case TIMESTAMP -> "ts_value";
+            case BOOLEAN -> "bool_value";
+            case TEXT, ENUM -> "text_value";
+        };
+    }
+
+    private QueryDatatype foreignKeyType(RelationDefinitionRow definition) {
+        String datatype = definition.foreignKeyDatatype();
+        return datatype == null || datatype.isBlank()
+                ? definition.targetPrimaryKeyType()
+                : QueryDatatype.from(datatype);
+    }
+
+    private String fkJoinCondition(RelationDefinitionRow definition, String targetAlias) {
+        QueryDatatype targetType = definition.targetPrimaryKeyType();
+        QueryDatatype foreignKeyType = foreignKeyType(definition);
+        String foreignKeyColumn = comparisonColumn(foreignKeyType);
+        if (targetType == foreignKeyType && foreignKeyType != QueryDatatype.BOOLEAN) {
+            return targetAlias + "." + primaryKeyColumn(targetType)
+                    + " = fk." + foreignKeyColumn;
+        }
+        return "CAST(" + targetAlias + ".primary_key_value AS "
+                + castType(definition, foreignKeyType) + ") = fk." + foreignKeyColumn;
+    }
+
+    private String castType(RelationDefinitionRow definition, QueryDatatype foreignKeyType) {
+        String raw = definition.foreignKeyDatatype();
+        return switch (foreignKeyType) {
+            case INTEGER, DECIMAL -> "numeric";
+            case BOOLEAN -> "boolean";
+            case DATE -> "date";
+            case TIMESTAMP -> raw != null && raw.toLowerCase().contains("tz")
+                    ? "timestamptz" : "timestamp";
+            default -> "text";
+        };
+    }
+
+    private String placeholders(int count) {
+        return String.join(", ", java.util.Collections.nCopies(count, "?"));
+    }
+
+    private List<Object> merge(List<Object> first, List<Object> second) {
+        List<Object> result = new ArrayList<>(first);
+        result.addAll(second);
+        return result;
+    }
+
+    private UUID currentObjectType(CteDefinition cte) {
+        return UUID.fromString(cte.arguments().get(2).toString());
+    }
+
+    private UUID versionId(CteDefinition cte) {
+        return UUID.fromString(cte.arguments().get(1).toString());
     }
 
     private RelationDefinitionRow definition(java.sql.ResultSet resultSet)
@@ -377,11 +610,33 @@ public class JdbcRelationQuery {
                 resultSet.getObject("source_type_id", UUID.class),
                 resultSet.getObject("target_type_id", UUID.class),
                 resultSet.getString("name"),
+                resultSet.getString("cardinality"),
+                resultSet.getObject("foreign_key_property_id", UUID.class),
+                resultSet.getString("foreign_key_datatype"),
                 resultSet.getString("source_primary_key_datatype"),
                 resultSet.getString("target_primary_key_datatype")
         );
     }
 
-    private record RelatedSql(String fromClause, List<Object> arguments) {
+    private record RelatedSql(String prefix, String fromClause, List<Object> arguments) {
+
+        private static RelatedSql empty() {
+            return new RelatedSql("", """
+                    FROM (SELECT NULL::text AS primary_key_value,
+                                 NULL::text AS title_value,
+                                 NULL::numeric AS primary_key_num,
+                                 NULL::date AS primary_key_date,
+                                 NULL::timestamptz AS primary_key_ts) peer
+                    WHERE FALSE
+                    """, List.of());
+        }
+    }
+
+    private record InstanceSql(
+            String prefix,
+            String fromClause,
+            String where,
+            List<Object> arguments
+    ) {
     }
 }

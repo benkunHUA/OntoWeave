@@ -2,6 +2,7 @@ import json
 
 from app.agent.runtime.events import PROTOCOL_VERSION, TOOL_RESULT_LIMIT, TurnBuilder, sse
 from app.schemas.agent_events import RunEndEvent
+from app.schemas.message_blocks import ActionConfirmation
 
 
 def test_sse_frames_an_event_with_the_protocol_version():
@@ -83,3 +84,31 @@ def test_tool_start_keeps_the_human_summary_with_the_machine_args():
 
     assert events[0].summary == "客户 · 搜索「张三」"
     assert turn.payload()[0]["summary"] == "客户 · 搜索「张三」"
+
+
+def test_interrupt_carries_the_structured_action_confirmation():
+    turn = TurnBuilder("m1")
+    confirmation = ActionConfirmation.model_validate(
+        {
+            "kind": "action_confirmation",
+            "title": "执行「关闭工单」？",
+            "summary": "修改 1 个对象",
+            "action": {"id": "a1", "name": "关闭工单"},
+            "preview_hash": "hash",
+            "execution_id": "e1",
+            "object_changes": [],
+            "relation_changes": [],
+            "options": [{"label": "确认执行", "answer": {"decision": "approve"}}],
+        }
+    )
+
+    events = turn.interrupt(
+        question="执行「关闭工单」？",
+        options=[],
+        free_text=None,
+        details=[],
+        confirmation=confirmation,
+    )
+
+    assert events[0].confirmation == confirmation
+    assert turn.payload()[0]["confirmation"]["summary"] == "修改 1 个对象"

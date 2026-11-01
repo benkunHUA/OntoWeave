@@ -33,6 +33,7 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
           options: event.options ?? [],
           freeText: event.freeText ?? null,
           details: event.details ?? [],
+          ...(event.confirmation ? { confirmation: event.confirmation } : {}),
         },
       ]
     case 'tool.start':
@@ -119,7 +120,7 @@ export function pendingInterruptFrom(
     return {
       blockId: tail.id,
       question: tail.question,
-      options: tail.options,
+      options: tail.options.length ? tail.options : (tail.confirmation?.options ?? []),
       freeText: tail.freeText,
     }
   }

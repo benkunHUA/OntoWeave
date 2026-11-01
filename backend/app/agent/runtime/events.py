@@ -24,6 +24,7 @@ from app.schemas.agent_events import (
     ToolStartEvent,
 )
 from app.schemas.message_blocks import (
+    ActionConfirmation,
     FreeTextMode,
     InterruptBlock,
     InterruptDetail,
@@ -229,27 +230,34 @@ class TurnBuilder:
         options: list[InterruptOption],
         free_text: FreeTextMode | None,
         details: list[InterruptDetail],
+        confirmation: ActionConfirmation | None = None,
     ) -> list[AgentEvent]:
         """中断也是一块：落库后刷新页面还能原样重建等待回答的状态。"""
         events = self._close_open()
+        fields: dict[str, Any] = {
+            "id": uuid.uuid4().hex,
+            "question": question,
+            "options": options,
+            "freeText": free_text,
+            "details": details,
+        }
+        if confirmation is not None:
+            fields["confirmation"] = confirmation
         block = InterruptBlock(
-            id=uuid.uuid4().hex,
-            question=question,
-            options=options,
-            freeText=free_text,
-            details=details,
+            **fields,
         )
         self.blocks.append(block)
-        events.append(
-            InterruptEvent(
-                messageId=self.message_id,
-                blockId=block.id,
-                question=block.question,
-                options=block.options,
-                freeText=block.freeText,
-                details=block.details,
-            )
-        )
+        event_fields: dict[str, Any] = {
+            "messageId": self.message_id,
+            "blockId": block.id,
+            "question": block.question,
+            "options": block.options,
+            "freeText": block.freeText,
+            "details": block.details,
+        }
+        if confirmation is not None:
+            event_fields["confirmation"] = confirmation
+        events.append(InterruptEvent(**event_fields))
         return events
 
     def payload(self) -> list[dict]:

@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-abstract class ObjectQueryFixtureSupport extends OntologyQueryIntegrationTestSupport {
+public abstract class ObjectQueryFixtureSupport extends OntologyQueryIntegrationTestSupport {
 
     protected ObjectFixture createObjectFixture(
             UUID ownerId,
@@ -184,10 +184,10 @@ abstract class ObjectQueryFixtureSupport extends OntologyQueryIntegrationTestSup
         };
     }
 
-    protected record AttributeSpec(UUID attributeId, String column, String datatype) {
+    public record AttributeSpec(UUID attributeId, String column, String datatype) {
     }
 
-    protected record ObjectFixture(
+    public record ObjectFixture(
             UUID ownerId,
             UUID objectTypeId,
             UUID bindingId,

@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 
 from app.errors import InvariantViolationError, NotFoundError
 from app.models import Conversation
-from app.vocabulary import CONVERSATION_KINDS, ConversationKind
+from app.vocabulary import CONVERSATION_KINDS, ConversationKind, normalize_conversation_kind
 
 
-def _ensure_supported_kind(kind: str) -> None:
-    if kind not in CONVERSATION_KINDS:
+def _ensure_supported_kind(kind: str) -> str:
+    normalized = normalize_conversation_kind(kind)
+    if normalized not in CONVERSATION_KINDS:
         raise InvariantViolationError(f"unsupported conversation kind {kind!r}")
+    return normalized
 
 
 def get_conversation(
@@ -50,7 +52,7 @@ def find_conversation_by_resource(
     resource_id: uuid.UUID,
     owner_id: uuid.UUID | None = None,
 ) -> Conversation | None:
-    _ensure_supported_kind(kind)
+    kind = _ensure_supported_kind(kind)
     stmt = select(Conversation).where(
         Conversation.kind == kind,
         Conversation.resource_id == resource_id,

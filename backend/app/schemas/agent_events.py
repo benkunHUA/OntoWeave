@@ -10,7 +10,13 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.message_blocks import FreeTextMode, InterruptDetail, InterruptOption, ToolStatus
+from app.schemas.message_blocks import (
+    ActionConfirmation,
+    FreeTextMode,
+    InterruptDetail,
+    InterruptOption,
+    ToolStatus,
+)
 
 # 前后端约定的输出协议版本。
 PROTOCOL_VERSION = 1
@@ -76,6 +82,7 @@ class InterruptEvent(_Event):
     options: list[InterruptOption]
     freeText: FreeTextMode | None
     details: list[InterruptDetail]
+    confirmation: ActionConfirmation | None = None
 
 
 class StateUpdateEvent(_Event):

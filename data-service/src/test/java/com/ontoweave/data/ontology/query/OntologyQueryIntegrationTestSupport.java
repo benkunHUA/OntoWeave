@@ -21,7 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
-abstract class OntologyQueryIntegrationTestSupport {
+public abstract class OntologyQueryIntegrationTestSupport {
 
     protected static final String INTERNAL_TOKEN = "test-internal-token";
 
@@ -55,6 +55,11 @@ abstract class OntologyQueryIntegrationTestSupport {
                     data.ontology_object_instance,
                     data.ontology_object_value,
                     data.ontology_relation_instance,
+                    data.ontology_edit_change,
+                    data.ontology_edit_execution,
+                    data.ontology_relation_edit,
+                    data.ontology_object_value_edit,
+                    data.ontology_object_edit,
                     data.ontology_object_version,
                     data.ontology_relation_version,
                     data.ontology_index_run,

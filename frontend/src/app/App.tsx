@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Center, Loader, Stack, Text } from '@mantine/core'
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import '@xyflow/react/dist/style.css'
 import '../styles/app.css'
 import '../styles/action.css'
+import '../styles/action-confirmation.css'
 import '../styles/dialog.css'
 import '../styles/data-preview.css'
 import '../styles/drawer.css'
@@ -51,11 +52,16 @@ const OntologyWorkbenchView = lazy(() =>
   })),
 )
 
-const QueryWorkbench = lazy(() =>
-  import('../features/query/views/QueryWorkbench').then((module) => ({
-    default: module.QueryWorkbench,
+const BusinessWorkbench = lazy(() =>
+  import('../features/business/views/BusinessWorkbench').then((module) => ({
+    default: module.BusinessWorkbench,
   })),
 )
+
+function LegacyBusinessConversationRedirect() {
+  const { conversationId } = useParams()
+  return <Navigate replace to={`/business/${conversationId}`} />
+}
 
 export default function App() {
   return (
@@ -78,9 +84,12 @@ export default function App() {
             <Route path="/pipelines" element={<DataPipelineWorkbench />} />
             <Route path="/pipelines/:pipelineId" element={<DataPipelineWorkbench />} />
             <Route path="/ontology" element={<OntologyWorkbenchView />} />
-            <Route path="/query" element={<QueryWorkbench />} />
-            <Route path="/query/new" element={<QueryWorkbench />} />
-            <Route path="/query/:conversationId" element={<QueryWorkbench />} />
+            <Route path="/business" element={<BusinessWorkbench />} />
+            <Route path="/business/new" element={<BusinessWorkbench />} />
+            <Route path="/business/:conversationId" element={<BusinessWorkbench />} />
+            <Route path="/query" element={<Navigate replace to="/business" />} />
+            <Route path="/query/new" element={<Navigate replace to="/business/new" />} />
+            <Route path="/query/:conversationId" element={<LegacyBusinessConversationRedirect />} />
             <Route path="*" element={<Navigate replace to="/" />} />
           </Routes>
         </Suspense>
