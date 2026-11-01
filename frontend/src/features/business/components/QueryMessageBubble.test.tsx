@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '../../../test/render'
-import type { ChatMessage, EvidenceGraph } from '../../../shared/types'
+import type { ActionConfirmation, ChatMessage, EvidenceGraph } from '../../../shared/types'
 import { QUERY_COPY } from '../lib/constants'
 import { QueryMessageBubble } from './QueryMessageBubble'
 
@@ -44,6 +44,19 @@ const message: ChatMessage = {
   ],
 }
 
+const confirmation: ActionConfirmation = {
+  kind: 'action_confirmation',
+  title: '执行「派工」？',
+  summary: '修改 1 个对象',
+  action: { name: '派工' },
+  preview_hash: 'hash',
+  execution_id: 'execution-1',
+  object_changes: [],
+  relation_changes: [],
+  warnings: [],
+  options: [],
+}
+
 afterEach(cleanup)
 
 describe('QueryMessageBubble', () => {
@@ -65,5 +78,33 @@ describe('QueryMessageBubble', () => {
       text.indexOf('燃气业务图'),
     )
     expect(screen.getByText('王建国')).toBeTruthy()
+  })
+
+  it('hides the evidence graph when the action turn suppresses it', () => {
+    render(
+      <QueryMessageBubble
+        message={{
+          ...message,
+          blocks: [
+            {
+              id: 'i1',
+              kind: 'interrupt',
+              question: confirmation.title,
+              options: [],
+              freeText: null,
+              confirmation,
+            },
+            { id: 'evidence-1', kind: 'evidence', graph },
+          ],
+        }}
+        pendingInterruptId="i1"
+        isRunning={false}
+        onAnswer={vi.fn()}
+        hideEvidence
+      />,
+    )
+
+    expect(screen.getByText('执行「派工」？')).toBeTruthy()
+    expect(screen.queryByText('王建国')).toBeNull()
   })
 })

@@ -11,6 +11,7 @@ interface QueryMessageBubbleProps {
   isRunning: boolean
   onAnswer: (option: InterruptOption) => void
   active?: boolean
+  hideEvidence?: boolean
 }
 
 /** 复用共享气泡，只在助手回答下面追加本轮的对象实例子图。 */
@@ -20,8 +21,10 @@ export function QueryMessageBubble({
   isRunning,
   onAnswer,
   active = false,
+  hideEvidence = false,
 }: QueryMessageBubbleProps) {
-  const graph = message.role === 'assistant' ? evidenceGraphFromMessage(message) : null
+  const graph =
+    message.role === 'assistant' && !hideEvidence ? evidenceGraphFromMessage(message) : null
   return (
     <Box className="query-message">
       <MessageBubble

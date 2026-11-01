@@ -8,6 +8,7 @@ import { EmptyState } from '../../../shared/components/EmptyState'
 import type { PendingInterrupt } from '../../../shared/chat/lib/messageBlocks'
 import type { ChatMessage, InterruptOption } from '../../../shared/types'
 import { QUERY_COPY } from '../lib/constants'
+import { isActionTurnMessage } from '../lib/evidenceGraph'
 import { QueryMessageBubble } from './QueryMessageBubble'
 
 interface QueryChatPaneProps {
@@ -76,7 +77,7 @@ export function QueryChatPane({
             title={QUERY_COPY.loading}
           />
         ) : null}
-        {messages.map((message) => (
+        {messages.map((message, index) => (
           <QueryMessageBubble
             key={message.id}
             message={message}
@@ -84,6 +85,7 @@ export function QueryChatPane({
             isRunning={isRunning}
             onAnswer={onAnswer}
             active={message.id === activeMessageId}
+            hideEvidence={isActionTurnMessage(messages, index)}
           />
         ))}
       </ChatScrollArea>

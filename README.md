@@ -1,95 +1,212 @@
 # OntoWeave
 
-> 会话驱动的企业本体建模工具 —— 业务专家用自然语言讲业务，系统把「人话」抽象成
-> 「对象 / 属性 / 关系」的类型图，团队在这张图上逐步沉淀出可被智能体消费的企业本体。
+OntoWeave 用 Agent 把业务里的对象、属性、关系和动作建模，再让业务 Agent 按这套模型查数据和执行动作。
 
-灵感来自 Palantir 的 Ontology。
+在燃气安检系统里，判断“业主家的燃气灶为什么打不着火”，需要从业主查到燃气表、燃气灶和工单。数据库里能看到的只有 `owner_id`、`meter_id` 这类外键和 `work_orders` 表；但“为什么停气”要靠余额、表状态、安检记录和历史工单一起判断，这些规则散在服务代码和业务人员的经验里。
 
-## 它解决什么问题
+OntoWeave 让业务人员在对话里把这类东西讲出来，Agent 把它整理成一张可确认的模型。这套模型就是项目里的本体：
 
-企业想搭智能体，先得有「语义底座」：把业务里的对象、字段和它们之间的关系讲清楚。
-可现实是 **懂业务的人不会建模，会建模的人不懂业务**，靠会议和文档对齐，成本高、还容易失真。
+- 业主、燃气表、燃气灶、维修工、工单是对象；
+- 业主与燃气表/燃气灶之间是拥有关系，维修工与工单之间是负责关系；
+- 业主创建工单是一个动作，执行后生成待派单工单，并把处理人改成忙碌。
 
-OntoWeave 换一条路：**建模就是聊天**。
+确认后，这张模型会用于三件事：
 
-- 业务专家只管把业务讲清楚，系统负责抽成结构化的对象 / 属性 / 关系。
-- 每一条改动先落成 **草图**，由团队 **确认或撤销**，人始终握着最终解释权。
-- **对象和关系放在共享池里**，不归某张图私有；跨图复用同一个对象，多张子图自然连成一张大图。
+- 接入数据源时，把 `security_inspection.owners`、`gas_meters` 等表映射到对象属性；
+- 业务 Agent 查“燃气灶为什么打不着火”时，从业主出发查燃气表、燃气灶和工单，再结合余额与状态给出原因；
+- 执行“业主创建工单”时，先预览新增工单和维修工状态变更，确认后再写入。
 
-一句话：**把散落在对话里的业务知识，织成一张可被机器消费的本体图。**
+这三件事用的是同一份模型。
 
-## 核心概念
+## 项目现在能做什么
 
-| 概念 | 说明 |
-|---|---|
-| 对象类型 Object Type | 业务里的「类别」，如客户、订单、产品。放在共享池。 |
-| 属性 Property | 挂在对象类型上的字段，如客户等级、订单金额。 |
-| 关系 Relation | 两个对象类型之间的连接，如「客户 —下单→ 订单」。放在共享池。 |
-| 动作类型 Action Type | 一次「能做哪些改动」的定义：建 / 改 / 删对象，加 / 删链接。放在共享池。 |
-| 动作参数 Parameter | 动作的输入：让用户选一个对象，或填一个值。 |
-| 动作规则 Rule | 动作到底改了什么：改哪个对象的哪个字段，或加删哪条链接。 |
-| 提交校验 Submission Criteria | 提交前必须成立的条件，不满足就拦住这次动作。 |
-| 图 Graph | 共享池里的一个子集，也是「一次对话」的产物。 |
-| 会话 Conversation | 用户看到的入口，和一张图一对一。 |
-| 改动集 Changeset | 一次对话产出的增删改集合，负责版本与审计。 |
-| 视图状态 View State | 图在界面上的布局、高亮、分组等，与本体内容完全解耦。 |
-| 状态机 Status | 草案 `draft` → 已确认 `confirmed` → 已批准 `approved`。 |
+- **对话建模**：在聊天里生成对象、属性、关系和动作。每次改动先进改动集，用户确认后才落正式态。
+- **共享本体**：对象、属性、关系和动作放在共享池，图只引用其中一部分，跨图可以复用同一个对象。
+- **数据接入**：从数据源同步到 Iceberg，支持 snapshot 和 CDC，每次同步生成一个不可变的数据集版本。
+- **数据整理**：把数据集接成处理流程，支持预览、手动构建、定时构建和来源追踪。
+- **对象化**：把数据集字段映射到对象属性和关系，整批生成对象/关系实例，完成后原子切换。
+- **业务查询**：先按问题检索业务图，再查对象和关系，最后把查询过程整理成证据图。
+- **业务动作**：动作执行前先预览变更，用户确认后重新校验、执行，再回读结果。
+- **工程化**：FastAPI、Spring Boot、React 三端；SSE 流式回合、中断恢复、可选 Langfuse 追踪。
 
-两条贯穿全局的原则：**草图态与正式态永远视觉可分**；**撤销时记住被否掉的理解，避免下次又画错**。
-
-## 它是怎么工作的
-
-```mermaid
-flowchart LR
-    U["业务专家"] -->|自然语言| FE["前端 · 建模工作台<br/>React + React Flow"]
-    FE -->|REST| API["后端 · FastAPI"]
-    FE <-->|SSE 流式回合| AGENT["智能体运行时<br/>LangGraph / deepagents"]
-    AGENT --> TOOLS["建模工具层<br/>对象 / 关系 / 动作定义"]
-    TOOLS --> SVC["领域服务<br/>状态机 · 改动集 · 图成员"]
-    API --> SVC
-    SVC --> DB[("PostgreSQL + pgvector<br/>本体 · 图 · 视图 · 检查点")]
-    AGENT --> DB
-```
-
-- **对话回合走 SSE**：`message.delta` / `tool.start` / `tool.end` / `interrupt` /
-  `state.update` / `run.end` 等事件实时推给前端，工具调用、思考过程和正文都能边跑边看。
-- **模型产出先成草图**：写入走改动集，**确认**才落正式态，**撤销**则回滚。
-- **相似检索兜底**：建新对象前先查近邻，同名或高度相似就复用，避免把池子画满重复类型。
-
-## 目录结构
+项目现在跑通的链路是：
 
 ```text
-backend/                  FastAPI 后端（详见 backend/README.md）
-  app/agent/              智能体：LLM 装配、工具层、deepagents 图、运行时与 SSE
-  app/api/                按领域拆分的 REST 路由（统一挂在 /api/v1）
-  app/services/           领域逻辑：本体、图、改动集、视图、会话
-  app/clients/            外部服务客户端（Java 数据服务）
-  app/models/             SQLAlchemy 模型（按领域拆分）
-  alembic/versions/       数据库迁移
-  tests/                  pytest 测试
-frontend/                 React + TypeScript 建模工作台（详见 frontend/README.md）
-  src/features/modeling/  画布、对话、工具块等建模界面
-  src/shared/             REST / SSE 客户端与共享类型
-.github/workflows/        CI（后端 lint / 类型检查 / 测试）
+对话建模 → 本体确认 → 数据接入 → 对象实例 → 业务查询 → 动作执行
 ```
+
+## 界面预览
+
+截图以安检业务为例，覆盖建模、查询、动作确认和数据映射。
+
+### 建模工作台
+
+![建模工作台](docs/assets/readme/modeling-workbench.png)
+
+左边是对话列表，中间是对话区，显示 Agent 的工具调用和改动集，右边画布同步出现对象和关系，改动确认后才会生效。
+
+### 业务查询
+
+![业务查询与证据图](docs/assets/readme/business-query-1.png)
+![业务查询与证据图](docs/assets/readme/business-query-2.png)
+
+问题先命中安检图，再查业主、燃气表、燃气灶和工单，结果与证据链一起返回。
+
+### 动作确认
+
+![业务动作确认](docs/assets/readme/action-confirmation-1.png)
+![业务动作确认](docs/assets/readme/action-confirmation-2.png)
+
+预览里会列出新增工单和维修工状态变更；确认后写入，并回读结果。
+
+### 数据接入与对象化
+
+![数据接入与对象化](docs/assets/readme/data-to-ontology-1.png)
+![数据接入与对象化](docs/assets/readme/data-to-ontology-2.png)
+
+数据源同步到 Iceberg 后生成数据集版本；字段映射到业主等对象，生成对象/关系实例。
+
+## 整体链路
+
+```mermaid
+flowchart TB
+    FE["React 工作台<br/>建模 / 数据 / 业务"]
+    API["FastAPI 业务后端<br/>领域服务 + Agent Runtime"]
+    DS["Spring Boot 数据服务<br/>连接 / CDC / Iceberg / 对象查询"]
+    PG[("PostgreSQL + pgvector")]
+    MQ[("RabbitMQ")]
+    SOURCE[("业务数据源")]
+    FLINK["Flink CDC"]
+    ICE[("Iceberg")]
+    LLM["LLM / Embedding"]
+
+    FE -->|REST + SSE| API
+    API --> PG
+    API --> LLM
+    API --> DS
+    DS --> PG
+    DS --> MQ
+    MQ --> API
+    SOURCE --> FLINK
+    FLINK --> ICE
+    ICE --> DS
+```
+
+从使用上看，就是先在建模工作台把业务讲清楚，确认本体；再把数据接进来，映射成对象；最后在业务工作台里提问或执行动作。没有数据也可以先建本体，数据接进来之后再补映射。
+
+## 几个概念
+
+| 概念 | 含义 |
+|---|---|
+| 对象类型 | 业务里的“类别”，比如业主、燃气表、工单 |
+| 属性 | 挂在对象上的字段，比如燃气表余额、工单状态 |
+| 关系 | 两个对象之间的连接，比如业主拥有燃气表、维修工负责工单 |
+| 动作 | 参数、规则和提交校验放在一起，定义一次能改什么 |
+| 图 | 共享本体里的一个子集，也是一次对话的产物 |
+| 会话 | 用户看到的入口，和一张图对应 |
+| 改动集 | 一轮对话产生的增删改，确认后生效，撤销可回滚 |
+| 视图状态 | 画布布局、高亮、分组等，和本体内容分开存 |
+
+## Agent 怎么拆
+
+项目没有把所有工具塞给一个 Agent。每类会话有自己的 `AgentDefinition`，主 Agent 只拿当前场景需要的工具；视图和动作建模再按需拆成子 Agent。
+
+- 建模 Agent：对象、属性、关系、动作定义。
+- 视图子 Agent：只改画布布局，不碰本体。
+- 动作建模子 Agent：补参数、规则、赋值和提交校验，不碰实例数据。
+- 数据连接 Agent：看连接状态、发现源表、读表结构、排查同步问题。
+- 数据整理 Agent：读写流程草稿、预览节点、构建流程。
+- 对象映射 Agent：推荐映射、校验、预览，然后触发生成对象/关系实例。
+- 业务 Agent：改写问题、检索业务图、查对象和关系，必要时执行动作。
+
+这些 Agent 共用同一套运行时和本体，区别只在拿到的工具和上下文。
+
+业务查询的路径大致是：
+
+```text
+改写问题 → 检索业务图 → 读取图详情
+→ 查对象 / 沿关系查关联对象 → 更新证据
+```
+
+图向量只负责找候选图，实例数据还是走结构化查询，不会把整库塞进上下文。
+
+### 模型怎么读图、选图
+
+`graph_card` 是业务图发布时生成的一段文本，不是给页面展示的，而是给检索和 Agent 判断用的。它把一张图压成一份类型层摘要：
+
+- 图名和对象类型；
+- 每个对象的属性、主键和标题键；
+- 关系的方向、基数和标签；
+- 可执行动作的参数、影响范围和提交校验。
+
+发布前会校验图里的对象、属性、关系和动作都已经确认或批准；有草稿元素时直接拦住，避免把没定稿的图拿去召回。
+
+发布时会把整张图卡向量化，写入 `graph_embedding`。业务问题改写后，先用问题向量去比图向量，召回几张候选图；检索结果返回图 ID、相似度和 `graph_card`，Agent 读图卡判断哪张图能回答问题。选中后再读结构化的图详情，查对象实例。
+
+所以模型读图分两步：先用图卡判断哪张图相关；选中后再用结构化详情确认对象、关系和动作，最后查实例。实例数据不进图卡，也不会把整库塞进上下文。
+
+动作走的是另一条路径：
+
+```text
+读取动作详情 → 执行动作 → 生成变更预览 → 等待用户确认
+→ 重新校验 → 应用变更 → 回读结果
+```
+
+执行动作时先生成变更预览，再等用户确认。确认后用同一个执行 ID 重算预览；如果重算结果和上次不一致，直接判为过期；一致才应用变更，最后回读生效后的对象和关系。
+
+## 服务怎么拆
+
+- `frontend/`：React 19、TypeScript、React Flow、Mantine、TanStack Query。负责建模画布、数据工作台、业务工作台，以及 REST/SSE 客户端。
+- `backend/`：Python 3.12、FastAPI、SQLAlchemy、LangGraph/deepagents。负责本体、图、会话、改动集、动作等领域逻辑，以及 Agent 运行时和 SSE。
+- `data-service/`：Java 17、Spring Boot 3.5、Flink 1.20、Iceberg 1.10。负责数据源连接、同步、Iceberg 版本、对象/关系实例、查询原语和动作编辑覆盖层。
+- 基础设施：PostgreSQL 16 + pgvector、RabbitMQ、Flink、Iceberg；本地示例数据源见“快速开始”。
+
+Java 服务贴着 JDBC、Flink、Iceberg 走；Python 负责 Agent、会话和流式输出；React 负责画布和确认交互。三端之间走内部 REST、token 和 RabbitMQ outbox，不共享进程内状态。
+
+## 几个设计取舍
+
+### 共享本体池
+
+对象类型、属性、关系和动作都放在共享池里。图不复制这些定义，只记录自己用了哪些元素。这样同一个“业主”不会在每张图里各建一份。
+
+视图状态单独存，画布怎么摆不影响本体。
+
+### 改动集
+
+Agent 的写工具不会直接改正式数据。它先往改动集里记一条操作；用户确认时做全量校验，再统一落正式态；撤销时删掉本次新建、还原修改，并把回执写回模型线程，避免下一轮继续引用已撤销内容。
+
+工具里还有几道护栏：建新对象前先做相似检索，命中候选要 `ask_user` 让用户决定复用还是新建；更新只允许白名单字段；删除先标记不真删；工具异常返回结构化错误，让模型自己纠正。
+
+### 数据链路
+
+数据链路分两段：
+
+```text
+数据源 → Flink CDC → Iceberg → 不可变数据集版本
+数据集版本 → 字段映射 → 对象/关系实例 → 原子切换
+```
+
+同步任务支持 snapshot 和 CDC，每次运行生成新的 Iceberg 表，失败不会覆盖当前版本。对象映射会校验字段类型、主键、标题键和关系端点；整批重建完成后一次性切换当前版本，失败保留旧版本可查。
 
 ## 快速开始
 
-前置：Docker（跑数据库和后端）、Node.js 18+（跑前端）。
-
-**1. 起后端（含数据库）**
+前置：Docker、Docker Compose；完整体验建议给 Docker 至少 8 GB 内存。
 
 ```bash
-docker compose up -d --build app
-curl http://127.0.0.1:18000/health   # {"status":"ok"}
+docker compose up -d --build
 ```
 
-应用容器启动时会自动跑 `alembic upgrade head`，再起 uvicorn。
-接口文档（Swagger）：<http://127.0.0.1:18000/docs>
+启动后：
 
-> 宿主机 8000 常被别的项目占用，所以后端映射到 **18000**。
+| 入口 | 地址 |
+|---|---|
+| 前端 | <http://127.0.0.1:18080> |
+| 后端 API / Swagger | <http://127.0.0.1:18000/docs> |
+| Java 数据服务健康检查 | <http://127.0.0.1:18001/actuator/health> |
+| Flink UI | <http://127.0.0.1:18081> |
+| RabbitMQ 管理台 | <http://127.0.0.1:15673>（`ontoweave` / `ontoweave`） |
 
-**2. 起前端**
+只做前端开发：
 
 ```bash
 cd frontend
@@ -97,82 +214,118 @@ npm install
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173>。首页 → 新建对话 → 进入三栏建模工作台，直接用中文描述你的业务即可；
-首页的「业务问答」进入独立的查询工作台（`/query`），左侧为会话列表，右侧为对话与查询证据。
-建模页右侧画布顶部的「发布图」会把当前图发布到业务问答，草稿未确认时按钮不可用。
-Vite 会把 `/api` 代理到本机的 `18000` 端口。
+Vite 默认在 <http://127.0.0.1:5173>，`/api` 代理到 `18000`。
 
-**3. 配置模型（可选）**
-
-没有配大模型 key 时，本体、改动集、视图等 REST 功能照常可用，只是**对话建模**不可用。
-要跑智能体，复制配置并填 key：
+导入安检 mock 数据：
 
 ```bash
-cd backend
-cp .env.example .env
+docker compose exec -T mysql mysql -uroot -proot < scripts/mock-security-inspection.sql
 ```
 
-`backend/.env` 会由 Docker Compose 注入 `app` 容器；修改模型配置后重启后端：
+这套 mock 数据只用于本地演示。实际接入的数据源在数据工作台里配置。
+
+### 配置模型
+
+没有配置大模型 key 时，本体、改动集、数据连接等 REST 功能仍可用，但对话建模和业务 Agent 不可用。
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+至少填写：
+
+```dotenv
+CHAT_BASE_URL=...
+CHAT_API_KEY=...
+CHAT_MODEL=...
+```
+
+嵌入模型不配置时会回落到本地 `HashingEmbedder`，开发可用，但语义检索质量不如真实模型。修改配置后重建后端：
 
 ```bash
 docker compose up -d --force-recreate app
 ```
 
-| 组 | 变量 | 用途 |
-|---|---|---|
-| 数据库 | `DATABASE_URL` / `POSTGRES_*` | 本地默认值可直接用 |
-| 对话模型 | `CHAT_BASE_URL` / `CHAT_API_KEY` / `CHAT_MODEL` | 智能体回合；OpenAI 兼容接口，私有化环境换成自建网关 |
-| 嵌入模型 | `EMBEDDING_BASE_URL` / `EMBEDDING_API_KEY` / `EMBEDDING_MODEL` / `EMBEDDING_DIM` | 相似检索；不配则回落到本地 `HashingEmbedder` |
+## 验证
 
-## 常用命令
+后端：
 
-| 场景 | 命令 |
-|---|---|
-| 后端本地开发 | `docker compose up -d db && cd backend && uv sync --extra dev && uv run alembic upgrade head && uv run uvicorn app.main:app --reload --port 18000` |
-| 后端测试 | `cd backend && uv run pytest -v` |
-| 后端静态检查 | `cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app` |
-| 前端开发 | `cd frontend && npm run dev` |
-| 前端测试 | `cd frontend && npm test` |
-| 前端构建 / Lint | `cd frontend && npm run build` · `npm run lint` |
+```bash
+cd backend
+.venv/bin/python -m pytest -q
+.venv/bin/ruff check .
+.venv/bin/ruff format --check .
+.venv/bin/mypy app
+```
 
-> 测试库名必须以 `_test` 结尾，否则 pytest 直接拒绝启动，防止误清开发库。
-> 详细说明见 [backend/README.md](backend/README.md)。
+Java 数据服务：
 
-## 接口一览
+```bash
+cd data-service
+./mvnw -B verify
+```
 
-业务接口都在 `/api/v1` 下，`/health` 不版本化。核心分组：
+前端：
 
-| 分组 | 路径前缀 | 说明 |
-|---|---|---|
-| 对象类型 | `/object-types` | 增改查，草案 → 已确认 |
-| 图 | `/graphs` | 建图、加成员、读画布快照 |
-| 会话 | `/conversations` | 建会话（同时建图）、改标题、读消息历史 |
-| 动作 | `/actions` | 读动作定义（参数 / 规则 / 字段赋值 / 提交校验） |
-| 改动集 | `/changesets` | 记录 / 确认 / 撤销一次对话的改动 |
-| 视图状态 | `/graphs/{id}/view-state` | 读写当前用户布局 |
-| 智能体 | `/conversations/{id}/messages` · `/resume` | 发消息、回答中断提问（返回 SSE 流） |
-| 查询工作台 | `/query/conversations` | 新建问答会话；消息与中断复用会话接口 |
+```bash
+cd frontend
+npx tsc -b
+npm run lint
+npm test
+npm run build
+```
 
-完整清单与改动集语义见 [backend/README.md](backend/README.md#接口)。
+对象化性能验收：
+
+```bash
+P3_PERFORMANCE_ROWS=200000 ./scripts/p3-acceptance.sh performance
+```
+
+当前 CI 覆盖后端和 Java 数据服务；前端校验在本地执行。
+
+## 目录结构
+
+```text
+backend/                  FastAPI 业务后端
+  app/agent/              Agent 装配、工具层、运行时与 SSE
+  app/api/                REST 路由（统一挂在 /api/v1）
+  app/services/           本体、图、改动集、动作、数据连接等领域逻辑
+  app/clients/            Java 数据服务客户端
+  app/models/             SQLAlchemy 模型
+  alembic/versions/       数据库迁移
+  tests/                  pytest
+data-service/             Spring Boot + Flink + Iceberg 数据服务
+  src/main/java/          连接、同步、流水线、对象映射、查询、动作覆盖层
+  src/test/java/          JUnit / Testcontainers
+frontend/                          React + TypeScript 工作台
+  src/features/data-connection/    数据连接与同步
+  src/features/data-pipeline/      数据整理流程
+  src/features/modeling/           建模画布、对话、改动集
+  src/features/ontology-workbench/ 对象/关系映射
+  src/features/business/           业务查询与动作确认
+  src/shared/                      REST / SSE 客户端与共享类型
+docs/                     设计稿、阶段记录、验收报告
+scripts/                  验收脚本与 mock 数据
+docker-compose.yml        本地全栈编排
+```
 
 ## 文档
 
-- 后端细节（接口、智能体、踩坑）：[`backend/README.md`](backend/README.md)
-- 前端细节：[`frontend/README.md`](frontend/README.md)
-- 数据集成与 Agent 闭环路线图：[`docs/superpowers/ROADMAP.md`](docs/superpowers/ROADMAP.md)
+- 后端接口、Agent 运行时：[`backend/README.md`](backend/README.md)
+- 前端结构与画布交互：[`frontend/README.md`](frontend/README.md)
+- 数据服务、同步链路、内部接口：[`data-service/README.md`](data-service/README.md)
+- 会话式本体建模设计：[`docs/superpowers/specs/2026-10-07-conversational-ontology-modeling-design.md`](docs/superpowers/specs/2026-10-07-conversational-ontology-modeling-design.md)
+- 数据接入与 Agent 查询设计：[`docs/superpowers/specs/2026-10-17-data-integration-and-agent-loop-design.md`](docs/superpowers/specs/2026-10-17-data-integration-and-agent-loop-design.md)
+- 业务 Agent 动作执行：[`docs/superpowers/specs/2026-10-31-business-agent-action-design.md`](docs/superpowers/specs/2026-10-31-business-agent-action-design.md)
+- 对象化验收与性能证据：[`docs/checks/2026-10-23-p3-ontology-mapping-smoke.md`](docs/checks/2026-10-23-p3-ontology-mapping-smoke.md)
 
-## 路线图
+## 当前范围
 
-| 阶段 | 状态 |
-|---|---|
-| 后端地基（本体 / 图 / 状态机） | ✅ 已完成 |
-| 后端加固（P0–P2） | ✅ 已完成 |
-| 会话、改动集与视图 | ✅ 已完成 |
-| 智能体工具层与相似检索 | ✅ 已完成 |
-| 智能体运行时与 SSE | ✅ 已完成 |
-| 前端建模工作台与视图同步 | ✅ MVP 已完成 |
-| 动作层（动作类型 / 参数 / 规则 / 提交校验） | ✅ 定义层已完成 |
-| P1 数据进来（连接 / 同步 / 数据集版本） | ✅ 已完成 |
-| P2 数据整理（可视化处理 / 构建 / 调度 / 来源追踪） | ✅ 已完成 |
-| P3 变成对象（对象与关系实例） | ✅ 已完成 |
-| P4 Agent 使用（只读查询 / 查询工作台） | 🚧 只读查询已实施，动作执行后置 |
+当前版本聚焦单用户、单节点的完整链路，以下部分按当前实现边界处理：
+
+- 多用户与权限：当前使用固定的 `DEFAULT_USER_ID`；
+- 数据源连接器：已实现一种，新增类型需补对应适配；
+- Flink 部署：单节点运行，暂未包含 savepoint 恢复与多节点编排；
+- 性能验收：覆盖 20 万行 × 8 属性，更大规模暂未纳入当前范围。
+
+产品形态参考了 Palantir 的 Ontology/AIP。当前不引入通用本体交换格式；图卡、对象、关系和动作按业务查询与执行的需要组织，减少上下文和实现复杂度。

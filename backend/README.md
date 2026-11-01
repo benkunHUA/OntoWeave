@@ -1,8 +1,8 @@
 # OntoWeave Backend
 
-会话驱动的企业本体建模工具后端。当前进度：本体数据层（对象类型 / 属性 / 关系 / 图成员 /
-状态机）+ 动作层定义 + 数据连接与同步（MySQL → Flink CDC → Iceberg 数据集）+ 数据连接
-Agent。动作层只定义「一次能做哪些改动」，不执行实例，执行层留给下一版。
+会话驱动的企业本体与业务智能体平台后端。当前覆盖：本体数据层（对象类型 / 属性 / 关系 /
+图成员 / 状态机）+ 动作定义与执行（预览 / 确认 / 幂等 / 回读 / 审计）+ 数据连接与同步
+（数据源 → Flink CDC → Iceberg 数据集）+ 数据连接 Agent + 业务查询与动作 Agent。
 
 ## 用容器跑整套
 
@@ -55,7 +55,7 @@ docker compose up -d --force-recreate app
 | Java 数据服务 | `DATA_SERVICE_URL` / `DATA_SERVICE_TOKEN` / `DATA_SERVICE_TIMEOUT_SECONDS` | 内部 REST，默认 `http://localhost:18001`；token 必须与 Java 一致 |
 | 事件消费 | `RABBITMQ_URL` / `DATA_EVENT_EXCHANGE` / `DATA_EVENT_QUEUE` / `EVENT_CONSUMER_ENABLED` | 消费 Java Outbox 的连接与同步事件；测试默认关闭 |
 
-两个坑先说清楚：
+两个配置约束：
 
 - **`EMBEDDING_DIM` 必须和数据库里 `object_type.embedding` 列的维度一致（当前 1536）。** 换成原生维度不是 1536 的模型时，要么打开 `EMBEDDING_SEND_DIMENSIONS` 让服务端按 1536 输出，要么改列维度并生成一次迁移。
 - **没有配 `EMBEDDING_API_KEY` 时，服务会回落到本地的 `HashingEmbedder`**（词面相似度，不需要网络）。开发够用，但语义质量远不如真实模型，上生产前记得配上。
@@ -97,7 +97,7 @@ CI 在 `.github/workflows/backend.yml`，起一个 pgvector 服务容器后依�
 | `app/models/` | SQLAlchemy 模型，按领域拆分（本体、图、会话、动作、改动集） |
 | `app/schemas/` | 按领域拆分的 Pydantic 出入参；`schemas/ontology/` 按资源再分组 |
 | `app/services/ontology/` | 对象类型 / 属性 / 关系的领域逻辑与状态机 |
-| `app/services/action/` | 动作类型、参数、规则、赋值、brief、detail 与引用保护 |
+| `app/services/action/` | 动作定义、执行编排、预览/确认、回读与引用保护 |
 | `app/services/criteria/` | 提交校验条件树：读取顺序、单条形状、建树、整树不变量 |
 | `app/services/element_kinds/` | 元素种类注册表（9 种）：create 分派、删除顺序、引用检查都按它走 |
 | `app/services/element_edit/` | 改动集写入：操作形状、建草稿、更新与删除、条件树整棵替换 |
@@ -289,30 +289,6 @@ Python 消费后按 `event_id` 幂等写入 `app.conversation_event`，再通过
   `LANGFUSE_BASE_URL` 指向本地实例（如 `http://127.0.0.1:3000`）。自托管完整栈较重
   （web + worker + ClickHouse + Redis + S3），按官方 compose 单独起，本项目只负责把
   trace 发过去。
-
-### 踩过的坑
-
-这几条都是实际跑起来才暴露的，不是读文档能看出来的：
-
-- **工具异常会打挂整轮。** deepagents 的 ToolNode 默认把工具异常直接抛出，
-  而我们的领域错误（找不到、状态非法）在设计上是预期内的。所以工具统一返回
-  结构化错误 `{"error": ..., "message": ...}`，让模型自己纠正。
-  注意异常兜底要包住**参数构造**（`uuid.UUID("坏 id")` 也算），不能只包函数调用。
-- **工具会并发跑，而它们共用一个 Session。** deepagents 在同一轮里用线程池并发执行
-  工具调用，SQLAlchemy Session 不是线程安全的。`ToolContext` 上挂了一把每次运行
-  一把的锁来串行化——这样既保住「一次运行一个事务边界」，又不会并发踩 Session。
-- **规划要手动加。** `write_todos`（`TodoListMiddleware`）不在 deepagents 的默认
-  中间件栈里，得自己挂。
-- **`interrupt_on` 和 `ask_user` 都需要 checkpointer。** 没有检查点时审批和提问都
-  不会工作，所以 `build_agent` 在没检查点时会自动关掉审批（测试用）。
-- **`PostgresSaver.from_conn_string` 返回的是上下文管理器**，不是实例；长期存活的
-  进程要自己建连接池，且 conninfo 要用 libpq 格式（去掉 SQLAlchemy 的 `+psycopg`），
-  关闭时记得 `pool.close()`。
-- **安装有个坑。** deepagents 把 `langchain-google-genai` 声明成硬依赖，但代码里
-  从没 import 过它；它拖来的 `google-auth → cryptography` 在部分机器上要从源码
-  编译而失败。当前 `deepagents==0.7.22` 的应用镜像已完整安装该依赖，
-  `cryptography==50.0.2` 命中 Linux x86_64 的 manylinux 预编译 wheel，无需 Rust
-  工具链。**升级 deepagents 时仍要重新验证镜像构建。**
 
 ## 数据库连接
 

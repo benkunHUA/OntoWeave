@@ -1,6 +1,6 @@
 # OntoWeave Java Data Service
 
-数据连接与同步领域的独立 Java 服务：连接配置、加密凭据、MySQL 连接测试、binlog/复制能力检查、表发现、Flink CDC 同步、Iceberg 数据集版本和内部 REST。前端不直接调用本服务；Python 通过 `/internal/v1/**` 访问。
+数据连接与同步领域的独立 Java 服务：连接配置、加密凭据、连接测试、binlog/复制能力检查、表发现、Flink CDC 同步、Iceberg 数据集版本和内部 REST。前端不直接调用本服务；Python 通过 `/internal/v1/**` 访问。
 
 ## 技术栈
 
@@ -122,7 +122,7 @@ curl -sS -X POST \
 
 已知限制：
 
-- 仅支持 MySQL；其他数据库连接器后续扩展。
+- 目前只实现了 MySQL 连接器；其他数据源后续扩展。
 - `rowCountEstimated=true` 的 CDC 版本，行数来自 Iceberg snapshot summary 的物理记录数，存在更新/删除时可能偏大，不是精确逻辑行数。
 - 旧 Iceberg 表、孤儿文件和失败运行产生的临时表尚未清理。
 - 第一版不执行 savepoint 恢复，也不做多节点部署。

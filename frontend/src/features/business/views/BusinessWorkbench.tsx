@@ -12,7 +12,7 @@ import {
   QUERY_NEW_PATH,
   QUERY_PATH,
 } from '../lib/constants'
-import { deriveQueryTitle } from '../lib/title'
+import { deriveQueryTitle, queryHeaderTitle } from '../lib/title'
 
 /** 业务工作台：左侧会话、右侧对话；业务会话不订阅数据连接事件流。 */
 export function BusinessWorkbench() {
@@ -36,6 +36,12 @@ export function BusinessWorkbench() {
     setMessage: toast.setMessage,
     clearMessage: toast.clear,
   })
+  const headerTitle = activeConversation
+    ? queryHeaderTitle(
+        activeConversation.title || QUERY_DEFAULT_TITLE,
+        conversation.messages,
+      )
+    : QUERY_COPY.brandTitle
 
   useEffect(() => {
     if (isNewPath || routeId || conversations.isLoading) return
@@ -123,7 +129,7 @@ export function BusinessWorkbench() {
       />
       <div className="query-divider" aria-hidden="true" />
       <QueryChatPane
-        title={activeConversation?.title || QUERY_COPY.brandTitle}
+        title={headerTitle}
         messages={conversation.messages}
         isRunning={conversation.agent.isRunning}
         isLoading={conversation.isLoading || conversations.isCreating}

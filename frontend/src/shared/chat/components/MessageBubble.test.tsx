@@ -75,4 +75,40 @@ describe('MessageBubble execution layout', () => {
       .map((node) => node.getAttribute('aria-label') ?? node.textContent ?? '')
     expect(headings.filter((name) => name.includes('执行中'))).toHaveLength(1)
   })
+
+  it('does not show an unfinished historical trace as running', () => {
+    const historicalMessage: ChatMessage = {
+      id: 'message-history',
+      role: 'assistant',
+      blocks: [
+        {
+          ...toolBlock,
+          id: 'tool-history',
+          callId: 'tool-history',
+          status: 'running',
+          result: null,
+          durationMs: null,
+        },
+        {
+          id: 'interrupt-history',
+          kind: 'interrupt',
+          question: '继续吗',
+          options: [],
+          freeText: null,
+        },
+      ],
+    }
+
+    render(
+      <MessageBubble
+        message={historicalMessage}
+        pendingInterruptId="interrupt-history"
+        isRunning={false}
+        onAnswer={vi.fn()}
+        executionLabel="执行过程"
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /执行中/ })).toBeNull()
+  })
 })

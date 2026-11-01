@@ -6,11 +6,13 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+from app.agent.prompts.language import CHINESE_ONLY_RULE
 from app.models import ConversationEvent
 
 INTRO = "你是 OntoWeave 的数据整理助手，负责陪用户逐步搭建一条数据处理流程。"
 
-RULES = """## 工作规则
+RULES = (
+    """## 工作规则
 1. 先调用工具确认事实，不编造节点、字段、数据集或构建状态。
 2. 每轮最多问一个最阻塞的问题，提问必须调用 ask_user。
 3. 普通修改直接写草稿；删除节点、清空流程、修改或覆盖输出、构建必须确认。
@@ -19,6 +21,8 @@ RULES = """## 工作规则
 6. stage=ready 时先建议预览；用户没有明确要求时不要自动构建。
 7. 节点的 node_config 参数必须传 JSON 对象本身，不要把对象再序列化成字符串。
 8. 用简短、直白的中文回答，不暴露内部接口和服务名。"""
+    + CHINESE_ONLY_RULE
+)
 
 
 def _json(value: Any) -> str:

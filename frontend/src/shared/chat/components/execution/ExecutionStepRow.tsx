@@ -5,26 +5,29 @@ import { subagentLabel } from '../../lib/toolLabels'
 
 interface ExecutionStepRowProps {
   block: ToolBlock
+  live: boolean
   onOpen: (block: ToolBlock) => void
 }
 
-export function ExecutionStepRow({ block, onOpen }: ExecutionStepRowProps) {
+export function ExecutionStepRow({ block, live, onOpen }: ExecutionStepRowProps) {
   const title = describeExecutionStep(block)
   const agent = block.agent ? subagentLabel(block.agent) : null
+  const status =
+    live && block.status === 'running' ? 'running' : block.status === 'error' ? 'error' : 'ok'
 
   return (
     <button
       type="button"
       className="execution-step"
-      data-status={block.status}
+      data-status={status}
       title={title}
       aria-label={`查看步骤详情：${title}`}
       onClick={() => onOpen(block)}
     >
       <span className="execution-step__dot" aria-hidden="true" />
-      {block.status === 'running' ? (
+      {status === 'running' ? (
         <LoaderCircle size={12} className="execution-step__status is-spinning" aria-hidden="true" />
-      ) : block.status === 'error' ? (
+      ) : status === 'error' ? (
         <CircleAlert size={12} className="execution-step__status" aria-hidden="true" />
       ) : null}
       <span className="execution-step__text">{title}</span>

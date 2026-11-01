@@ -21,7 +21,9 @@ export function ExecutionTrace({
   const [manualOpen, setManualOpen] = useState<boolean | null>(null)
   const [detail, setDetail] = useState<ToolBlock | null>(null)
   const bodyId = useId()
-  const live = trace.running || active
+  // 历史工具块在中断后可能一直保留 running，此时会话并没有在跑；只有当前活跃
+  // 回合才能判定为执行中，否则重新打开历史对话会一直转圈。
+  const live = active
   const heading = executionTraceHeading(trace, label, live)
   const open = live || (manualOpen ?? false)
 
@@ -62,7 +64,7 @@ export function ExecutionTrace({
           <div className="execution-trace__timeline">
             {trace.reasoning.length ? <ExecutionReasoning blocks={trace.reasoning} /> : null}
             {trace.tools.map((block) => (
-              <ExecutionStepRow key={block.id} block={block} onOpen={setDetail} />
+              <ExecutionStepRow key={block.id} block={block} live={live} onOpen={setDetail} />
             ))}
           </div>
         </div>

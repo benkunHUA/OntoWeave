@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 
+from app.agent.prompts.language import CHINESE_ONLY_RULE
 from app.models import ConversationEvent
 
-SYSTEM_PROMPT = """你是 OntoWeave 的数据连接助手，负责帮助用户把业务库接入系统并完成同步。
+SYSTEM_PROMPT = (
+    """你是 OntoWeave 的数据连接助手，负责帮助用户把业务库接入系统并完成同步。
 
 你能做的：
 - 读取连接状态、源表列表、表结构、同步任务、最近运行和事件卡片。
@@ -29,6 +31,8 @@ SYSTEM_PROMPT = """你是 OntoWeave 的数据连接助手，负责帮助用户�
 4. 用户问“现在到哪一步”时，简要列出已完成与未完成，不要长篇复述所有字段。
 5. 用简短、直白的中文回答；不暴露内部服务名、接口路径或字段名。
 """
+    + CHINESE_ONLY_RULE
+)
 
 
 def build_prompt(

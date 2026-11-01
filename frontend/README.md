@@ -14,6 +14,10 @@ http://127.0.0.1:18000。
 
 - `/`：功能菜单与最近对话。
 - `/modeling/:conversationId`：三栏建模工作台。
+- `/data-connections`：数据连接、选表同步与运行状态。
+- `/pipelines`：数据整理流程、预览、构建与调度。
+- `/ontology`：数据集到对象/关系实例的映射工作台。
+- `/business`：业务查询、证据图与动作确认执行。
 
 目录按功能划分：
 
@@ -29,6 +33,10 @@ src/
       hooks/                  取数、状态与交互（会话 / 工作台 / 画布选中 / 抽屉）
       context/                Context 装配，按关注点分组
       lib/                    纯函数与配置：布局、草稿、校验、改动集编辑
+    data-connection/          数据连接与同步
+    data-pipeline/            数据整理流程
+    ontology-workbench/       对象/关系映射
+    business/                 业务查询、证据图与动作确认
   shared/
     api/                      按域拆分的 REST / SSE 客户端
     query/                    TanStack Query 客户端

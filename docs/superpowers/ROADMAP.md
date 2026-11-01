@@ -1,6 +1,6 @@
 # 数据集成与 Agent 闭环 · 总体路线图
 
-- 最后更新：2026-10-27
+- 最后更新：2026-11-01
 - 当前分支：`main`
 - 当前基线：P3 验收合并后的 `main`（P1 验收基线 `7c8e240`，P2 验收基线 `fba99c2`）
 - 总体设计：[2026-10-17-data-integration-and-agent-loop-design.md](specs/2026-10-17-data-integration-and-agent-loop-design.md)
@@ -13,7 +13,7 @@
 | P1 数据进来 | 外部数据可连接、可同步，生成不可变数据集版本 | ✅ 已完成（2026-10-20 复检通过） | [p1-data-ingestion.md](phases/p1-data-ingestion.md) |
 | P2 数据整理 | 可视化处理、构建派生版本、定时调度、来源元数据 | ✅ 已完成（2026-10-22 端到端验收通过；有部署环境限制） | [p2-data-preparation.md](phases/p2-data-preparation.md) |
 | P3 变成对象 | 数据集映射为对象类型，生成对象实例和关系实例 | ✅ 已完成（2026-10-24 验收通过；性能 20 万行降级） | [p3-ontology-mapping.md](phases/p3-ontology-mapping.md) |
-| P4 Agent 使用 | 动作执行、审计记录、Agent 查询与操作闭环 | 🚧 只读查询已实施（动作执行后置） | [p4-agent-loop.md](phases/p4-agent-loop.md) |
+| P4 Agent 使用 | 动作执行、审计记录、Agent 查询与操作闭环 | 🚧 只读查询与动作执行已实现（验收收尾） | [p4-agent-loop.md](phases/p4-agent-loop.md) |
 
 ## 2. 当前执行位置
 
@@ -27,7 +27,7 @@ P3「变成对象」已完成并通过 2026-10-24 验收：对象/多对多映�
 
 P3 已知限制：性能验收在 20 万行 × 8 属性上完成三批对比，50 万行因本机资源未跑完；真实 Flink/Iceberg/MySQL/RabbitMQ 端到端、浏览器拖拽 E2E 和 Agent 线上确认链路未在本轮覆盖；前端与 Java/Python 全量测试已分别通过。
 
-P4「Agent 使用」的只读查询已实施：查询改写、图向量召回、图卡选图、图详情读取，再由主 Agent 解析锚点、推理关系路径并逐步执行图内查询；动作执行后置。图采用整图发布、不做多版本，发布图卡 + 图向量，不使用 RDF/OWL；查询任务不建 `queryTask` 表，也不设查询子 Agent，取消 `match_question_to_graph` 和 `plan_next_query_step`，实例数据只经 `query_objects`、`get_related_objects` 读取。Java 查询原语与独立查询工作台已接入。详细结论见 [只读查询 Agent 设计](specs/2026-10-27-agent-query-design.md)，实施步骤见 [只读查询 Agent 计划](plans/2026-10-27-agent-query-plan.md)。
+P4「Agent 使用」的只读查询与动作执行均已实现：查询改写、图向量召回、图卡选图、图详情读取，再由主 Agent 解析锚点、推理关系路径并逐步执行图内查询；动作执行走参数校验、提交校验、edit set 预览、人工确认、重验、apply 与 effective readback，并带幂等键和审计记录。图采用整图发布、不做多版本，发布图卡 + 图向量，不使用 RDF/OWL；查询任务不建 `queryTask` 表，也不设查询子 Agent，取消 `match_question_to_graph` 和 `plan_next_query_step`，实例数据只经 `query_objects`、`get_related_objects` 读取。详细结论见 [只读查询 Agent 设计](specs/2026-10-27-agent-query-design.md) 与 [业务 Agent 行动执行设计](specs/2026-10-31-business-agent-action-design.md)，当前阶段进入浏览器级 E2E 与验收收尾。
 
 ## 3. 阶段依赖
 
@@ -61,7 +61,7 @@ P1 数据进来
 先读 docs/superpowers/ROADMAP.md 和对应阶段文件，确认当前执行位置。
 P1「数据进来」、P2「数据整理」、P3「变成对象」均已完成。
 P3 验收报告见 docs/checks/2026-10-23-p3-ontology-mapping-smoke.md，阶段记录见 docs/superpowers/phases/p3-ontology-mapping.md。
-P4 只读查询已实施，动作执行后置；当前结论见 docs/superpowers/specs/2026-10-27-agent-query-design.md，实施步骤见 docs/superpowers/plans/2026-10-27-agent-query-plan.md，阶段记录见 docs/superpowers/phases/p4-agent-loop.md。
+P4 只读查询与动作执行已实现，当前进入浏览器级 E2E 与验收收尾；查询设计见 docs/superpowers/specs/2026-10-27-agent-query-design.md，行动执行设计见 docs/superpowers/specs/2026-10-31-business-agent-action-design.md，阶段记录见 docs/superpowers/phases/p4-agent-loop.md。
 一次只推进一个设计议题，结论回填到阶段文件和技术设计稿。
 ```
 

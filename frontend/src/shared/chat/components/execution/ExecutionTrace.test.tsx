@@ -76,11 +76,11 @@ describe('ExecutionTrace', () => {
       { ...toolBlock, status: 'running', result: null, durationMs: null },
     ])
     const [finished] = groupExecutionTraces([toolBlock])
-    const { rerender } = render(<ExecutionTrace trace={running} label="查询过程" />)
+    const { rerender } = render(<ExecutionTrace trace={running} label="查询过程" active />)
 
     expect(screen.getByText('查询业主「王建国」')).toBeTruthy()
 
-    rerender(<ExecutionTrace trace={finished} label="查询过程" />)
+    rerender(<ExecutionTrace trace={finished} label="查询过程" active={false} />)
 
     expect(screen.queryByText('查询业主「王建国」→ 1 条')).toBeNull()
   })
@@ -103,10 +103,21 @@ describe('ExecutionTrace', () => {
         durationMs: null,
       },
     ])
-    render(<ExecutionTrace trace={trace} label="查询过程" />)
+    render(<ExecutionTrace trace={trace} label="查询过程" active />)
 
     expect(screen.getByText('查询业主「王建国」')).toBeTruthy()
     expect(screen.getByText('查询客户「张三」→ 2 条')).toBeTruthy()
+  })
+
+  it('does not render a persisted running step as live after the run has finished', () => {
+    const [trace] = groupExecutionTraces([
+      { ...toolBlock, status: 'running', result: null, durationMs: null },
+    ])
+    const { container } = render(<ExecutionTrace trace={trace} label="执行过程" />)
+
+    expect(screen.queryByRole('button', { name: /执行中/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /执行过程 · 1 步/ }))
+    expect(container.querySelector('.execution-step__status.is-spinning')).toBeNull()
   })
 
   it('stays open for the whole active run, even between tool status changes', () => {

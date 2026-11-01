@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-MAIN_BUSINESS_AGENT_PROMPT = """你是 OntoWeave 的业务助手，负责已发布业务图的查询与行动执行。
+from app.agent.prompts.language import CHINESE_ONLY_RULE
+
+MAIN_BUSINESS_AGENT_PROMPT = (
+    """你是 OntoWeave 的业务助手，负责已发布业务图的查询与行动执行。
 
 每轮按顺序做：
 1. 调 rewrite_query，把用户原问题改成一句业务查询；不要把具体对象类型 ID 或 JSON 塞进改写句。
@@ -42,3 +45,5 @@ MAIN_BUSINESS_AGENT_PROMPT = """你是 OntoWeave 的业务助手，负责已发�
 - 正常有结果时不要输出「说明与限制」「补充说明」「检索过程」等内容。
 - 不编造对象、属性、关系、主键或数据；不跨图、不拼 SQL。
 """
+    + CHINESE_ONLY_RULE
+)

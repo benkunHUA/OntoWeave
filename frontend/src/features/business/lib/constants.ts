@@ -2,7 +2,8 @@ export const QUERY_PATH = '/business'
 export const QUERY_NEW_PATH = '/business/new'
 
 export const QUERY_DEFAULT_TITLE = '新业务会话'
-export const QUERY_TITLE_MAX_LENGTH = 24
+// 与后端 ConversationUpdate.title 的 120 字上限一致；列表宽度不够时由 CSS 省略。
+export const QUERY_TITLE_MAX_LENGTH = 120
 
 export const QUERY_COPY = {
   brandTitle: '业务工作台',
