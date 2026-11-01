@@ -1,0 +1,82 @@
+/* ===== 查询证据：轻量对象关系图 ===== */
+
+.query-evidence-graph {
+  margin-top: 8px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #1f1f1f;
+}
+
+.query-evidence-graph__caption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.query-evidence-graph__caption strong {
+  color: var(--ink-dim);
+  font-size: 11.5px;
+}
+
+.query-evidence-graph__viewport {
+  max-height: 280px;
+  overflow: auto;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.055) 1px, transparent 0) 0 0 / 16px 16px,
+    #1b1b1b;
+}
+
+.query-evidence-graph__svg {
+  display: block;
+  margin-inline: auto;
+}
+
+.query-evidence-graph__node rect {
+  fill: #292929;
+  stroke: #454545;
+  stroke-width: 1;
+}
+
+.query-evidence-graph__node-title {
+  fill: #e5e5e5;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.query-evidence-graph__node-meta {
+  fill: #8e8e8e;
+  font-size: 9.5px;
+}
+
+.query-evidence-graph__edge {
+  fill: none;
+  stroke: #5c5c5c;
+  stroke-width: 1.2;
+}
+
+.query-evidence-graph__arrow {
+  fill: #707070;
+}
+
+.query-evidence-graph__edge-label-bg {
+  fill: #1b1b1b;
+  opacity: 0.92;
+}
+
+.query-evidence-graph__edge-label {
+  fill: #9d9d9d;
+  font-size: 9.5px;
+}
+
+.query-evidence-graph__note {
+  margin: 6px 1px 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+}

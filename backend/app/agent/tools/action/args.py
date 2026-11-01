@@ -68,7 +68,8 @@ class AssignmentArgs(BaseModel):
     target_property_id: str = Field(description="要写哪个属性；取自 get_object_type")
     value_source: str = Field(
         description="值从哪来：" + " / ".join(ACTION_VALUE_SOURCES) + "（parameter=参数、"
-        "object_property=另一个对象参数的属性、static=固定值）"
+        "object_property=另一个对象参数的属性、static=固定值、current_time=当前时间、"
+        "auto_generate=自动生成新建对象的主键）"
     )
     value_parameter_id: str | None = Field(default=None, description="value_source=parameter 时填")
     object_parameter_id: str | None = Field(

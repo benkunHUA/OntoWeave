@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -32,8 +33,18 @@ def plan_edit_set(
     *,
     owner_id: uuid.UUID,
     client: Any,
+    execution_key: str,
+    generated_values: Mapping[uuid.UUID, Any] | None = None,
 ) -> EditSetDraft:
-    return _Planner(session, detail, parameters, owner_id=owner_id, client=client).plan()
+    return _Planner(
+        session,
+        detail,
+        parameters,
+        owner_id=owner_id,
+        client=client,
+        execution_key=execution_key,
+        generated_values=generated_values,
+    ).plan()
 
 
 class _Planner:
@@ -45,11 +56,21 @@ class _Planner:
         *,
         owner_id: uuid.UUID,
         client: Any,
+        execution_key: str,
+        generated_values: Mapping[uuid.UUID, Any] | None = None,
     ) -> None:
         self.session = session
         self.detail = detail
         self.objects = EffectiveObjectReader(owner_id=owner_id, client=client)
-        self.values = RuleValueReader(session, detail, parameters, self.objects)
+        self.values = RuleValueReader(
+            session,
+            detail,
+            parameters,
+            self.objects,
+            execution_key=execution_key,
+            generated_values=generated_values,
+        )
+        self.execution_key = execution_key
         self.object_effects: dict[tuple[uuid.UUID, str], uuid.UUID] = {}
         self.relation_effects: dict[
             tuple[uuid.UUID, uuid.UUID, str, uuid.UUID, str], uuid.UUID
@@ -81,6 +102,7 @@ class _Planner:
             object_deletes=tuple(self.object_deletes),
             relation_creates=tuple(self.relation_creates),
             relation_deletes=tuple(self.relation_deletes),
+            generated_values=dict(self.values.generated_values),
         )
 
     def _create_object(self, item: RuleDetail) -> None:
@@ -92,12 +114,18 @@ class _Planner:
         primary_key_value: Any = None
         for assignment in item.assignments:
             target = self.values.assignable_property(assignment, object_type_id)
-            value = self.values.value(assignment)
+            value = self.values.value(assignment, target)
             if target.is_primary_key:
                 primary_key_value = value
             if value is not None:
                 values[target.id] = value
-        primary_key = primary_key_for_create(self.session, rule, object_type_id, primary_key_value)
+        primary_key = primary_key_for_create(
+            self.session,
+            rule,
+            object_type_id,
+            primary_key_value,
+            execution_key=self.execution_key,
+        )
         self._claim_object(object_type_id, primary_key, rule)
         self.object_creates.append(
             ObjectCreateEdit(
@@ -132,7 +160,7 @@ class _Planner:
                         "rule_id": str(rule.id),
                     },
                 )
-            value = self.values.value(assignment)
+            value = self.values.value(assignment, target)
             if value is None:
                 clear.append(target.id)
             else:

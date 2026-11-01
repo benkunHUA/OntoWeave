@@ -64,6 +64,49 @@ export interface ActionConfirmation {
   options: InterruptOption[]
 }
 
+export interface EvidenceObjectType {
+  id: string
+  name: string
+  properties: Array<Record<string, unknown>>
+}
+
+export interface EvidenceRelation {
+  id: string
+  name: string
+  sourceTypeId: string
+  targetTypeId: string
+  cardinality: string
+  forwardLabel: string | null
+  reverseLabel: string | null
+}
+
+export interface EvidenceNode {
+  id: string
+  objectTypeId: string
+  primaryKey: string
+  title: string | null
+  properties: Record<string, unknown>
+}
+
+export interface EvidenceEdge {
+  id: string
+  relationId: string
+  source: string
+  target: string
+  label: string
+}
+
+/** 一轮查询最终命中的对象实例子图。 */
+export interface EvidenceGraph {
+  graphId: string | null
+  graphName: string | null
+  objectTypes: EvidenceObjectType[]
+  relations: EvidenceRelation[]
+  nodes: EvidenceNode[]
+  edges: EvidenceEdge[]
+  warnings: string[]
+}
+
 /** 助手回合里按时间排列的内容块；思考 / 正文 / 工具调用共用一套渲染。 */
 export type MessageBlock =
   | { id: string; kind: 'text'; text: string; done?: boolean }
@@ -96,6 +139,7 @@ export type MessageBlock =
       /** 行动执行的富确认载荷；普通提问中断没有。 */
       confirmation?: ActionConfirmation | null
     }
+  | { id: string; kind: 'evidence'; graph: EvidenceGraph }
 
 /** 一条渲染出来的消息：用户输入，或助手的一次运行。 */
 export interface ChatMessage {
@@ -157,6 +201,13 @@ export type AgentEvent =
       draftRevision?: number | null
       check?: PipelineCheckResult | null
       loadError?: string | null
+    }
+  | {
+      v: number
+      type: 'evidence.update'
+      messageId: string
+      blockId: string
+      graph: EvidenceGraph
     }
   | { v: number; type: 'run.error'; message?: string }
   | { v: number; type: 'run.end'; messageId?: string; paused: boolean }

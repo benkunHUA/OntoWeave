@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -44,6 +44,8 @@ class EditSetDraft:
     object_deletes: tuple[ObjectDeleteEdit, ...] = ()
     relation_creates: tuple[RelationEdit, ...] = ()
     relation_deletes: tuple[RelationEdit, ...] = ()
+    #: 首次预览时生成、确认后必须沿用的值（例如 current_time）。
+    generated_values: dict[uuid.UUID, Any] = field(default_factory=dict)
 
 
 __all__ = [

@@ -18,18 +18,36 @@ export const QUERY_COPY = {
   chatEmptyBody: '例如：关闭工单 T-1001，并把解决说明记为「已更换硒鼓」。',
   composerPlaceholder: '输入业务问题或行动，例如「关闭工单 T-1001」',
   loading: '正在读取业务会话…',
+  executionTraceTitle: '查询过程',
   deleteTitle: '删除业务会话',
   deleteBody: '删除后会话与消息无法恢复。',
   deleteConfirm: '删除',
   deleting: '删除中…',
   cancel: '取消',
-  evidenceTitle: '查询证据',
-  evidenceEmpty: '本次回答没有返回结构化证据。',
-  evidenceIndexVersion: '索引版本',
-  evidencePrimaryKey: '主键',
-  evidenceObjectFallback: '业务对象',
-  evidenceFieldFallback: '字段',
-  evidenceNoProperties: '暂无属性',
+  evidenceGraphTitle: '对象实例图',
+  evidenceGraphLabel: '查询证据关系图',
+  evidenceGraphObjects: '个对象',
+  evidenceGraphRelations: '条关系',
+  evidenceGraphNoEdges: '本次查询没有形成关系连线',
+  evidenceGraphRelationUnavailable: '关系索引未建立，部分连线不可用',
+  evidenceGraphTruncated: '部分查询结果被截断',
+  evidenceGraphRelationMissing: '业务图关系定义未完整返回',
   trueValue: '是',
   falseValue: '否',
 } as const
+
+export const EVIDENCE_GRAPH_LAYOUT = {
+  nodeWidth: 156,
+  nodeHeight: 48,
+  margin: 16,
+  labelCharWidth: 6.2,
+  labelHeight: 15,
+  minWidth: 280,
+  minHeight: 120,
+} as const
+
+export const EVIDENCE_WARNING_COPY: Record<string, string> = {
+  truncated: QUERY_COPY.evidenceGraphTruncated,
+  relation_not_indexed: QUERY_COPY.evidenceGraphRelationUnavailable,
+  relation_schema_missing: QUERY_COPY.evidenceGraphRelationMissing,
+}

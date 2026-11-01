@@ -85,11 +85,13 @@ class ActionRuleKind(StrEnum):
 
 
 class ActionValueSource(StrEnum):
-    """赋值 / 条件操作数里的值从哪来。"""
+    """字段赋值的值从哪来。"""
 
     PARAMETER = "parameter"
     OBJECT_PROPERTY = "object_property"
     STATIC = "static"
+    CURRENT_TIME = "current_time"
+    AUTO_GENERATE = "auto_generate"
 
 
 class ActionCriteriaNodeKind(StrEnum):
@@ -137,6 +139,12 @@ class ActionOperandKind(StrEnum):
 ACTION_PARAMETER_KINDS: tuple[str, ...] = tuple(kind.value for kind in ActionParameterKind)
 ACTION_RULE_KINDS: tuple[str, ...] = tuple(kind.value for kind in ActionRuleKind)
 ACTION_VALUE_SOURCES: tuple[str, ...] = tuple(source.value for source in ActionValueSource)
+#: 自动生成主键时能落成具体值的类型。日期 / 时间由「当前时间」来源负责。
+AUTO_GENERATED_PRIMARY_KEY_DATATYPES: tuple[str, ...] = (
+    PropertyDatatype.TEXT.value,
+    PropertyDatatype.INTEGER.value,
+    PropertyDatatype.DECIMAL.value,
+)
 ACTION_CRITERIA_NODE_KINDS: tuple[str, ...] = tuple(kind.value for kind in ActionCriteriaNodeKind)
 ACTION_CRITERIA_LOGICS: tuple[str, ...] = tuple(logic.value for logic in ActionCriteriaLogic)
 ACTION_CRITERIA_OPERATORS: tuple[str, ...] = tuple(op.value for op in ActionCriteriaOperator)

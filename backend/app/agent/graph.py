@@ -20,6 +20,8 @@ def build_agent(
     tools: list[BaseTool],
     *,
     system_prompt: str,
+    middleware: Sequence[Any] | None = None,
+    state_schema: Any | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
     subagents: Sequence[SubAgent | CompiledSubAgent] | None = None,
     interrupt_on: dict[str, bool | InterruptOnConfig] | None = None,
@@ -31,7 +33,8 @@ def build_agent(
     提示词与审批策略都由调用方的 Agent 定义提供；通用装配层不暗含任何领域默认值。
     interrupt_on 没有 checkpointer 时不可用，这里统一关掉，避免装配期就报错。
     """
-    middleware = [TodoListMiddleware()] if include_planning else []
+    stack = [TodoListMiddleware()] if include_planning else []
+    stack.extend(middleware or [])
     if checkpointer is None:
         interrupt_on = None
 
@@ -39,7 +42,8 @@ def build_agent(
         model=model,
         tools=tools,
         system_prompt=system_prompt,
-        middleware=middleware,
+        middleware=stack,
+        state_schema=state_schema,
         subagents=subagents or None,
         interrupt_on=interrupt_on,
         checkpointer=checkpointer,

@@ -13,6 +13,7 @@ from app.schemas.query import (
     QueryDirection,
     QueryStatus,
     RelatedObjectItem,
+    RelatedObjectLink,
     RelatedObjectsInput,
     RelatedObjectsResult,
 )
@@ -56,6 +57,7 @@ def get_related_objects(
             status=QueryStatus.NOT_INDEXED,
         )
     items = _items(raw, target_type_id)
+    links = _links(raw, payload, relation)
     total = int(raw.get("total") or 0)
     truncated = bool(raw.get("truncated")) or total > len(items)
     status = (
@@ -66,6 +68,7 @@ def get_related_objects(
         target_type_id=target_type_id,
         index_version_id=version_id,
         items=items,
+        links=links,
         total=total,
         status=status,
         truncated=truncated,
@@ -116,3 +119,59 @@ def _items(raw: dict[str, Any], fallback_type_id: uuid.UUID) -> list[RelatedObje
             )
         )
     return items
+
+
+def _links(
+    raw: dict[str, Any],
+    payload: RelatedObjectsInput,
+    relation: Relation,
+) -> list[RelatedObjectLink]:
+    rows = raw.get("links")
+    if isinstance(rows, list):
+        links: list[RelatedObjectLink] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                link = RelatedObjectLink(
+                    sourceTypeId=uuid.UUID(str(row.get("sourceTypeId"))),
+                    sourcePrimaryKey=str(row.get("sourcePrimaryKey") or ""),
+                    targetTypeId=uuid.UUID(str(row.get("targetTypeId"))),
+                    targetPrimaryKey=str(row.get("targetPrimaryKey") or ""),
+                )
+            except ValueError:
+                continue
+            if link.sourcePrimaryKey and link.targetPrimaryKey:
+                links.append(link)
+        if links:
+            return links
+
+    # 兼容只返回目标引用的旧数据服务：单起点可以无歧义补出实例对。
+    if len(payload.inputs) != 1:
+        return []
+    source_type_id, target_type_id = _business_endpoints(relation)
+    input_key = payload.inputs[0].primary_key
+    targets = _items(raw, target_type_id)
+    if payload.direction is QueryDirection.OUTGOING:
+        return [
+            RelatedObjectLink(
+                sourceTypeId=source_type_id,
+                sourcePrimaryKey=input_key,
+                targetTypeId=target_type_id,
+                targetPrimaryKey=item.primary_key,
+            )
+            for item in targets
+        ]
+    return [
+        RelatedObjectLink(
+            sourceTypeId=source_type_id,
+            sourcePrimaryKey=item.primary_key,
+            targetTypeId=target_type_id,
+            targetPrimaryKey=input_key,
+        )
+        for item in targets
+    ]
+
+
+def _business_endpoints(relation: Relation) -> tuple[uuid.UUID, uuid.UUID]:
+    return relation.source_type_id, relation.target_type_id

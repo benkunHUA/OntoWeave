@@ -105,6 +105,110 @@ class OntologyRelationQueryTest extends RelationQueryFixtureSupport {
     }
 
     @Test
+    void readsForeignKeyStoredOnTheSourceEndpoint() {
+        UUID ownerId = UUID.randomUUID();
+        AttributeSpec orderRef = new AttributeSpec(
+                UUID.randomUUID(), "order_ref", "integer"
+        );
+        ObjectFixture person = createObjectFixture(ownerId, List.of(
+                new AttributeSpec(UUID.randomUUID(), "person_id", "integer"),
+                new AttributeSpec(UUID.randomUUID(), "person_name", "text"),
+                orderRef
+        ));
+        ObjectFixture order = objectType(ownerId, "order");
+        insertObject(person.versionId(), person, "1", "Alice", Map.of(
+                orderRef.attributeId(), 10
+        ));
+        insertObject(person.versionId(), person, "2", "Bob", Map.of(
+                orderRef.attributeId(), 20
+        ));
+        insertObject(order.versionId(), order, "10", "Order 10", Map.of());
+        insertObject(order.versionId(), order, "20", "Order 20", Map.of());
+        UUID owns = createRelationDefinition(ownerId, person, order, "owns", "one_to_many");
+        setForeignKey(owns, orderRef);
+        addFkVersion(ownerId, owns, person, order, person.versionId(), order.versionId());
+
+        RelationGroupResponse outgoing = group(
+                service.groups(person.objectTypeId(), ownerId, "1", "outgoing"),
+                owns,
+                "outgoing"
+        );
+        RelatedObjectPageResponse page = service.related(
+                person.objectTypeId(), ownerId, "1", owns, "outgoing", 1, 20
+        );
+        RelatedObjectPageResponse incomingPage = service.related(
+                order.objectTypeId(), ownerId, "10", owns, "incoming", 1, 20
+        );
+
+        assertThat(outgoing.total()).isEqualTo(1);
+        assertThat(outgoing.relatedObjects()).extracting(item -> item.primaryKey())
+                .containsExactly("10");
+        assertThat(page.items()).extracting(item -> item.title())
+                .containsExactly("Order 10");
+        assertThat(incomingPage.items()).extracting(item -> item.primaryKey())
+                .containsExactly("1");
+    }
+
+    @Test
+    void readsForeignKeyStoredOnTheTargetEndpointInBothDirections() {
+        UUID ownerId = UUID.randomUUID();
+        AttributeSpec ownerRef = new AttributeSpec(
+                UUID.randomUUID(), "owner_ref", "integer"
+        );
+        ObjectFixture owner = objectType(ownerId, "owner");
+        ObjectFixture meter = createObjectFixture(ownerId, List.of(
+                new AttributeSpec(UUID.randomUUID(), "meter_id", "integer"),
+                new AttributeSpec(UUID.randomUUID(), "meter_name", "text"),
+                ownerRef
+        ));
+        insertObject(owner.versionId(), owner, "1", "Alice", Map.of());
+        insertObject(owner.versionId(), owner, "2", "Bob", Map.of());
+        insertObject(meter.versionId(), meter, "10", "Meter 10", Map.of(
+                ownerRef.attributeId(), 1
+        ));
+        insertObject(meter.versionId(), meter, "20", "Meter 20", Map.of(
+                ownerRef.attributeId(), 1
+        ));
+        insertObject(meter.versionId(), meter, "30", "Meter 30", Map.of(
+                ownerRef.attributeId(), 2
+        ));
+        UUID owns = createRelationDefinition(ownerId, owner, meter, "owns", "one_to_many");
+        setForeignKey(owns, ownerRef);
+        UUID versionId = addFkVersion(
+                ownerId, owns, owner, meter, owner.versionId(), meter.versionId()
+        );
+
+        RelationGroupResponse outgoing = group(
+                service.groups(owner.objectTypeId(), ownerId, "1", "outgoing"),
+                owns,
+                "outgoing"
+        );
+        RelationGroupResponse incoming = group(
+                service.groups(meter.objectTypeId(), ownerId, "10", "incoming"),
+                owns,
+                "incoming"
+        );
+        RelatedObjectPageResponse outgoingPage = service.related(
+                owner.objectTypeId(), ownerId, "1", owns, "outgoing", 1, 20
+        );
+        RelatedObjectPageResponse incomingPage = service.related(
+                meter.objectTypeId(), ownerId, "10", owns, "incoming", 1, 20
+        );
+        RelationInstancePageResponse instances = service.instances(
+                owns, ownerId, null, null, 1, 20
+        );
+
+        assertThat(outgoing.total()).isEqualTo(2);
+        assertThat(incoming.total()).isEqualTo(1);
+        assertThat(outgoingPage.items()).extracting(item -> item.primaryKey())
+                .containsExactly("10", "20");
+        assertThat(incomingPage.items()).extracting(item -> item.primaryKey())
+                .containsExactly("1");
+        assertThat(instances.total()).isEqualTo(3);
+        assertThat(instances.items()).allMatch(item -> item.indexVersionId().equals(versionId));
+    }
+
+    @Test
     void relatedRowsUsePeerCurrentVersionInsteadOfTheRelationVersionSnapshot() {
         UUID ownerId = UUID.randomUUID();
         ObjectFixture person = objectType(ownerId, "person");

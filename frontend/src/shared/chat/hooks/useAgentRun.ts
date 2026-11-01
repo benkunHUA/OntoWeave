@@ -91,6 +91,8 @@ export function useAgentRun({
             options: event.confirmation?.options ?? event.options ?? [],
             freeText: event.freeText ?? null,
           })
+        } else if (event.type === 'evidence.update') {
+          chat.patchBlocks(conversationId, activeId, (blocks) => reduceBlocks(blocks, event))
         } else if (event.type === 'tool.end') {
           chat.patchToolCall(conversationId, event.callId, (blocks) =>
             reduceBlocks(blocks, event),

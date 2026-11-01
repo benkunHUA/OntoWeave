@@ -45,6 +45,16 @@ export const ORDERED_DATATYPES: readonly string[] = [
   'timestamp',
 ]
 
+/** 可以用「当前时间」来源填充的类型。 */
+export const CURRENT_TIME_DATATYPES: readonly string[] = ['date', 'timestamp']
+
+/** 自动生成主键时能落成具体值的类型。 */
+export const AUTO_GENERATED_PRIMARY_KEY_DATATYPES: readonly string[] = [
+  'text',
+  'integer',
+  'decimal',
+]
+
 function trimmedValues(values: string[]): string[] {
   return values.map((value) => value.trim())
 }

@@ -342,14 +342,17 @@ backend/app/agent/tools/business/
 ### 8.1 主键
 
 - 行动显式给主键赋值 → 使用该值。
-- 未给主键且主键类型为 `text` → 生成 UUID 字符串。
-- 未给主键且主键类型为 `integer` / `date` / `timestamp` → `PRIMARY_KEY_REQUIRED`，要求用户或模型补主键。
+- 未给主键且主键类型为 `text` → 生成 UUID 字符串；`integer` / `decimal` → 生成同类型的数值。
+- 主键生成按会话与 `tool_call_id` 确定，同一次执行重试沿用同一个值。
+- 未给主键且主键类型为 `boolean` / `date` / `timestamp` / `enum` → `PRIMARY_KEY_REQUIRED`，要求用户或模型补主键。
 - 主键一旦创建不可修改；`modify_object` 的赋值命中主键直接拒绝。
 
 ### 8.2 赋值
 
 - `parameter`：取解析后的值参数。
 - `object_property`：从对象参数的 effective 属性取值。
+- `current_time`：执行时按目标属性类型取当前日期 / 时间。
+- `auto_generate`：新建对象时生成主键，仅用于 `create_object` 的主键赋值。
 - `static`：使用静态值。
 - 目标属性 `is_array=true` → `UNSUPPORTED_ARRAY`。
 - 同一行动内同一目标对象出现两条冲突变更 → `DUPLICATE_EFFECT`。

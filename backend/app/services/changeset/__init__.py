@@ -22,6 +22,7 @@ from app.services.changeset.store import (
     list_changesets,
     list_ops,
     pending_delete_ids,
+    pending_deletions,
 )
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "list_ops",
     "load_element",
     "pending_delete_ids",
+    "pending_deletions",
     "record_op",
     "record_update",
     "record_view_change",

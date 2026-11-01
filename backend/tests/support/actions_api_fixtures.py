@@ -46,8 +46,9 @@ def _create_action(client: TestClient, graph_id: str, name: str) -> str:
 
 
 def _confirm(client: TestClient, graph_id: str) -> None:
-    """确认图上那一个未定稿的改动集，把草稿翻成已确认。"""
-    changeset_id = client.get(f"{API}/graphs/{graph_id}/changesets?limit=1").json()[0]["id"]
+    """确认图上当前未定稿的改动集，把草稿翻成已确认。"""
+    changesets = client.get(f"{API}/graphs/{graph_id}/changesets?limit=50").json()
+    changeset_id = next(item["id"] for item in changesets if item["status"] == "open")
     response = client.post(f"{API}/changesets/{changeset_id}/confirm")
     assert response.status_code == 200, response.text
 

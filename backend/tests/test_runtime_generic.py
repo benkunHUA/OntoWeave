@@ -1,5 +1,6 @@
 import json
 import uuid
+from types import SimpleNamespace
 
 import psycopg
 from langchain_core.messages import AIMessage, HumanMessage
@@ -44,6 +45,30 @@ class _TurnCapturingDefinition(_FakeDefinition):
     def build_graph(self, session, settings, run, *, checkpointer=None):  # noqa: ARG002
         self.turn_ids.append(run.turn_id)
         return _FakeAgent()
+
+
+class _EvidenceAgent:
+    def __init__(self, evidence: list[dict]) -> None:
+        self.evidence = evidence
+        self.config: dict | None = None
+
+    def stream(self, payload, config=None, stream_mode=None, subgraphs=False):  # noqa: ARG002
+        self.config = config or {}
+        yield {"model": {"messages": [AIMessage(content="查询完成")]}}
+
+    def get_state(self, config):
+        turn_id = config["configurable"]["turn_id"]
+        for delta in self.evidence:
+            delta["turn_id"] = turn_id
+        return SimpleNamespace(values={"evidence": self.evidence})
+
+
+class _EvidenceDefinition(_FakeDefinition):
+    def __init__(self, evidence: list[dict]) -> None:
+        self.agent = _EvidenceAgent(evidence)
+
+    def build_graph(self, session, settings, run, *, checkpointer=None):  # noqa: ARG002
+        return self.agent
 
 
 class _DatabaseBrokenAgent:
@@ -146,6 +171,67 @@ def test_stream_run_injects_explicit_or_generated_turn_id(monkeypatch, session, 
     assert definition.turn_ids[0] == explicit
     assert isinstance(definition.turn_ids[1], uuid.UUID)
     assert definition.turn_ids[1] != explicit
+
+
+def test_stream_run_persists_and_streams_evidence_graph(monkeypatch, session, session_factory):
+    owner = uuid.uuid4()
+    stored = conversation.create_conversation(
+        session,
+        owner_id=owner,
+        title="证据图",
+        kind=ConversationKind.DATA_CONNECTION,
+        resource_id=uuid.uuid4(),
+    )
+    session.commit()
+    evidence = [
+        {
+            "kind": "graph",
+            "graphId": "g1",
+            "graphName": "燃气业务图",
+            "objectTypes": [{"id": "owner", "name": "业主", "properties": []}],
+            "relations": [],
+        },
+        {
+            "kind": "objects",
+            "object_type_id": "owner",
+            "items": [
+                {
+                    "id": "owner:O-1",
+                    "objectTypeId": "owner",
+                    "primaryKey": "O-1",
+                    "title": "王建国",
+                    "properties": {},
+                }
+            ],
+        },
+    ]
+    definition = _EvidenceDefinition(evidence)
+    monkeypatch.setattr("app.agent.runtime.stream.get_definition", lambda kind: definition)
+
+    frames = _events(
+        "".join(
+            stream_run(
+                session_factory,
+                Settings(),
+                owner,
+                conversation_id=stored.id,
+                text="查业主",
+            )
+        )
+    )
+
+    assert definition.agent.config["configurable"]["turn_id"]
+    update = next(frame for frame in frames if frame["type"] == "evidence.update")
+    assert [node["primaryKey"] for node in update["graph"]["nodes"]] == ["O-1"]
+
+    assistant = next(
+        message
+        for message in conversation.list_messages(session, stored.id, owner_id=owner)
+        if message.role == "assistant"
+    )
+    block = next(item for item in assistant.blocks or [] if item["kind"] == "evidence")
+    assert block["id"] == update["blockId"]
+    assert [node["primaryKey"] for node in block["graph"]["nodes"]] == ["O-1"]
 
 
 def test_stream_run_hides_database_disconnect_details(monkeypatch, session, session_factory):

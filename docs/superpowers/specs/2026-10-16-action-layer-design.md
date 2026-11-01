@@ -20,7 +20,7 @@
 1. **动作类型 Action Type**：一等共享池元素（草案 / 已确认 / 已批准、入图、向量复用检索）。
 2. **参数**：值参数（复用属性数据类型，含新增的 `enum`）+ 对象引用参数（指向 `object_type`，支持数组）；必填、静态默认值、值参数静态枚举、参数描述。
 3. **规则**：`create_object` / `modify_object` / `delete_object` / `create_link` / `delete_link`。
-4. **字段赋值 Assignment**：值来源 3 种 = 参数 / 对象参数属性 / 静态值。
+4. **字段赋值 Assignment**：值来源 5 种 = 参数 / 对象参数属性 / 静态值 / 当前时间 / 自动生成主键。
 5. **提交校验 Submission criteria**：邻接表条件树；v1 只放行「一个 `and` 根 + 扁平 condition 子节点」。
 6. **新增数据类型 `enum`**：进共享词表 `PropertyDatatype`，属性与值参数共用。
 7. **复用既有管线**：改动集登记、确认落定、撤销回滚；agent 工具；前端动作节点与编辑抽屉。
@@ -30,7 +30,7 @@
 - **一切执行能力**：纯定义层，不跑动作、不碰实例数据、不做运行时校验。
 - **副作用**（notification / webhook / schedule）：结构上留位，不建表、不实现。
 - `function rule`、`interface rules`、`scenario`、`action log`、`revert`。
-- 值来源「当前用户 / 当前时间」；`matches`（正则）与 `contains` 运算符。
+- 值来源「当前用户」；`matches`（正则）与 `contains` 运算符。
 - 嵌套条件树（`or` / 多层 group）：DB 结构已支持，v1 校验不放行。
 - 参数与规则的手动排序（`order_index` 就位，v1 不做拖拽）。
 - 数组对象参数参与 `object_property` 取值与规则引用。
@@ -63,6 +63,10 @@
 | `parameter` | `value_parameter_id` |
 | `object_property` | `object_parameter_id` + `object_property_id` |
 | `static` | `static_value` |
+| `current_time` | 无：执行时按目标属性取当前日期 / 时间 |
+| `auto_generate` | 无：新建对象时按执行身份生成主键 |
+
+`current_time` 只填 `date` / `timestamp` 属性；`auto_generate` 只填新建对象的主键，支持 `text` / `integer` / `decimal`。两者都不携带其它来源列，执行结果由运行时的执行身份确定。
 
 ## 4. 数据模型
 
@@ -131,7 +135,7 @@ erDiagram
         uuid id PK
         uuid rule_id FK
         uuid target_property_id FK
-        text value_source "parameter|object_property|static"
+        text value_source "parameter|object_property|static|current_time|auto_generate"
         uuid value_parameter_id FK
         uuid object_parameter_id FK
         uuid object_property_id FK
@@ -223,6 +227,7 @@ node A (root, group, and)
 - 只有 `create_object` / `modify_object` 可以有赋值；`delete_object` / 链接规则没有赋值。
 - `target_property_id` 必须属于该规则作用的对象类型。
 - `value_source` 与来源列一一对应（见第 3 节表）；`object_property` 来源的 `object_property_id` 必须属于 `object_parameter_id` 指向的对象类型。
+- `current_time` 只用于 `date` / `timestamp` 且非多值属性；`auto_generate` 只用于 `create_object` 的主键，且主键类型必须是 `text` / `integer` / `decimal`。
 - 类型兼容：值参数 / 目标属性 / 静态值的类型要能对上；类型为 `enum` 时 `enum_values` 必须完全一致。
 
 **条件树**
@@ -323,6 +328,6 @@ node A (root, group, and)
 - 副作用的最小结构（要不要先占一张 `action_side_effect` 表）。
 - `contains` / `matches` 运算符、嵌套条件树（`or` / 多层 group）。
 - 数组对象参数参与取值与规则引用。
-- 值来源「当前用户 / 当前时间」；function rule；interface rules。
+- 值来源「当前用户」；function rule；interface rules。
 - `order_index` 手动排序的交互。
 - 执行层（实例、apply、action log、revert）——独立版本，本版只留接口形状。

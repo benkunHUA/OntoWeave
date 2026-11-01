@@ -2,7 +2,11 @@ import { ActionIcon } from '@mantine/core'
 import { Trash2 } from 'lucide-react'
 import { NativeSelectField } from '../../../../shared/components/form/controls'
 import type { GraphSnapshot } from '../../../../shared/types'
-import { VALUE_SOURCE_OPTIONS } from '../../lib/actionConfig'
+import {
+  ASSIGNMENT_SOURCE_HINTS,
+  assignmentValueSourceOptions,
+  valueSourceLabel,
+} from '../../lib/actionConfig'
 import type { ActionAssignmentDraft, ActionParameterDraft } from '../../lib/actionDraft'
 import { propertiesOf, propertyOf, valueParameterOptions } from '../../lib/actionOptions'
 import { ActionStaticValueInput } from './ActionStaticValueInput'
@@ -12,6 +16,8 @@ interface ActionAssignmentRowProps {
   assignment: ActionAssignmentDraft
   /** 规则作用的对象类型：能赋值的属性从它身上选。 */
   targetObjectTypeId: string
+  /** 来源选项随规则种类变化：自动生成只属于新建对象。 */
+  ruleKind: string
   parameters: ActionParameterDraft[]
   snapshot: GraphSnapshot | null
   issue: string | null
@@ -23,6 +29,7 @@ interface ActionAssignmentRowProps {
 export function ActionAssignmentRow({
   assignment,
   targetObjectTypeId,
+  ruleKind,
   parameters,
   snapshot,
   issue,
@@ -30,6 +37,14 @@ export function ActionAssignmentRow({
   onRemove,
 }: ActionAssignmentRowProps) {
   const target = propertyOf(snapshot, assignment.targetPropertyId)?.property ?? null
+  const sourceOptions = assignmentValueSourceOptions(target, ruleKind)
+  const sourceData = sourceOptions.some((option) => option.value === assignment.valueSource)
+    ? sourceOptions
+    : [
+        ...sourceOptions,
+        { value: assignment.valueSource, label: valueSourceLabel(assignment.valueSource) },
+      ]
+  const sourceHint = ASSIGNMENT_SOURCE_HINTS[assignment.valueSource]
 
   return (
     <div className={`action-row${issue ? ' is-invalid' : ''}`}>
@@ -51,7 +66,7 @@ export function ActionAssignmentRow({
           className="action-row__control action-row__control--narrow"
           value={assignment.valueSource}
           aria-label="值的来源"
-          data={VALUE_SOURCE_OPTIONS}
+          data={sourceData}
           onChange={(event) => onChange({ valueSource: event.target.value })}
         />
         <ActionIcon
@@ -104,6 +119,7 @@ export function ActionAssignmentRow({
         ) : null}
       </div>
 
+      {sourceHint ? <p className="action-row__hint">{sourceHint}</p> : null}
       {issue ? <p className="action-row__issue">{issue}</p> : null}
     </div>
   )

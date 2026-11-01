@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.evidence import EvidenceGraph
 from app.schemas.message_blocks import (
     ActionConfirmation,
     FreeTextMode,
@@ -94,6 +95,15 @@ class StateUpdateEvent(_Event):
     dataConnection: dict | None = None
 
 
+class EvidenceUpdateEvent(_Event):
+    """本轮查询证据图已生成，前端直接按快照渲染。"""
+
+    type: Literal["evidence.update"] = "evidence.update"
+    messageId: str
+    blockId: str
+    graph: EvidenceGraph
+
+
 class RunErrorEvent(_Event):
     type: Literal["run.error"] = "run.error"
     message: str
@@ -115,6 +125,7 @@ AgentEvent = Annotated[
     | ToolStartEvent
     | ToolEndEvent
     | InterruptEvent
+    | EvidenceUpdateEvent
     | StateUpdateEvent
     | RunErrorEvent
     | RunEndEvent,

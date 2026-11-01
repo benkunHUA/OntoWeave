@@ -40,6 +40,7 @@ export function QueryChatPane({
 }: QueryChatPaneProps) {
   const pendingInterruptId = interrupt?.blockId ?? null
   const scrollKey = messages[0]?.id ?? 'empty'
+  const activeMessageId = isRunning ? messages.at(-1)?.id ?? null : null
 
   return (
     <section className="chat-pane query-chat">
@@ -82,6 +83,7 @@ export function QueryChatPane({
             pendingInterruptId={pendingInterruptId}
             isRunning={isRunning}
             onAnswer={onAnswer}
+            active={message.id === activeMessageId}
           />
         ))}
       </ChatScrollArea>

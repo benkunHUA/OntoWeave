@@ -160,6 +160,7 @@ export function ActionRuleRow({
                 key={assignment.key}
                 assignment={assignment}
                 targetObjectTypeId={rule.targetObjectTypeId}
+                ruleKind={rule.ruleKind}
                 parameters={parameters}
                 snapshot={snapshot}
                 issue={issueFor(assignment.key)}

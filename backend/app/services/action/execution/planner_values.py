@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -11,6 +12,10 @@ from app.models import ActionParameter, ActionRule, ActionRuleAssignment, Proper
 from app.services import property as property_service
 from app.services.action.detail import ActionDetail
 from app.services.action.execution.errors import ActionExecutionError
+from app.services.action.execution.generated_values import (
+    auto_primary_key_value,
+    current_time_value,
+)
 from app.services.action.execution.object_values import EffectiveObjectReader
 from app.services.action.execution.parameters import ObjectReference, ResolvedParameters
 from app.vocabulary import ActionParameterKind, ActionValueSource
@@ -23,10 +28,16 @@ class RuleValueReader:
         detail: ActionDetail,
         parameters: ResolvedParameters,
         objects: EffectiveObjectReader,
+        *,
+        execution_key: str,
+        generated_values: Mapping[uuid.UUID, Any] | None = None,
     ) -> None:
         self.session = session
         self.parameters = parameters
         self.objects = objects
+        self.execution_key = execution_key
+        self._confirmed_values = dict(generated_values or {})
+        self.generated_values: dict[uuid.UUID, Any] = {}
         self.parameters_by_id: dict[uuid.UUID, ActionParameter] = {
             item.id: item for item in detail.parameters
         }
@@ -56,7 +67,7 @@ class RuleValueReader:
             )
         return target
 
-    def value(self, assignment: ActionRuleAssignment) -> Any:
+    def value(self, assignment: ActionRuleAssignment, target: Property) -> Any:
         source = assignment.value_source
         if source == ActionValueSource.PARAMETER.value:
             parameter_id = assignment.value_parameter_id
@@ -72,6 +83,18 @@ class RuleValueReader:
             return self.objects.property(reference, assignment.object_property_id)
         if source == ActionValueSource.STATIC.value:
             return assignment.static_value
+        if source == ActionValueSource.CURRENT_TIME.value:
+            value = self._confirmed_values.get(assignment.id)
+            if value is None:
+                value = current_time_value(target.datatype)
+            self.generated_values[assignment.id] = value
+            return value
+        if source == ActionValueSource.AUTO_GENERATE.value:
+            return auto_primary_key_value(
+                target,
+                execution_key=self.execution_key,
+                rule_id=assignment.rule_id,
+            )
         raise ActionExecutionError(
             "INVALID_ACTION_DEFINITION",
             f"unsupported assignment source {source!r}",

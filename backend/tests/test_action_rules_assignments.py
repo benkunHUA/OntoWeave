@@ -200,3 +200,66 @@ def test_assignment_parameter_must_belong_to_the_same_action(session: Session, f
             value_source="parameter",
             value_parameter_id=foreign_parameter.id,
         )
+
+
+def test_current_time_fills_date_and_timestamp_properties(session: Session, fixture: _Fixture):
+    rule = _rule(session, fixture, "create_object", target_object_type_id=fixture.ticket.id)
+
+    assignment = action_rules.create_assignment(
+        session,
+        rule_id=rule.id,
+        target_property_id=fixture.created_at.id,
+        value_source="current_time",
+    )
+
+    assert assignment.value_source == "current_time"
+    assert assignment.static_value is None
+    with pytest.raises(InvariantViolationError, match="only fits date or timestamp"):
+        action_rules.create_assignment(
+            session,
+            rule_id=rule.id,
+            target_property_id=fixture.amount.id,
+            value_source="current_time",
+        )
+
+
+def test_auto_generate_only_fills_a_creatable_primary_key(session: Session, fixture: _Fixture):
+    create_rule = _rule(session, fixture, "create_object", target_object_type_id=fixture.ticket.id)
+    assignment = action_rules.create_assignment(
+        session,
+        rule_id=create_rule.id,
+        target_property_id=fixture.ticket_key.id,
+        value_source="auto_generate",
+    )
+
+    assert assignment.value_source == "auto_generate"
+    assert assignment.static_value is None
+    with pytest.raises(InvariantViolationError, match="only fits the object type's primary key"):
+        action_rules.create_assignment(
+            session,
+            rule_id=create_rule.id,
+            target_property_id=fixture.amount.id,
+            value_source="auto_generate",
+        )
+    modify_rule = _rule(
+        session,
+        fixture,
+        "modify_object",
+        target_object_type_id=fixture.ticket.id,
+        source_parameter_id=fixture.ticket_param.id,
+    )
+    with pytest.raises(InvariantViolationError, match="only available when creating"):
+        action_rules.create_assignment(
+            session,
+            rule_id=modify_rule.id,
+            target_property_id=fixture.ticket_key.id,
+            value_source="auto_generate",
+        )
+    with pytest.raises(InvariantViolationError, match="must not carry other source columns"):
+        action_rules.create_assignment(
+            session,
+            rule_id=create_rule.id,
+            target_property_id=fixture.ticket_key.id,
+            value_source="auto_generate",
+            static_value="preset",
+        )

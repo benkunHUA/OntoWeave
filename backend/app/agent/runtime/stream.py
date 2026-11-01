@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.agent import observability
 from app.agent.definitions.base import AgentRunContext
 from app.agent.definitions.registry import get_definition
+from app.agent.evidence import build_evidence_graph
 from app.agent.runtime.errors import user_facing_run_error
 from app.agent.runtime.events import TurnBuilder, block_fragments, content_text, sse
 from app.agent.runtime.interrupts import normalize_interrupt
@@ -121,6 +122,8 @@ def stream_run(
         session.commit()
         agent = definition.build_graph(session, settings, run, checkpointer=checkpointer)
         config: dict = thread_config(conversation_id)
+        # 证据增量按 turn 过滤，续跑（同一 turn）仍能收齐本轮全部轨迹。
+        config["configurable"]["turn_id"] = str(turn_id)
         # 配了 Langfuse 就把审计回调挂上；langgraph 会把它透传给子智能体。
         config.update(
             observability.trace_config(settings, conversation_id=conversation_id, owner_id=owner_id)
@@ -248,6 +251,11 @@ def stream_run(
         for event in turn.finish():
             yield sse(event)
 
+        evidence_graph = _evidence_graph(agent, config, turn_id)
+        if evidence_graph is not None:
+            for event in turn.evidence(evidence_graph):
+                yield sse(event)
+
         assistant_text = turn.text_content or (interrupt_question or "")
         blocks = turn.payload()
         if assistant_text or blocks:
@@ -299,3 +307,18 @@ def stream_run(
         yield sse(RunErrorEvent(message=message))
     finally:
         session.close()
+
+
+def _evidence_graph(agent: Any, config: dict, turn_id: uuid.UUID):
+    get_state = getattr(agent, "get_state", None)
+    if not callable(get_state):
+        return None
+    try:
+        state = get_state(config)
+        deltas = (getattr(state, "values", None) or {}).get("evidence") or []
+        if not isinstance(deltas, list):
+            return None
+        return build_evidence_graph(deltas, turn_id=str(turn_id))
+    except Exception:
+        logger.warning("failed to build query evidence graph", exc_info=True)
+        return None

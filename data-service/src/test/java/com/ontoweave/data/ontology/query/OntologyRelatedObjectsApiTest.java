@@ -71,7 +71,13 @@ class OntologyRelatedObjectsApiTest extends RelationQueryFixtureSupport {
                 .andExpect(jsonPath("$.items[0].objectTypeId")
                         .value(order.objectTypeId().toString()))
                 .andExpect(jsonPath("$.items[0].primaryKey").value("10"))
-                .andExpect(jsonPath("$.items[1].primaryKey").value("20"));
+                .andExpect(jsonPath("$.items[1].primaryKey").value("20"))
+                .andExpect(jsonPath("$.links[0].sourceTypeId")
+                        .value(customer.objectTypeId().toString()))
+                .andExpect(jsonPath("$.links[0].sourcePrimaryKey").value("1"))
+                .andExpect(jsonPath("$.links[0].targetPrimaryKey").value("10"))
+                .andExpect(jsonPath("$.links[1].sourcePrimaryKey").value("2"))
+                .andExpect(jsonPath("$.links[1].targetPrimaryKey").value("20"));
     }
 
     private AttributeSpec attribute(String column, String datatype) {

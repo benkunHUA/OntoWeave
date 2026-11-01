@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Mapping
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -24,10 +25,21 @@ def build_confirmation(
     preview_hash: str,
     execution_id: uuid.UUID,
     expected: dict[str, Any],
+    generated_values: Mapping[uuid.UUID, Any] | None = None,
 ) -> dict[str, Any]:
     names = Names(session, context.detail.parameters)
     objects = [_object_change(item, names) for item in _list(preview.get("objects"))]
     relations = [_relation_change(item, names) for item in _list(preview.get("relations"))]
+    answer = {
+        "decision": "approve",
+        "preview_hash": preview_hash,
+        "execution_id": str(execution_id),
+        "expected": expected,
+    }
+    if generated_values:
+        answer["generated_values"] = {
+            str(assignment_id): value for assignment_id, value in generated_values.items()
+        }
     return {
         "kind": CONFIRMATION_KIND,
         "title": f"执行「{context.action.name}」？",
@@ -45,12 +57,7 @@ def build_confirmation(
         "options": [
             {
                 "label": CONFIRM_LABEL,
-                "answer": {
-                    "decision": "approve",
-                    "preview_hash": preview_hash,
-                    "execution_id": str(execution_id),
-                    "expected": expected,
-                },
+                "answer": answer,
             },
             REJECT_OPTION,
         ],

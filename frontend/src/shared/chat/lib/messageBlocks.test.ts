@@ -92,6 +92,23 @@ describe('reduceBlocks', () => {
       parentCallId: 'c1',
     })
   })
+
+  it('keeps one block when the same tool start arrives twice', () => {
+    const start = event({
+      v: 1,
+      type: 'tool.start',
+      messageId: 'm1',
+      callId: 'c1',
+      name: 'query_objects',
+      args: {},
+      summary: '业主 · 搜索「王建国」',
+    })
+
+    const blocks = reduceBlocks(reduceBlocks([], start), start)
+
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]).toMatchObject({ kind: 'tool', callId: 'c1' })
+  })
 })
 
 describe('blocksFromMessage', () => {

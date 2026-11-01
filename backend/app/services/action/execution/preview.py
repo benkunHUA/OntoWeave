@@ -80,6 +80,7 @@ def preview_action(
             preview_hash=preview_hash,
             execution_id=execution_id,
             expected=next_expected,
+            generated_values=draft.generated_values,
         ),
     )
 

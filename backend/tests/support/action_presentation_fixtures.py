@@ -11,7 +11,9 @@ from app.models import ActionCriteriaOperand, ActionRule, ActionRuleAssignment, 
 from app.services import action, criteria, graph, ontology, status
 
 
-def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
+def graph_with_close_ticket_action(
+    session: Session, *, include_current_time: bool = False
+) -> dict[str, uuid.UUID]:
     owner = uuid.uuid4()
     row = graph.create_graph(session, owner_id=owner, name="售后运营")
     ticket = ontology.create_object_type(session, owner_id=owner, name="工单")
@@ -32,6 +34,13 @@ def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
     )
     resolution = ontology.create_property(
         session, owner_type_id=ticket.id, name="解决说明", datatype="text"
+    )
+    closed_at = (
+        ontology.create_property(
+            session, owner_type_id=ticket.id, name="关闭时间", datatype="timestamp"
+        )
+        if include_current_time
+        else None
     )
     part_key = ontology.create_property(
         session,
@@ -54,7 +63,10 @@ def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
         ontology.transition_object_type(session, item.id, status.CONFIRMED, owner_id=owner)
     graph.add_relation_to_graph(session, row.id, used.id, owner_id=owner)
     ontology.transition_relation(session, used.id, status.CONFIRMED, owner_id=owner)
-    for prop in (ticket_key, ticket_status, resolution, part_key):
+    properties = [ticket_key, ticket_status, resolution, part_key]
+    if closed_at is not None:
+        properties.append(closed_at)
+    for prop in properties:
         ontology.transition_property(session, prop.id, status.CONFIRMED, owner_id=owner)
 
     action_type = action.create_action_type(
@@ -86,19 +98,27 @@ def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
         description="关闭原因",
         datatype="text",
     )
+    assignments = [
+        {
+            "target_property_id": resolution.id,
+            "value_source": "parameter",
+            "value_parameter_id": reason_param.id,
+        }
+    ]
+    if closed_at is not None:
+        assignments.append(
+            {
+                "target_property_id": closed_at.id,
+                "value_source": "current_time",
+            }
+        )
     modify_rule = action.rules.create_rule(
         session,
         action_type_id=action_type.id,
         rule_kind="modify_object",
         target_object_type_id=ticket.id,
         source_parameter_id=ticket_param.id,
-        assignments=[
-            {
-                "target_property_id": resolution.id,
-                "value_source": "parameter",
-                "value_parameter_id": reason_param.id,
-            }
-        ],
+        assignments=assignments,
     )
     link_rule = action.rules.create_rule(
         session,
@@ -125,7 +145,7 @@ def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
         ],
     )
     _confirm(session, action_type, [modify_rule, link_rule])
-    return {
+    ids = {
         "owner": owner,
         "graph_id": row.id,
         "ticket_id": ticket.id,
@@ -137,6 +157,9 @@ def graph_with_close_ticket_action(session: Session) -> dict[str, uuid.UUID]:
         "ticket_parameter_id": ticket_param.id,
         "reason_parameter_id": reason_param.id,
     }
+    if closed_at is not None:
+        ids["closed_at_id"] = closed_at.id
+    return ids
 
 
 def _confirm(session: Session, action_type: ActionType, rules: list[ActionRule]) -> None:

@@ -14,6 +14,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.evidence import EvidenceGraph
+
 ToolStatus = Literal["running", "ok", "error"]
 
 
@@ -150,8 +152,15 @@ class InterruptBlock(_Block):
     confirmation: ActionConfirmation | None = None
 
 
+class EvidenceBlock(_Block):
+    """一轮查询最终得到的对象实例子图；旧消息没有这个块。"""
+
+    kind: Literal["evidence"] = "evidence"
+    graph: EvidenceGraph
+
+
 MessageBlock = Annotated[
-    TextBlock | ReasoningBlock | NoticeBlock | ToolBlock | InterruptBlock,
+    TextBlock | ReasoningBlock | NoticeBlock | ToolBlock | InterruptBlock | EvidenceBlock,
     Field(discriminator="kind"),
 ]
 

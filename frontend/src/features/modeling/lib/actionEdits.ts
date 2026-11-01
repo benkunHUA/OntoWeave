@@ -75,10 +75,6 @@ export function buildActionEdits(
       })
     }
   }
-  for (const id of draft.removedParameterIds) {
-    edits.push({ op: 'delete', element_kind: 'action_parameter', element_id: id })
-  }
-
   const savedRules = new Map(detail.rules.map((item) => [item.id, item]))
   for (const rule of draft.rules) {
     if (rule.id === null) {
@@ -95,6 +91,12 @@ export function buildActionEdits(
 
   const criteria = criteriaEdit(detail, draft, snapshot)
   if (criteria) edits.push(criteria)
+
+  // 参数可能被规则、赋值或条件引用。先发撤销引用的改动，最后再删参数，避免后端
+  // 单独一条删除时看到旧的引用关系。
+  for (const id of draft.removedParameterIds) {
+    edits.push({ op: 'delete', element_kind: 'action_parameter', element_id: id })
+  }
 
   return edits
 }
@@ -318,6 +320,12 @@ function assignmentIn(
       object_parameter_id: assignment.objectParameterId,
       object_property_id: assignment.objectPropertyId,
     }
+  }
+  if (
+    assignment.valueSource === 'current_time' ||
+    assignment.valueSource === 'auto_generate'
+  ) {
+    return base
   }
   return { ...base, static_value: parsedStaticValue(assignment, snapshot) }
 }

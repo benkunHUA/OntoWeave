@@ -18,9 +18,9 @@ from tests.support.action_presentation_fixtures import graph_with_close_ticket_a
 
 
 def _setup(
-    session: Session,
+    session: Session, *, include_current_time: bool = False
 ) -> tuple[dict[str, uuid.UUID], BusinessToolContext, CloseTicketEditClient, dict[str, Any]]:
-    ids = graph_with_close_ticket_action(session)
+    ids = graph_with_close_ticket_action(session, include_current_time=include_current_time)
     graph_publication.publish_graph(
         session,
         graph_id=ids["graph_id"],
@@ -186,6 +186,38 @@ def test_resume_compares_against_the_preview_the_user_confirmed(session: Session
 
     assert result["error"] == "PREVIEW_STALE"
     assert client.apply_requests == []
+
+
+def test_resume_reuses_current_time_from_the_confirmed_preview(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    ids, _, client, fixture = _setup(session, include_current_time=True)
+    times = iter(["2026-11-01T08:00:00Z", "2026-11-01T09:00:00Z"])
+    monkeypatch.setattr(
+        "app.services.action.execution.planner_values.current_time_value",
+        lambda datatype: next(times),
+    )
+    answers: list[dict[str, Any]] = []
+
+    def suspend(payload: dict[str, Any]) -> Any:
+        answers.append(_approve(payload))
+        raise GraphBubbleUp()
+
+    monkeypatch.setattr("app.agent.tools.business.action._interrupt", suspend)
+    with pytest.raises(GraphBubbleUp):
+        _execute(ids, fixture)
+
+    assert list(answers[0]["generated_values"].values()) == ["2026-11-01T08:00:00Z"]
+
+    monkeypatch.setattr(
+        "app.agent.tools.business.action._interrupt",
+        lambda payload: answers[0],
+    )
+    result = _execute(ids, fixture)
+
+    assert result["status"] == "APPLIED"
+    applied_update = client.apply_requests[0]["object_updates"][0]
+    assert applied_update["set"][ids["closed_at_id"]] == "2026-11-01T08:00:00Z"
 
 
 def test_apply_retry_reuses_the_same_idempotency_key(session: Session, monkeypatch):

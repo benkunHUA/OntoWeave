@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.models import ActionRule
 from app.services.action.execution.errors import ActionExecutionError
+from app.services.action.execution.generated_values import auto_primary_key_value
 from app.services.ontology.common import primary_key_property
-from app.vocabulary import PropertyDatatype
+from app.vocabulary import AUTO_GENERATED_PRIMARY_KEY_DATATYPES
 
 
 def primary_key_for_create(
@@ -18,18 +19,24 @@ def primary_key_for_create(
     rule: ActionRule,
     object_type_id: uuid.UUID,
     explicit: Any,
+    *,
+    execution_key: str,
 ) -> str:
     primary = primary_key_property(session, object_type_id)
     if primary is None:
         raise _primary_key_required(object_type_id, rule, "object type has no primary key")
     if explicit is None or (isinstance(explicit, str) and not explicit.strip()):
-        if primary.datatype == PropertyDatatype.TEXT.value:
-            seed = f"ontoweave:action-create:{rule.id}:{object_type_id}"
-            return str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
+        if primary.datatype in AUTO_GENERATED_PRIMARY_KEY_DATATYPES:
+            generated = auto_primary_key_value(
+                primary,
+                execution_key=execution_key,
+                rule_id=rule.id,
+            )
+            return str(generated)
         raise _primary_key_required(
             object_type_id,
             rule,
-            "non-text primary key must be supplied by the action",
+            "primary key datatype cannot be generated automatically",
         )
     return str(explicit)
 

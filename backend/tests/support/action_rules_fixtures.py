@@ -17,8 +17,18 @@ class _Fixture:
         self.ticket = ontology.create_object_type(session, owner_id=owner, name="工单")
         self.employee = ontology.create_object_type(session, owner_id=owner, name="员工")
         self.tag = ontology.create_object_type(session, owner_id=owner, name="标签")
+        self.ticket_key = ontology.create_property(
+            session,
+            owner_type_id=self.ticket.id,
+            name="工单号",
+            datatype="text",
+            is_primary_key=True,
+        )
         self.amount = ontology.create_property(
             session, owner_type_id=self.ticket.id, name="金额", datatype="decimal"
+        )
+        self.created_at = ontology.create_property(
+            session, owner_type_id=self.ticket.id, name="创建时间", datatype="timestamp"
         )
         self.status_prop = ontology.create_property(
             session,

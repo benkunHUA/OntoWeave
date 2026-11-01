@@ -36,7 +36,11 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
           ...(event.confirmation ? { confirmation: event.confirmation } : {}),
         },
       ]
-    case 'tool.start':
+    case 'tool.start': {
+      // 同一 callId 可能因重连或重复推送再次 start；按调用 id 合并，保持块列表稳定。
+      if (blocks.some((block) => block.kind === 'tool' && block.callId === event.callId)) {
+        return blocks
+      }
       return [
         ...blocks,
         {
@@ -52,6 +56,7 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
           parentCallId: event.parentCallId ?? null,
         },
       ]
+    }
     case 'tool.end':
       return blocks.map((block) =>
         block.kind === 'tool' && block.callId === event.callId
@@ -64,6 +69,11 @@ export function reduceBlocks(blocks: MessageBlock[], event: AgentEvent): Message
             }
           : block,
       )
+    case 'evidence.update':
+      return [
+        ...blocks.filter((block) => block.kind !== 'evidence'),
+        { id: event.blockId, kind: 'evidence', graph: event.graph },
+      ]
     default:
       return blocks
   }

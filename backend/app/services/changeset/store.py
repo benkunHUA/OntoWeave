@@ -97,6 +97,18 @@ def ensure_open_changeset(
     return create_changeset(session, graph_id=graph_id, owner_id=owner_id)
 
 
+def pending_deletions(session: Session, changeset_id: uuid.UUID) -> set[tuple[str, uuid.UUID]]:
+    """这个改动集里所有已标删、还没落地的（元素种类, id）。"""
+    deletions: set[tuple[str, uuid.UUID]] = set()
+    for op in list_ops(session, changeset_id):
+        if op.op != OP_DELETE or op.target_id is None:
+            continue
+        kind = op.payload.get("kind")
+        if isinstance(kind, str):
+            deletions.add((kind, op.target_id))
+    return deletions
+
+
 def list_ops(session: Session, changeset_id: uuid.UUID) -> list[ChangesetOp]:
     return list(
         session.scalars(

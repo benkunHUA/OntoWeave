@@ -15,7 +15,13 @@ import type {
   ActionOperandDraft,
   ActionRuleDraft,
 } from './actionDraft'
-import { ENUM_DATATYPE, hasUsableEnumValues, sameEnumValues } from './datatypeOptions'
+import {
+  AUTO_GENERATED_PRIMARY_KEY_DATATYPES,
+  CURRENT_TIME_DATATYPES,
+  ENUM_DATATYPE,
+  hasUsableEnumValues,
+  sameEnumValues,
+} from './datatypeOptions'
 import { objectTypeName, parameterOf, propertyOf, relationPair } from './actionOptions'
 import { parseStaticValue } from './staticValue'
 
@@ -95,7 +101,7 @@ function validateRule(
   }
   const assigned = new Set<string>()
   for (const assignment of rule.assignments) {
-    validateAssignment(draft, assignment, snapshot, assigned, report)
+    validateAssignment(draft, rule, assignment, snapshot, assigned, report)
   }
 
   if (option.family === 'object') {
@@ -156,6 +162,7 @@ function reportObjectParameter(
 
 function validateAssignment(
   draft: ActionDraft,
+  rule: ActionRuleDraft,
   assignment: ActionAssignmentDraft,
   snapshot: GraphSnapshot | null,
   assigned: Set<string>,
@@ -223,6 +230,32 @@ function validateAssignment(
       datatype,
       enumValues,
     )
+    return
+  }
+
+  if (assignment.valueSource === 'current_time') {
+    if (target.property.is_array || !CURRENT_TIME_DATATYPES.includes(datatype)) {
+      report(assignment.key, `${where}：当前时间只能填日期或日期时间属性`)
+    }
+    return
+  }
+
+  if (assignment.valueSource === 'auto_generate') {
+    if (rule.ruleKind !== 'create_object') {
+      report(assignment.key, `${where}：自动生成只用于新建对象的主键`)
+    } else if (!target.property.is_primary_key) {
+      report(assignment.key, `${where}：自动生成只能填主键`)
+    } else if (
+      target.property.is_array ||
+      !AUTO_GENERATED_PRIMARY_KEY_DATATYPES.includes(datatype)
+    ) {
+      report(assignment.key, `${where}：这个主键类型不能自动生成`)
+    }
+    return
+  }
+
+  if (assignment.valueSource !== 'static') {
+    report(assignment.key, `${where}：不认识的值来源`)
     return
   }
 

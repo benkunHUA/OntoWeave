@@ -1,6 +1,7 @@
 package com.ontoweave.data.ontology.query.service;
 
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectPageResponse;
+import com.ontoweave.data.ontology.query.api.dto.RelatedObjectLink;
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectRef;
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectResponse;
 import com.ontoweave.data.ontology.query.api.dto.RelatedObjectsRequest;
@@ -19,6 +20,7 @@ import com.ontoweave.data.ontology.query.repository.JdbcRelationQuery;
 import com.ontoweave.data.ontology.query.repository.InstancePage;
 import com.ontoweave.data.ontology.query.repository.RelationDefinitionRow;
 import com.ontoweave.data.ontology.query.repository.RelationVersionRow;
+import com.ontoweave.data.ontology.query.repository.RelatedLinkRow;
 import com.ontoweave.data.ontology.query.repository.RelatedPage;
 import org.springframework.stereotype.Service;
 
@@ -38,13 +40,13 @@ public class RelationQueryService {
     public RelatedObjectsResponse relatedBatch(UUID relationId, RelatedObjectsRequest request) {
         requireIds(relationId, request == null ? null : request.ownerId());
         if (request.inputs().isEmpty()) {
-            return new RelatedObjectsResponse(List.of(), 0, false, null);
+            return new RelatedObjectsResponse(List.of(), List.of(), 0, false, null);
         }
         QueryDirection direction = QueryDirection.parse(request.direction(), false);
         RelationVersionRow version = relations.findCurrentVersion(relationId, request.ownerId())
                 .orElse(null);
         if (version == null) {
-            return new RelatedObjectsResponse(List.of(), 0, false, null);
+            return new RelatedObjectsResponse(List.of(), List.of(), 0, false, null);
         }
         UUID targetTypeId = direction == QueryDirection.OUTGOING
                 ? version.toObjectTypeId()
@@ -74,8 +76,33 @@ public class RelationQueryService {
         List<RelatedObjectRef> items = rows.items().stream()
                 .map(row -> new RelatedObjectRef(targetTypeId, row.primaryKey(), row.title()))
                 .toList();
+        List<RelatedLinkRow> linkRows = relations.relatedLinks(
+                version,
+                request.ownerId(),
+                direction,
+                inputTypeId,
+                primaryKeys,
+                limit
+        );
+        boolean outgoing = direction == QueryDirection.OUTGOING;
+        List<RelatedObjectLink> links = linkRows.stream()
+                .map(row -> outgoing
+                        ? new RelatedObjectLink(
+                                inputTypeId,
+                                row.currentPrimaryKey(),
+                                targetTypeId,
+                                row.peerPrimaryKey()
+                        )
+                        : new RelatedObjectLink(
+                                targetTypeId,
+                                row.peerPrimaryKey(),
+                                inputTypeId,
+                                row.currentPrimaryKey()
+                        ))
+                .toList();
         return new RelatedObjectsResponse(
                 items,
+                links,
                 rows.total(),
                 rows.total() > limit,
                 version.id()

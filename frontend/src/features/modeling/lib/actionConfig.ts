@@ -3,7 +3,12 @@
  * 组件只渲染这里给出的选项，不自己写死取值与中文。
  */
 
-import { ORDERED_DATATYPES } from './datatypeOptions'
+import type { GraphProperty } from '../../../shared/types'
+import {
+  AUTO_GENERATED_PRIMARY_KEY_DATATYPES,
+  CURRENT_TIME_DATATYPES,
+  ORDERED_DATATYPES,
+} from './datatypeOptions'
 
 /** 一条规则的作用对象：对象规则认对象类型，链接规则认一条多对多关系。 */
 export type RuleFamily = 'object' | 'link'
@@ -99,8 +104,45 @@ export const VALUE_SOURCE_OPTIONS: ValueSourceOption[] = [
   { value: 'static', label: '固定值' },
 ]
 
+/** 字段赋值额外支持执行时求值的来源；条件操作数仍只用上面三种。 */
+export const ASSIGNMENT_VALUE_SOURCE_OPTIONS: ValueSourceOption[] = [
+  ...VALUE_SOURCE_OPTIONS,
+  { value: 'current_time', label: '当前时间' },
+  { value: 'auto_generate', label: '自动生成' },
+]
+
 export function valueSourceLabel(value: string): string {
-  return VALUE_SOURCE_OPTIONS.find((option) => option.value === value)?.label ?? value
+  return ASSIGNMENT_VALUE_SOURCE_OPTIONS.find((option) => option.value === value)?.label ?? value
+}
+
+/** 来源不是任何时候都成立：动态来源要匹配属性类型，自动主键只属于新建对象。 */
+export function assignmentValueSourceOptions(
+  target: GraphProperty | null,
+  ruleKind: string,
+): ValueSourceOption[] {
+  return ASSIGNMENT_VALUE_SOURCE_OPTIONS.filter((option) => {
+    if (option.value === 'current_time') {
+      return Boolean(
+        target &&
+          !target.is_array &&
+          CURRENT_TIME_DATATYPES.includes(target.datatype),
+      )
+    }
+    if (option.value === 'auto_generate') {
+      return Boolean(
+        ruleKind === 'create_object' &&
+          target?.is_primary_key &&
+          !target.is_array &&
+          AUTO_GENERATED_PRIMARY_KEY_DATATYPES.includes(target.datatype),
+      )
+    }
+    return true
+  })
+}
+
+export const ASSIGNMENT_SOURCE_HINTS: Record<string, string> = {
+  current_time: '执行时取当前时间，不用每次手填。',
+  auto_generate: '执行时生成唯一主键值；同一次执行重试会沿用同一个值。',
 }
 
 export interface OperatorOption {

@@ -42,17 +42,18 @@ def execute_action(
     )
     resolved = resolve_parameters(context.detail, parameters, owner_id=owner_id, client=client)
     evaluate_criteria(context.detail, resolved, owner_id=owner_id, client=client)
+    execution_id, idempotency_key = execution_identity(
+        owner_id=owner_id,
+        conversation_id=conversation_id,
+        tool_call_id=tool_call_id,
+    )
     draft = plan_edit_set(
         session,
         context.detail,
         resolved,
         owner_id=owner_id,
         client=client,
-    )
-    execution_id, idempotency_key = execution_identity(
-        owner_id=owner_id,
-        conversation_id=conversation_id,
-        tool_call_id=tool_call_id,
+        execution_key=idempotency_key,
     )
     first = preview_action(
         session,
@@ -73,6 +74,17 @@ def execute_action(
         }
     confirmed_hash = _confirmed_hash(approval, execution_id=execution_id) or first.preview_hash
     confirmed_expected = _confirmed_expected(approval) or first.expected
+    confirmed_generated = _confirmed_generated_values(approval)
+    if confirmed_generated is not None and confirmed_generated != draft.generated_values:
+        draft = plan_edit_set(
+            session,
+            context.detail,
+            resolved,
+            owner_id=owner_id,
+            client=client,
+            execution_key=idempotency_key,
+            generated_values=confirmed_generated,
+        )
 
     second = preview_action(
         session,
@@ -156,6 +168,19 @@ def _confirmed_expected(answer: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(objects, list) or not isinstance(relations, list):
         return None
     return value
+
+
+def _confirmed_generated_values(answer: dict[str, Any]) -> dict[uuid.UUID, Any] | None:
+    value = answer.get("generated_values")
+    if not isinstance(value, dict):
+        return None
+    parsed: dict[uuid.UUID, Any] = {}
+    for key, item in value.items():
+        try:
+            parsed[uuid.UUID(str(key))] = item
+        except ValueError:
+            continue
+    return parsed or None
 
 
 def _apply_with_retry(client: Any, request: dict[str, Any]) -> dict[str, Any]:

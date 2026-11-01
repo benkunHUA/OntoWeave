@@ -51,6 +51,7 @@ export function ConversationPane({
 }: ConversationPaneProps) {
   const timeline = useMemo(() => mergeTimeline(messages, events), [messages, events])
   const pendingInterruptId = interrupt?.blockId ?? null
+  const activeMessageId = isRunning ? messages.at(-1)?.id ?? null : null
   const firstItem = timeline[0]
   const scrollKey = firstItem ? timelineItemKey(firstItem) : 'empty'
 
@@ -83,6 +84,7 @@ export function ConversationPane({
                 pendingInterruptId={pendingInterruptId}
                 isRunning={isRunning}
                 onAnswer={onAnswer}
+                active={item.message.id === activeMessageId}
               />
             )
           }

@@ -284,6 +284,44 @@ public class JdbcRelationQuery {
         return new RelatedPage(items, total == null ? 0L : total);
     }
 
+    public List<RelatedLinkRow> relatedLinks(
+            RelationVersionRow version,
+            UUID ownerId,
+            QueryDirection direction,
+            UUID objectTypeId,
+            List<String> primaryKeys,
+            int limit
+    ) {
+        RelatedSql sql = relatedSql(
+                version,
+                ownerId,
+                direction,
+                objectTypeId,
+                primaryKeys
+        );
+        List<Object> arguments = new ArrayList<>(sql.arguments());
+        arguments.add(limit);
+        return jdbc.query(sql.prefix() + """
+                        SELECT current_object.primary_key_value AS current_primary_key,
+                               peer.primary_key_value AS peer_primary_key,
+                               peer.title_value AS peer_title
+                        """ + sql.fromClause() + """
+                        GROUP BY current_object.primary_key_value,
+                                 peer.primary_key_value,
+                                 peer.title_value
+                        ORDER BY current_object.primary_key_value COLLATE "C" ASC,
+                                 peer.primary_key_value COLLATE "C" ASC
+                        LIMIT ?
+                        """,
+                (resultSet, rowNumber) -> new RelatedLinkRow(
+                        resultSet.getString("current_primary_key"),
+                        resultSet.getString("peer_primary_key"),
+                        resultSet.getString("peer_title")
+                ),
+                arguments.toArray()
+        );
+    }
+
     public InstancePage instances(
             RelationVersionRow version,
             UUID ownerId,
@@ -358,7 +396,10 @@ public class JdbcRelationQuery {
                     currentObject,
                     peerObject,
                     ownerId,
-                    peerTypeId,
+                    outgoing ? currentVersionId : peerVersionId,
+                    outgoing ? peerVersionId : currentVersionId,
+                    outgoing ? currentObjectType(currentObject) : peerTypeId,
+                    outgoing ? peerTypeId : currentObjectType(currentObject),
                     primaryKeys
             );
         }
@@ -400,44 +441,49 @@ public class JdbcRelationQuery {
             CteDefinition currentObject,
             CteDefinition peerObject,
             UUID ownerId,
-            UUID peerTypeId,
+            UUID sourceVersionId,
+            UUID targetVersionId,
+            UUID sourceTypeId,
+            UUID targetTypeId,
             List<String> primaryKeys
     ) {
-        UUID sourceTypeId = outgoing ? currentObjectType(currentObject) : peerTypeId;
-        UUID sourceVersionId = outgoing
-                ? versionId(currentObject)
-                : versionId(peerObject);
+        boolean foreignKeyOnTarget = foreignKeyOnTarget(
+                definition, sourceVersionId, targetVersionId
+        );
         CteDefinition values = EffectiveValueSql.cte(
                 "effective_fk_value",
-                sourceVersionId,
+                foreignKeyOnTarget ? targetVersionId : sourceVersionId,
                 ownerId,
-                sourceTypeId
+                foreignKeyOnTarget ? targetTypeId : sourceTypeId
         );
         SqlFragment ctes = EffectiveQuerySql.with(currentObject, peerObject, values);
+        String foreignKeyAlias = foreignKeyOnTarget == outgoing ? "peer" : "current_object";
+        String referencedAlias = foreignKeyOnTarget == outgoing ? "current_object" : "peer";
+        QueryDatatype referencedType = foreignKeyOnTarget
+                ? definition.sourcePrimaryKeyType()
+                : definition.targetPrimaryKeyType();
         String join = fkJoinCondition(
-                definition, outgoing ? "peer" : "current_object");
-        String fromClause;
+                definition, referencedAlias, referencedType);
+        String keyFilter = placeholders(primaryKeys.size());
+        String fromClause = "current_object".equals(foreignKeyAlias)
+                ? """
+                FROM current_object current_object
+                JOIN effective_fk_value fk
+                  ON fk.primary_key_value = current_object.primary_key_value
+                 AND fk.attribute_id = ?
+                JOIN peer_object peer ON %s
+                WHERE current_object.primary_key_value IN (%s)
+                """.formatted(join, keyFilter)
+                : """
+                FROM peer_object peer
+                JOIN effective_fk_value fk
+                  ON fk.primary_key_value = peer.primary_key_value
+                 AND fk.attribute_id = ?
+                JOIN current_object current_object ON %s
+                WHERE current_object.primary_key_value IN (%s)
+                """.formatted(join, keyFilter);
         List<Object> arguments = new ArrayList<>(ctes.arguments());
         arguments.add(definition.foreignKeyPropertyId());
-        if (outgoing) {
-            fromClause = """
-                    FROM current_object current_object
-                    JOIN effective_fk_value fk
-                      ON fk.primary_key_value = current_object.primary_key_value
-                     AND fk.attribute_id = ?
-                    JOIN peer_object peer ON %s
-                    WHERE current_object.primary_key_value IN (%s)
-                    """.formatted(join, placeholders(primaryKeys.size()));
-        } else {
-            fromClause = """
-                    FROM peer_object peer
-                    JOIN effective_fk_value fk
-                      ON fk.primary_key_value = peer.primary_key_value
-                     AND fk.attribute_id = ?
-                    JOIN current_object current_object ON %s
-                    WHERE current_object.primary_key_value IN (%s)
-                    """.formatted(join, placeholders(primaryKeys.size()));
-        }
         arguments.addAll(primaryKeys);
         return new RelatedSql(ctes.sql() + "\n", fromClause, arguments);
     }
@@ -466,21 +512,39 @@ public class JdbcRelationQuery {
         String fromClause;
         String where = where(fromPrimaryKey, toPrimaryKey, arguments);
         if (definition != null && definition.foreignKeyPropertyId() != null) {
+            boolean foreignKeyOnTarget = foreignKeyOnTarget(
+                    definition, fromVersionId, toVersionId
+            );
             CteDefinition values = EffectiveValueSql.cte(
                     "effective_fk_value",
-                    fromVersionId,
+                    foreignKeyOnTarget ? toVersionId : fromVersionId,
                     ownerId,
-                    version.fromObjectTypeId()
+                    foreignKeyOnTarget
+                            ? version.toObjectTypeId()
+                            : version.fromObjectTypeId()
             );
             ctes.add(values);
             arguments.add(0, definition.foreignKeyPropertyId());
-            fromClause = """
+            String referencedAlias = foreignKeyOnTarget ? "source" : "target";
+            QueryDatatype referencedType = foreignKeyOnTarget
+                    ? definition.sourcePrimaryKeyType()
+                    : definition.targetPrimaryKeyType();
+            String join = fkJoinCondition(definition, referencedAlias, referencedType);
+            fromClause = foreignKeyOnTarget
+                    ? """
+                    FROM target_object target
+                    JOIN effective_fk_value fk
+                      ON fk.primary_key_value = target.primary_key_value
+                     AND fk.attribute_id = ?
+                    JOIN source_object source ON %s
+                    """.formatted(join)
+                    : """
                     FROM source_object source
                     JOIN effective_fk_value fk
                       ON fk.primary_key_value = source.primary_key_value
                      AND fk.attribute_id = ?
                     JOIN target_object target ON %s
-                    """.formatted(fkJoinCondition(definition, "target"));
+                    """.formatted(join);
             return new InstanceSql(
                     EffectiveQuerySql.with(ctes.toArray(CteDefinition[]::new)).sql() + "\n",
                     fromClause,
@@ -554,23 +618,66 @@ public class JdbcRelationQuery {
         };
     }
 
-    private QueryDatatype foreignKeyType(RelationDefinitionRow definition) {
+    private QueryDatatype foreignKeyType(
+            RelationDefinitionRow definition,
+            QueryDatatype referencedType
+    ) {
         String datatype = definition.foreignKeyDatatype();
         return datatype == null || datatype.isBlank()
-                ? definition.targetPrimaryKeyType()
+                ? referencedType
                 : QueryDatatype.from(datatype);
     }
 
-    private String fkJoinCondition(RelationDefinitionRow definition, String targetAlias) {
-        QueryDatatype targetType = definition.targetPrimaryKeyType();
-        QueryDatatype foreignKeyType = foreignKeyType(definition);
+    private String fkJoinCondition(
+            RelationDefinitionRow definition,
+            String targetAlias,
+            QueryDatatype referencedType
+    ) {
+        QueryDatatype foreignKeyType = foreignKeyType(definition, referencedType);
         String foreignKeyColumn = comparisonColumn(foreignKeyType);
-        if (targetType == foreignKeyType && foreignKeyType != QueryDatatype.BOOLEAN) {
-            return targetAlias + "." + primaryKeyColumn(targetType)
+        if (referencedType == foreignKeyType && foreignKeyType != QueryDatatype.BOOLEAN) {
+            return targetAlias + "." + primaryKeyColumn(referencedType)
                     + " = fk." + foreignKeyColumn;
         }
         return "CAST(" + targetAlias + ".primary_key_value AS "
                 + castType(definition, foreignKeyType) + ") = fk." + foreignKeyColumn;
+    }
+
+    private boolean foreignKeyOnTarget(
+            RelationDefinitionRow definition,
+            UUID sourceVersionId,
+            UUID targetVersionId
+    ) {
+        UUID foreignKeyId = definition.foreignKeyPropertyId();
+        if (foreignKeyId == null) {
+            return false;
+        }
+        if (mappingContainsAttribute(sourceVersionId, foreignKeyId)) {
+            return false;
+        }
+        return mappingContainsAttribute(targetVersionId, foreignKeyId);
+    }
+
+    private boolean mappingContainsAttribute(UUID versionId, UUID attributeId) {
+        if (versionId == null) {
+            return false;
+        }
+        List<Boolean> rows = jdbc.query("""
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM data.ontology_object_version version
+                            CROSS JOIN LATERAL jsonb_array_elements(
+                                version.mapping_snapshot->'attributes'
+                            ) attribute
+                            WHERE version.id = ?
+                              AND attribute->>'attributeId' = ?
+                        )
+                        """,
+                (resultSet, rowNumber) -> resultSet.getBoolean(1),
+                versionId,
+                attributeId.toString()
+        );
+        return !rows.isEmpty() && Boolean.TRUE.equals(rows.get(0));
     }
 
     private String castType(RelationDefinitionRow definition, QueryDatatype foreignKeyType) {

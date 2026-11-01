@@ -306,7 +306,7 @@ Expected: PASS。
 
 覆盖五种规则：
 
-- `create_object`：赋值转 values；文本主键自动生成；非文本主键缺失报错。
+- `create_object`：赋值转 values；文本 / 整数 / 小数主键自动生成；其余主键缺失报错。
 - `modify_object`：赋值转 set，null 转 clear；主键修改被拒绝。
 - `delete_object`：生成 objectDeletes。
 - `create_link` / `delete_link`：只允许 many-to-many，生成关系变更。

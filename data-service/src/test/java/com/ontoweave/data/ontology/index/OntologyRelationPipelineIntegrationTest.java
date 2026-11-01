@@ -124,7 +124,16 @@ class OntologyRelationPipelineIntegrationTest extends OntologyIndexIntegrationTe
     }
 
     @Test
-    void buildsForeignKeyRelationsAgainstTheTargetVersionAndSkipsMissingTargets() {
+    void buildsForeignKeyRelationsWhenForeignKeyIsOnSourceSide() {
+        assertBuildsForeignKeyRelations(false);
+    }
+
+    @Test
+    void buildsForeignKeyRelationsWhenForeignKeyIsOnTargetSide() {
+        assertBuildsForeignKeyRelations(true);
+    }
+
+    private void assertBuildsForeignKeyRelations(boolean foreignKeyOnTarget) {
         UUID ownerId = UUID.randomUUID();
         UUID sourceType = UUID.randomUUID();
         UUID targetType = UUID.randomUUID();
@@ -141,30 +150,43 @@ class OntologyRelationPipelineIntegrationTest extends OntologyIndexIntegrationTe
         jdbc.update("""
                 INSERT INTO data.ontology_object_instance
                     (version_id, object_type_id, primary_key_value, title_value, properties)
-                VALUES (?, ?, 't1', 'T1', '{}'::jsonb)
-                """, targetVersion, targetType);
+                VALUES (?, ?, 't1', 'T1', '{}'::jsonb), (?, ?, 't2', 'T2', '{}'::jsonb)
+                """, targetVersion, targetType, targetVersion, targetType);
+        UUID foreignKeyVersion = foreignKeyOnTarget ? targetVersion : sourceVersion;
         jdbc.update("""
                 INSERT INTO data.ontology_object_value
                     (version_id, attribute_id, primary_key_value, text_value)
-                VALUES (?, ?, 's1', 't1'), (?, ?, 's2', 'missing')
-                """, sourceVersion, foreignKeyAttribute, sourceVersion, foreignKeyAttribute);
+                VALUES (?, ?, ?, ?), (?, ?, ?, ?)
+                """,
+                foreignKeyVersion, foreignKeyAttribute,
+                foreignKeyOnTarget ? "t1" : "s1",
+                foreignKeyOnTarget ? "s1" : "t1",
+                foreignKeyVersion, foreignKeyAttribute,
+                foreignKeyOnTarget ? "t2" : "s2",
+                "missing");
         OntologyRelationDefinitionEntity definition = new OntologyRelationDefinitionEntity(
                 relationId, ownerId, sourceType, targetType, "owns", "one_to_many",
                 foreignKeyAttribute, "text", UUID.randomUUID(), "text",
                 UUID.randomUUID(), "text", 1
         );
-        MappingSnapshot sourceMapping = MappingSnapshot.object(
+        MappingSnapshot foreignKeyMapping = MappingSnapshot.object(
                 UUID.randomUUID(), null,
                 List.of(new MappingSnapshot.AttributeMapping(
                         foreignKeyAttribute, "target_id", "text", false, false, null)),
                 1
         );
+        MappingSnapshot sourceMapping = foreignKeyOnTarget
+                ? MappingSnapshot.object(null, null, List.of(), 1)
+                : foreignKeyMapping;
+        MappingSnapshot targetMapping = foreignKeyOnTarget
+                ? foreignKeyMapping
+                : MappingSnapshot.object(null, null, List.of(), 1);
         EndpointVersion from = new EndpointVersion(
                 sourceType, sourceVersion, sourceMapping, mapper.valueToTree(sourceMapping), 1,
                 DatasetKind.SYNC, UUID.randomUUID(), UUID.randomUUID(), 1L
         );
         EndpointVersion to = new EndpointVersion(
-                targetType, targetVersion, MappingSnapshot.object(null, null, List.of(), 1),
+                targetType, targetVersion, targetMapping,
                 json("{\"attributes\":[]}"), 1,
                 DatasetKind.SYNC, UUID.randomUUID(), UUID.randomUUID(), 1L
         );

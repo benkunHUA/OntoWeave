@@ -55,6 +55,21 @@ public abstract class RelationQueryFixtureSupport extends ObjectQueryFixtureSupp
         );
     }
 
+    protected void setForeignKey(
+            UUID relationId,
+            AttributeSpec attribute
+    ) {
+        jdbc.update("""
+                UPDATE data.ontology_relation_definition
+                SET foreign_key_property_id = ?, foreign_key_datatype = ?
+                WHERE relation_id = ?
+                """,
+                attribute.attributeId(),
+                attribute.datatype(),
+                relationId
+        );
+    }
+
     protected M2mFixture createM2mFixture(
             UUID ownerId,
             UUID relationId,

@@ -193,7 +193,7 @@ class ActionRule(Base):
 
 
 class ActionRuleAssignment(Base):
-    """对象规则里的「哪个属性 ← 哪个值来源」。"""
+    """对象规则里的「哪个属性 ← 哪个值来源」；动态来源在执行时求值。"""
 
     __tablename__ = "action_rule_assignment"
     __table_args__ = (

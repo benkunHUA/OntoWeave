@@ -105,6 +105,7 @@ def apply_edits(
     if owner_id is None:
         raise InvariantViolationError("owner is required to register edits")
     cs = changeset.ensure_open_changeset(session, graph_id=graph_id, owner_id=owner_id)
+    deletions: list[tuple[str, uuid.UUID]] = []
     for op in ops:
         if isinstance(op, ElementUpdate):
             record_update(
@@ -117,12 +118,14 @@ def apply_edits(
                 embedder=embedder,
             )
         elif isinstance(op, ElementDelete):
-            remove_element(
-                session,
-                changeset_id=cs.id,
-                owner_id=owner_id,
-                element_kind=op.element_kind,
-                element_id=op.element_id,
+            deletions.extend(
+                _record_removal(
+                    session,
+                    changeset_id=cs.id,
+                    owner_id=owner_id,
+                    element_kind=op.element_kind,
+                    element_id=op.element_id,
+                )
             )
         else:
             _apply_write_op(
@@ -132,6 +135,7 @@ def apply_edits(
                 owner_id=owner_id,
                 name_generator=name_generator,
             )
+    _ensure_deletable(session, changeset_id=cs.id, targets=deletions)
     return cs
 
 
@@ -227,11 +231,40 @@ def remove_element(
     """
     changeset.get_changeset(session, changeset_id, owner_id=owner_id)
     changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
-    action_references.ensure_deletable(session, element_kind=element_kind, element_id=element_id)
+    targets = _removal_targets(session, element_kind=element_kind, element_id=element_id)
+    _ensure_deletable(session, changeset_id=changeset_id, targets=targets)
+    _record_removals(session, changeset_id=changeset_id, targets=targets)
+
+
+def _record_removal(
+    session: Session,
+    *,
+    changeset_id: uuid.UUID,
+    element_kind: str,
+    element_id: uuid.UUID,
+    owner_id: uuid.UUID | None = None,
+) -> list[tuple[str, uuid.UUID]]:
+    """登记一条删除，但把引用检查留给整批操作结束后的最终状态。"""
+    changeset.get_changeset(session, changeset_id, owner_id=owner_id)
+    changeset.load_element(session, element_kind, element_id, owner_id=owner_id)
+    targets = _removal_targets(session, element_kind=element_kind, element_id=element_id)
+    _record_removals(session, changeset_id=changeset_id, targets=targets)
+    return targets
+
+
+def _removal_targets(
+    session: Session, *, element_kind: str, element_id: uuid.UUID
+) -> list[tuple[str, uuid.UUID]]:
     entry = element_kinds.REGISTRY.get(element_kind)
     targets = [(element_kind, element_id)]
     if entry is not None and entry.dependents is not None:
         targets.extend(entry.dependents(session, element_id))
+    return targets
+
+
+def _record_removals(
+    session: Session, *, changeset_id: uuid.UUID, targets: list[tuple[str, uuid.UUID]]
+) -> None:
     for kind, target_id in targets:
         changeset.record_op(
             session,
@@ -239,4 +272,18 @@ def remove_element(
             op=changeset.OP_DELETE,
             target_id=target_id,
             payload={"kind": kind},
+        )
+
+
+def _ensure_deletable(
+    session: Session, *, changeset_id: uuid.UUID, targets: list[tuple[str, uuid.UUID]]
+) -> None:
+    """按整批删除完成后的状态检查引用。"""
+    pending = changeset.pending_deletions(session, changeset_id) | set(targets)
+    for kind, target_id in targets:
+        action_references.ensure_deletable(
+            session,
+            element_kind=kind,
+            element_id=target_id,
+            pending_deletions=pending,
         )

@@ -195,3 +195,92 @@ def test_delete_then_recreate_a_parameter_with_the_same_name(client):
     _confirm(client, graph_id)
     parameters = client.get(f"{API}/actions/{action_id}").json()["parameters"]
     assert [(item["name"], item["datatype"]) for item in parameters] == [("备注", "integer")]
+
+
+def _create_timestamp_assignment(client):
+    graph_id = _graph_id(client)
+    order_id = _create_type(client, graph_id, "订单")
+    created_at_id = _edits(
+        client,
+        graph_id,
+        {
+            "op": "create_property",
+            "owner_type_id": order_id,
+            "name": "创建时间",
+            "datatype": "timestamp",
+        },
+    )["ops"][-1]["target_id"]
+    action_id = _create_action(client, graph_id, "创建订单")
+    parameter_id = _edits(
+        client,
+        graph_id,
+        {
+            "op": "add_action_parameter",
+            "action_type_id": action_id,
+            "name": "下单时间",
+            "datatype": "timestamp",
+        },
+    )["ops"][-1]["target_id"]
+    rule_id = _edits(
+        client,
+        graph_id,
+        {
+            "op": "add_action_rule",
+            "action_type_id": action_id,
+            "rule_kind": "create_object",
+            "target_object_type_id": order_id,
+        },
+    )["ops"][-1]["target_id"]
+    assignment_id = _edits(
+        client,
+        graph_id,
+        {
+            "op": "add_action_rule_assignment",
+            "rule_id": rule_id,
+            "target_property_id": created_at_id,
+            "value_source": "parameter",
+            "value_parameter_id": parameter_id,
+        },
+    )["ops"][-1]["target_id"]
+    _confirm(client, graph_id)
+    return graph_id, action_id, parameter_id, rule_id, assignment_id
+
+
+@pytest.mark.parametrize("cleanup", ["replace", "delete_assignment", "delete_rule"])
+def test_delete_parameter_when_same_batch_removes_assignment_reference(client, cleanup):
+    """同一批里先删参数、再撤销引用，应按整批最终状态放行。"""
+    graph_id, action_id, parameter_id, rule_id, assignment_id = _create_timestamp_assignment(client)
+
+    if cleanup == "replace":
+        release = {
+            "op": "update",
+            "element_kind": "action_rule_assignment",
+            "element_id": assignment_id,
+            "patch": {"value_source": "current_time", "value_parameter_id": None},
+        }
+    elif cleanup == "delete_assignment":
+        release = {
+            "op": "delete",
+            "element_kind": "action_rule_assignment",
+            "element_id": assignment_id,
+        }
+    else:
+        release = {"op": "delete", "element_kind": "action_rule", "element_id": rule_id}
+
+    _edits(
+        client,
+        graph_id,
+        {"op": "delete", "element_kind": "action_parameter", "element_id": parameter_id},
+        release,
+    )
+    _confirm(client, graph_id)
+
+    action = client.get(f"{API}/actions/{action_id}").json()
+    assert action["parameters"] == []
+    assignments = [item for rule in action["rules"] for item in rule["assignments"]]
+    if cleanup == "replace":
+        assert [(item["value_source"], item["value_parameter_id"]) for item in assignments] == [
+            ("current_time", None)
+        ]
+    else:
+        assert assignments == []

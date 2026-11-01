@@ -11,7 +11,12 @@ import {
 import { buildActionEdits, isActionDraftDirty } from './actionEdits'
 import { actionDraftIssues } from './actionValidation'
 
-function property(id: string, name: string, datatype: string): GraphProperty {
+function property(
+  id: string,
+  name: string,
+  datatype: string,
+  overrides: Partial<GraphProperty> = {},
+): GraphProperty {
   return {
     id,
     name,
@@ -22,6 +27,7 @@ function property(id: string, name: string, datatype: string): GraphProperty {
     is_title_key: false,
     enum_values: datatype === 'enum' ? ['新建', '处理中'] : null,
     status: 'confirmed',
+    ...overrides,
   }
 }
 
@@ -34,7 +40,12 @@ function snapshot(): GraphSnapshot {
         name: '工单',
         description: null,
         status: 'confirmed',
-        properties: [property('p-status', '状态', 'enum'), property('p-level', '优先级', 'integer')],
+        properties: [
+          property('p-status', '状态', 'enum'),
+          property('p-level', '优先级', 'integer'),
+          property('p-created', '创建时间', 'timestamp'),
+          property('p-ticket-id', '工单号', 'text', { is_primary_key: true }),
+        ],
       },
       {
         id: 't-staff',
@@ -281,6 +292,23 @@ describe('buildActionEdits', () => {
     ])
   })
 
+  it('sends dynamic assignment sources without source columns', () => {
+    const draft = draftOf()
+    const assignment = newAssignmentDraft()
+    assignment.targetPropertyId = 'p-created'
+    assignment.valueSource = 'current_time'
+    draft.rules[0].assignments.push(assignment)
+
+    expect(buildActionEdits(detail(), draft, snapshot())).toEqual([
+      {
+        op: 'add_action_rule_assignment',
+        rule_id: 'rule-1',
+        target_property_id: 'p-created',
+        value_source: 'current_time',
+      },
+    ])
+  })
+
   it('replaces the whole criteria list when a condition changes', () => {
     const draft = draftOf()
     const condition = newConditionDraft()
@@ -304,6 +332,46 @@ describe('buildActionEdits', () => {
         { operator: 'is', right: { kind: 'static', static_value: '处理中' } },
       ],
     })
+  })
+
+  it('clears a parameter reference before deleting the parameter', () => {
+    const source = detail()
+    source.parameters.push({
+      id: 'par-time',
+      name: '下单时间',
+      description: null,
+      kind: 'value',
+      datatype: 'timestamp',
+      target_object_type_id: null,
+      is_array: false,
+      is_required: false,
+      default_value: null,
+      enum_values: null,
+      order_index: 2,
+      status: 'draft',
+    })
+    source.rules[0].assignments[0] = {
+      ...source.rules[0].assignments[0],
+      target_property_id: 'p-created',
+      value_source: 'parameter',
+      value_parameter_id: 'par-time',
+      static_value: null,
+    }
+    const draft = draftFromActionDetail(source)
+    draft.parameters = draft.parameters.filter((item) => item.id !== 'par-time')
+    draft.removedParameterIds = ['par-time']
+    draft.rules[0].assignments[0].valueSource = 'current_time'
+
+    const edits = buildActionEdits(source, draft, snapshot())
+    const updateIndex = edits.findIndex(
+      (edit) => edit.op === 'update' && edit.element_kind === 'action_rule_assignment',
+    )
+    const deleteIndex = edits.findIndex(
+      (edit) => edit.op === 'delete' && edit.element_id === 'par-time',
+    )
+
+    expect(updateIndex).toBeGreaterThanOrEqual(0)
+    expect(deleteIndex).toBeGreaterThan(updateIndex)
   })
 
   it('marks removed parameters and rules for deletion', () => {
@@ -357,6 +425,38 @@ describe('actionDraftIssues', () => {
       staticValue: '很高',
     }
     expect(actionDraftIssues(draft, snapshot()).rows['as-2']).toContain('整数')
+  })
+
+  it('accepts current time and auto-generated primary keys on create rules', () => {
+    const draft = draftOf()
+    draft.rules[0].ruleKind = 'create_object'
+    draft.rules[0].sourceParameterId = ''
+    draft.rules[0].assignments = [
+      {
+        ...newAssignmentDraft(),
+        key: 'as-created',
+        targetPropertyId: 'p-created',
+        valueSource: 'current_time',
+      },
+      {
+        ...newAssignmentDraft(),
+        key: 'as-key',
+        targetPropertyId: 'p-ticket-id',
+        valueSource: 'auto_generate',
+      },
+    ]
+
+    expect(actionDraftIssues(draft, snapshot()).first).toBeNull()
+  })
+
+  it('rejects auto-generation outside a create primary key', () => {
+    const draft = draftOf()
+    const assignment = newAssignmentDraft()
+    assignment.targetPropertyId = 'p-level'
+    assignment.valueSource = 'auto_generate'
+    draft.rules[0].assignments.push(assignment)
+
+    expect(actionDraftIssues(draft, snapshot()).rows[assignment.key]).toContain('主键')
   })
 
   it('flags assignments on a rule kind that takes none', () => {

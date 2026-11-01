@@ -29,10 +29,12 @@ from app.models import (
     Relation,
 )
 from app.services.element_kinds.types import (
+    ACTION_CRITERIA_NODE,
     ACTION_CRITERIA_OPERAND,
     ACTION_PARAMETER,
     ACTION_RULE,
     ACTION_RULE_ASSIGNMENT,
+    ACTION_TYPE,
     OBJECT_TYPE,
     PROPERTY,
     RELATION,
@@ -40,6 +42,8 @@ from app.services.element_kinds.types import (
 
 #: 报错时最多列几条引用，剩下的只报个数。
 _MAX_REPORTED = 5
+
+ElementRef = tuple[str, uuid.UUID]
 
 
 @dataclass(frozen=True)
@@ -50,26 +54,50 @@ class Reference:
     action_type_id: uuid.UUID
     action_name: str
     label: str
+    #: 引用来自哪些元素；其中任一元素在本批次被删除，这条引用就不再挡删除。
+    source_elements: frozenset[ElementRef]
 
 
 def find_references(
-    session: Session, *, element_kind: str, element_id: uuid.UUID
+    session: Session,
+    *,
+    element_kind: str,
+    element_id: uuid.UUID,
+    pending_deletions: Collection[ElementRef] = (),
 ) -> list[Reference]:
-    """列出所有引用这个元素的动作定义位置；没有就返回空表。"""
+    """列出所有引用这个元素的动作定义位置；没有就返回空表。
+
+    `pending_deletions` 是本批次已登记、尚未落库的删除。引用来源也在其中时，这条引用
+    在确认后就不存在了，不该再挡住被引用元素的删除。
+    """
     if element_kind == OBJECT_TYPE:
-        return _object_type_references(session, [element_id])
-    if element_kind == PROPERTY:
-        return _property_references(session, [element_id])
-    if element_kind == RELATION:
-        return _relation_references(session, [element_id])
-    if element_kind == ACTION_PARAMETER:
-        return _parameter_references(session, [element_id])
-    return []
+        references = _object_type_references(session, [element_id])
+    elif element_kind == PROPERTY:
+        references = _property_references(session, [element_id])
+    elif element_kind == RELATION:
+        references = _relation_references(session, [element_id])
+    elif element_kind == ACTION_PARAMETER:
+        references = _parameter_references(session, [element_id])
+    else:
+        return []
+    pending = set(pending_deletions)
+    return [reference for reference in references if reference.source_elements.isdisjoint(pending)]
 
 
-def ensure_deletable(session: Session, *, element_kind: str, element_id: uuid.UUID) -> None:
+def ensure_deletable(
+    session: Session,
+    *,
+    element_kind: str,
+    element_id: uuid.UUID,
+    pending_deletions: Collection[ElementRef] = (),
+) -> None:
     """有引用就拒绝删除，错误信息带上引用方清单。"""
-    references = find_references(session, element_kind=element_kind, element_id=element_id)
+    references = find_references(
+        session,
+        element_kind=element_kind,
+        element_id=element_id,
+        pending_deletions=pending_deletions,
+    )
     if not references:
         return
     raise InvariantViolationError(
@@ -198,6 +226,10 @@ def _parameter_reference(session: Session, parameter: ActionParameter, *, role: 
         kind=ACTION_PARAMETER,
         action_type_id=parameter.action_type_id,
         label=f"parameter {parameter.name!r} (used {role})",
+        source_elements={
+            (ACTION_PARAMETER, parameter.id),
+            (ACTION_TYPE, parameter.action_type_id),
+        },
     )
 
 
@@ -207,6 +239,7 @@ def _rule_reference(session: Session, rule: ActionRule, *, role: str) -> Referen
         kind=ACTION_RULE,
         action_type_id=rule.action_type_id,
         label=f"the {rule.rule_kind} rule (used {role})",
+        source_elements={(ACTION_RULE, rule.id), (ACTION_TYPE, rule.action_type_id)},
     )
 
 
@@ -220,30 +253,61 @@ def _assignment_reference(
             action_type_id=uuid.UUID(int=0),
             action_name="?",
             label=f"an assignment ({role})",
+            source_elements=frozenset({(ACTION_RULE_ASSIGNMENT, assignment.id)}),
         )
     return _reference(
         session,
         kind=ACTION_RULE_ASSIGNMENT,
         action_type_id=rule.action_type_id,
         label=f"an assignment of the {rule.rule_kind} rule (used {role})",
+        source_elements={
+            (ACTION_RULE_ASSIGNMENT, assignment.id),
+            (ACTION_RULE, rule.id),
+            (ACTION_TYPE, rule.action_type_id),
+        },
     )
 
 
 def _operand_reference(session: Session, operand: ActionCriteriaOperand, *, role: str) -> Reference:
     node = session.get(ActionCriteriaNode, operand.node_id)
     action_type_id = node.action_type_id if node is not None else uuid.UUID(int=0)
+    sources = {(ACTION_CRITERIA_OPERAND, operand.id)}
+    current = node
+    while current is not None:
+        sources.add((ACTION_CRITERIA_NODE, current.id))
+        current = (
+            session.get(ActionCriteriaNode, current.parent_id)
+            if current.parent_id is not None
+            else None
+        )
+    if node is not None:
+        sources.add((ACTION_TYPE, action_type_id))
     return _reference(
         session,
         kind=ACTION_CRITERIA_OPERAND,
         action_type_id=action_type_id,
         label=f"a criteria condition (used {role})",
+        source_elements=sources,
     )
 
 
-def _reference(session: Session, *, kind: str, action_type_id: uuid.UUID, label: str) -> Reference:
+def _reference(
+    session: Session,
+    *,
+    kind: str,
+    action_type_id: uuid.UUID,
+    label: str,
+    source_elements: Collection[ElementRef],
+) -> Reference:
     action_type = session.get(ActionType, action_type_id)
     name = action_type.name if action_type is not None else str(action_type_id)
-    return Reference(kind=kind, action_type_id=action_type_id, action_name=name, label=label)
+    return Reference(
+        kind=kind,
+        action_type_id=action_type_id,
+        action_name=name,
+        label=label,
+        source_elements=frozenset(source_elements),
+    )
 
 
 __all__ = ["Reference", "ensure_deletable", "find_references"]

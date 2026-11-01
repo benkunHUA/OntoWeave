@@ -10,7 +10,7 @@
 
 **对应设计文档：** `docs/superpowers/specs/2026-10-16-action-layer-design.md`
 
-**设计已定，不再改动：** 规则 5 种 / 值来源 3 种 / 参数 2 类 / `enum` 进共享词表 / 条件树邻接表（v1 只放行一个 `and` 根 + 扁平 condition）/ 动作工具做成 `action_modeler` 子智能体 / 写路径复用 `POST /graphs/{id}/edits`。
+**设计已定，不再改动：** 规则 5 种 / 值来源 5 种 / 参数 2 类 / `enum` 进共享词表 / 条件树邻接表（v1 只放行一个 `and` 根 + 扁平 condition）/ 动作工具做成 `action_modeler` 子智能体 / 写路径复用 `POST /graphs/{id}/edits`。
 
 ## 全局约束
 

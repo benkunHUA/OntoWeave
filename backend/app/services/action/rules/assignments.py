@@ -23,7 +23,14 @@ from app.services.action.rules.common import (
     ensure_value_parameter,
     get_rule,
 )
-from app.vocabulary import ACTION_VALUE_SOURCES, ActionParameterKind, ActionValueSource
+from app.vocabulary import (
+    ACTION_VALUE_SOURCES,
+    AUTO_GENERATED_PRIMARY_KEY_DATATYPES,
+    ActionParameterKind,
+    ActionRuleKind,
+    ActionValueSource,
+    PropertyDatatype,
+)
 
 
 def get_assignment(session: Session, assignment_id: uuid.UUID) -> ActionRuleAssignment:
@@ -73,6 +80,7 @@ def create_assignment(
         action_type_id=rule.action_type_id,
         target_type_id=target_type_id,
         target_property_id=target_property_id,
+        rule_kind=rule.rule_kind,
         value_source=value_source,
         value_parameter_id=value_parameter_id,
         object_parameter_id=object_parameter_id,
@@ -121,6 +129,7 @@ def validate_assignment_patch(
         action_type_id=rule.action_type_id,
         target_type_id=target_type_id,
         target_property_id=target_property_id,
+        rule_kind=rule.rule_kind,
         value_source=patch.get("value_source", assignment.value_source),
         value_parameter_id=patch.get("value_parameter_id", assignment.value_parameter_id),
         object_parameter_id=patch.get("object_parameter_id", assignment.object_parameter_id),
@@ -169,6 +178,7 @@ def ensure_assignment_shape(
     action_type_id: uuid.UUID,
     target_type_id: uuid.UUID,
     target_property_id: uuid.UUID,
+    rule_kind: str,
     value_source: str,
     value_parameter_id: uuid.UUID | None,
     object_parameter_id: uuid.UUID | None,
@@ -242,6 +252,52 @@ def ensure_assignment_shape(
         )
         return _AssignmentShape(value_source, None, object_parameter_id, object_property_id, None)
 
+    if value_source == ActionValueSource.CURRENT_TIME.value:
+        _ensure_no_source_columns(
+            value_parameter_id=value_parameter_id,
+            object_parameter_id=object_parameter_id,
+            object_property_id=object_property_id,
+            static_value=static_value,
+            where=where,
+            source=value_source,
+        )
+        if target_property.is_array:
+            raise InvariantViolationError(f"{where}: current_time cannot fill an array property")
+        if target_property.datatype not in (
+            PropertyDatatype.DATE.value,
+            PropertyDatatype.TIMESTAMP.value,
+        ):
+            raise InvariantViolationError(
+                f"{where}: current_time only fits date or timestamp properties"
+            )
+        return _AssignmentShape(value_source, None, None, None, None)
+
+    if value_source == ActionValueSource.AUTO_GENERATE.value:
+        _ensure_no_source_columns(
+            value_parameter_id=value_parameter_id,
+            object_parameter_id=object_parameter_id,
+            object_property_id=object_property_id,
+            static_value=static_value,
+            where=where,
+            source=value_source,
+        )
+        if rule_kind != ActionRuleKind.CREATE_OBJECT.value:
+            raise InvariantViolationError(
+                f"{where}: auto_generate is only available when creating an object"
+            )
+        if not target_property.is_primary_key:
+            raise InvariantViolationError(
+                f"{where}: auto_generate only fits the object type's primary key"
+            )
+        if (
+            target_property.is_array
+            or target_property.datatype not in AUTO_GENERATED_PRIMARY_KEY_DATATYPES
+        ):
+            raise InvariantViolationError(
+                f"{where}: this primary key datatype cannot be generated automatically"
+            )
+        return _AssignmentShape(value_source, None, None, None, None)
+
     if (
         value_parameter_id is not None
         or object_parameter_id is not None
@@ -258,3 +314,23 @@ def ensure_assignment_shape(
         enum_values=target_property.enum_values,
     )
     return _AssignmentShape(value_source, None, None, None, static_value)
+
+
+def _ensure_no_source_columns(
+    *,
+    value_parameter_id: uuid.UUID | None,
+    object_parameter_id: uuid.UUID | None,
+    object_property_id: uuid.UUID | None,
+    static_value: Any | None,
+    where: str,
+    source: str,
+) -> None:
+    if (
+        value_parameter_id is not None
+        or object_parameter_id is not None
+        or object_property_id is not None
+        or static_value is not None
+    ):
+        raise InvariantViolationError(
+            f"{where}: {source} source must not carry other source columns"
+        )

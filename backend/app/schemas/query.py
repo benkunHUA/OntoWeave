@@ -151,11 +151,21 @@ class RelatedObjectItem(BaseModel):
     title: str | None = None
 
 
+class RelatedObjectLink(BaseModel):
+    """一条关系实例对，始终按业务图 source → target 定向。"""
+
+    sourceTypeId: uuid.UUID
+    sourcePrimaryKey: str
+    targetTypeId: uuid.UUID
+    targetPrimaryKey: str
+
+
 class RelatedObjectsResult(BaseModel):
     relation_id: uuid.UUID
     target_type_id: uuid.UUID
     index_version_id: uuid.UUID | None = None
     items: list[RelatedObjectItem] = Field(default_factory=list)
+    links: list[RelatedObjectLink] = Field(default_factory=list)
     total: int = 0
     status: QueryStatus
     truncated: bool = False

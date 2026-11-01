@@ -120,6 +120,20 @@ def test_get_related_objects_batches_inputs_and_dedupes_peers(session):
             {"object_type_id": str(target.id), "primary_key": "o-1", "title": "订单 1"},
             {"object_type_id": str(target.id), "primary_key": "o-1", "title": "订单 1"},
         ],
+        "links": [
+            {
+                "sourceTypeId": str(source.id),
+                "sourcePrimaryKey": "c-1",
+                "targetTypeId": str(target.id),
+                "targetPrimaryKey": "o-1",
+            },
+            {
+                "sourceTypeId": str(source.id),
+                "sourcePrimaryKey": "c-2",
+                "targetTypeId": str(target.id),
+                "targetPrimaryKey": "o-1",
+            },
+        ],
     }
 
     result = get_related_objects(
@@ -140,6 +154,10 @@ def test_get_related_objects_batches_inputs_and_dedupes_peers(session):
     assert result.status == "OK"
     assert result.target_type_id == target.id
     assert [item.primary_key for item in result.items] == ["o-1"]
+    assert [(item.sourcePrimaryKey, item.targetPrimaryKey) for item in result.links] == [
+        ("c-1", "o-1"),
+        ("c-2", "o-1"),
+    ]
     assert client.last_related_args["inputs"] == [
         {"object_type_id": str(source.id), "primary_key": "c-1"},
         {"object_type_id": str(source.id), "primary_key": "c-2"},

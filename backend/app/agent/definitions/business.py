@@ -12,7 +12,9 @@ from sqlalchemy.orm import Session
 from app.agent import graph as agent_graph
 from app.agent import llm
 from app.agent.definitions.base import AgentRunContext, BaseAgentDefinition
+from app.agent.evidence import QueryEvidenceMiddleware
 from app.agent.prompts.business import MAIN_BUSINESS_AGENT_PROMPT
+from app.agent.state import BusinessAgentState
 from app.agent.tools.business.action import build_action_tools
 from app.agent.tools.business.binding import build_query_instance_tools
 from app.agent.tools.business.context import BusinessToolContext
@@ -86,6 +88,8 @@ class BusinessAgentDefinition(BaseAgentDefinition):
                 build_ask_user_tool(),
             ],
             system_prompt=MAIN_BUSINESS_AGENT_PROMPT,
+            middleware=[QueryEvidenceMiddleware()],
+            state_schema=BusinessAgentState,
             checkpointer=checkpointer,
         )
 

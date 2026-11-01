@@ -19,12 +19,15 @@ from app.schemas.agent_events import (
     BlockDeltaEvent,
     BlockEndEvent,
     BlockStartEvent,
+    EvidenceUpdateEvent,
     InterruptEvent,
     ToolEndEvent,
     ToolStartEvent,
 )
+from app.schemas.evidence import EvidenceGraph
 from app.schemas.message_blocks import (
     ActionConfirmation,
+    EvidenceBlock,
     FreeTextMode,
     InterruptBlock,
     InterruptDetail,
@@ -222,6 +225,20 @@ class TurnBuilder:
 
     def finish(self) -> list[AgentEvent]:
         return self._close_open()
+
+    def evidence(self, graph: EvidenceGraph) -> list[AgentEvent]:
+        """把本轮最终实例图作为独立块追加到消息末尾。"""
+        events = self._close_open()
+        block = EvidenceBlock(id=uuid.uuid4().hex, graph=graph)
+        self.blocks.append(block)
+        events.append(
+            EvidenceUpdateEvent(
+                messageId=self.message_id,
+                blockId=block.id,
+                graph=graph,
+            )
+        )
+        return events
 
     def interrupt(
         self,

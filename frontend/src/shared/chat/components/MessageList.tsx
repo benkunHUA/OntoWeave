@@ -22,6 +22,7 @@ export function MessageList({
   onAnswer,
 }: MessageListProps) {
   const scrollKey = messages[0]?.id ?? 'empty'
+  const activeMessageId = isRunning ? messages.at(-1)?.id ?? null : null
 
   return (
     <ChatScrollArea resetKey={scrollKey}>
@@ -41,6 +42,7 @@ export function MessageList({
           pendingInterruptId={pendingInterruptId}
           isRunning={isRunning}
           onAnswer={onAnswer}
+          active={message.id === activeMessageId}
         />
       ))}
     </ChatScrollArea>

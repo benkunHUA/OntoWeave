@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 import pytest
 from sqlalchemy.orm import Session
 
 from app.errors import NotFoundError
+from app.services import ontology
 from app.services.action import execution
 from tests.support.action_execution_fixtures import (
     ActionExecutionFixture,
@@ -48,6 +50,8 @@ def _plan(
     parameters: execution.ResolvedParameters,
     *,
     client: _Client | None = None,
+    execution_key: str = "conversation:tool-call",
+    generated_values: dict[uuid.UUID, Any] | None = None,
 ) -> execution.EditSetDraft:
     return execution.plan_edit_set(
         session,
@@ -55,6 +59,8 @@ def _plan(
         parameters,
         owner_id=fixture.owner,
         client=client or _Client(),
+        execution_key=execution_key,
+        generated_values=generated_values,
     )
 
 
@@ -104,7 +110,7 @@ def test_create_object_maps_all_value_sources_and_explicit_primary_key(session: 
     assert draft.relation_deletes == ()
 
 
-def test_create_object_generates_a_stable_text_primary_key(session: Session):
+def test_create_object_generates_a_text_primary_key_per_execution(session: Session):
     fixture = build_action_execution_fixture(session)
     fixture.rule(
         session,
@@ -121,14 +127,18 @@ def test_create_object_generates_a_stable_text_primary_key(session: Session):
     parameters = _params(values={fixture.amount_param.id: 1})
 
     first = _plan(session, fixture, parameters).object_creates[0]
-    second = _plan(session, fixture, parameters).object_creates[0]
+    retry = _plan(session, fixture, parameters).object_creates[0]
+    another = _plan(
+        session, fixture, parameters, execution_key="conversation:another-tool-call"
+    ).object_creates[0]
 
-    assert first.primary_key == second.primary_key
+    assert first.primary_key == retry.primary_key
+    assert first.primary_key != another.primary_key
     assert str(uuid.UUID(first.primary_key)) == first.primary_key
     assert first.values == {fixture.amount.id: 1}
 
 
-def test_create_object_requires_an_explicit_non_text_primary_key(session: Session):
+def test_create_object_generates_an_integer_primary_key(session: Session):
     fixture = build_action_execution_fixture(session)
     fixture.rule(
         session,
@@ -143,11 +153,89 @@ def test_create_object_requires_an_explicit_non_text_primary_key(session: Sessio
         ],
     )
 
-    with pytest.raises(execution.ActionExecutionError) as raised:
-        _plan(session, fixture, _params())
+    create = _plan(session, fixture, _params()).object_creates[0]
 
-    assert raised.value.code == "PRIMARY_KEY_REQUIRED"
-    assert raised.value.details["object_type_id"] == str(fixture.employee.id)
+    assert create.primary_key.isdigit()
+    assert int(create.primary_key) > 0
+    assert create.values == {fixture.employee_name.id: "张三"}
+
+
+def test_create_object_can_auto_generate_its_primary_key_source(session: Session):
+    fixture = build_action_execution_fixture(session)
+    fixture.rule(
+        session,
+        "create_object",
+        target_object_type_id=fixture.ticket.id,
+        assignments=[
+            {
+                "target_property_id": fixture.ticket_key.id,
+                "value_source": "auto_generate",
+            }
+        ],
+    )
+
+    create = _plan(session, fixture, _params()).object_creates[0]
+
+    assert create.primary_key == create.values[fixture.ticket_key.id]
+    assert str(uuid.UUID(create.primary_key)) == create.primary_key
+
+
+def test_current_time_assignment_is_resolved_during_planning(session: Session):
+    fixture = build_action_execution_fixture(session)
+    created_at = ontology.create_property(
+        session, owner_type_id=fixture.ticket.id, name="创建时间", datatype="timestamp"
+    )
+    fixture.rule(
+        session,
+        "create_object",
+        target_object_type_id=fixture.ticket.id,
+        assignments=[
+            {
+                "target_property_id": created_at.id,
+                "value_source": "current_time",
+            }
+        ],
+    )
+
+    create = _plan(session, fixture, _params()).object_creates[0]
+    value = create.values[created_at.id]
+
+    assert isinstance(value, str)
+    assert datetime.fromisoformat(value.replace("Z", "+00:00")).tzinfo is not None
+
+
+def test_confirmed_current_time_is_reused_by_the_retry_plan(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+):
+    fixture = build_action_execution_fixture(session)
+    created_at = ontology.create_property(
+        session, owner_type_id=fixture.ticket.id, name="创建时间", datatype="timestamp"
+    )
+    fixture.rule(
+        session,
+        "create_object",
+        target_object_type_id=fixture.ticket.id,
+        assignments=[
+            {
+                "target_property_id": created_at.id,
+                "value_source": "current_time",
+            }
+        ],
+    )
+    times = iter(["2026-11-01T08:00:00Z", "2026-11-01T09:00:00Z"])
+    monkeypatch.setattr(
+        "app.services.action.execution.planner_values.current_time_value",
+        lambda datatype: next(times),
+    )
+
+    first = _plan(session, fixture, _params())
+    retry = _plan(session, fixture, _params(), generated_values=first.generated_values)
+
+    first_create = first.object_creates[0]
+    retry_create = retry.object_creates[0]
+    assert first_create.values[created_at.id] == "2026-11-01T08:00:00Z"
+    assert retry_create.values[created_at.id] == first_create.values[created_at.id]
+    assert retry.generated_values == first.generated_values
 
 
 def test_modify_object_maps_set_and_clear(session: Session):

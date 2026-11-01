@@ -64,6 +64,7 @@ def _fixture(
         resolved,
         owner_id=ids["owner"],
         client=client,
+        execution_key="conversation:tool-call",
     )
     return ids, context, client, resolved, draft
 
@@ -280,6 +281,7 @@ def test_preview_hash_changes_with_parameters(session: Session):
         changed,
         owner_id=ids["owner"],
         client=client,
+        execution_key="conversation:tool-call",
     )
 
     second = _preview(
